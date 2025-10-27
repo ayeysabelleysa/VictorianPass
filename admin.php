@@ -255,7 +255,8 @@ body{margin:0;background:#f3efe9;color:#222;}
 }
 .nav-item img{width:20px;height:20px;}
 .nav-item:hover{transform:translateX(4px);background:#efe7d6;}
-.nav-item.active{background:var(--nav-cream-active);box-shadow:0 6px 14px rgba(0,0,0,0.06);}
+.nav-item.active{background:var(--nav-cream-active);box-shadow:0 6px 14px rgba(0,0,0,0.06) ; }
+.nav-item {text-decoration: none;}
 .sidebar-footer{margin-top:auto;padding:18px;color:#bfb7aa;font-size:0.84rem;}
 
 /* Main */
@@ -336,7 +337,7 @@ body{margin:0;background:#f3efe9;color:#222;}
     <div class="header">
       <h2 id="page-title"><?php echo ucfirst($currentPage); ?></h2>
       <div class="search"><input id="search-input" placeholder="Search <?php echo ucfirst($currentPage); ?>..."></div>
-      <img class="avatar" src="mainpage/profile.jpg" alt="admin">
+      <img class="avatar" src="mainpage/profile'.jpg" alt="admin">
     </div>
 
 <!-- DASHBOARD -->
