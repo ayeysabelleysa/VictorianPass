@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VictorianPass</title>
+
+  <!-- Import Poppins -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+
+  <!-- External CSS -->
+  <link rel="stylesheet" href="mainpage.css">
+</head>
+<body>
+  <!-- HEADER -->
+  <header class="navbar">
+    <div class="logo">
+      <img src="mainpage/logo.svg" alt="VictorianPass Logo">
+      <div class="brand-text">
+        <h1>VictorianPass</h1>
+        <p>Victorian heights Subdivision</p>
+      </div>
+    </div>
+
+    <div class="nav-actions">
+      <a href="login.html" class="btn-nav btn-login">Log in</a>
+      <a href="signup.html" class="btn-nav btn-register">Register</a>
+      <img src="mainpage/profile'.jpg" alt="Profile" class="profile-icon">
+    </div>
+  </header>
+
+  <!-- HERO SECTION -->
+<section class="hero">
+  <div class="hero-content">
+
+    <div class="hero-icons">
+      <a href="entrypass.html" class="icon-box">
+        <img src="mainpage/entrypass.svg" alt="Entry Pass">
+        <span>Entrypass</span>
+      </a>
+      <a href="reservation.html" class="icon-box">
+        <img src="mainpage/reservation.svg" alt="Reservation">
+        <span>Reservation</span>
+      </a>
+      <a href="report.html" class="icon-box">
+        <img src="mainpage/report.svg" alt="Report">
+        <span>Report</span>
+      </a>
+    </div>
+
+    <!-- Welcome Section -->
+    <h1>WELCOME</h1>
+    <p class="tagline">
+      "Every home holds a story<br>
+      start yours in a place<br>
+      worth remembering."
+    </p>
+    <a href="qr.html" class="btn-qr">
+      <span>View QR</span>
+      <img src="mainpage/arrow.svg" alt="QR Icon">
+    </a>
+  </div>
+
+  <!-- ENTRY PASS FORM -->
+  <form class="entry-form">
+    <div class="form-header">
+      <img src="mainpage/ticket.svg" alt="Ticket Icon">
+      <span>Entry pass</span>
+    </div>
+
+    <input type="text" placeholder="Name*" required>
+    <input type="text" placeholder="Address*" required>
+    <input type="email" placeholder="Email*" required>
+    
+    <div class="form-row">
+      <input type="date" required>
+      <input type="text" placeholder="Where: blk -- lot--" required>
+    </div>
+
+    <!-- Upload Box -->
+    <label class="upload-box">
+      <input type="file" hidden required>
+      <img src="mainpage/upload.svg" alt="Upload">
+      <p>Upload a Valid ID* <br><small>(e.g. National ID, Driver’s License)</small></p>
+    </label>
+
+    <textarea placeholder="Description of Visit*" rows="3"></textarea>
+
+    <button type="submit" class="btn-next">Next</button>
+
+    <p class="form-note">
+      (Note: if you will submit on behalf of your visitor, please enter their referral code)
+    </p>
+  </form>
+</section>
+
+</body>
+</html>

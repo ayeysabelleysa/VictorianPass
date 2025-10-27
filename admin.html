@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>VictorianPass | Admin</title>
+<link rel="icon" type="image/png" href="mainpage/logo.svg">
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --bg-dark:#2b2623;
+  --nav-cream:#f4efe6;
+  --nav-cream-active:#e8dfca;
+  --accent:#23412e;
+  --header-beige:#f7efe3;
+  --card:#ffffff;
+  --muted:#8b918d;
+  --status-active:#2f80ed;
+  --status-approved:#27ae60;
+  --status-pending:#6c5ce7;
+  --status-expired:#95a5a6;
+  --status-rejected:#e74c3c;
+  --shadow:0 8px 18px rgba(0,0,0,0.08);
+}
+*{box-sizing:border-box;font-family:'Poppins',sans-serif;}
+body{margin:0;background:#f3efe9;color:#222;}
+.app{display:flex;min-height:100vh;}
+
+/* Sidebar */
+.sidebar{width:280px;background:var(--bg-dark);color:#fff;display:flex;flex-direction:column;}
+.brand{padding:20px;border-bottom:3px solid rgba(255,255,255,0.07);display:flex;gap:12px;align-items:center;}
+.brand img{height:52px;}
+.brand .title{display:flex;flex-direction:column;color:var(--nav-cream);}
+.brand .title h1{margin:0;font-size:1.05rem;font-weight:700;}
+.brand .title p{margin:0;font-size:0.78rem;color:#d6cfc2;}
+.nav-list{margin:20px 12px;display:flex;flex-direction:column;gap:12px;}
+.nav-item{
+  background:var(--nav-cream);color:var(--accent);padding:14px 18px;border-radius:0 20px 20px 0;
+  font-weight:600;font-size:0.96rem;display:flex;align-items:center;gap:12px;cursor:pointer;
+  transition:transform .12s ease,background-color .12s ease;
+}
+.nav-item img{width:20px;height:20px;}
+.nav-item:hover{transform:translateX(4px);background:#efe7d6;}
+.nav-item.active{background:var(--nav-cream-active);box-shadow:0 6px 14px rgba(0,0,0,0.06);}
+.sidebar-footer{margin-top:auto;padding:18px;color:#bfb7aa;font-size:0.84rem;}
+
+/* Main */
+.main{flex:1;padding:20px 28px;display:flex;flex-direction:column;gap:18px;
+  background:linear-gradient(180deg,#f7f3ec 0%,#f3efe9 100%);
+}
+.header{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--header-beige);
+  padding:14px 18px;border-radius:10px;box-shadow:var(--shadow);}
+.header h2{margin:0;font-weight:700;}
+.search{flex:1;margin:0 18px;display:flex;align-items:center;background:#fff;padding:10px;border-radius:999px;
+  box-shadow:0 3px 8px rgba(0,0,0,0.04);}
+.search input{border:0;background:transparent;outline:none;font-size:0.95rem;width:100%;}
+.avatar{width:44px;height:44px;border-radius:50%;object-fit:cover;border:3px solid #fff;}
+
+.panel{background:var(--card);border-radius:12px;padding:16px;box-shadow:var(--shadow);}
+.panel h3{margin:0 0 12px 0;font-size:1.05rem;font-weight:600;}
+.table{width:100%;border-collapse:collapse}
+.table thead th{padding:10px 12px;background:#fbfbfb;color:#6b6b6b;text-align:left;font-weight:600;border-bottom:1px solid #eee}
+.table td{padding:12px;border-bottom:1px solid #f0f0f0;vertical-align:middle;}
+.table img.avatar-xs{width:36px;height:36px;border-radius:50%;object-fit:cover;margin-right:10px;vertical-align:middle}
+
+.badge{display:inline-block;padding:6px 12px;border-radius:999px;font-weight:600;font-size:0.82rem;color:#fff;}
+.badge-active{background:var(--status-active)}
+.badge-approved{background:var(--status-approved)}
+.badge-pending{background:var(--status-pending)}
+.badge-expired{background:var(--status-expired)}
+.badge-rejected{background:var(--status-rejected)}
+
+.actions{display:flex;gap:8px;align-items:center}
+.btn{padding:6px 12px;border-radius:6px;border:0;font-weight:600;cursor:pointer;font-size:0.85rem;}
+.btn-view{background:#23412e;color:#fff}
+.btn-approve{background:var(--status-approved);color:#fff}
+.btn-reject{background:var(--status-rejected);color:#fff}
+.btn-edit{background:#2f80ed;color:#fff}
+.btn-remove{background:#a83b3b;color:#fff}
+
+.muted{color:var(--muted);font-size:0.9rem}
+
+@media(max-width:1000px){
+  .sidebar{width:68px}
+  .nav-item{padding:12px 8px;font-size:0.78rem}
+  .nav-item span{display:none}
+  .brand .title{display:none}
+  .main{padding:12px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <img src="mainpage/logo.svg" alt="VictorianPass logo">
+      <div class="title">
+        <h1>Admin Dashboard</h1>
+        <p>Victorian Heights Subdivision</p>
+      </div>
+    </div>
+    <nav class="nav-list">
+      <div class="nav-item active" data-page="dashboard"><img src="dashboard.svg"><span>Dashboard</span></div>
+      <div class="nav-item" data-page="residents"><img src="dashboard.svg"><span>Residents</span></div>
+      <div class="nav-item" data-page="report"><img src="dashboard.svg"><span>View Reported Incidents</span></div>
+      <div class="nav-item" data-page="security"><img src="dashboard.svg"><span>Security Guards</span></div>
+      <div class="nav-item" data-page="requests"><img src="dashboard.svg"><span>Requests</span></div>
+      <div class="nav-item" data-page="verify"><img src="dashboard.svg"><span>Verify Payment Receipts</span></div>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="mainpage.html" style="color:#bfb7aa;text-decoration:none;">Log Out</a>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main">
+    <div class="header">
+      <h2 id="page-title">Dashboard</h2>
+      <div class="search"><input id="search-input" placeholder="Search Dashboard..."></div>
+      <img class="avatar" src="mainpage/profile'.jpg" alt="admin">
+    </div>
+
+<!-- DASHBOARD -->
+<section class="panel" id="dashboard-panel">
+  <h3>Community Overview</h3>
+  <div style="display:flex;flex-wrap:wrap;gap:18px;margin-top:12px">
+    <div style="flex:1;min-width:180px;background:#ffffff;border-radius:12px;padding:18px;
+                box-shadow:0 8px 18px rgba(0,0,0,0.08);">
+      <div style="font-size:1.9rem;font-weight:800;margin:0;">240</div>
+      <div style="font-size:0.92rem;color:#8b918d;margin-top:6px">Residents</div>
+    </div>
+    <div style="flex:1;min-width:180px;background:#ffffff;border-radius:12px;padding:18px;
+                box-shadow:0 8px 18px rgba(0,0,0,0.08);">
+      <div style="font-size:1.9rem;font-weight:800;margin:0;">18</div>
+      <div style="font-size:0.92rem;color:#8b918d;margin-top:6px">Active Passes</div>
+    </div>
+    <div style="flex:1;min-width:180px;background:#ffffff;border-radius:12px;padding:18px;
+                box-shadow:0 8px 18px rgba(0,0,0,0.08);">
+      <div style="font-size:1.9rem;font-weight:800;margin:0;">12</div>
+      <div style="font-size:0.92rem;color:#8b918d;margin-top:6px">Pending Requests</div>
+    </div>
+        <div style="flex:1;min-width:180px;background:#ffffff;border-radius:12px;padding:18px;
+                box-shadow:0 8px 18px rgba(0,0,0,0.08);">
+      <div style="font-size:1.9rem;font-weight:800;margin:0;">19</div>
+      <div style="font-size:0.92rem;color:#8b918d;margin-top:6px">Verified Payment Receipts</div>
+      
+    </div>
+    <div style="flex:1;min-width:180px;background:linear-gradient(180deg,#23412e,#1d361f);
+                border-radius:12px;padding:18px;color:#fff;box-shadow:0 8px 18px rgba(0,0,0,0.08);">
+      <div style="font-size:1.9rem;font-weight:800;margin:0;">5</div>
+      <div style="font-size:0.92rem;margin-top:6px">Incidents Report</div>
+    </div>
+  </div>
+</section>
+
+
+<!-- Residents -->
+<section class="panel" id="residents-panel" style="display:none">
+  <h3>All Residents</h3>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Address</th>
+        <th>House #</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Juan Dela Cruz</td>
+        <td class="muted">Blk 5 Lot 12, Phase II</td>
+        <td>12</td>
+        <td class="actions">
+          <button class="btn btn-view">View</button>
+          <button class="btn btn-edit">Edit</button>
+        </td>
+      </tr>
+      <tr>
+        <td>Maria Santos</td>
+        <td class="muted">Blk 3 Lot 8, Phase I</td>
+        <td>8</td>
+        <td class="actions">
+          <button class="btn btn-view">View</button>
+          <button class="btn btn-edit">Edit</button>
+        </td>
+      </tr>
+      <tr>
+        <td>Carlos Ramos</td>
+        <td class="muted">Blk 7 Lot 4, Phase III</td>
+        <td>4</td>
+        <td class="actions">
+          <button class="btn btn-view">View</button>
+          <button class="btn btn-edit">Edit</button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+    <!-- REPORT  -->
+    <section class="panel" id="report-panel" style="display:none">
+      <h3>View Reported Incidents</h3>
+      <table class="table">
+        <thead><tr><th>Name</th><th>Incident</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><img class="avatar-xs" src="mainpage/profile'.jpg"> Mark Villanueva</td>
+            <td>Unauthorized Entry</td>
+            <td>2025-09-20</td>
+            <td><span class="badge badge-rejected">Flagged</span></td>
+            <td class="actions"><button class="btn btn-view">View Proof</button><button class="btn btn-remove">Approve</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- SECURITY -->
+    <section class="panel" id="security-panel" style="display:none">
+      <h3>Security Guards</h3>
+      <table class="table">
+        <thead><tr><th>Name</th><th>Shift</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><img class="avatar-xs" src="mainpage/profile'.jpg"> Guard A</td>
+            <td>Night</td>
+            <td><span class="badge badge-active">On Duty</span></td>
+            <td class="actions"><button class="btn btn-view">View</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- REQUESTS -->
+    <section class="panel" id="requests-panel" style="display:none">
+      <h3>Amenity Pass Requests</h3>
+      <table class="table">
+        <thead><tr><th>Name</th><th>Purpose of Entry</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><img class="avatar-xs" src="mainpage/profile'.jpg"> Mike Cruz</td>
+            <td>Amenity Reservation - Clubhouse</td>
+            <td>2025-09-22</td>
+            <td><span class="badge badge-pending">Pending</span></td>
+            <td class="actions">
+              <button class="btn btn-approve">Approve</button>
+              <button class="btn btn-reject">Reject</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- VERIFY -->
+    <section class="panel" id="verify-panel" style="display:none">
+      <h3>Verify Payment Receipts</h3>
+      <p class="muted">For onsite payments, confirm receipts ensure validity.</p>
+      <table class="table">
+        <thead><tr><th>Name</th><th>Proof of payment</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><img class="avatar-xs" src="mainpage/profile'.jpg"> Sarah Lim</td>
+            <td><img src="mainpage/proof2.jpg" alt="proof" class="proof-thumb"></td>
+
+            <td>₱500</td>
+            <td><span class="badge badge-pending">Pending</span></td>
+            <td class="actions">
+              <button class="btn btn-approve">Verify</button>
+              <button class="btn btn-reject">Reject</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+  </main>
+</div>
+
+<script>
+const navItems=document.querySelectorAll('.nav-item');
+const panels={
+  dashboard:document.getElementById('dashboard-panel'),
+  residents:document.getElementById('residents-panel'),
+  report:document.getElementById('report-panel'),
+  security:document.getElementById('security-panel'),
+  requests:document.getElementById('requests-panel'),
+  verify:document.getElementById('verify-panel')
+};
+const pageTitle=document.getElementById('page-title');
+const searchInput=document.getElementById('search-input');
+
+function showPanel(name){
+  navItems.forEach(i=> i.classList.toggle('active', i.dataset.page===name));
+  Object.values(panels).forEach(p=> p.style.display='none');
+  if(panels[name]) panels[name].style.display='block';
+
+  const pretty=name==='verify'?'Verify Payment Receipts'
+              :name==='report'?'Reported Incidents'
+              :name.charAt(0).toUpperCase()+name.slice(1);
+  pageTitle.textContent=pretty;
+  searchInput.placeholder=`Search ${pretty}...`;
+}
+navItems.forEach(item=>item.addEventListener('click',()=>showPanel(item.dataset.page)));
+</script>
+</body>
+</html>

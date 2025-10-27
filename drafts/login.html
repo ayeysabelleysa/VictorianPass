@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VictorianPass Login</title>
+  <link rel="stylesheet" href="login.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="login-wrapper">
+    <!-- Left Side -->
+    <div class="login-left">
+      <div class="branding">
+        <h1>VictorianPass<span>.</span></h1>
+        <p>
+          Begin your story in a home where<br>
+          memories are made and every<br>
+          moment matters.
+        </p>
+      </div>
+      <div class="image-overlay">
+        <img src="loginpage/bglogin.svg" alt="Victorian Heights Gazebo">
+      </div>
+    </div>
+
+    <!-- Right Side -->
+    <div class="login-right">
+      <a href="mainpage.html" class="back-arrow">
+        <img src="signuppage/back.svg" alt="Back">
+      </a>
+
+      <div class="login-box">
+        <img src="loginpage/biglogo.svg" alt="Logo" class="biglogo">
+        <h2>Welcome Back!</h2>
+        <p class="subtitle">To Victorian Heights</p>
+
+        <!-- ✅ Updated to work with PHP -->
+        <form action="login.php" method="POST">
+          <label for="vp_account">Email</label>
+          <input type="email" id="vp_account" name="vp_account" placeholder="Email*" required>
+
+          <label for="password">Password</label>
+          <div class="password-field">
+            <input type="password" id="password" name="password" placeholder="Password*" required>
+            <span class="toggle-password" onclick="togglePassword('password', this)">👁️</span>
+          </div>
+
+          <div class="forgot">
+            <a href="#">Forgot <span>Password?</span></a>
+          </div>
+
+          <button type="submit" class="btn-login">Login</button>
+        </form>
+
+        <!-- ✅ Keep signup for residents/visitors -->
+        <p class="signup-link">
+          Don’t have an account yet? <a href="signup.html">Sign up</a>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function togglePassword(id, el) {
+      const input = document.getElementById(id);
+      if (input.type === "password") {
+        input.type = "text";
+        el.textContent = "🙈";
+      } else {
+        input.type = "password";
+        el.textContent = "👁️";
+      }
+    }
+  </script>
+</body>
+</html>

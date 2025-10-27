@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign Up</title>
+  <!-- Poppins Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="signup.css">
+  <link rel="icon" type="image/png" href="mainpage/logo.svg">
+
+
+  <style>
+    /* Floating label group */
+    .form-group {
+      position: relative;
+      flex: 1;
+    }
+    .form-group input[type="date"],
+    .form-group select {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-family: 'Poppins', sans-serif;
+      background: #fff;
+      color: #222;
+    }
+    /* Hide placeholder until picked */
+    input[type="date"]:not(:focus):placeholder-shown::-webkit-datetime-edit {
+      color: transparent;
+    }
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      position: absolute;
+      right: 12px;
+      cursor: pointer;
+    }
+    /* Floating label style */
+    .form-group label {
+      position: absolute;
+      left: 12px;
+      top: 12px;
+      color: #888;
+      font-size: 0.95rem;
+      pointer-events: none;
+      transition: 0.2s ease all;
+      background: #fff;
+      padding: 0 4px;
+    }
+    .form-group input[type="date"]:focus + label,
+    .form-group input[type="date"]:not(:placeholder-shown) + label,
+    .form-group select:focus + label,
+    .form-group select:valid + label {
+      top: -8px;
+      left: 8px;
+      font-size: 0.75rem;
+      color: #23412e;
+    }
+
+    /* Modal for house number */
+    .modalno{
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background: rgba(0,0,0,0.4);
+    }
+    .modalno-content {
+      background: #fff;
+      margin: 15% auto;
+      padding: 20px;
+      border-radius: 10px;
+      width: 300px;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      animation: fadeIn 0.3s ease-in-out;
+    }
+    .modalno-content h3 {
+      font-size: 1.1rem;
+      margin-bottom: 10px;
+    }
+    .modalno-content input {
+      width: 90%;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+    .modalno-content button {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 6px;
+      background: #23412e;
+      color: #fff;
+      cursor: pointer;
+      font-size: 0.9rem;
+      margin-top: 10px;
+    }
+    .modalno-content button:hover {
+      background: #2d5a3f;
+    }
+    .close {
+      float: right;
+      font-size: 20px;
+      cursor: pointer;
+    }
+    .instructions {
+      font-size: 0.75rem;
+      color: #555;
+      margin-top: 10px;
+      text-align: center;
+    }
+    .modalno-content .back-btn { 
+      display: inline-block; 
+      margin-top: 10px; 
+      background: #ccc; 
+      color: #333; 
+      padding: 6px 12px; 
+      border-radius: 6px; 
+      cursor: pointer; 
+      font-size: 0.85rem; 
+      text-decoration: none; 
+    } 
+    .modalno-content .back-btn:hover { 
+      background: #bbb; 
+    }
+  </style>
+</head>
+<body>
+  <div class="page-wrapper">
+    <!-- Left Side Image -->
+    <div class="image-side">
+      <img src="signuppage/bgsignup.png" alt="Victorian Heights Subdivision">
+      <p class="branding">VictorianPass.</p>
+    </div>
+
+    <!-- Right Side Form -->
+    <div class="form-side">
+      <!-- Back Arrow -->
+      <a href="mainpage.html" class="back-arrow">
+        <img src="signuppage/back.svg" alt="Back">
+      </a>
+
+      <!-- Title -->
+      <h1>Sign Up</h1>
+      <p class="subtitle">Create your Account</p>
+
+      <!-- Form -->
+      <form class="signup-form">
+        <div class="form-row">
+          <input type="text" placeholder="First Name*" required>
+          <input type="text" placeholder="Last Name*" required>          
+          <input type="text" placeholder="Middle Name*" required>
+        </div>
+
+        <div class="form-row">
+          <input type="tel" placeholder="Phone Number*" required>
+        </div>
+
+        <input type="email" placeholder="Email*" required>
+
+        <!-- Address with verification -->
+        <div class="form-row homeowner">
+          <input type="checkbox" id="homeowner">
+          <label for="homeowner" onclick="openHouseModal(event)">
+            <img src="signuppage/location.svg" alt="Location" style="cursor:pointer;">
+            Address
+          </label>
+          <input type="text" placeholder="Blk 00 Lot 00">
+        </div>
+
+        <!-- Sex and Birthdate row -->
+        <div class="form-row">
+          <div class="form-group">
+            <select required>
+              <option value="" disabled selected></option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+            </select>
+            <label>Sex*</label>
+          </div>
+
+          <div class="form-group">
+            <input type="date" id="birthdate" name="birthdate" placeholder=" " required>
+            <label for="birthdate">Birthdate*</label>
+          </div>
+        </div>
+
+        <!-- Password -->
+        <div class="password-field">
+          <input type="password" id="password" placeholder="Password*" required>
+          <span class="toggle-password" onclick="togglePassword('password', this)">👁️</span>
+        </div>
+
+        <!-- Confirm Password -->
+        <div class="password-field">
+          <input type="password" id="confirm-password" placeholder="Confirm Password*" required>
+          <span class="toggle-password" onclick="togglePassword('confirm-password', this)">👁️</span>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn cancel" onclick="window.location.href='mainpage.html'">Cancel</button>
+          <button type="submit" class="btn confirm">Confirm</button>
+        </div>
+
+        <!-- Already have an account -->
+        <p class="login-link">
+          Already have an account? <a href="login.php">Log in</a>
+        </p>
+
+        <!-- Terms and Conditions -->
+        <div class="terms">
+          <input type="checkbox" id="terms" required disabled>
+          <label for="terms">
+            By using the <strong>VictorianPass</strong>, you agree to the rules set for security, privacy, and orderly access.
+            <a onclick="openTerms()" style="text-decoration: underline; color: rgb(245, 63, 169);">Read Terms & Conditions</a>
+          </label>
+        </div>
+      </form>
+
+      <!-- Small instruction -->
+      <p class="instructions">🔑 Residents: Please click the address icon and enter your unique House Number to verify residency.</p>
+    </div>
+
+    <!-- Terms & Conditions Modal -->
+    <div id="termsModal" class="modal">
+      <div class="modal-content">
+        <span class="close" onclick="closeTerms()">&times;</span>
+        
+        <h2>Terms & Services</h2>
+        <p><strong>In using this website you are deemed to have read and agreed to the following terms and conditions:</strong></p>
+        <p>
+          The following terminology applies to these Terms and Conditions, Privacy Statement and Disclaimer Notice and any or all Agreements:
+          "Customer", "You" and "Your" refers to you, the person accessing this website and accepting the Company's terms and conditions.
+          "The Company", "Ourselves", "We", and "Us", refers to our Company. 
+        </p>
+
+        <h3>Effective Date: [September 00, 2025]</h3>
+
+        <h4>1. User Roles</h4>
+        <ul>
+          <li>Residents: Must provide accurate info, manage guest entries responsibly, and use the system for valid purposes only.</li>
+          <li>Visitors: Must present valid QR codes and follow subdivision rules.</li>
+          <li>Admins/Guards/HOA: Manage logs, approve entries, and maintain system security.</li>
+        </ul>
+
+        <h4>2. Privacy and Data</h4>
+        <ul>
+          <li>Your data is used only for entry validation and amenity booking.</li>
+          <li>No data will be shared without consent unless required by law.</li>
+        </ul>
+
+        <h4>3. Amenity Booking</h4>
+        <ul>
+          <li>Bookings are first-come, first-served.</li>
+          <li>Cancel if unable to attend.</li>
+          <li>Misuse may result in account restriction.</li>
+          <li>All billings will be done by walk-in.</li>
+        </ul>
+
+        <h4>4. QR Code Rules</h4>
+        <ul>
+          <li>QR codes are unique and time-limited.</li>
+          <li>Sharing or tampering with codes is prohibited.</li>
+        </ul>
+
+        <h4>5. Violations</h4>
+        <ul>
+          <li>Misuse may result in blacklisting or suspension.</li>
+          <li>HOA reserves the right to restrict access if rules are broken.</li>
+        </ul>
+
+        <h4>6. System Use</h4>
+        <ul>
+          <li>System may go offline for updates.</li>
+          <li>Users accept possible downtime.</li>
+        </ul>
+
+        <!-- Agree button -->
+        <button class="btn confirm" onclick="agreeTerms()">I Agree</button>
+      </div>
+    </div>
+
+    <!-- House Number Modal -->
+    <div id="houseModal" class="modalno">
+      <div class="modalno-content">
+        <span class="close" onclick="closeHouseModal()">&times;</span>
+        <h3>Resident Verification</h3>
+        <p>Please enter your House Number</p>
+        <input type="text" id="houseNumber" placeholder="Blk 00 Lot 00">
+        <button onclick="verifyHouseNumber()">Verify</button>
+<div class="back-btn" onclick="closeHouseModal()">Back</div>      </div>
+    </div>
+  </div>
+
+  <script>
+    function openTerms() {
+      document.getElementById("termsModal").style.display = "block";
+    }
+    function closeTerms() {
+      document.getElementById("termsModal").style.display = "none";
+    }
+    function agreeTerms() {
+      const checkbox = document.getElementById("terms");
+      checkbox.disabled = false;
+      checkbox.checked = true;
+      closeTerms();
+    }
+
+    function togglePassword(id, el) {
+      const input = document.getElementById(id);
+      if (input.type === "password") {
+        input.type = "text";
+        el.textContent = "🙈";
+      } else {
+        input.type = "password";
+        el.textContent = "👁️";
+      }
+    }
+
+    function openHouseModal(event) {
+      event.preventDefault();
+      document.getElementById("houseModal").style.display = "block";
+    }
+    function closeHouseModal() {
+      document.getElementById("houseModal").style.display = "none";
+    }
+    function verifyHouseNumber() {
+      const houseNumber = document.getElementById("houseNumber").value;
+      if (houseNumber.trim() !== "") {
+        alert("✅ House Number verified successfully!");
+        closeHouseModal();
+      } else {
+        alert("⚠️ Please enter a valid House Number.");
+      }
+    }
+  </script>
+</body>
+</html>

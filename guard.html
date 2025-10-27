@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Victorian Pass | Guard</title>
+<link rel="icon" type="image/png" href="mainpage/logo.svg">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+
+<style>
+*{font-family:'Poppins',sans-serif;box-sizing:border-box;}
+:root{
+  --bg-dark:#2b2623;
+  --nav-cream:#f4efe6;
+  --nav-cream-active:#e8dfca;
+  --accent:#23412e;
+  --header-beige:#f7efe3;
+  --card:#ffffff;
+  --muted:#8b918d;
+  --status-rejected:#e74c3c;
+  --status-approved:#27ae60;
+  --shadow:0 8px 18px rgba(0,0,0,0.08);
+}
+body{margin:0;background:#f3efe9;color:#222;display:flex;min-height:100vh;}
+
+/* Sidebar */
+.sidebar{
+  width:280px;background:var(--bg-dark);color:#fff;
+  display:flex;flex-direction:column;
+}
+.sidebar .brand{
+  padding:20px;border-bottom:3px solid rgba(255,255,255,0.07);
+  display:flex;align-items:center;gap:12px;
+}
+.sidebar .brand img{height:52px;}
+.sidebar .brand .title{display:flex;flex-direction:column;}
+.sidebar .brand .title h1{margin:0;font-size:1.05rem;font-weight:700;color:#f4f4f4;}
+.sidebar .brand .title p{margin:0;font-size:0.78rem;color:#d6cfc2;}
+
+.nav-list{margin:20px 12px;display:flex;flex-direction:column;gap:12px;}
+.nav-item{
+  background:var(--nav-cream);color:var(--accent);
+  padding:14px 18px;border-radius:0 20px 20px 0;
+  font-weight:600;font-size:0.96rem;
+  display:flex;align-items:center;gap:12px;
+  cursor:pointer;transition:transform .12s ease,background-color .12s ease;
+}
+.nav-item img{width:20px;height:20px;}
+.nav-item:hover{transform:translateX(4px);background:#efe7d6;}
+.nav-item.active{background:var(--nav-cream-active);box-shadow:0 6px 14px rgba(0,0,0,0.06);}
+.sidebar-footer{margin-top:auto;padding:18px;color:#bfb7aa;font-size:0.84rem;}
+.sidebar-footer a{color:#bfb7aa;text-decoration:none;}
+
+/* Main */
+.main-content{flex:1;padding:20px;display:flex;flex-direction:column;gap:20px;
+  background:linear-gradient(180deg,#f7f3ec 0%,#f3efe9 100%);
+}
+.header{
+  display:flex;justify-content:space-between;align-items:center;
+  background:var(--header-beige);padding:12px 20px;
+  border-radius:8px;box-shadow:var(--shadow);
+}
+.header h1{font-size:1.3rem;margin:0;font-weight:700;}
+.profile-mini{display:flex;align-items:center;gap:10px;}
+.profile-mini img{width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid #fff;}
+
+.dashboard{display:grid;grid-template-columns:2fr 1fr;gap:20px;flex:1;}
+.card{background:var(--card);color:#222;border-radius:12px;overflow:hidden;
+  box-shadow:var(--shadow);display:flex;flex-direction:column;}
+.card-header{background:var(--accent);color:#fff;padding:12px 16px;font-weight:600;font-size:1rem;}
+.card-body{padding:12px;flex:1;overflow-y:auto;}
+
+/* Table */
+table{width:100%;border-collapse:collapse;font-size:0.85rem;}
+th,td{padding:8px 10px;border-bottom:1px solid #f0f0f0;text-align:left;}
+th{background:#fbfbfb;color:#6b6b6b;font-weight:600;}
+td img.proof-thumb{width:60px;height:40px;object-fit:cover;border-radius:6px;border:1px solid #ccc;}
+
+.action-btn{
+  padding:4px 10px;border:none;border-radius:6px;
+  color:#fff;font-size:0.78rem;cursor:pointer;
+  transition:background .15s ease;
+}
+.action-btn.approve{background:var(--status-approved);}
+.action-btn.approve:hover{background:#219150;}
+.action-btn.deny{background:var(--status-rejected);}
+.action-btn.deny:hover{background:#c0392b;}
+
+.section.hidden{display:none;}
+
+/* Notification Toast */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: var(--accent);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.toast.show {
+  opacity: 1;
+  transform: translateY(-10px);
+}
+
+@media(max-width:900px){
+  body{flex-direction:column;}
+  .sidebar{flex-direction:row;width:100%;height:auto;overflow-x:auto;}
+  .dashboard{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="brand">
+    <img src="mainpage/logo.svg" alt="VictorianPass logo">
+    <div class="title">
+      <h1>Guard Panel</h1>
+      <p>Victorian Heights Subdivision</p>
+    </div>
+  </div>
+  <nav class="nav-list">
+    <div class="nav-item active" data-section="dashboard"><img src="dashboard.svg"><span>Dashboard</span></div>
+    <div class="nav-item" data-section="entries"><img src="dashboard.svg"><span>Today's Entry</span></div>
+    <div class="nav-item" data-section="restricted"><img src="dashboard.svg"><span>Incident Reports</span></div>
+    <div class="nav-item" data-section="notifications"><img src="dashboard.svg"><span>Notifications</span></div>
+   <!-- check  <div class="nav-item" data-section="check"><img src="dashboard.svg"><span>Check In/Out</span></div>-->
+  </nav>
+  <div class="sidebar-footer">
+    <a href="mainpage.html">Log Out</a>
+  </div>
+</aside>
+
+<!-- Main -->
+<div class="main-content">
+  <div class="header">
+    <h1 id="page-title">Welcome, Guard</h1>
+    <div class="profile-mini">
+      <img src="mainpage/profile'.jpg" alt="Guard">
+      <span>Guard Name</span>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashboardSection" class="dashboard section">
+    <div class="card">
+      <div class="card-header">Today's Entry</div>
+      <div class="card-body">
+        <table>
+          <tr><th>IP</th><th>Image</th><th>Name</th><th>Activity</th></tr>
+          <tr><td>0000</td><td><img src="mainpage/profile'.jpg" width="30"></td><td>Arlene Kim</td><td>Clubhouse Reservation</td></tr>
+          <tr><td>0001</td><td><img src="mainpage/profile'.jpg" width="30"></td><td>Conrad Fisher</td><td>Entry</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">Restricted</div>
+      <div class="card-body">
+        <table>
+          <tr><th>IP</th><th>Image</th><th>Name</th><th>Status</th></tr>
+          <tr><td>1000</td><td><img src="mainpage/profile'.jpg" width="30"></td><td>Ronald Richards</td>
+              <td><span style="color:var(--status-rejected);font-weight:600">Prohibited</span></td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Entries -->
+  <div id="entriesSection" class="section hidden">
+    <div class="card">
+      <div class="card-header">Today's Entry (Detailed)</div>
+      <div class="card-body">More entry logs will show here...</div>
+    </div>
+  </div>
+
+  <!-- Incident Reports -->
+  <div id="restrictedSection" class="section hidden">
+    <div class="card">
+      <div class="card-header">Manage Reported Incidents</div>
+      <div class="card-body">
+        <table id="incidentTable">
+          <tr>
+            <th>Report ID</th>
+            <th>Resident Name</th>
+            <th>Proof</th>
+            <th>Description</th>
+            <th>Action</th>
+          </tr>
+          <tr id="R-001">
+            <td>R-001</td>
+            <td>Jane Marsh</td>
+            <td><img src="mainpage/proof1.jpg" alt="proof" class="proof-thumb"></td>
+            <td>Noise complaint about Unit 12-B</td>
+            <td>
+              <button class="action-btn approve" onclick="handleAction('approve','R-001')">Notify Admin</button>
+              <button class="action-btn deny" onclick="handleAction('deny','R-001')">Deny</button>
+            </td>
+          </tr>
+          <tr id="R-002">
+            <td>R-002</td>
+            <td>Mark Lo</td>
+            <td><img src="mainpage/proof2.jpg" alt="proof" class="proof-thumb"></td>
+            <td>Unauthorized parking report</td>
+            <td>
+              <button class="action-btn approve" onclick="handleAction('approve','R-002')">Notify Admin</button>
+              <button class="action-btn deny" onclick="handleAction('deny','R-002')">Deny</button>
+            </td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notifications -->
+  <div id="notificationsSection" class="section hidden">
+    <div class="card">
+      <div class="card-header">Notifications</div>
+      <div class="card-body">All notifications will appear here.</div>
+    </div>
+  </div>
+
+  <!-- Check In/Out 
+  <div id="checkSection" class="section hidden">
+    <div class="card">
+      <div class="card-header">Check In/Out</div>
+      <div class="card-body">Check in/out details here.</div>
+    </div>
+  </div>
+</div>
+-->
+<!-- Toast Notification -->
+<div id="toast" class="toast"></div>
+
+<script>
+// Sidebar navigation
+const navItems = document.querySelectorAll('.nav-item');
+const sections = document.querySelectorAll('.section');
+const pageTitle = document.getElementById('page-title');
+
+navItems.forEach(item=>{
+  item.addEventListener('click',()=>{
+    navItems.forEach(i=>i.classList.remove('active'));
+    item.classList.add('active');
+    sections.forEach(s=>s.classList.add('hidden'));
+    const target=document.getElementById(item.dataset.section+'Section');
+    if(target) target.classList.remove('hidden');
+    pageTitle.textContent=item.querySelector('span').textContent;
+  });
+});
+
+// Show toast notification
+function showToast(message, type="success"){
+  const toast = document.getElementById("toast");
+  toast.textContent = message;
+  toast.style.background = type === "error" ? "var(--status-rejected)" : "var(--status-approved)";
+  toast.classList.add("show");
+  setTimeout(()=>toast.classList.remove("show"),2500);
+}
+
+// Approve / Deny actions (simulate backend)
+function handleAction(action,id){
+  const row = document.getElementById(id);
+  if(action==='approve'){
+    row.querySelector('td:last-child').innerHTML = `<span style="color:var(--status-approved);font-weight:600">Notified Admin</span>`;
+    showToast(`Report ${id} successfully sent to Admin.`);
+  }else{
+    row.querySelector('td:last-child').innerHTML = `<span style="color:var(--status-rejected);font-weight:600">Denied</span>`;
+    showToast(`Report ${id} denied.`, "error");
+  }
+
+  // Example of PHP backend connection (future)
+  /*
+  fetch('handleIncident.php', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({action: action, reportId: id})
+  }).then(res=>res.json()).then(data=>{
+    showToast(data.message, data.status);
+  });
+  */
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>User Profile - Residents</title>
+<link rel="icon" type="image/png" href="mainpage/logo.svg">
+
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+  /* GLOBAL */
+  body {
+    margin: 0;
+    font-family: 'Poppins', sans-serif;
+    background: #f5f5f5;
+    color: #333;
+  }
+  .header {
+    background: #305c3c;
+    padding: 15px 20px;
+    font-weight: 600;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    align-items: center;
+  }
+  .header span { margin-left: 10px; }
+
+  .container { display: flex; min-height: calc(100vh - 50px); }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 250px;
+    background: #2b2b2b;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between; /* ✅ pushes report button to bottom */
+    padding-top: 20px;
+  }
+  .menu-top {
+    display: flex;
+    flex-direction: column;
+  }
+  .menu-bottom {
+    padding: 20px 15px;
+    border-top: 1px solid #444;
+  }
+  .menu-item {
+    background: #f3ebd2;
+    color: #333;
+    margin: 10px 15px;
+    padding: 12px 20px;
+    border-radius: 20px 0 0 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+  }
+  .menu-item:hover { background: #ddd3b8; transform: translateX(5px); }
+  .menu-item a {
+    text-decoration: none;
+    color: inherit;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .menu-item img { width: 20px; height: 20px; flex-shrink: 0; }
+  .menu-item.logout { color: #c62828; font-weight: 600; }
+  .menu-item.logout:hover { background: #f8d7da; }
+
+  .menu-item.report { color: #3e8e41; font-weight: 600; }
+  .menu-item.report:hover { background: #d4d6d2; }
+  .report-note {
+    font-size: 12px;
+    color: #aaaaaa;
+    text-align: center;
+    margin-top: 6px;
+    line-height: 1.3;
+  }
+
+  /* MAIN */
+  .main {
+    flex: 1;
+    padding: 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .card {
+    background: #fff;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    font-size: 14px;
+  }
+
+  /* PROFILE */
+  .profile-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+  }
+  .profile-header img { width: 60px; height: 60px; border-radius: 50%; }
+  .profile-header h3 { margin: 0; font-size: 18px; font-weight: 600; }
+  .profile-header p { font-size: 13px; color: #666; margin: 0; }
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    margin: 12px 0;
+    font-size: 14px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 8px;
+  }
+  .info-label { font-weight: 500; color: #444; }
+  .info-value { color: #666; }
+  .save-btn {
+    background: #305c3c;
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 8px;
+    margin-top: 15px;
+    font-size: 14px;
+    cursor: pointer;
+    border: none;
+    transition: all 0.3s ease;
+  }
+  .save-btn:hover { background: #264d31; transform: scale(1.05); }
+
+  /* GUEST BUTTON */
+  .guest-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    margin-bottom: 15px;
+  }
+  .guest-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #4CAF50;
+    color: #fff;
+    padding: 14px 22px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+    transition: all 0.25s ease;
+  }
+  .guest-btn:hover {
+    background: #3e8e41;
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 6px 14px rgba(0,0,0,0.25);
+  }
+  .guest-note {
+    font-size: 12px;
+    color: #666;
+    margin-top: 6px;
+    text-align: right;
+  }
+
+  /* ENTRIES TABLE */
+  .entries-card h3 {
+    margin: 0 0 10px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+    background: #305c3c;
+    padding: 8px 12px;
+    border-radius: 6px 6px 0 0;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 10px; text-align: left; }
+  th { background: #f1f1f1; color: #333; }
+  tr:nth-child(even) { background: #f9f9f9; }
+  tr:hover { background: #f1f9f1; transition: 0.3s; }
+  .status { padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+  .active  { background: #4caf50; color: #fff; }
+  .pending { background: #2196f3; color: #fff; }
+  .expired { background: #9e9e9e; color: #fff; }
+
+  /* VIEW BUTTONS */
+  .view-btn {
+    display: inline-block;
+    padding: 6px 14px;
+    background: #305c3c;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: 'Poppins', sans-serif;
+    transition: all 0.25s ease;
+    text-decoration: none;
+  }
+  .view-btn:hover {
+    background: #264d31;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  }
+
+  .qr-container { text-align: center; padding-top: 20px; }
+  .qr-container img { width: 150px; margin-bottom: 10px; }
+  .qr-container p { font-size: 14px; margin: 5px 0; }
+
+  /* RESPONSIVE */
+  @media (max-width: 992px) { .main { grid-template-columns: 1fr; } }
+  @media (max-width: 768px) { .sidebar { width: 200px; } }
+  @media (max-width: 576px) {
+    .container { flex-direction: column; }
+    .sidebar {
+      width: 100%;
+      flex-direction: column;
+    }
+    .menu-item { border-radius: 10px; margin: 5px 15px; justify-content: center; font-size: 12px; }
+    .main { padding: 15px; }
+  }
+</style>
+</head>
+
+<body>
+  <div class="header">
+    <span style="color: #f1f9f1;">☰</span>
+    <span style="color: #f1f9f1;">Your Personal Profile Information & Dashboard </span>
+  </div>
+
+  <div class="container">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="menu-top">
+        <div class="menu-item"><a href="profile.html"><img src="dashboard.svg">Profile</a></div>
+        <div class="menu-item"><a href="notifications.html"><img src="dashboard.svg">Notifications</a></div>
+        <div class="menu-item"><a href="settings.html"><img src="dashboard.svg">Settings</a></div>
+        <div class="menu-item logout"><a href="mainpage.html"><img src="dashboard.svg">Log Out</a></div>
+      </div>
+
+      <!-- ✅ Report button at bottom -->
+      <div class="menu-bottom">
+        <div class="menu-item report"><a href="residentreport.html"><img src="mainpage/report.svg">Report</a></div>
+        <div class="report-note">Submit complaints or concerns<br>to the subdivision admin.</div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main">
+      <!-- Profile Info -->
+      <div class="card">
+        <div class="profile-header">
+          <img src="mainpage/profile'.jpg" alt="Profile Picture">
+          <div>
+            <h3>Username</h3>
+            <p>youremail@gmail.com</p>
+          </div>
+        </div>
+        <div class="info-row"><span class="info-label">Name:</span><span class="info-value">Your Name</span></div>
+        <div class="info-row"><span class="info-label">Email:</span><span class="info-value">youremail@gmail.com</span></div>
+        <div class="info-row"><span class="info-label">Mobile:</span><span class="info-value">+63 900 000 000</span></div>
+        <div class="info-row"><span class="info-label">Address:</span><span class="info-value">Blk 00 Lot 00</span></div>
+        <div class="info-row"><span class="info-label">Birth date:</span><span class="info-value">01/01/2000</span></div>
+        <div class="info-row"><span class="info-label">Password:</span><span class="info-value">*********</span></div>
+        <button class="save-btn">Save Changes</button>
+      </div>
+
+      <!-- Entries & Requests -->
+      <div class="card entries-card">
+        <div class="guest-wrapper">
+          <a href="guestform.html" class="guest-btn">Guest Form →</a>
+          <div class="guest-note">Click to create a visitor guest request.</div>
+        </div>
+
+        <h3>Entries & Requests</h3>
+        <table>
+          <tr>
+            <th>Action</th>
+            <th>Status</th>
+            <th>View</th>
+
+          </tr>
+          <tr>
+            <td>Reservation</td>
+            <td><span class="status expired">Expired</span></td>
+            <td><button class="view-btn">View</button></td>
+  
+          </tr>
+          <tr>
+            <td>Visit</td>
+            <td><span class="status active">Active</span></td>
+            <td><button class="view-btn">View</button></td>
+
+          </tr>
+          <tr>
+            <td>Visit</td>
+            <td><span class="status pending">Pending</span></td>
+            <td><button class="view-btn">View</button></td>
+
+          </tr>
+        </table>
+
+        <div class="qr-container">
+          <img src="mainpage/qr.png" alt="QR Code">
+          <p>Your name <br><small>Verified User</small></p>
+          <button class="save-btn">Download QR Code</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+
+</style>
+</html>
