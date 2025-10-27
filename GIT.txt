@@ -1,0 +1,1 @@
+git init && git remote remove origin 2>nul || true && git remote add origin git@github.com:ayeysabelleysa/VictorianPass.git && git add . && git commit -m "Update project" && git branch -M main && git push -u origin main --force
