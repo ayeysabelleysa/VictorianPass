@@ -46,12 +46,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $row = $result_user->fetch_assoc();
 
             if (password_verify($password, $row['password'])) {
-                $_SESSION['user_id'] = $row['id'];
-                $_SESSION['email']   = $row['email'];
-                $_SESSION['role']    = $row['role'];
+                $_SESSION['user_id']   = $row['id'];
+                $_SESSION['email']     = $row['email'];
+                $_SESSION['user_type'] = $row['user_type'];
+                // Keep a generic role key for parts of the site that expect it
+                $_SESSION['role']      = $row['user_type'];
 
                 echo "<script>alert('Login successful!');</script>";
-                echo "<script>window.location.href='homepage.php';</script>";
+                echo "<script>window.location.href='mainpage.php';</script>";
                 exit();
             } else {
                 echo "<script>alert('Incorrect password!'); window.history.back();</script>";
@@ -310,7 +312,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </form>
 
         <p class="signup-link">
-          Don’t have an account yet? <a href="signup.html">Sign up</a>
+          Don’t have an account yet? <a href="signup.php">Sign up</a>
         </p>
       </div>
     </div>

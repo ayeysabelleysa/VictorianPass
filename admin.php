@@ -31,6 +31,24 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_visitor_details' && isset(
     exit;
 }
 
+// Handle incident report status updates
+if (isset($_POST['incident_action']) && isset($_POST['report_id'])) {
+    $rid = intval($_POST['report_id']);
+    $action = $_POST['incident_action'];
+    $newStatus = null;
+    if ($action === 'start') $newStatus = 'in_progress';
+    elseif ($action === 'resolve') $newStatus = 'resolved';
+    elseif ($action === 'reject') $newStatus = 'rejected';
+    if ($newStatus) {
+        $stmt = $con->prepare("UPDATE incident_reports SET status = ?, updated_at = NOW() WHERE id = ?");
+        $stmt->bind_param('si', $newStatus, $rid);
+        $stmt->execute();
+        $stmt->close();
+    }
+    header("Location: admin.php?page=report");
+    exit;
+}
+
 // Ensure admin session based on existing login.php (role-based)
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header("Location: login.php");
@@ -115,6 +133,25 @@ function getSecurityGuards($con) {
         return $result;
     }
     return false;
+}
+
+function getIncidentReports($con) {
+    $query = "SELECT ir.*, u.first_name, u.middle_name, u.last_name FROM incident_reports ir LEFT JOIN users u ON ir.user_id = u.id ORDER BY ir.created_at DESC";
+    $result = $con->query($query);
+    return $result ?: false;
+}
+
+function getIncidentProofs($con, $reportId) {
+    $stmt = $con->prepare("SELECT file_path FROM incident_proofs WHERE report_id = ? ORDER BY uploaded_at ASC");
+    $stmt->bind_param('i', $reportId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $files = [];
+    if ($res) {
+        while ($row = $res->fetch_assoc()) { $files[] = $row['file_path']; }
+    }
+    $stmt->close();
+    return $files;
 }
 
 // Function to get visitor requests with personal details
@@ -689,17 +726,64 @@ body{margin:0;background:#f3efe9;color:#222;}
     <thead>
       <tr>
         <th>Reported By</th>
-        <th>Incident Type</th>
-        <th>Location</th>
+        <th>Nature</th>
+        <th>Address</th>
         <th>Date</th>
         <th>Status</th>
+        <th>Proofs</th>
         <th>Actions</th>
       </tr>
     </thead>
     <tbody>
-      <tr>
-        <td colspan="6" style="text-align:center;">No incidents reported yet</td>
-      </tr>
+      <?php
+      $reports = getIncidentReports($con);
+      if ($reports && $reports->num_rows > 0) {
+          while ($r = $reports->fetch_assoc()) {
+              $fullName = trim(($r['first_name'] ?? '') . ' ' . ($r['middle_name'] ?? '') . ' ' . ($r['last_name'] ?? ''));
+              $displayName = $fullName !== '' ? $fullName : $r['complainant'];
+              echo '<tr>';
+              echo '<td>' . htmlspecialchars($displayName) . '</td>';
+              echo '<td>' . htmlspecialchars($r['nature'] ?: ($r['other_concern'] ?: '-')) . '</td>';
+              echo '<td>' . htmlspecialchars($r['address']) . '</td>';
+              echo '<td>' . date('M d, Y', strtotime($r['created_at'])) . '</td>';
+              $status = $r['status'];
+              $badgeClass = $status === 'resolved' ? 'badge badge-approved' : ($status === 'rejected' ? 'badge badge-rejected' : 'badge badge-warning');
+              echo '<td><span class="' . $badgeClass . '">' . ucfirst($status) . '</span></td>';
+              // Proofs
+              $files = getIncidentProofs($con, intval($r['id']));
+              echo '<td>';
+              if (count($files) > 0) {
+                  foreach ($files as $f) {
+                      echo '<a href="' . htmlspecialchars($f) . '" target="_blank">View</a><br/>';
+                  }
+              } else {
+                  echo '<span class="muted">No proofs</span>';
+              }
+              echo '</td>';
+              // Actions
+              echo '<td>';
+              echo '<form method="POST" style="display:inline-block;margin-right:6px;">';
+              echo '<input type="hidden" name="report_id" value="' . intval($r['id']) . '">';
+              if ($status === 'new') {
+                  echo '<input type="hidden" name="incident_action" value="start">';
+                  echo '<button type="submit" class="btn btn-view">Start</button>';
+              } elseif ($status === 'in_progress') {
+                  echo '<input type="hidden" name="incident_action" value="resolve">';
+                  echo '<button type="submit" class="btn btn-remove">Resolve</button>';
+              }
+              echo '</form>';
+              echo '<form method="POST" style="display:inline-block;">';
+              echo '<input type="hidden" name="report_id" value="' . intval($r['id']) . '">';
+              echo '<input type="hidden" name="incident_action" value="reject">';
+              echo '<button type="submit" class="btn btn-reject">Reject</button>';
+              echo '</form>';
+              echo '</td>';
+              echo '</tr>';
+          }
+      } else {
+          echo '<tr><td colspan="7" style="text-align:center;">No incidents reported yet</td></tr>';
+      }
+      ?>
     </tbody>
   </table>
 </section>

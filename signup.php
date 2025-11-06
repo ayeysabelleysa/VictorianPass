@@ -29,7 +29,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   }
 
   // 🔍 Check if email exists
-  $checkEmail = $conn->prepare("SELECT id FROM users WHERE email = ?");
+  $checkEmail = $con->prepare("SELECT id FROM users WHERE email = ?");
   $checkEmail->bind_param("s", $email);
   $checkEmail->execute();
   $emailResult = $checkEmail->get_result();
@@ -39,7 +39,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   }
 
   // 🔍 Check house validity
-  $checkHouse = $conn->prepare("SELECT id FROM houses WHERE house_number = ?");
+  $checkHouse = $con->prepare("SELECT id FROM houses WHERE house_number = ?");
   $checkHouse->bind_param("s", $house_number);
   $checkHouse->execute();
   $houseResult = $checkHouse->get_result();
@@ -49,7 +49,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   }
 
   // 🚫 Prevent duplicate account for same house
-  $checkDuplicate = $conn->prepare("SELECT id FROM users WHERE house_number = ?");
+  $checkDuplicate = $con->prepare("SELECT id FROM users WHERE house_number = ?");
   $checkDuplicate->bind_param("s", $house_number);
   $checkDuplicate->execute();
   $dupResult = $checkDuplicate->get_result();
@@ -60,16 +60,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
   // ✅ Register user
   $hashed = password_hash($password, PASSWORD_DEFAULT);
-  $stmt = $conn->prepare("INSERT INTO users 
+  $stmt = $con->prepare("INSERT INTO users 
     (first_name, middle_name, last_name, phone, email, password, sex, birthdate, house_number, address, user_type)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'resident')");
   $stmt->bind_param("ssssssssss", 
     $first_name, $middle_name, $last_name, $phone, $email, $hashed, $sex, $birthdate, $house_number, $address);
 
   if ($stmt->execute()) {
-    echo "<script>alert('✅ Registration successful! Redirecting to login...'); window.location.href='login.php';</script>";
+    echo "<script>alert('✅ House number verified. Registration successful! Redirecting to login...'); window.location.href='login.php';</script>";
   } else {
-    echo "<script>alert('❌ Error: " . $conn->error . "');</script>";
+    echo "<script>alert('❌ Error: " . $con->error . "');</script>";
   }
 }
 ?>
@@ -159,9 +159,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         <!-- ✅ House verification section -->
         <div class="form-row homeowner">
-          <a href="verify_house.php" class="verify-link">
+          <a href="#" class="verify-link" onclick="openHouseModal(); return false;">
             <img src="signuppage/location.svg" alt="Location"> Verify House Number
           </a>
+          <span id="houseVerifiedBadge" style="display:none;margin-left:8px;color:#23412e;font-weight:600;">Verified</span>
           <input type="text" id="addressField" name="address" placeholder="Enter your full address (required)" required>
           <input type="hidden" id="houseHidden" name="house_number" value="<?php echo htmlspecialchars($verified_house); ?>">
         </div>
@@ -192,7 +193,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         </div>
 
         <div class="form-actions">
-          <button type="button" class="btn cancel" onclick="window.location.href='mainpage.html'">Cancel</button>
+          <button type="button" class="btn cancel" onclick="window.location.href='mainpage.php'">Cancel</button>
           <button type="submit" class="btn confirm">Confirm</button>
         </div>
 
@@ -257,7 +258,77 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         <button class="btn confirm" onclick="agreeTerms()">I Agree</button>
       </div>
     </div>
+
+    <!-- House Verification Modal -->
+    <div id="houseModal" class="modal" style="display:none;">
+      <div class="modal-content">
+        <span class="close" onclick="closeHouseModal()">&times;</span>
+        <h2>Verify House Number</h2>
+        <p>Enter your registered House Number as listed in HOA records.</p>
+        <input type="text" id="houseInput" placeholder="e.g., VH-1023" style="width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;font-family:'Poppins',sans-serif;">
+        <div style="display:flex;gap:10px;margin-top:12px;">
+          <button class="btn cancel" onclick="closeHouseModal()">Cancel</button>
+          <button class="btn confirm" onclick="performHouseVerify()">Verify</button>
+        </div>
+        <p id="verifyStatus" style="margin-top:10px;font-size:0.9rem;color:#23412e;display:none;"></p>
+      </div>
+    </div>
   </div>
+
+  <script>
+    function openHouseModal(){
+      const modal = document.getElementById('houseModal');
+      const hidden = document.getElementById('houseHidden').value;
+      if(hidden){
+        document.getElementById('houseInput').value = hidden;
+      }
+      document.getElementById('verifyStatus').style.display = 'none';
+      document.getElementById('verifyStatus').textContent = '';
+      modal.style.display = 'block';
+    }
+    function closeHouseModal(){
+      document.getElementById('houseModal').style.display = 'none';
+    }
+    async function performHouseVerify(){
+      const house = document.getElementById('houseInput').value.trim();
+      const status = document.getElementById('verifyStatus');
+      status.style.display = 'none';
+      status.textContent = '';
+      if(!house){
+        status.style.display = 'block';
+        status.style.color = '#c0392b';
+        status.textContent = 'Please enter a house number.';
+        return;
+      }
+      try{
+        const res = await fetch('verify_house.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ ajax:'1', house_number: house }).toString()
+        });
+        const data = await res.json();
+        if(data && data.success){
+          document.getElementById('houseHidden').value = house;
+          const badge = document.getElementById('houseVerifiedBadge');
+          badge.style.display = 'inline';
+          badge.textContent = 'Verified: ' + house;
+          status.style.display = 'block';
+          status.style.color = '#23412e';
+          status.textContent = 'House number is valid and saved.';
+          // Keep modal open briefly for feedback, then close
+          setTimeout(closeHouseModal, 800);
+        } else {
+          status.style.display = 'block';
+          status.style.color = '#c0392b';
+          status.textContent = data && data.message ? data.message : 'Invalid or unregistered house number.';
+        }
+      } catch(err){
+        status.style.display = 'block';
+        status.style.color = '#c0392b';
+        status.textContent = 'Verification failed. Please try again.';
+      }
+    }
+  </script>
 
   <script>
     function togglePassword(id, el) {

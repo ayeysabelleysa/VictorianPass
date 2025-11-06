@@ -1,3 +1,38 @@
+<?php
+session_start();
+require_once 'connect.php';
+
+// Redirect to login if not authenticated
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'resident') {
+  header('Location: login.php');
+  exit;
+}
+
+$userId = intval($_SESSION['user_id']);
+$user = null;
+
+// Fetch resident details
+if ($con) {
+$stmt = mysqli_prepare($con, "SELECT id, first_name, middle_name, last_name, email, house_number, address FROM users WHERE id = ?");
+  if ($stmt) {
+    mysqli_stmt_bind_param($stmt, 'i', $userId);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    if ($result && mysqli_num_rows($result) === 1) {
+      $user = mysqli_fetch_assoc($result);
+    }
+    mysqli_stmt_close($stmt);
+  }
+}
+
+if (!$user) {
+  // Fallback if user not found
+  header('Location: mainpage.php');
+  exit;
+}
+// Compose full name for display
+$fullName = trim(($user['first_name'] ?? '') . ' ' . ($user['middle_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -239,12 +274,12 @@
         <div class="menu-item"><a href="profile.html"><img src="dashboard.svg">Profile</a></div>
         <div class="menu-item"><a href="notifications.html"><img src="dashboard.svg">Notifications</a></div>
         <div class="menu-item"><a href="settings.html"><img src="dashboard.svg">Settings</a></div>
-        <div class="menu-item logout"><a href="mainpage.html"><img src="dashboard.svg">Log Out</a></div>
+        <div class="menu-item logout"><a href="logout.php"><img src="dashboard.svg">Log Out</a></div>
       </div>
 
       <!-- ✅ Report button at bottom -->
       <div class="menu-bottom">
-        <div class="menu-item report"><a href="residentreport.html"><img src="mainpage/report.svg">Report</a></div>
+        <div class="menu-item report"><a href="residentreport.php"><img src="mainpage/report.svg">Report</a></div>
         <div class="report-note">Submit complaints or concerns<br>to the subdivision admin.</div>
       </div>
     </div>
@@ -256,17 +291,21 @@
         <div class="profile-header">
           <img src="mainpage/profile'.jpg" alt="Profile Picture">
           <div>
-            <h3>Username</h3>
-            <p>youremail@gmail.com</p>
+            <h3><?php echo htmlspecialchars($fullName ?: 'Resident'); ?></h3>
+            <p><?php echo htmlspecialchars($user['email']); ?></p>
           </div>
         </div>
-        <div class="info-row"><span class="info-label">Name:</span><span class="info-value">Your Name</span></div>
-        <div class="info-row"><span class="info-label">Email:</span><span class="info-value">youremail@gmail.com</span></div>
-        <div class="info-row"><span class="info-label">Mobile:</span><span class="info-value">+63 900 000 000</span></div>
-        <div class="info-row"><span class="info-label">Address:</span><span class="info-value">Blk 00 Lot 00</span></div>
-        <div class="info-row"><span class="info-label">Birth date:</span><span class="info-value">01/01/2000</span></div>
+        <div class="info-row"><span class="info-label">Name:</span><span class="info-value"><?php echo htmlspecialchars($fullName); ?></span></div>
+        <div class="info-row"><span class="info-label">Email:</span><span class="info-value" id="emailVal"><?php echo htmlspecialchars($user['email']); ?></span></div>
+        <div class="info-row"><span class="info-label">Mobile:</span><span class="info-value"><?php echo htmlspecialchars($user['phone'] ?? '+63'); ?></span></div>
+        <div class="info-row"><span class="info-label">Address:</span><span class="info-value"><?php echo htmlspecialchars($user['address'] ?? ''); ?></span></div>
+        <div class="info-row"><span class="info-label">Birth date:</span><span class="info-value"><?php echo htmlspecialchars($user['birthdate'] ?? ''); ?></span></div>
         <div class="info-row"><span class="info-label">Password:</span><span class="info-value">*********</span></div>
-        <button class="save-btn">Save Changes</button>
+        <form id="updateForm" method="POST" action="update_profile.php">
+          <input type="hidden" name="email" id="emailInput" value="<?php echo htmlspecialchars($user['email']); ?>">
+          <input type="hidden" name="new_password" id="passwordInput" value="">
+          <button type="button" class="save-btn" onclick="promptUpdate()">Save Changes</button>
+        </form>
       </div>
 
       <!-- Entries & Requests -->
@@ -306,13 +345,21 @@
 
         <div class="qr-container">
           <img src="mainpage/qr.png" alt="QR Code">
-          <p>Your name <br><small>Verified User</small></p>
-          <button class="save-btn">Download QR Code</button>
+          <p><?php echo htmlspecialchars($fullName ?: 'Your name'); ?> <br><small>Verified User</small></p>
+          <button class="save-btn" type="button">Download QR Code</button>
         </div>
       </div>
     </div>
   </div>
+  <script>
+    function promptUpdate(){
+      var newEmail = prompt('Enter new email (leave blank to keep):', document.getElementById('emailVal').textContent.trim());
+      if (newEmail === null) return; // cancelled
+      var newPass = prompt('Enter new password (leave blank to keep):');
+      if (newEmail !== null) document.getElementById('emailInput').value = newEmail.trim();
+      if (newPass !== null) document.getElementById('passwordInput').value = newPass.trim();
+      document.getElementById('updateForm').submit();
+    }
+  </script>
 </body>
-
-</style>
 </html>

@@ -3,20 +3,36 @@ include("connect.php");
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
   $house_number = trim($_POST['house_number']);
+  $isAjax = isset($_POST['ajax']) && $_POST['ajax'] === '1';
 
   if (empty($house_number)) {
+    if ($isAjax) {
+      header('Content-Type: application/json');
+      echo json_encode(['success' => false, 'message' => 'Please enter your House Number.']);
+      exit;
+    }
     echo "<script>alert('⚠️ Please enter your House Number.');</script>";
   } else {
-    $check = $conn->prepare("SELECT id FROM houses WHERE house_number = ?");
+    $check = $con->prepare("SELECT id FROM houses WHERE house_number = ?");
     $check->bind_param("s", $house_number);
     $check->execute();
     $result = $check->get_result();
 
     if ($result->num_rows > 0) {
-      echo "<script>alert('✅ Verified! Redirecting back to signup...'); 
-        window.location.href='signup.php?house_number=" . urlencode($house_number) . "';</script>";
+      if ($isAjax) {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => true, 'house_number' => $house_number]);
+        exit;
+      }
+      // ✅ Redirect silently without alert; final notification will occur after full signup submission
+      header("Location: signup.php?house_number=" . urlencode($house_number));
       exit;
     } else {
+      if ($isAjax) {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'message' => 'Invalid or unregistered House Number!']);
+        exit;
+      }
       echo "<script>alert('❌ Invalid or unregistered House Number!');</script>";
     }
   }

@@ -316,7 +316,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       <div class="nav-links" id="navLinks" style="display: none;">
         <a href="login.php" class="btn-nav btn-login">Login</a>
         <a href="signup.php" class="btn-nav btn-register">Register</a>
-        <a href="profileresident.html" id="profileIcon" style="display: none;">
+        <a href="profileresident.php" id="profileIcon" style="display: none;">
           <img src="mainpage/profile'.jpg" alt="Profile" class="profile-icon">
         </a>
       </div>
@@ -442,6 +442,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
           dropdowns[i].style.display = 'none';
         }
       }
+    });
+  </script>
+  <script>
+    // Auto-show resident nav state after login
+    document.addEventListener('DOMContentLoaded', function(){
+      const dropdown = document.getElementById('userTypeDropdown');
+      const navLinks = document.getElementById('navLinks');
+      const profileIcon = document.getElementById('profileIcon');
+      const loginBtn = document.querySelector('.btn-login');
+      const registerBtn = document.querySelector('.btn-register');
+      <?php if (isset($_SESSION['user_id'])): ?>
+        if (dropdown) dropdown.style.display = 'none';
+        if (navLinks) navLinks.style.display = 'flex';
+        if (profileIcon) profileIcon.style.display = 'block';
+        if (loginBtn) loginBtn.style.display = 'none';
+        if (registerBtn) registerBtn.style.display = 'none';
+      <?php endif; ?>
     });
   </script>
 

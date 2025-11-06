@@ -266,7 +266,7 @@ body {
 
 <header class="navbar">
   <div class="logo">
-    <a href="mainpage.html"><img src="mainpage/logo.svg" alt="VictorianPass Logo"></a>
+    <a href="mainpage.php"><img src="mainpage/logo.svg" alt="VictorianPass Logo"></a>
     <div class="brand-text">
       <h1>VictorianPass</h1>
       <p>Victorian Heights Subdivision</p>
@@ -274,8 +274,8 @@ body {
   </div>
   <div class="nav-actions">
     <a href="login.php" class="btn-nav btn-login">Login</a>
-    <a href="signup.html" class="btn-nav btn-register">Register</a>
-    <a href="profileresident.html"><img src="mainpage/profile'.jpg" alt="Profile" class="profile-icon"></a>
+    <a href="signup.php" class="btn-nav btn-register">Register</a>
+    <a href="profileresident.php"><img src="mainpage/profile'.jpg" alt="Profile" class="profile-icon"></a>
   </div>
 </header>
 
@@ -288,44 +288,45 @@ body {
 
     <h4 style="margin:10px 0 5px;color:#23412e;">Resident Information</h4>
     <div class="form-row">
-      <input type="text" placeholder="Resident Full Name*" >
-      <input type="text" placeholder="House/Unit No.*" >
+      <input type="text" name="resident_full_name" placeholder="Resident Full Name*" required>
+      <input type="text" name="resident_house" placeholder="House/Unit No.*" required>
     </div>
     <div class="form-row">
-      <input type="email" placeholder="Resident Email*" >
-      <input type="tel" placeholder="Resident Contact Number*" >
+      <input type="email" name="resident_email" placeholder="Resident Email*" required>
+      <input type="tel" name="resident_contact" placeholder="Resident Contact Number*" required>
     </div>
 
     <h4 style="margin:20px 0 5px;color:#23412e;">Visitor Information</h4>
     <div class="form-row">
-      <input type="text" placeholder="Visitor First Name*" >
-      <input type="text" placeholder="Visitor Last Name*" >
+      <input type="text" name="visitor_first_name" placeholder="Visitor First Name*" required>
+      <input type="text" name="visitor_last_name" placeholder="Visitor Last Name*" required>
     </div>
     <div class="form-row">
-      <select>
+      <select name="visitor_sex" required>
         <option value="" disabled selected>Sex*</option>
         <option>Male</option>
         <option>Female</option>
       </select>
       <div class="form-group">
-        <input type="date" id="birthdate" placeholder=" ">
+        <input type="date" id="birthdate" name="visitor_birthdate" placeholder=" " required>
         <label for="birthdate">Birthdate*</label>
       </div>
     </div>
-    <input type="tel" placeholder="Visitor Contact Number*" >
+    <input type="tel" name="visitor_contact" placeholder="Visitor Contact Number*" required>
+    <input type="email" name="visitor_email" placeholder="Visitor Email*" required>
 
     <label class="upload-box">
-      <input type="file" hidden >
+      <input type="file" name="visitor_valid_id" accept="image/*" hidden required>
       <img src="mainpage/upload.svg" alt="Upload">
       <p>Upload Visitor’s Valid ID*<br><small>(e.g. National ID, Driver’s License)</small></p>
     </label>
 
     <h4 style="margin:20px 0 5px;color:#23412e;">Visit Details</h4>
     <div class="form-row">
-      <input type="date" placeholder="Date of Visit*" >
-      <input type="time" placeholder="Expected Time*" >
+      <input type="date" name="visit_date" placeholder="Date of Visit*" required>
+      <input type="time" name="visit_time" placeholder="Expected Time*" required>
     </div>
-    <textarea rows="3" placeholder="Purpose of Visit*" ></textarea>
+    <textarea rows="3" name="visit_purpose" placeholder="Purpose of Visit*" required></textarea>
 
     <div class="reserve-note">
       <label for="reserveCheck">
@@ -338,7 +339,7 @@ body {
     </div>
 
     <div class="form-actions">
-      <a href="mainpage.html" class="btn-back">Back</a>
+      <a href="mainpage.php" class="btn-back">Back</a>
       <button type="submit" class="btn-next" id="submitBtn">Submit Request</button>
     </div>
   </form>
@@ -368,7 +369,7 @@ reserveCheck.addEventListener('change',()=>{
   if(reserveCheck.checked){
     submitBtn.textContent='Next';
     submitBtn.type='button';
-    submitBtn.onclick=()=>{window.location.href='reserve.html';};
+    submitBtn.onclick=()=>{window.location.href='reserve.php';};
   }else{
     submitBtn.textContent='Submit Request';
     submitBtn.type='submit';
@@ -376,21 +377,29 @@ reserveCheck.addEventListener('change',()=>{
   }
 });
 
-function generateRefCode(){
-  return Math.floor(10000 + Math.random() * 90000);
-}
-function openModal(){
-  document.getElementById('refCode').textContent = generateRefCode();
+function openModal(refCode){
+  document.getElementById('refCode').textContent = refCode;
   document.getElementById('refModal').style.display = 'flex';
 }
 function closeModal(){
   document.getElementById('refModal').style.display = 'none';
 }
 
-entryForm.addEventListener('submit', e=>{
+entryForm.addEventListener('submit', async (e)=>{
   if(!reserveCheck.checked){
     e.preventDefault();
-    openModal(); // same behavior as reserve.html
+    try {
+      const fd = new FormData(entryForm);
+      const res = await fetch('submit_guest.php', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data && data.success) {
+        openModal(String(data.ref_code || ''));
+      } else {
+        alert(data.message || 'Failed to submit guest request.');
+      }
+    } catch (err) {
+      alert('Error connecting to server.');
+    }
   }
 });
 </script>
