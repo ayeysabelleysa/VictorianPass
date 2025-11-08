@@ -1,6 +1,8 @@
 <?php
+session_start();
 include 'connect.php';
 $generatedCode = '';
+$errorMsg = '';
 
 // Ensure reservations has entry_pass_id column to link entry pass info
 function ensureReservationEntryPassColumn($con) {
@@ -11,6 +13,38 @@ function ensureReservationEntryPassColumn($con) {
 }
 
 ensureReservationEntryPassColumn($con);
+
+// Ensure entry_passes has downpayment columns and enforce payment before reservation
+function ensureEntryPassesPaymentColumns($con) {
+  $col1 = $con->query("SHOW COLUMNS FROM entry_passes LIKE 'downpayment_receipt_path'");
+  if (!$col1 || $col1->num_rows === 0) {
+    $con->query("ALTER TABLE entry_passes ADD COLUMN downpayment_receipt_path VARCHAR(255) NULL");
+  }
+  $col2 = $con->query("SHOW COLUMNS FROM entry_passes LIKE 'downpayment_status'");
+  if (!$col2 || $col2->num_rows === 0) {
+    $con->query("ALTER TABLE entry_passes ADD COLUMN downpayment_status ENUM('pending','uploaded','verified','rejected') DEFAULT 'pending'");
+  }
+}
+ensureEntryPassesPaymentColumns($con);
+
+// Require downpayment before allowing reservation when entry_pass_id is present
+if (isset($_GET['entry_pass_id']) && $_GET['entry_pass_id'] !== '') {
+  $epid = intval($_GET['entry_pass_id']);
+  if ($epid > 0) {
+    $stmtEP = $con->prepare("SELECT downpayment_status FROM entry_passes WHERE id = ?");
+    $stmtEP->bind_param('i', $epid);
+    if ($stmtEP->execute()) {
+      $resEP = $stmtEP->get_result();
+      $rowEP = $resEP ? $resEP->fetch_assoc() : null;
+      $status = $rowEP ? ($rowEP['downpayment_status'] ?? 'pending') : 'pending';
+      if (!in_array($status, ['uploaded','verified'])) {
+        header('Location: downpayment.php?entry_pass_id=' . urlencode($epid) . '&continue=reserve');
+        exit;
+      }
+    }
+    $stmtEP->close();
+  }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $amenity = $_POST['amenity'] ?? 'Pool';
@@ -24,11 +58,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   // Generate unique Status Code (e.g. VP-XXXXX)
   $ref = "VP-" . str_pad(rand(0, 99999), 5, '0', STR_PAD_LEFT);
 
-  // Use $con instead of $conn (since your connect.php defines $con)
-  $stmt = $con->prepare("INSERT INTO reservations (ref_code, amenity, start_date, end_date, persons, price, user_id, entry_pass_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-  $stmt->bind_param("ssssiiis", $ref, $amenity, $start, $end, $persons, $price, $user_id, $entry_pass_id);
+  // Validate inputs
+  if (!$start || !$end) {
+    $errorMsg = 'Please select a start and end date.';
+  } else {
+    // Server-side overlap check to prevent double booking
+    $check = $con->prepare("SELECT COUNT(*) AS cnt FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND start_date <= ? AND end_date >= ?");
+    $check->bind_param("sss", $amenity, $end, $start);
+    $check->execute();
+    $res = $check->get_result();
+    $row = $res ? $res->fetch_assoc() : ['cnt' => 0];
+    if (intval($row['cnt']) > 0) {
+      $errorMsg = 'Selected dates are not available. Please choose different dates.';
+    } else {
+      // Use $con instead of $conn (since your connect.php defines $con)
+      $stmt = $con->prepare("INSERT INTO reservations (ref_code, amenity, start_date, end_date, persons, price, user_id, entry_pass_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+      $stmt->bind_param("ssssiiis", $ref, $amenity, $start, $end, $persons, $price, $user_id, $entry_pass_id);
+      $stmt->execute();
+      $generatedCode = $ref;
+    }
+  }
+}
+
+// Lightweight endpoint to return booked dates for the selected amenity
+if (isset($_GET['action']) && $_GET['action'] === 'booked_dates') {
+  header('Content-Type: application/json');
+  $amenity = $_GET['amenity'] ?? 'Pool';
+  $stmt = $con->prepare("SELECT start_date, end_date FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved'))");
+  $stmt->bind_param("s", $amenity);
   $stmt->execute();
-  $generatedCode = $ref;
+  $result = $stmt->get_result();
+  $dates = [];
+  while ($row = $result->fetch_assoc()) {
+    $start = new DateTime($row['start_date']);
+    $end = new DateTime($row['end_date']);
+    $period = new DatePeriod($start, new DateInterval('P1D'), (clone $end)->modify('+1 day'));
+    foreach ($period as $d) {
+      $dates[] = $d->format('Y-m-d');
+    }
+  }
+  echo json_encode(['dates' => array_values(array_unique($dates))]);
+  exit;
 }
 ?>
 <!DOCTYPE html>
@@ -67,6 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     .calendar td:hover:not(.disabled){background:#eee;}
     .calendar td.active{background:#23412e;color:#fff;font-weight:600;}
     .calendar td.today{border:2px solid #23412e;border-radius:8px;font-weight:600;}
+    .calendar td.disabled{color:#999;cursor:not-allowed;background:#f7f7f7;}
     .hero-text{max-width:520px;}
     .hero-text h1{font-size:2.6rem;font-weight:700;margin-bottom:16px;line-height:1.2;}
     .hero-text p{font-size:1rem;line-height:1.6;margin-bottom:24px;color:#ddd;}
@@ -183,6 +254,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   let today=new Date(),currentMonth=today.getMonth(),currentYear=today.getFullYear();
   const monthAndYear=document.getElementById("monthAndYear"),calendarBody=document.getElementById("calendar-body");
   let selectedStart=null,selectedEnd=null;
+  let bookedDates=new Set();
+  let selectedAmenity='Pool';
+
+  async function loadBookedDates(){
+    try{
+      const res=await fetch(`reserve.php?action=booked_dates&amenity=${encodeURIComponent(selectedAmenity)}`);
+      const data=await res.json();
+      bookedDates=new Set(data.dates||[]);
+    }catch(e){
+      bookedDates=new Set();
+    }
+    renderCalendar(currentMonth,currentYear);
+  }
 
   function renderCalendar(month,year){
     calendarBody.innerHTML="";
@@ -199,6 +283,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           let cell=document.createElement("td");
           cell.textContent=date;
           let dateString=`${year}-${String(month+1).padStart(2,'0')}-${String(date).padStart(2,'0')}`;
+          if(bookedDates.has(dateString)){
+            cell.classList.add('disabled');
+          }
           cell.addEventListener('click',()=>handleDateClick(cell,dateString));
           if(date===today.getDate()&&year===today.getFullYear()&&month===today.getMonth()){cell.classList.add('today');}
           row.appendChild(cell);date++;
@@ -208,6 +295,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 
   function handleDateClick(cell,dateString){
+    if(cell.classList.contains('disabled')){return;}
     document.querySelectorAll('.calendar td').forEach(td=>td.classList.remove('active'));
     cell.classList.add('active');
     if(!selectedStart){
@@ -221,9 +309,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
   }
 
-  document.getElementById("prevMonth").onclick=()=>{currentMonth=currentMonth===0?11:currentMonth-1;currentYear=currentMonth===11?currentYear-1:currentYear;renderCalendar(currentMonth,currentYear);};
-  document.getElementById("nextMonth").onclick=()=>{currentMonth=currentMonth===11?0:currentMonth+1;currentYear=currentMonth===0?currentYear+1:currentYear;renderCalendar(currentMonth,currentYear);};
-  renderCalendar(currentMonth,currentYear);
+  document.getElementById("prevMonth").onclick=()=>{currentMonth=currentMonth===0?11:currentMonth-1;currentYear=currentMonth===11?currentYear-1:currentYear;renderCalendar(currentMonth,currentYear);} ;
+  document.getElementById("nextMonth").onclick=()=>{currentMonth=currentMonth===11?0:currentMonth+1;currentYear=currentMonth===0?currentYear+1:currentYear;renderCalendar(currentMonth,currentYear);} ;
+  loadBookedDates();
 
   // Amenity switcher
   function showAmenity(type){
@@ -235,6 +323,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     else if(type==='basketball'){title.textContent='Basketball Court';img.src='mainpage/basketball.svg';field.value='Basketball Court';document.querySelector('.amenity-btn:nth-child(3)').classList.add('active');}
     else if(type==='tennis'){title.textContent='Tennis Court';img.src='mainpage/tennis.svg';field.value='Tennis Court';document.querySelector('.amenity-btn:nth-child(4)').classList.add('active');}
     else{title.textContent='Community Pool';img.src='mainpage/pool.svg';field.value='Pool';document.querySelector('.amenity-btn:nth-child(1)').classList.add('active');}
+    selectedAmenity=field.value;
+    selectedStart=null;selectedEnd=null;
+    document.getElementById('startDate').textContent='--';
+    document.getElementById('endDate').textContent='--';
+    document.getElementById('startDateInput').value='';
+    document.getElementById('endDateInput').value='';
+    loadBookedDates();
   }
 
   // Person counter

@@ -151,18 +151,28 @@
       <p class="subtitle">Create your Account</p>
 
       <!-- Form -->
-      <form class="signup-form">
+      <form class="signup-form" id="signupForm">
         <div class="form-row">
-          <input type="text" placeholder="First Name*" required>
-          <input type="text" placeholder="Last Name*" required>          
-          <input type="text" placeholder="Middle Name*" required>
+          <div class="input-wrap">
+            <input type="text" name="first_name" id="first_name" placeholder="First Name*" required>
+          </div>
+          <div class="input-wrap">
+            <input type="text" name="last_name" id="last_name" placeholder="Last Name*" required>          
+          </div>
+          <div class="input-wrap">
+            <input type="text" name="middle_name" id="middle_name" placeholder="Middle Name*" required>
+          </div>
         </div>
 
         <div class="form-row">
-          <input type="tel" placeholder="Phone Number*" required>
+          <div class="input-wrap">
+            <input type="tel" name="phone" id="phone" placeholder="Phone Number*" required>
+          </div>
         </div>
 
-        <input type="email" placeholder="Email*" required>
+        <div class="input-wrap">
+          <input type="email" name="email" id="email" placeholder="Email*" required>
+        </div>
 
         <!-- Address with verification -->
         <div class="form-row homeowner">
@@ -220,6 +230,7 @@
             By using the <strong>VictorianPass</strong>, you agree to the rules set for security, privacy, and orderly access.
             <a onclick="openTerms()" style="text-decoration: underline; color: rgb(245, 63, 169);">Read Terms & Conditions</a>
           </label>
+
         </div>
       </form>
 
@@ -298,6 +309,187 @@
     </div>
   </div>
 
+  <script>
+    // minimal duplicate of validation logic for static HTML page
+    function togglePassword(id, el) {
+      const input = document.getElementById(id);
+      if (!input) return;
+      input.type = input.type === 'password' ? 'text' : 'password';
+    }
+
+    function openTerms() {
+      const modal = document.getElementById('termsModal');
+      if (modal) modal.style.display = 'block';
+    }
+    function closeTerms() {
+      const modal = document.getElementById('termsModal');
+      if (modal) modal.style.display = 'none';
+    }
+    function agreeTerms() {
+      const terms = document.getElementById('terms');
+      if (terms) {
+        terms.checked = true;
+        terms.disabled = false;
+      }
+      closeTerms();
+      if (typeof setWarning === 'function') setWarning('terms','');
+    }
+    // Floating popover warnings anchored under inputs
+    const _popovers = {};
+    function _ensureLayer(){ return document.getElementById('warnLayer'); }
+    function _positionPopover(inputEl, pop){
+      const rect = inputEl.getBoundingClientRect();
+      const top = rect.bottom + 8 + window.scrollY;
+      let left = rect.left + window.scrollX;
+      const vw = document.documentElement.clientWidth;
+      const popW = pop.offsetWidth || 260;
+      const minLeft = 12 + window.scrollX;
+      const maxLeft = vw - popW - 12 + window.scrollX;
+      left = Math.max(minLeft, Math.min(left, maxLeft));
+      pop.style.top = top + 'px';
+      pop.style.left = left + 'px';
+    }
+    function _removePopover(key){
+      const layer = _ensureLayer();
+      const pop = _popovers[key];
+      if (pop && layer && pop.parentNode === layer) layer.removeChild(pop);
+      delete _popovers[key];
+    }
+    function _showPopover(inputId, message){
+      const inputEl = document.getElementById(inputId);
+      if (!inputEl || !message) return;
+      const layer = _ensureLayer();
+      if (!layer) return;
+      let pop = _popovers[inputId];
+      if (!pop){
+        pop = document.createElement('div');
+        pop.className = 'field-popover';
+        pop.setAttribute('role','alert');
+        pop.dataset.key = inputId;
+        pop.innerHTML = '<span class="popover-icon">!</span><span class="msg"></span><span class="popover-close" aria-label="Dismiss" title="Dismiss">&times;</span>';
+        layer.appendChild(pop);
+        _popovers[inputId] = pop;
+        const closer = pop.querySelector('.popover-close');
+        closer.setAttribute('tabindex','0');
+        closer.addEventListener('click', function(){ _removePopover(inputId); });
+        closer.addEventListener('keydown', function(evt){ if (evt.key==='Enter'||evt.key===' ') { evt.preventDefault(); _removePopover(inputId);} });
+      }
+      const msg = pop.querySelector('.msg');
+      if (msg) msg.textContent = message;
+      _positionPopover(inputEl, pop);
+    }
+    function _repositionAll(){
+      Object.keys(_popovers).forEach(function(key){
+        const inp = document.getElementById(key);
+        const pop = _popovers[key];
+        if (inp && pop) _positionPopover(inp, pop);
+      });
+    }
+    window.addEventListener('scroll', _repositionAll, { passive: true });
+    window.addEventListener('resize', _repositionAll);
+    function setWarning(key, message){
+      if (message){ _showPopover(key, message); }
+      else { _removePopover(key); }
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+      const first = document.getElementById('first_name');
+      const last = document.getElementById('last_name');
+      const middle = document.getElementById('middle_name');
+      const phone = document.getElementById('phone');
+      const terms = document.getElementById('terms');
+      const password = document.getElementById('password');
+      const confirmPwd = document.getElementById('confirm-password');
+      const houseHidden = document.getElementById('houseHidden');
+      const form = document.getElementById('signupForm');
+
+      function blockDigits(e) {
+        if (/[0-9]/.test(e.key)) {
+          e.preventDefault();
+          setWarning(e.target.id, 'Numbers are not allowed in this field.');
+        }
+      }
+      function sanitizeNoDigits(e) {
+        const val = e.target.value;
+        const cleaned = val.replace(/[0-9]/g, '');
+        if (val !== cleaned) {
+          e.target.value = cleaned;
+          setWarning(e.target.id, 'Numbers were removed.');
+        } else {
+          // no toast for clearing
+        }
+      }
+      [first, last, middle].forEach(function(inp) {
+        if (!inp) return;
+        inp.addEventListener('keydown', blockDigits);
+        inp.addEventListener('input', sanitizeNoDigits);
+      });
+      if (phone) {
+        phone.addEventListener('input', function(e) {
+          const val = e.target.value;
+          const isValidPrefix = val.startsWith('+63');
+          const rest = val.slice(3);
+          const restDigitsOnly = /^\d*$/.test(rest);
+          if (!isValidPrefix || !restDigitsOnly) {
+            setWarning('phone', 'Contact must start with +63 and contain numbers only after.');
+          } else {
+            // no toast for clearing
+          }
+        });
+      }
+
+      // Live password mismatch feedback
+      if (confirmPwd) {
+        confirmPwd.addEventListener('input', function(e) {
+          if (password && password.value !== e.target.value) {
+            setWarning('confirm-password', 'Passwords do not match.');
+          } else {
+            setWarning('confirm-password', '');
+          }
+        });
+      }
+      if (form) {
+        form.addEventListener('submit', function(e) {
+          let valid = true;
+          [first, last, middle].forEach(function(inp) {
+            if (!inp) return;
+            if (/\d/.test(inp.value)) {
+              setWarning(inp.id, 'Numbers are not allowed in this field.');
+              valid = false;
+            }
+            if (!inp.value.trim()) {
+              setWarning(inp.id, 'This field is required.');
+              valid = false;
+            }
+          });
+          if (phone) {
+            const val = phone.value;
+            if (!/^\+63\d+$/.test(val)) {
+              setWarning('phone', 'Contact must start with +63 and contain numbers only after.');
+              valid = false;
+            }
+          }
+          // Password match check
+          if (password && confirmPwd && password.value !== confirmPwd.value) {
+            setWarning('confirm-password', 'Passwords do not match.');
+            valid = false;
+          }
+          // Require verified house number: open verify modal when missing
+          if (houseHidden && !houseHidden.value.trim()) {
+            setWarning('houseHidden', 'Please verify your House Number.');
+            if (typeof openHouseModal === 'function') openHouseModal(event);
+            valid = false;
+          }
+          if (terms && !terms.checked) {
+            setWarning('terms', 'Please read and agree to the Terms & Conditions.');
+            valid = false;
+          }
+          if (!valid) e.preventDefault();
+        });
+      }
+    });
+</script>
+<!-- Layer for floating field warnings -->
+<div id="warnLayer" class="warn-layer" aria-live="polite" aria-atomic="true"></div>
   <script>
     function openTerms() {
       document.getElementById("termsModal").style.display = "block";

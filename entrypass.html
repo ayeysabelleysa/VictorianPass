@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entry Pass Form - VictorianPass</title>
+  <link rel="icon" type="image/png" href="mainpage/logo.svg">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+  <style>
+    body { margin:0; font-family:'Poppins',sans-serif; background:#111; color:#fff; }
+    .navbar { display:flex; justify-content:space-between; align-items:center; padding:12px 5%; background:#2b2623; }
+    .logo { display:flex; align-items:center; gap:12px; }
+    .logo img { width:40px; }
+    .brand-text h1 { margin:0; font-size:1.2rem; color:#f4f4f4; font-weight:600; }
+    .brand-text p { margin:0; font-size:0.8rem; color:#aaa; }
+    .hero { display:flex; justify-content:center; align-items:center; padding:40px 5%; min-height:90vh;
+      background: linear-gradient(rgba(17,17,17,0.7), rgba(17,17,17,0.7)), url("mainpage/background.svg") center/cover no-repeat fixed; }
+    .entry-form { background:rgba(255,255,255,0.95); color:#222; padding:40px; border-radius:16px; width:100%; max-width:650px; box-shadow:0 6px 16px rgba(0,0,0,0.25); }
+    .form-header { display:flex; align-items:center; gap:10px; font-weight:600; margin-bottom:20px; font-size:1.2rem; color:#23412e; }
+    .form-header img { width:28px; }
+    .entry-form input, .entry-form select, .entry-form textarea { width:100%; padding:12px; border:1px solid #ccc; border-radius:8px; font-size:0.95rem; font-family:'Poppins',sans-serif; background:#fff; color:#222; margin-bottom:14px; box-sizing:border-box; }
+    .form-row { display:flex; gap:12px; }
+    .form-row>* { flex:1; }
+    .form-group { position:relative; flex:1; }
+    .form-group input[type="date"] { width:100%; padding:12px; border:1px solid #ccc; border-radius:8px; font-size:0.95rem; font-family:'Poppins',sans-serif; background:#fff; color:#222; }
+    .form-group label { position:absolute; left:12px; top:12px; color:#888; font-size:0.95rem; pointer-events:none; transition:0.2s ease all; }
+    .form-group input:focus + label, .form-group input:not(:placeholder-shown) + label { top:-8px; left:8px; font-size:0.75rem; color:#23412e; background:#fff; padding:0 4px; }
+    .upload-box { border:2px dashed #999; padding:14px; text-align:center; margin-bottom:14px; border-radius:8px; background:#f9f9f9; font-size:0.9rem; font-weight:500; cursor:pointer; display:block; }
+    .upload-box img { width:60px; margin-bottom:6px; }
+    .upload-box:hover { transition:all 0.3s ease; background:#f0f0f0; transform:scale(1.02); }
+    .form-actions { display:flex; justify-content:space-between; gap:12px; margin-top:10px; }
+    .btn-back, .btn-next { display:block; text-align:center; padding:12px; border-radius:8px; font-weight:600; text-decoration:none; transition:all 0.2s; flex:1; }
+    .btn-back { background:#ddd; color:#222; }
+    .btn-next { background:#23412e; color:#fff; border:none; cursor:pointer; }
+    .btn-back:hover, .btn-next:hover { transform:scale(1.05); opacity:0.9; }
+    @media(max-width:768px){ .form-row{flex-direction:column;} .entry-form{padding:25px;} }
+  </style>
+</head>
+<body>
+  <header class="navbar">
+    <div class="logo">
+      <a href="mainpage.php"><img src="mainpage/logo.svg" alt="VictorianPass Logo"></a>
+      <div class="brand-text">
+        <h1>VictorianPass</h1>
+        <p>Victorian Heights Subdivision</p>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <form class="entry-form" id="entryForm" method="POST" enctype="multipart/form-data" action="mainpage.php">
+      <div class="form-header">
+        <img src="mainpage/ticket.svg" alt="Ticket Icon">
+        <span>Entry Pass</span>
+      </div>
+
+      <input type="text" name="first_name" placeholder="First Name*" required>
+      <input type="text" name="middle_name" placeholder="Middle Name">
+      <input type="text" name="last_name" placeholder="Last Name*" required>
+      <input type="text" name="address" placeholder="Address*" required>
+
+      <div class="form-row">
+        <select name="sex" required>
+          <option value="" disabled selected>Sex*</option>
+          <option value="Male">Male</option>
+          <option value="Female">Female</option>
+        </select>
+
+        <div class="form-group">
+          <div class="form-row">
+            <input type="date" id="birthdate" name="birthdate" placeholder=" " required>
+            <label for="birthdate">Birthdate*</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <input type="tel" name="contact" placeholder="Phone Number*" required>
+      </div>
+
+      <label class="upload-box">
+        <input type="file" name="valid_id" hidden required>
+        <img src="mainpage/upload.svg" alt="Upload">
+        <p>Upload a Valid ID* <br><small>(e.g. National ID, Driver's License)</small></p>
+      </label>
+
+      <div class="form-actions">
+        <a href="mainpage.php" class="btn-back">Back</a>
+        <button type="submit" class="btn-next">Next</button>
+      </div>
+    </form>
+  </section>
+
+  <script>
+    // Client-side validation equivalent to original inline form
+    document.addEventListener('DOMContentLoaded', function(){
+      var entryForm = document.getElementById('entryForm');
+      if (!entryForm) return;
+      function blockDigits(e){ if(/[0-9]/.test(e.key)){ e.preventDefault(); alert('Numbers are not allowed in name fields.'); } }
+      function sanitizeNoDigits(e){ var cleaned=e.target.value.replace(/[0-9]/g,''); if(e.target.value!==cleaned){ e.target.value=cleaned; } }
+      ['first_name','middle_name','last_name']
+        .map(function(n){ return entryForm.querySelector('[name="'+n+'"]'); })
+        .filter(function(el){ return !!el; })
+        .forEach(function(el){ el.addEventListener('keydown', blockDigits); el.addEventListener('input', sanitizeNoDigits); });
+      var phoneInput = entryForm.querySelector('[name="contact"]');
+      entryForm.addEventListener('submit', function(e){
+        if (phoneInput){
+          var val = phoneInput.value.trim();
+          if (val !== '' && !/^\+63\d+$/.test(val)){
+            alert('Phone number must start with +63 and contain digits only after.');
+            e.preventDefault();
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>

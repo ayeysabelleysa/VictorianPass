@@ -1,5 +1,7 @@
 <?php 
 include("connect.php");
+// Track registration success to show banner and auto-redirect
+$registration_success = false;
 
 // 🧠 Pre-fill verified house number (if user came from verify_house.php)
 $verified_house = isset($_GET['house_number']) ? trim($_GET['house_number']) : '';
@@ -16,16 +18,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   $birthdate = $_POST['birthdate'];
   $house_number = isset($_POST['house_number']) ? trim($_POST['house_number']) : '';
   $address = isset($_POST['address']) ? trim($_POST['address']) : '';
+  $serverErrors = [];
 
   // 🛑 Require verified house number
   if (empty($house_number)) {
-    echo "<script>alert('⚠️ Please verify your House Number before signing up.');</script>";
-    exit;
+    $serverErrors['house'] = 'Please verify your House Number before signing up.';
   }
 
   if ($password !== $confirm_password) {
-    echo "<script>alert('⚠️ Passwords do not match!');</script>";
-    exit;
+    $serverErrors['confirm_password'] = 'Passwords do not match.';
   }
 
   // 🔍 Check if email exists
@@ -34,8 +35,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   $checkEmail->execute();
   $emailResult = $checkEmail->get_result();
   if ($emailResult->num_rows > 0) {
-    echo "<script>alert('⚠️ Email already exists!');</script>";
-    exit;
+    $serverErrors['email'] = 'Email already exists.';
   }
 
   // 🔍 Check house validity
@@ -44,8 +44,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   $checkHouse->execute();
   $houseResult = $checkHouse->get_result();
   if ($houseResult->num_rows === 0) {
-    echo "<script>alert('❌ Invalid or unregistered House Number!');</script>";
-    exit;
+    $serverErrors['house'] = 'Invalid or unregistered House Number.';
   }
 
   // 🚫 Prevent duplicate account for same house
@@ -54,22 +53,24 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   $checkDuplicate->execute();
   $dupResult = $checkDuplicate->get_result();
   if ($dupResult->num_rows > 0) {
-    echo "<script>alert('⚠️ This house already has a registered account!');</script>";
-    exit;
+    $serverErrors['house'] = 'This house already has a registered account.';
   }
 
-  // ✅ Register user
-  $hashed = password_hash($password, PASSWORD_DEFAULT);
-  $stmt = $con->prepare("INSERT INTO users 
-    (first_name, middle_name, last_name, phone, email, password, sex, birthdate, house_number, address, user_type)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'resident')");
-  $stmt->bind_param("ssssssssss", 
-    $first_name, $middle_name, $last_name, $phone, $email, $hashed, $sex, $birthdate, $house_number, $address);
+  // ✅ Register user if no errors
+  if (empty($serverErrors)) {
+    $hashed = password_hash($password, PASSWORD_DEFAULT);
+    $stmt = $con->prepare("INSERT INTO users 
+      (first_name, middle_name, last_name, phone, email, password, sex, birthdate, house_number, address, user_type)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'resident')");
+    $stmt->bind_param("ssssssssss", 
+      $first_name, $middle_name, $last_name, $phone, $email, $hashed, $sex, $birthdate, $house_number, $address);
 
-  if ($stmt->execute()) {
-    echo "<script>alert('✅ House number verified. Registration successful! Redirecting to login...'); window.location.href='login.php';</script>";
-  } else {
-    echo "<script>alert('❌ Error: " . $con->error . "');</script>";
+    if ($stmt->execute()) {
+      // Mark success; show banner and auto-redirect via JS
+      $registration_success = true;
+    } else {
+      $serverErrors['form'] = 'An error occurred. Please try again.';
+    }
   }
 }
 ?>
@@ -84,6 +85,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="signup.css">
   <style>
+    .success-banner {
+      background: #e6ffed;
+      color: #135f2a;
+      border: 1px solid #b7e3c3;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+      font-weight: 600;
+    }
     .form-group { position: relative; flex: 1; }
     .form-group input[type="date"], .form-group select {
       width: 100%; padding: 12px; border: 1px solid #ccc;
@@ -126,6 +138,18 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     .verify-link:hover {
       text-decoration: underline;
     }
+
+    .field-warning {
+      color: #c0392b;
+      font-size: 0.8rem;
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .field-warning:empty { display: none; }
+    .close-warn { cursor: pointer; color: #888; line-height: 1; }
+    .close-warn:hover { color: #555; }
   </style>
 </head>
 
@@ -141,21 +165,34 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         <img src="signuppage/back.svg" alt="Back">
       </a>
 
+      <?php if ($registration_success): ?>
+        <div class="success-banner">✅ You have successfully registered! Redirecting to login…</div>
+      <?php endif; ?>
       <h1>Sign Up</h1>
       <p class="subtitle">Create your Account</p>
 
-      <form class="signup-form" method="POST" action="">
+      <form class="signup-form" id="signupForm" method="POST" action="signup.php" <?php if ($registration_success) echo 'style="display:none"'; ?>>
         <div class="form-row">
-          <input type="text" name="first_name" placeholder="First Name*" required>
-          <input type="text" name="last_name" placeholder="Last Name*" required>
-          <input type="text" name="middle_name" placeholder="Middle Name*" required>
+          <div class="input-wrap">
+            <input type="text" name="first_name" id="first_name" placeholder="First Name*" required>
+          </div>
+          <div class="input-wrap">
+            <input type="text" name="last_name" id="last_name" placeholder="Last Name*" required>
+          </div>
+          <div class="input-wrap">
+            <input type="text" name="middle_name" id="middle_name" placeholder="Middle Name*" required>
+          </div>
         </div>
 
         <div class="form-row">
-          <input type="tel" name="phone" placeholder="Phone Number*" required>
+          <div class="input-wrap">
+            <input type="tel" name="phone" id="phone" placeholder="Phone Number*" required>
+          </div>
         </div>
 
-        <input type="email" name="email" placeholder="Email*" required>
+        <div class="input-wrap">
+          <input type="email" name="email" id="email" placeholder="Email*" required>
+        </div>
 
         <!-- ✅ House verification section -->
         <div class="form-row homeowner">
@@ -206,6 +243,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
           By using the <strong>VictorianPass</strong>, you agree to the rules set for security, privacy, and orderly access.
           <a onclick="openTerms()" style="text-decoration: underline; color: rgb(245, 63, 169);">Read Terms & Conditions</a>
         </label>
+
       </div>
 
       <p class="instructions"><i>Residents: Please verify your unique House Number on the next page to confirm residency.</i></p>
@@ -274,6 +312,223 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       </div>
     </div>
   </div>
+  
+
+  <script>
+    function togglePassword(id, el) {
+      const input = document.getElementById(id);
+      if (!input) return;
+      input.type = input.type === 'password' ? 'text' : 'password';
+    }
+
+    function openTerms() {
+      const modal = document.getElementById('termsModal');
+      if (modal) modal.style.display = 'block';
+    }
+
+    function closeTerms() {
+      const modal = document.getElementById('termsModal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function agreeTerms() {
+      const terms = document.getElementById('terms');
+      if (terms) {
+        terms.checked = true;
+        terms.disabled = false;
+      }
+      closeTerms();
+      // Clear any popover on terms
+      if (typeof setWarning === 'function') setWarning('terms', '');
+    }
+    // Floating popover warnings anchored under inputs
+    const _popovers = {};
+    function _ensureLayer(){ return document.getElementById('warnLayer'); }
+    function _positionPopover(inputEl, pop){
+      const rect = inputEl.getBoundingClientRect();
+      const top = rect.bottom + 8 + window.scrollY;
+      let left = rect.left + window.scrollX;
+      // Clamp within viewport
+      const vw = document.documentElement.clientWidth;
+      const popW = pop.offsetWidth || 260;
+      const minLeft = 12 + window.scrollX;
+      const maxLeft = vw - popW - 12 + window.scrollX;
+      left = Math.max(minLeft, Math.min(left, maxLeft));
+      pop.style.top = top + 'px';
+      pop.style.left = left + 'px';
+    }
+    function _removePopover(key){
+      const layer = _ensureLayer();
+      const pop = _popovers[key];
+      if (pop && layer && pop.parentNode === layer) layer.removeChild(pop);
+      delete _popovers[key];
+    }
+    function _showPopover(inputId, message){
+      const inputEl = document.getElementById(inputId);
+      if (!inputEl || !message) return;
+      const layer = _ensureLayer();
+      if (!layer) return;
+      let pop = _popovers[inputId];
+      if (!pop){
+        pop = document.createElement('div');
+        pop.className = 'field-popover';
+        pop.setAttribute('role','alert');
+        pop.dataset.key = inputId;
+        pop.innerHTML = '<span class="popover-icon">!</span><span class="msg"></span><span class="popover-close" aria-label="Dismiss" title="Dismiss">&times;</span>';
+        layer.appendChild(pop);
+        _popovers[inputId] = pop;
+        const closer = pop.querySelector('.popover-close');
+        closer.setAttribute('tabindex','0');
+        closer.addEventListener('click', function(){ _removePopover(inputId); });
+        closer.addEventListener('keydown', function(evt){ if (evt.key==='Enter'||evt.key===' ') { evt.preventDefault(); _removePopover(inputId);} });
+      }
+      const msg = pop.querySelector('.msg');
+      if (msg) msg.textContent = message;
+      _positionPopover(inputEl, pop);
+    }
+    function _repositionAll(){
+      Object.keys(_popovers).forEach(function(key){
+        const inp = document.getElementById(key);
+        const pop = _popovers[key];
+        if (inp && pop) _positionPopover(inp, pop);
+      });
+    }
+    window.addEventListener('scroll', _repositionAll, { passive: true });
+    window.addEventListener('resize', _repositionAll);
+    function setWarning(key, message){
+      if (message){ _showPopover(key, message); }
+      else { _removePopover(key); }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      const first = document.getElementById('first_name');
+      const last = document.getElementById('last_name');
+      const middle = document.getElementById('middle_name');
+      const phone = document.getElementById('phone');
+      const terms = document.getElementById('terms');
+      const password = document.getElementById('password');
+      const confirmPwd = document.getElementById('confirm_password');
+      const houseHidden = document.getElementById('houseHidden');
+      const form = document.getElementById('signupForm');
+
+      function blockDigits(e) {
+        if (/[0-9]/.test(e.key)) {
+          e.preventDefault();
+          setWarning(e.target.id, 'Numbers are not allowed in this field.');
+        }
+      }
+
+      function sanitizeNoDigits(e) {
+        const val = e.target.value;
+        const cleaned = val.replace(/[0-9]/g, '');
+        if (val !== cleaned) {
+          e.target.value = cleaned;
+          setWarning(e.target.id, 'Numbers were removed.');
+        } else {
+          // no toast for clearing
+        }
+      }
+
+      [first, last, middle].forEach(function(inp) {
+        if (!inp) return;
+        inp.addEventListener('keydown', blockDigits);
+        inp.addEventListener('input', sanitizeNoDigits);
+      });
+
+      if (phone) {
+        phone.addEventListener('input', function(e) {
+          const val = e.target.value;
+          const isValidPrefix = val.startsWith('+63');
+          const rest = val.slice(3);
+          const restDigitsOnly = /^\d*$/.test(rest);
+          if (!isValidPrefix || !restDigitsOnly) {
+            setWarning('phone', 'Contact must start with +63 and contain numbers only after.');
+          } else {
+            // no toast for clearing
+          }
+        });
+      }
+
+      // Live password mismatch feedback
+      if (confirmPwd) {
+        confirmPwd.addEventListener('input', function(e) {
+          if (password && password.value !== e.target.value) {
+            setWarning('confirm_password', 'Passwords do not match.');
+          } else {
+            setWarning('confirm_password', '');
+          }
+        });
+      }
+
+      if (form) {
+        form.addEventListener('submit', function(e) {
+          let valid = true;
+
+          // Names: ensure no digits
+          [first, last, middle].forEach(function(inp) {
+            if (!inp) return;
+            if (/\d/.test(inp.value)) {
+              setWarning(inp.id, 'Numbers are not allowed in this field.');
+              valid = false;
+            }
+            if (!inp.value.trim()) {
+              setWarning(inp.id, 'This field is required.');
+              valid = false;
+            }
+          });
+
+          // Phone format
+          if (phone) {
+            const val = phone.value;
+            if (!/^\+63\d+$/.test(val)) {
+              setWarning('phone', 'Contact must start with +63 and contain numbers only after.');
+              valid = false;
+            }
+          }
+
+          // Password match check
+          if (password && confirmPwd && password.value !== confirmPwd.value) {
+            setWarning('confirm_password', 'Passwords do not match.');
+            valid = false;
+          }
+
+          // Require verified house number: open verify modal when missing
+          if (houseHidden && !houseHidden.value.trim()) {
+            setWarning('houseHidden', 'Please verify your House Number.');
+            if (typeof openHouseModal === 'function') openHouseModal();
+            valid = false;
+          }
+
+          // Terms: show inline warning and block submit until agreed
+          if (terms && !terms.checked) {
+            setWarning('terms', 'Please read and agree to the Terms & Conditions.');
+            valid = false;
+          }
+
+          if (!valid) e.preventDefault();
+        });
+      }
+    });
+  </script>
+  <!-- Layer for floating field warnings -->
+  <div id="warnLayer" class="warn-layer" aria-live="polite" aria-atomic="true"></div>
+  <?php if (!empty($serverErrors ?? [])) { ?>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const warnings = <?php echo json_encode($serverErrors, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+      Object.entries(warnings).forEach(function([key, msg]) {
+        setWarning(key, msg);
+      });
+    });
+  </script>
+  <?php } ?>
+
+  <?php if ($registration_success) { ?>
+  <script>
+    // Auto-redirect to login after brief success message
+    setTimeout(function(){ window.location.href = 'login.php'; }, 2500);
+  </script>
+  <?php } ?>
 
   <script>
     function openHouseModal(){

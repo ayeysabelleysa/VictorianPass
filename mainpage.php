@@ -2,6 +2,9 @@
 include("connect.php");
 session_start();
 
+// Initialize error message for inline display
+$error = '';
+
 // Ensure entry_passes table exists
 function ensureEntryPassesTable($con) {
   $con->query("CREATE TABLE IF NOT EXISTS entry_passes (
@@ -20,6 +23,20 @@ function ensureEntryPassesTable($con) {
 }
 
 ensureEntryPassesTable($con);
+
+// Ensure downpayment support columns exist on entry_passes
+function ensureEntryPassesPaymentColumns($con) {
+  $col1 = $con->query("SHOW COLUMNS FROM entry_passes LIKE 'downpayment_receipt_path'");
+  if (!$col1 || $col1->num_rows === 0) {
+    $con->query("ALTER TABLE entry_passes ADD COLUMN downpayment_receipt_path VARCHAR(255) NULL COMMENT 'Path to uploaded downpayment receipt'");
+  }
+  $col2 = $con->query("SHOW COLUMNS FROM entry_passes LIKE 'downpayment_status'");
+  if (!$col2 || $col2->num_rows === 0) {
+    $con->query("ALTER TABLE entry_passes ADD COLUMN downpayment_status ENUM('pending','uploaded','verified','rejected') DEFAULT 'pending' COMMENT 'Downpayment status for visitor entry'");
+  }
+}
+
+ensureEntryPassesPaymentColumns($con);
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
   // Collect form data
@@ -55,8 +72,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $_SESSION['entry_pass_id'] = $entryPassId;
     $_SESSION['entry_pass_name'] = $first . ' ' . $last;
 
-    // Redirect to reservation page carrying entry_pass_id
-    header("Location: reserve.php?entry_pass_id=" . $entryPassId);
+    // Redirect to downpayment step (visitor-only) before reservation
+    header("Location: downpayment.php?entry_pass_id=" . $entryPassId . "&continue=reserve");
     exit;
   } else {
     // Fallback: keep previous behavior
@@ -75,6 +92,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   <link rel="icon" type="image/png" href="mainpage/logo.svg">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="mainpage.css">
+  <link rel="stylesheet" href="responsive.css">
 
   <style>
     /* Global Poppins Font Application */
@@ -160,17 +178,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       gap: 15px;
       margin-top: 20px;
       flex-wrap: wrap;
+      justify-content: center;
     }
     .btn-qr {
       display: flex;
-      gap: 8px;
-      padding: 12px 22px;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
       border-radius: 10px;
       font-weight: 600;
       text-decoration: none;
       color: #222;
       background: #e5ddc6;
       transition: 0.2s;
+      white-space: nowrap;
+      line-height: 1;
     }
     .btn-qr img { width: 18px; height: 18px; }
     .btn-qr:hover { transform: translateY(-2px); opacity: 0.9; }
@@ -184,6 +206,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       line-height: 1.5;
     }
     .page-instructions strong { color: #fff; }
+    .hero-icons { display: flex; justify-content: center; }
+    .form-instruction { text-align:center; color:#ddd; margin:10px 0 6px; font-size:0.95rem; }
+    .error { background:#ffe5e5; color:#b00020; padding:10px; border-radius:6px; margin:10px 0; text-align:center; }
 
     .entry-form select { 
       width: 95%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; 
@@ -285,6 +310,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       align-items: center;
       gap: 12px;
     }
+
+    /* Centered placement for User Type selector in hero */
+    .user-type-center {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 16px 0 20px;
+    }
+    .btn-change {
+      background: #6c757d;
+      color: #fff;
+      border-radius: 20px;
+      padding: 8px 16px;
+      border: none;
+      cursor: pointer;
+    }
+    .btn-change:hover { opacity: 0.9; }
   </style>
 </head>
 
@@ -300,18 +342,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     </div>
 
     <div class="nav-actions">
-      <!-- User Type Dropdown -->
-      <div class="user-type-dropdown" id="userTypeDropdown">
-        <button class="dropdown-btn" id="dropdownBtn">
-          <span>Select User Type</span>
-          <span class="dropdown-arrow">▼</span>
-        </button>
-        <div class="dropdown-content" id="dropdownContent">
-          <a href="#" onclick="selectUserType('resident')">Resident</a>
-          <a href="#" onclick="selectUserType('visitor')">Visitor</a>
-        </div>
-      </div>
-
+      <a href="checkurstatus.php" class="btn-nav btn-status" id="checkStatusNav" style="display: none;">Check Status</a>
       <!-- Navigation Links (initially hidden) -->
       <div class="nav-links" id="navLinks" style="display: none;">
         <a href="login.php" class="btn-nav btn-login">Login</a>
@@ -321,110 +352,129 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         </a>
       </div>
     </div>
+
+    
   </header>
 
   <!-- HERO SECTION -->
   <section class="hero">
+    <?php if ($error !== '') { echo '<div class="error">' . htmlspecialchars($error) . '</div>'; } ?>
     <div class="hero-content">
-      <div class="hero-icons">
-        <a href="mainpage.php" class="icon-box">
+      
+
+      <div class="hero-icons" id="entryPassButtonWrapper" style="display:none;">
+        <a href="entrypass.html" class="icon-box" id="entryFormButton">
           <img src="mainpage/entrypass.svg" alt="Entry Pass">
-          <span>Entrypass</span>
+          <span>Entry Pass Form</span>
         </a>
       </div>
-
-      <h1>WELCOME</h1>
+      <h1>WELCOME TO VictorianPass</h1>
+      <div class="hero-divider"></div>
+      <p class="welcome-subtitle">
+        VictorianPass: An Online Amenity Reservation System<br>
+        with QR-based Entry Pass Security<br>
+        for Victorian Heights Subdivision
+      </p>
       <p class="tagline">
-        "Every home holds a story<br>
-        start yours in a place<br>
-        worth remembering."
+        Every home holds a story —<br>
+        start yours in a place worth remembering.
       </p>
 
-      <div class="action-buttons" id="checkStatusSection" style="display: none;">
-        <a href="checkurstatus.php" class="btn-qr">
-          <span>Check Status</span>
-          <img src="mainpage/arrow.svg" alt="QR Icon">
-        </a>
-      </div>
+      
 
-      <p class="page-instructions" id="checkStatusInstructions" style="display: none;">
-        <strong>Instructions:</strong>  
-        Use <b>Check Status</b> if you already have a <b>Status Code</b>.
-      </p>
-    </div>
-
-    <!-- ✅ ENTRY FORM with working PHP (initially hidden for visitors) -->
-    <form class="entry-form" id="entryForm" method="POST" enctype="multipart/form-data" style="display: none;">
-      <div class="form-header">
-        <img src="mainpage/ticket.svg" alt="Ticket Icon">
-        <span>Entry Pass</span>
-      </div>
-
-      <input type="text" name="first_name" placeholder="First Name*" required>
-      <input type="text" name="middle_name" placeholder="Middle Name">
-      <input type="text" name="last_name" placeholder="Last Name*" required>
-      <input type="text" name="address" placeholder="Address*" required>
-
-      <div class="form-row">
-        <select name="sex" required>
-          <option value="" disabled selected>Sex*</option>
-          <option value="Male">Male</option>
-          <option value="Female">Female</option>
-        </select>
-
-        <div class="form-group">
-          <div class="form-row">
-            <input type="date" id="birthdate" name="birthdate" placeholder=" " required>
-            <label for="birthdate">Birthdate*</label>
+      <!-- Moved User Type Dropdown to bottom of hero -->
+      <div class="user-type-center">
+        <div class="user-type-dropdown" id="userTypeDropdown">
+          <button class="dropdown-btn" id="dropdownBtn">
+            <span>Select User Type</span>
+            <span class="dropdown-arrow">▼</span>
+          </button>
+          <div class="dropdown-content" id="dropdownContent">
+            <a href="#" onclick="selectUserType('resident')">Resident</a>
+            <a href="#" onclick="selectUserType('visitor')">Visitor</a>
           </div>
         </div>
       </div>
 
-      <div class="form-row">
-        <input type="tel" name="contact" placeholder="Phone Number*" required>
+      <!-- Change user type helper (shown after selection) -->
+      <div class="user-type-center" id="userTypeSwitch" style="display:none;">
+        <button class="btn-change" onclick="resetUserType()">Change User Type</button>
       </div>
-
-      <label class="upload-box">
-        <input type="file" name="valid_id" hidden required>
-        <img src="mainpage/upload.svg" alt="Upload">
-        <p>Upload a Valid ID* <br><small>(e.g. National ID, Driver's License)</small></p>
-      </label>
-
-      <button type="submit" class="btn-next">Next</button>
-    </form>
+    </div>
   </section>
+
+  <!-- Visitor-friendly instructions box fixed at the bottom-left -->
+  <div class="bottom-instructions" id="bottomInstructions" style="display: none;">
+    <strong>Visitor Tips</strong><br>
+    • Click <b>Entry Pass Form</b> to apply for a visitor pass.<br>
+    • Use <b>Check Status</b> to look up your code or track your request.
+  </div>
 
   <script>
     function selectUserType(type) {
       const dropdown = document.getElementById('userTypeDropdown');
       const navLinks = document.getElementById('navLinks');
-      const entryForm = document.getElementById('entryForm');
       const profileIcon = document.getElementById('profileIcon');
-      const checkStatusSection = document.getElementById('checkStatusSection');
-      const checkStatusInstructions = document.getElementById('checkStatusInstructions');
-      
+      const checkStatusNav = document.getElementById('checkStatusNav');
+      const bottomInstructions = document.getElementById('bottomInstructions');
+      const switcher = document.getElementById('userTypeSwitch');
+
       if (type === 'resident') {
         // Hide dropdown and show navigation links
         dropdown.style.display = 'none';
         navLinks.style.display = 'flex';
-        entryForm.style.display = 'none';
-        checkStatusSection.style.display = 'none';
-        checkStatusInstructions.style.display = 'none';
-        
+        if (checkStatusNav) checkStatusNav.style.display = 'none';
+        if (bottomInstructions) bottomInstructions.style.display = 'none';
+        switcher.style.display = 'block';
+        // Hide Entry Pass button/instruction for residents
+        var epBtn = document.getElementById('entryPassButtonWrapper');
+        var epInst = document.getElementById('entryPassInstruction');
+        if (epBtn) epBtn.style.display = 'none';
+        if (epInst) epInst.style.display = 'none';
+
         // Check if user is logged in (you can modify this logic based on your session handling)
         <?php if (isset($_SESSION['user_id'])): ?>
           profileIcon.style.display = 'block';
         <?php endif; ?>
-        
+
       } else if (type === 'visitor') {
         // Hide dropdown and show entry form and check status
         dropdown.style.display = 'none';
         navLinks.style.display = 'none';
-        entryForm.style.display = 'block';
         profileIcon.style.display = 'none';
-        checkStatusSection.style.display = 'block';
-        checkStatusInstructions.style.display = 'block';
+        if (checkStatusNav) checkStatusNav.style.display = 'inline-block';
+        if (bottomInstructions) bottomInstructions.style.display = 'block';
+        switcher.style.display = 'block';
+        // Show Entry Pass button/instruction for visitors
+        var epBtn = document.getElementById('entryPassButtonWrapper');
+        var epInst = document.getElementById('entryPassInstruction');
+        if (epBtn) epBtn.style.display = 'flex';
+        if (epInst) epInst.style.display = 'block';
       }
+    }
+
+    function resetUserType(){
+      const dropdown = document.getElementById('userTypeDropdown');
+      const navLinks = document.getElementById('navLinks');
+      const profileIcon = document.getElementById('profileIcon');
+      const checkStatusNav = document.getElementById('checkStatusNav');
+      const bottomInstructions = document.getElementById('bottomInstructions');
+      const switcher = document.getElementById('userTypeSwitch');
+      const epBtn = document.getElementById('entryPassButtonWrapper');
+      const epInst = document.getElementById('entryPassInstruction');
+
+      // Reset to initial state
+      dropdown.style.display = 'block';
+      const content = document.getElementById('dropdownContent');
+      if (content) content.style.display = 'none';
+      navLinks.style.display = 'none';
+      // No inline entry form on main page
+      if (profileIcon) profileIcon.style.display = 'none';
+      if (checkStatusNav) checkStatusNav.style.display = 'none';
+      if (bottomInstructions) bottomInstructions.style.display = 'none';
+      switcher.style.display = 'none';
+      if (epBtn) epBtn.style.display = 'none';
+      if (epInst) epInst.style.display = 'none';
     }
 
     // Toggle dropdown visibility

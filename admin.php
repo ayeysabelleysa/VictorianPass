@@ -7,9 +7,12 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_visitor_details' && isset(
     $reservation_id = intval($_GET['id']);
     
     $query = "SELECT r.*, ep.full_name, ep.middle_name, ep.last_name, ep.sex, ep.birthdate, 
-                     ep.contact, ep.address, ep.valid_id_path, ep.created_at as entry_created
+                     ep.contact, ep.email, ep.address, ep.valid_id_path, ep.created_at as entry_created,
+                     u.first_name AS res_first_name, u.middle_name AS res_middle_name, u.last_name AS res_last_name,
+                     u.email AS res_email, u.phone AS res_phone, u.house_number AS res_house_number
               FROM reservations r 
               JOIN entry_passes ep ON r.entry_pass_id = ep.id 
+              LEFT JOIN users u ON r.user_id = u.id
               WHERE r.id = ? AND r.entry_pass_id IS NOT NULL";
     
     $stmt = $con->prepare($query);
@@ -27,6 +30,25 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_visitor_details' && isset(
             'success' => false,
             'message' => 'Visitor details not found'
         ]);
+    }
+    exit;
+}
+
+// Handle AJAX request for standard amenity reservation details
+if (isset($_GET['action']) && $_GET['action'] == 'get_reservation_details' && isset($_GET['id'])) {
+    $reservation_id = intval($_GET['id']);
+    $query = "SELECT r.*, u.first_name, u.middle_name, u.last_name, u.email, u.phone, u.house_number
+              FROM reservations r
+              LEFT JOIN users u ON r.user_id = u.id
+              WHERE r.id = ? AND (r.entry_pass_id IS NULL OR r.entry_pass_id = 0)";
+    $stmt = $con->prepare($query);
+    $stmt->bind_param('i', $reservation_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    if ($result && $row = $result->fetch_assoc()) {
+        echo json_encode(['success' => true, 'details' => $row]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Reservation details not found']);
     }
     exit;
 }
@@ -118,7 +140,10 @@ function getResidents($con) {
 }
 
 function getReservations($con) {
-    $query = "SELECT * FROM reservations ORDER BY created_at DESC";
+    $query = "SELECT r.*, u.first_name, u.middle_name, u.last_name
+              FROM reservations r
+              LEFT JOIN users u ON r.user_id = u.id
+              ORDER BY r.created_at DESC";
     $result = $con->query($query);
     if ($result) {
         return $result;
@@ -169,6 +194,29 @@ function getVisitorRequests($con) {
     return false;
 }
 
+// Split visitor-related requests by source
+function getResidentVisitorRequests($con) {
+    $query = "SELECT r.*, ep.full_name, ep.middle_name, ep.last_name, ep.sex, ep.birthdate, 
+                     ep.contact, ep.email, ep.address, ep.valid_id_path, ep.created_at as entry_created
+              FROM reservations r 
+              JOIN entry_passes ep ON r.entry_pass_id = ep.id 
+              WHERE r.entry_pass_id IS NOT NULL AND r.user_id IS NOT NULL
+              ORDER BY r.created_at DESC";
+    $result = $con->query($query);
+    return $result ?: false;
+}
+
+function getVisitorOnlyRequests($con) {
+    $query = "SELECT r.*, ep.full_name, ep.middle_name, ep.last_name, ep.sex, ep.birthdate, 
+                     ep.contact, ep.email, ep.address, ep.valid_id_path, ep.created_at as entry_created
+              FROM reservations r 
+              JOIN entry_passes ep ON r.entry_pass_id = ep.id 
+              WHERE r.entry_pass_id IS NOT NULL AND r.user_id IS NULL
+              ORDER BY r.created_at DESC";
+    $result = $con->query($query);
+    return $result ?: false;
+}
+
 // Add: ensure reservations has a status column and auto-expire old reservations
 function ensureReservationStatusColumn($con) {
     $check = $con->query("SHOW COLUMNS FROM reservations LIKE 'status'");
@@ -183,8 +231,83 @@ function autoExpireReservations($con) {
     $con->query("UPDATE reservations SET status='expired' WHERE end_date < CURDATE() AND status <> 'expired'");
 }
 
+// Ensure incident-related tables exist to prevent runtime errors
+function ensureIncidentTables($con) {
+    $con->query("CREATE TABLE IF NOT EXISTS incident_reports (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      complainant VARCHAR(150) NOT NULL,
+      address VARCHAR(255) NOT NULL,
+      nature VARCHAR(255) NULL,
+      other_concern VARCHAR(255) NULL,
+      user_id INT NULL,
+      status ENUM('new','in_progress','resolved','rejected') DEFAULT 'new',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NULL,
+      INDEX idx_status (status),
+      INDEX idx_user_id (user_id)
+    ) ENGINE=InnoDB");
+
+    $con->query("CREATE TABLE IF NOT EXISTS incident_proofs (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      report_id INT NOT NULL,
+      file_path VARCHAR(255) NOT NULL,
+      uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_report_id (report_id)
+    ) ENGINE=InnoDB");
+}
+
 ensureReservationStatusColumn($con);
 autoExpireReservations($con);
+ensureIncidentTables($con);
+
+// Ensure reservations has a QR path column
+function ensureReservationQrColumn($con) {
+    $check = $con->query("SHOW COLUMNS FROM reservations LIKE 'qr_path'");
+    if ($check && $check->num_rows === 0) {
+        $con->query("ALTER TABLE reservations ADD COLUMN qr_path VARCHAR(255) NULL AFTER receipt_path");
+    }
+}
+
+// Generate and store QR code for a reservation
+function generateQrForReservation($con, $reservationId) {
+    $reservationId = intval($reservationId);
+    if ($reservationId <= 0) return;
+
+    ensureReservationQrColumn($con);
+    // Fetch reservation details
+    $stmt = $con->prepare("SELECT ref_code, start_date, end_date FROM reservations WHERE id = ?");
+    $stmt->bind_param('i', $reservationId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    if (!$res || !$res->num_rows) { $stmt->close(); return; }
+    $row = $res->fetch_assoc();
+    $stmt->close();
+
+    $ref = $row['ref_code'] ?? ('RES-' . $reservationId);
+    $start = isset($row['start_date']) ? $row['start_date'] : '';
+    $end   = isset($row['end_date']) ? $row['end_date'] : '';
+
+    // Build a direct status URL so scanners open the details page
+    $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/VictorianPass'), '/');
+    $statusLink = $scheme . '://' . $host . $basePath . '/status_view.php?code=' . urlencode($ref);
+
+    // Generate QR for the status link
+    $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' . urlencode($statusLink);
+    $img = @file_get_contents($qrUrl);
+    if ($img === false) return; // fail silently
+
+    $relPath = 'uploads/qr_reservation_' . $reservationId . '.png';
+    $absPath = __DIR__ . '/' . $relPath;
+    @file_put_contents($absPath, $img);
+
+    // Update reservation with QR path
+    $stmt2 = $con->prepare("UPDATE reservations SET qr_path = ? WHERE id = ?");
+    $stmt2->bind_param('si', $relPath, $reservationId);
+    $stmt2->execute();
+    $stmt2->close();
+}
 
 // Handle form submissions
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -202,6 +325,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $stmt = $con->prepare($query);
             $stmt->bind_param("sii", $approval_status, $staff_id, $reservation_id);
             $stmt->execute();
+
+            // Generate QR code upon approval
+            if ($approval_status === 'approved') {
+                generateQrForReservation($con, intval($reservation_id));
+            }
             
             // Redirect to prevent form resubmission
             header("Location: admin.php?page=requests");
@@ -218,8 +346,47 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $stmt = $con->prepare($query);
             $stmt->bind_param("si", $status, $reservation_id);
             $stmt->execute();
+
+            // Generate QR code upon approval
+            if ($status === 'approved') {
+                generateQrForReservation($con, intval($reservation_id));
+            }
             
             // Redirect to prevent form resubmission
+            header("Location: admin.php?page=requests");
+            exit;
+        }
+
+        // Handle deletion of denied/rejected reservations
+        if ($action == 'delete_reservation') {
+            $reservation_id = intval($_POST['reservation_id'] ?? 0);
+            if ($reservation_id > 0) {
+                // Fetch reservation to validate status and determine if visitor entry
+                $stmt = $con->prepare("SELECT id, entry_pass_id, approval_status, status FROM reservations WHERE id = ?");
+                $stmt->bind_param('i', $reservation_id);
+                $stmt->execute();
+                $res = $stmt->get_result();
+                if ($res && $row = $res->fetch_assoc()) {
+                    $isDenied = (isset($row['approval_status']) && $row['approval_status'] === 'denied') || (isset($row['status']) && $row['status'] === 'rejected');
+                    if ($isDenied) {
+                        // If this is a visitor request, delete the linked entry pass
+                        $entryId = intval($row['entry_pass_id'] ?? 0);
+                        if ($entryId > 0) {
+                            $stmtDelEP = $con->prepare("DELETE FROM entry_passes WHERE id = ?");
+                            $stmtDelEP->bind_param('i', $entryId);
+                            $stmtDelEP->execute();
+                            $stmtDelEP->close();
+                        }
+                        // Delete the reservation itself
+                        $stmtDelR = $con->prepare("DELETE FROM reservations WHERE id = ?");
+                        $stmtDelR->bind_param('i', $reservation_id);
+                        $stmtDelR->execute();
+                        $stmtDelR->close();
+                    }
+                }
+                $stmt->close();
+            }
+            // Redirect back to requests
             header("Location: admin.php?page=requests");
             exit;
         }
@@ -479,163 +646,159 @@ body{margin:0;background:#f3efe9;color:#222;}
 <!-- REQUESTS -->
 <?php if ($currentPage == 'requests'): ?>
 <section class="panel" id="requests-panel">
-  <h3>All Requests</h3>
-  
+  <style>
+    .requests-row { display: flex; flex-direction: column; gap: 20px; align-items: stretch; max-width: 1100px; margin: 0 auto; }
+    .card-box { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); padding: 16px; width: 100%; }
+    .card-box h3 { margin-top: 0; color: #23412e; }
+  </style>
+  <div class="requests-row">
+  <div class="card-box">
+  <h3>Resident Requests</h3>
   <table class="table">
     <thead>
       <tr>
-        <th>Request Type</th>
-        <th>Reference/Name</th>
+        <th>Name</th>
         <th>Amenity</th>
-        <th>Start Date</th>
-        <th>End Date</th>
         <th>Persons</th>
-        <th>Price</th>
         <th>Status</th>
         <th>Actions</th>
       </tr>
     </thead>
     <tbody>
       <?php
-      // Get amenity reservations (non-visitor requests)
-      $reservations = getReservations($con);
-      $hasReservations = false;
-      if ($reservations && $reservations->num_rows > 0) {
-          while ($reservation = $reservations->fetch_assoc()) {
-              // Skip visitor requests (those with entry_pass_id)
-              if ($reservation['entry_pass_id']) continue;
-              
-              $hasReservations = true;
+      $residentRequests = getResidentVisitorRequests($con);
+      $hasResidentRequests = false;
+      if ($residentRequests && $residentRequests->num_rows > 0) {
+          while ($req = $residentRequests->fetch_assoc()) {
+              $hasResidentRequests = true;
               echo "<tr>";
-              echo "<td><span class='badge badge-info'>Amenity Reservation</span></td>";
-              echo "<td>" . $reservation['ref_code'] . "</td>";
-              echo "<td>" . $reservation['amenity'] . "</td>";
-              echo "<td>" . date('M d, Y', strtotime($reservation['start_date'])) . "</td>";
-              echo "<td>" . date('M d, Y', strtotime($reservation['end_date'])) . "</td>";
-              echo "<td>" . $reservation['persons'] . "</td>";
-              echo "<td>₱" . number_format($reservation['price'], 2) . "</td>";
-              
-              // Status badge
-              $status = isset($reservation['status']) ? $reservation['status'] : 'pending';
-              $statusClass = '';
-              switch ($status) {
-                  case 'approved': $statusClass = 'badge-approved'; break;
-                  case 'rejected': $statusClass = 'badge-rejected'; break;
-                  case 'expired': $statusClass = 'badge-expired'; break;
-                  default: $statusClass = 'badge-pending';
-              }
-              echo "<td><span class='badge $statusClass'>" . ucfirst($status) . "</span></td>";
-              
-              // Actions
-              echo "<td class='actions'>";
-              if ($status == 'pending') {
-                  echo "<form method='post' style='display:inline;'>";
-                  echo "<input type='hidden' name='reservation_id' value='" . $reservation['id'] . "'>";
-                  echo "<input type='hidden' name='action' value='approve_reservation'>";
-                  echo "<button type='submit' class='btn btn-approve'>Approve</button>";
-                  echo "</form>";
-                  
-                  echo "<form method='post' style='display:inline;'>";
-                  echo "<input type='hidden' name='reservation_id' value='" . $reservation['id'] . "'>";
-                  echo "<input type='hidden' name='action' value='reject_reservation'>";
-                  echo "<button type='submit' class='btn btn-reject'>Reject</button>";
-                  echo "</form>";
-              } else {
-                  echo "<span class='muted'>No actions</span>";
-              }
-              echo "</td>";
-              echo "</tr>";
-          }
-      }
-      
-      // Get visitor requests
-      $visitorRequests = getVisitorRequests($con);
-      $hasVisitorRequests = false;
-      if ($visitorRequests && $visitorRequests->num_rows > 0) {
-          while ($request = $visitorRequests->fetch_assoc()) {
-              $hasVisitorRequests = true;
-              echo "<tr>";
-              echo "<td><span class='badge badge-warning'>Visitor Entry Pass</span></td>";
-              
-              // Full name
-              $fullName = trim($request['full_name'] . ' ' . $request['middle_name'] . ' ' . $request['last_name']);
+              // Visitor full name from resident-submitted guest form
+              $fullName = trim(($req['full_name'] ?? '') . ' ' . ($req['middle_name'] ?? '') . ' ' . ($req['last_name'] ?? ''));
               echo "<td><strong>" . htmlspecialchars($fullName) . "</strong></td>";
-              
-              // Reserved Amenity
-              echo "<td>";
-              if ($request['amenity']) {
-                  echo htmlspecialchars($request['amenity']);
-              } else {
-                  echo "<span class='muted'>No amenity</span>";
-              }
-              echo "</td>";
-              
-              // Start and End dates
-              echo "<td>";
-              if ($request['start_date']) {
-                  echo date('M d, Y', strtotime($request['start_date']));
-              } else {
-                  echo "<span class='muted'>-</span>";
-              }
-              echo "</td>";
-              
-              echo "<td>";
-              if ($request['end_date']) {
-                  echo date('M d, Y', strtotime($request['end_date']));
-              } else {
-                  echo "<span class='muted'>-</span>";
-              }
-              echo "</td>";
-              
-              // Persons and Price
-              echo "<td>" . ($request['persons'] ? $request['persons'] : '-') . "</td>";
-              echo "<td>" . ($request['price'] ? '₱' . number_format($request['price'], 2) : '-') . "</td>";
-              
-              // Status
-              $approval_status = $request['approval_status'] ?? 'pending';
-              $statusClass = '';
-              switch ($approval_status) {
-                  case 'approved': $statusClass = 'badge-approved'; break;
-                  case 'denied': $statusClass = 'badge-rejected'; break;
-                  default: $statusClass = 'badge-pending';
-              }
+
+              // Amenity (or Guest Entry when none)
+              $amenityDisplay = !empty($req['amenity']) ? $req['amenity'] : 'Guest Entry';
+              echo "<td>" . htmlspecialchars($amenityDisplay) . "</td>";
+
+              // Persons
+              echo "<td>" . (!empty($req['persons']) ? intval($req['persons']) : '-') . "</td>";
+
+              // Status (approval_status)
+              $approval_status = $req['approval_status'] ?? 'pending';
+              $statusClass = $approval_status === 'approved' ? 'badge-approved' : ($approval_status === 'denied' ? 'badge-rejected' : 'badge-pending');
               echo "<td><span class='badge $statusClass'>" . ucfirst($approval_status) . "</span></td>";
-              
+
               // Actions
               echo "<td class='actions'>";
-              
-              // View Details button for visitor requests
-              echo "<button type='button' class='btn btn-view' onclick='showVisitorDetails(" . $request['id'] . ")' style='margin-bottom: 5px;'>View Details</button><br>";
-              
+              echo "<button type='button' class='btn btn-view' onclick='showVisitorDetails(" . $req['id'] . ")' style='margin-bottom: 5px;'>View More Details</button><br>";
               if ($approval_status == 'pending') {
                   echo "<form method='post' style='display:inline;'>";
-                  echo "<input type='hidden' name='reservation_id' value='" . $request['id'] . "'>";
+                  echo "<input type='hidden' name='reservation_id' value='" . $req['id'] . "'>";
                   echo "<input type='hidden' name='action' value='approve_request'>";
                   echo "<button type='submit' class='btn btn-approve'>Approve</button>";
                   echo "</form>";
-                  
+
                   echo "<form method='post' style='display:inline;'>";
-                  echo "<input type='hidden' name='reservation_id' value='" . $request['id'] . "'>";
+                  echo "<input type='hidden' name='reservation_id' value='" . $req['id'] . "'>";
                   echo "<input type='hidden' name='action' value='deny_request'>";
                   echo "<button type='submit' class='btn btn-reject'>Deny</button>";
                   echo "</form>";
+              } elseif ($approval_status == 'denied') {
+                  echo "<form method='post' style='display:inline;' onsubmit='return confirm(\"Delete this denied request? This cannot be undone.\")'>";
+                  echo "<input type='hidden' name='reservation_id' value='" . $req['id'] . "'>";
+                  echo "<input type='hidden' name='action' value='delete_reservation'>";
+                  echo "<button type='submit' class='btn btn-remove'>Delete</button>";
+                  echo "</form>";
               } else {
-                  $approvedBy = $request['approved_by'] ? "by Staff ID " . $request['approved_by'] : "";
-                  $approvalDate = $request['approval_date'] ? date('M d, Y', strtotime($request['approval_date'])) : "";
+                  $approvedBy = !empty($req['approved_by']) ? "by Staff ID " . $req['approved_by'] : "";
+                  $approvalDate = !empty($req['approval_date']) ? date('M d, Y', strtotime($req['approval_date'])) : "";
                   echo "<span class='muted'>" . ucfirst($approval_status) . " $approvedBy<br>$approvalDate</span>";
               }
               echo "</td>";
               echo "</tr>";
           }
       }
-      
-      // Show message if no requests found
-      if (!$hasReservations && !$hasVisitorRequests) {
-          echo "<tr><td colspan='9' style='text-align:center;'>No requests found</td></tr>";
+      if (!$hasResidentRequests) {
+          echo "<tr><td colspan='5' style='text-align:center;'>No resident requests found</td></tr>";
       }
       ?>
     </tbody>
   </table>
+
+  </div>
+  <div class="card-box">
+  <h3>Visitor Requests</h3>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Amenity</th>
+        <th>Persons</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php
+      $visitorOnly = getVisitorOnlyRequests($con);
+      $hasVisitorOnly = false;
+      if ($visitorOnly && $visitorOnly->num_rows > 0) {
+          while ($request = $visitorOnly->fetch_assoc()) {
+              $hasVisitorOnly = true;
+              echo "<tr>";
+              // Visitor name
+              $fullName = trim(($request['full_name'] ?? '') . ' ' . ($request['middle_name'] ?? '') . ' ' . ($request['last_name'] ?? ''));
+              echo "<td><strong>" . htmlspecialchars($fullName) . "</strong></td>";
+
+              // Amenity (often Guest Entry)
+              echo "<td>" . (!empty($request['amenity']) ? htmlspecialchars($request['amenity']) : '<span class=\'muted\'>No amenity</span>') . "</td>";
+
+              // Persons
+              echo "<td>" . (!empty($request['persons']) ? intval($request['persons']) : '-') . "</td>";
+
+              // Status
+              $approval_status = $request['approval_status'] ?? 'pending';
+              $statusClass = $approval_status === 'approved' ? 'badge-approved' : ($approval_status === 'denied' ? 'badge-rejected' : 'badge-pending');
+              echo "<td><span class='badge $statusClass'>" . ucfirst($approval_status) . "</span></td>";
+
+              // Actions
+              echo "<td class='actions'>";
+              echo "<button type='button' class='btn btn-view' onclick='showVisitorDetails(" . $request['id'] . ")' style='margin-bottom: 5px;'>View More Details</button><br>";
+              if ($approval_status == 'pending') {
+                  echo "<form method='post' style='display:inline;'>";
+                  echo "<input type='hidden' name='reservation_id' value='" . $request['id'] . "'>";
+                  echo "<input type='hidden' name='action' value='approve_request'>";
+                  echo "<button type='submit' class='btn btn-approve'>Approve</button>";
+                  echo "</form>";
+
+                  echo "<form method='post' style='display:inline;'>";
+                  echo "<input type='hidden' name='reservation_id' value='" . $request['id'] . "'>";
+                  echo "<input type='hidden' name='action' value='deny_request'>";
+                  echo "<button type='submit' class='btn btn-reject'>Deny</button>";
+                  echo "</form>";
+              } elseif ($approval_status == 'denied') {
+                  echo "<form method='post' style='display:inline;' onsubmit='return confirm(\"Delete this denied request? This cannot be undone.\")'>";
+                  echo "<input type='hidden' name='reservation_id' value='" . $request['id'] . "'>";
+                  echo "<input type='hidden' name='action' value='delete_reservation'>";
+                  echo "<button type='submit' class='btn btn-remove'>Delete</button>";
+                  echo "</form>";
+              } else {
+                  $approvedBy = !empty($request['approved_by']) ? "by Staff ID " . $request['approved_by'] : "";
+                  $approvalDate = !empty($request['approval_date']) ? date('M d, Y', strtotime($request['approval_date'])) : "";
+                  echo "<span class='muted'>" . ucfirst($approval_status) . " $approvedBy<br>$approvalDate</span>";
+              }
+              echo "</td>";
+              echo "</tr>";
+          }
+      }
+      if (!$hasVisitorOnly) {
+          echo "<tr><td colspan='5' style='text-align:center;'>No visitor requests found</td></tr>";
+      }
+      ?>
+    </tbody>
+  </table>
+  </div>
+  </div>
 </section>
 <?php endif; ?>
 
@@ -648,6 +811,7 @@ body{margin:0;background:#f3efe9;color:#222;}
       <tr>
         <th>Reference Code</th>
         <th>Amenity</th>
+        <th>Reservation Type</th>
         <th>Amount</th>
         <th>Date</th>
         <th>Receipt</th>
@@ -665,6 +829,9 @@ body{margin:0;background:#f3efe9;color:#222;}
               echo "<tr>";
               echo "<td>" . $payment['ref_code'] . "</td>";
               echo "<td>" . $payment['amenity'] . "</td>";
+              // Reservation Type label
+              $typeLabel = !empty($payment['entry_pass_id']) ? 'Visitor Entry Pass' : 'Amenity Reservation';
+              echo "<td><span class='badge " . (!empty($payment['entry_pass_id']) ? "badge-warning" : "badge-info") . "'>" . $typeLabel . "</span></td>";
               echo "<td>₱" . number_format($payment['price'], 2) . "</td>";
               echo "<td>" . date('M d, Y', strtotime($payment['created_at'])) . "</td>";
               
@@ -691,6 +858,8 @@ body{margin:0;background:#f3efe9;color:#222;}
               
               // Actions
               echo "<td class='actions'>";
+              // Always include View Details in payments table
+              echo "<button type='button' class='btn btn-view' onclick='" . (!empty($payment['entry_pass_id']) ? "showVisitorDetails(" . $payment['id'] . ")" : "showReservationDetails(" . $payment['id'] . ")") . "' style='margin-bottom:5px;'>View Details</button><br>";
               if ($status == 'pending') {
                   echo "<form method='post' style='display:inline;'>";
                   echo "<input type='hidden' name='reservation_id' value='" . $payment['id'] . "'>";
@@ -827,7 +996,45 @@ function showVisitorDetails(reservationId) {
     .then(data => {
       if (data.success) {
         const details = data.details;
-        const content = `
+        const isResident = details.user_id && String(details.user_id) !== '0';
+        // Update modal title depending on source
+        const modalTitleEl = document.querySelector('#visitorModal h3');
+        if (modalTitleEl) modalTitleEl.textContent = isResident ? 'Resident Request Details' : 'Visitor Details';
+
+        const residentName = [details.res_first_name || '', details.res_middle_name || '', details.res_last_name || ''].join(' ').replace(/\s+/g, ' ').trim();
+        const content = isResident
+          ? `
+          <div style="display: grid; grid-template-columns: 1fr; gap: 12px;">
+            <div>
+              <h4 style="color:#23412e;margin-bottom:10px;">Resident Information</h4>
+              ${residentName ? `<p><strong>Name:</strong> ${residentName}</p>` : ''}
+              ${details.res_house_number ? `<p><strong>House No.:</strong> ${details.res_house_number}</p>` : ''}
+              ${details.res_email ? `<p><strong>Email:</strong> ${details.res_email}</p>` : ''}
+              ${details.res_phone ? `<p><strong>Contact:</strong> ${details.res_phone}</p>` : ''}
+            </div>
+            <div>
+              <h4 style="color:#23412e;margin-bottom:10px;">Visitor Information</h4>
+              <p><strong>Full Name:</strong> ${details.full_name} ${details.middle_name || ''} ${details.last_name}</p>
+              <p><strong>Sex:</strong> ${details.sex || '-'}</p>
+              ${details.birthdate ? `<p><strong>Birthdate:</strong> ${new Date(details.birthdate).toLocaleDateString()}</p>` : ''}
+              <p><strong>Contact:</strong> ${details.contact || '-'}</p>
+              ${details.email ? `<p><strong>Email:</strong> ${details.email}</p>` : ''}
+              ${details.valid_id_path ? `<p><strong>Valid ID:</strong> <a href="${details.valid_id_path}" target="_blank" class="btn btn-view">View ID</a></p>` : '<p><strong>Valid ID:</strong> Not uploaded</p>'}
+            </div>
+            <div>
+              <h4 style="color:#23412e;margin-bottom:10px;">Visit Details</h4>
+              ${details.start_date ? `<p><strong>Date:</strong> ${new Date(details.start_date).toLocaleDateString()}${details.end_date ? ' - ' + new Date(details.end_date).toLocaleDateString() : ''}</p>` : ''}
+              ${details.persons ? `<p><strong>Persons:</strong> ${details.persons}</p>` : ''}
+              ${details.purpose ? `<p><strong>Purpose of Visit:</strong> ${details.purpose}</p>` : ''}
+              <p><strong>Amenity:</strong> ${details.amenity ? details.amenity : 'Guest Entry'}</p>
+              <p><strong>Status:</strong> <span class="badge badge-${details.approval_status || 'pending'}">${(details.approval_status || 'pending').charAt(0).toUpperCase() + (details.approval_status || 'pending').slice(1)}</span></p>
+              <p><strong>Request Date:</strong> ${new Date(details.entry_created).toLocaleString()}</p>
+              ${details.approved_by ? `<p><strong>Approved By:</strong> Staff ID ${details.approved_by}</p>` : ''}
+              ${details.approval_date ? `<p><strong>Approval Date:</strong> ${new Date(details.approval_date).toLocaleString()}</p>` : ''}
+            </div>
+          </div>
+          `
+          : `
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
             <div>
               <h4 style="color: #23412e; margin-bottom: 10px;">Personal Information</h4>
@@ -835,15 +1042,16 @@ function showVisitorDetails(reservationId) {
               <p><strong>Sex:</strong> ${details.sex}</p>
               <p><strong>Birthdate:</strong> ${new Date(details.birthdate).toLocaleDateString()}</p>
               <p><strong>Contact:</strong> ${details.contact}</p>
+              ${details.email ? `<p><strong>Email:</strong> ${details.email}</p>` : ''}
               <p><strong>Address:</strong> ${details.address}</p>
               ${details.valid_id_path ? `<p><strong>Valid ID:</strong> <a href="${details.valid_id_path}" target="_blank" class="btn btn-view">View ID</a></p>` : '<p><strong>Valid ID:</strong> Not uploaded</p>'}
             </div>
             <div>
               <h4 style="color: #23412e; margin-bottom: 10px;">Reservation Details</h4>
-              ${details.amenity ? `<p><strong>Amenity:</strong> ${details.amenity}</p>` : '<p><strong>Amenity:</strong> Not specified</p>'}
-              ${details.start_date ? `<p><strong>Start Date:</strong> ${new Date(details.start_date).toLocaleDateString()}</p>` : ''}
-              ${details.end_date ? `<p><strong>End Date:</strong> ${new Date(details.end_date).toLocaleDateString()}</p>` : ''}
+              ${details.amenity ? `<p><strong>Amenity:</strong> ${details.amenity}</p>` : '<p><strong>Amenity:</strong> Guest Entry</p>'}
+              ${details.start_date ? `<p><strong>Date:</strong> ${new Date(details.start_date).toLocaleDateString()}${details.end_date ? ' - ' + new Date(details.end_date).toLocaleDateString() : ''}</p>` : ''}
               ${details.persons ? `<p><strong>Persons:</strong> ${details.persons}</p>` : ''}
+              ${details.purpose ? `<p><strong>Purpose of Visit:</strong> ${details.purpose}</p>` : ''}
               ${details.price ? `<p><strong>Price:</strong> ₱${parseFloat(details.price).toLocaleString()}</p>` : ''}
               <p><strong>Request Date:</strong> ${new Date(details.entry_created).toLocaleString()}</p>
               <p><strong>Status:</strong> <span class="badge badge-${details.approval_status || 'pending'}">${(details.approval_status || 'pending').charAt(0).toUpperCase() + (details.approval_status || 'pending').slice(1)}</span></p>
@@ -851,7 +1059,7 @@ function showVisitorDetails(reservationId) {
               ${details.approval_date ? `<p><strong>Approval Date:</strong> ${new Date(details.approval_date).toLocaleString()}</p>` : ''}
             </div>
           </div>
-        `;
+          `;
         document.getElementById('visitorDetailsContent').innerHTML = content;
         document.getElementById('visitorModal').style.display = 'block';
       } else {
@@ -876,6 +1084,62 @@ window.onclick = function(event) {
     modal.style.display = 'none';
   }
 }
+</script>
+
+<!-- Reservation Details Modal -->
+<div id="reservationModal" class="modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
+  <div class="modal-content" style="background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 600px; border-radius: 8px;">
+    <span class="close" onclick="closeReservationModal()" style="color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+    <h3 style="margin-top: 0; color: #23412e;">Reservation Details</h3>
+    <div id="reservationDetailsContent"></div>
+  </div>
+</div>
+
+<script>
+function showReservationDetails(reservationId){
+  fetch('admin.php?action=get_reservation_details&id=' + reservationId)
+    .then(r => r.json())
+    .then(data => {
+      if(!data.success){ alert('Error loading reservation details: ' + (data.message||'Unknown error')); return; }
+      const d = data.details || {};
+      const fullName = [d.first_name||'', d.middle_name||'', d.last_name||''].join(' ').replace(/\s+/g,' ').trim();
+      const content = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <div>
+            <h4 style="color:#23412e;margin-bottom:10px;">Resident</h4>
+            ${fullName?`<p><strong>Name:</strong> ${fullName}</p>`:''}
+            ${d.house_number?`<p><strong>House No.:</strong> ${d.house_number}</p>`:''}
+            ${d.email?`<p><strong>Email:</strong> ${d.email}</p>`:''}
+            ${d.phone?`<p><strong>Phone:</strong> ${d.phone}</p>`:''}
+          </div>
+          <div>
+            <h4 style="color:#23412e;margin-bottom:10px;">Reservation</h4>
+            ${d.ref_code?`<p><strong>Ref Code:</strong> ${d.ref_code}</p>`:''}
+            ${d.amenity?`<p><strong>Amenity:</strong> ${d.amenity}</p>`:''}
+            ${d.start_date?`<p><strong>Start Date:</strong> ${new Date(d.start_date).toLocaleDateString()}</p>`:''}
+            ${d.end_date?`<p><strong>End Date:</strong> ${new Date(d.end_date).toLocaleDateString()}</p>`:''}
+            ${d.persons?`<p><strong>Persons:</strong> ${d.persons}</p>`:''}
+            ${d.price?`<p><strong>Price:</strong> ₱${parseFloat(d.price).toLocaleString()}</p>`:''}
+            ${d.created_at?`<p><strong>Requested:</strong> ${new Date(d.created_at).toLocaleString()}</p>`:''}
+            ${d.approval_status?`<p><strong>Status:</strong> <span class="badge badge-${d.approval_status}">${d.approval_status.charAt(0).toUpperCase()+d.approval_status.slice(1)}</span></p>`:''}
+            ${d.approved_by?`<p><strong>Approved By:</strong> Staff ID ${d.approved_by}</p>`:''}
+            ${d.approval_date?`<p><strong>Approval Date:</strong> ${new Date(d.approval_date).toLocaleString()}</p>`:''}
+          </div>
+        </div>`;
+      document.getElementById('reservationDetailsContent').innerHTML = content;
+      document.getElementById('reservationModal').style.display = 'block';
+    })
+    .catch(err => { console.error(err); alert('Error loading reservation details'); });
+}
+
+function closeReservationModal(){
+  document.getElementById('reservationModal').style.display = 'none';
+}
+
+window.addEventListener('click', function(event){
+  const rmodal = document.getElementById('reservationModal');
+  if(event.target === rmodal){ rmodal.style.display = 'none'; }
+});
 </script>
 
 </main>

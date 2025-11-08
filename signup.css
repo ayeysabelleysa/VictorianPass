@@ -1,5 +1,5 @@
 
-    body {
+body {
   animation: fadeIn 0.6s ease-in-out;
 }
 
@@ -101,6 +101,7 @@ input[type="password"],
 input[type="date"],
 input[type="tel"] {
   flex: 1;
+  width: 100%;
   padding: 0.75rem;
   border: 1px solid #ccc;
   border-radius: 8px;
@@ -163,12 +164,13 @@ input[type="tel"] {
 
 /* Confirm Button */
 .confirm {
-  background: #e5ddc6;
-  color: #23412e;
+  background: #28a745; /* Green */
+  color: #fff;
 }
 .confirm:hover {
   transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(229, 221, 198, 0.4);
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+  opacity: 0.95;
 }
 
 /* Login Link */
@@ -197,6 +199,117 @@ input[type="tel"] {
 .terms input {
   margin-top: 0.2rem;
 }
+
+/* Inline warnings */
+.input-wrap { position: relative; flex: 1; }
+.field-warning {
+  color: #c0392b; /* subtle red */
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: absolute;
+  top: -14px;
+  right: 8px;
+  z-index: 2;
+}
+.password-field .field-warning { position: absolute; top: -14px; right: 8px; }
+.homeowner { position: relative; }
+.terms { position: relative; }
+.field-warning:empty {
+  display: none; /* hidden when no message, avoids layout shifts */
+}
+.close-warn {
+  cursor: pointer;
+  color: #888;
+  line-height: 1;
+}
+.close-warn:hover {
+  color: #555;
+}
+
+/* Toasts */
+.toast-container {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.toast {
+  background: #fff;
+  border-left: 4px solid #c0392b; /* error accent */
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  border-radius: 8px;
+  padding: 10px 12px;
+  min-width: 240px;
+  color: #333;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.toast .toast-close {
+  margin-left: auto;
+  cursor: pointer;
+  color: #888;
+}
+.toast .toast-close:hover { color: #555; }
+.toast-success { border-left-color: #28a745; }
+.toast-info { border-left-color: #23412e; }
+
+/* Floating field popovers */
+.warn-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  pointer-events: none;
+}
+.field-popover {
+  position: absolute;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  padding: 10px 12px;
+  min-width: 220px;
+  max-width: min(92vw, 360px);
+  color: #333;
+  border-left: 4px solid #f5a623; /* orange accent like sample */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: auto; /* allow clicking close */
+  overflow-wrap: anywhere;
+}
+.field-popover::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: 18px;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid #fff; /* arrow */
+  filter: drop-shadow(0 -2px 2px rgba(0,0,0,0.08));
+}
+.field-popover .popover-icon {
+  width: 18px;
+  height: 18px;
+  background: #f5a623;
+  border-radius: 4px;
+  color: #fff;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+.field-popover .popover-close {
+  margin-left: auto;
+  cursor: pointer;
+  color: #888;
+}
+.field-popover .popover-close:hover { color: #555; }
 
 /* Responsive */
 @media (max-width: 768px) {

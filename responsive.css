@@ -1,0 +1,36 @@
+/* Global responsive helpers for VictorianPass */
+html { scroll-behavior: smooth; }
+body { overflow-x: hidden; }
+
+/* Containers */
+.container, .page-wrap { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+
+/* Media */
+img, video { max-width: 100%; height: auto; }
+
+/* Tables */
+.table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* Forms */
+input, select, textarea, button { font-family: 'Poppins', sans-serif; }
+input, select, textarea { max-width: 100%; }
+
+/* Modals (shared baseline) */
+.modal { align-items: flex-start; padding: 24px 12px; }
+.modal .modal-content { width: min(95vw, 420px); margin: 24px auto; }
+.modal .qr-section img { width: min(70vw, 180px); height: auto; }
+
+/* Cards */
+.card { border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.12); }
+
+/* Typography scaling */
+:root { --fs-base: 16px; }
+@media (max-width: 768px) {
+  :root { --fs-base: 15px; }
+  .btn, .qr-btn, .upload-btn { padding: 10px 14px; font-size: 0.95rem; }
+}
+@media (max-width: 480px) {
+  :root { --fs-base: 14px; }
+  .btn, .qr-btn, .upload-btn { padding: 9px 12px; font-size: 0.9rem; }
+  .modal .modal-content { width: 96vw; }
+}

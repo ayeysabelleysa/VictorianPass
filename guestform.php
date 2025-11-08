@@ -72,18 +72,18 @@ $phone = $user['phone'] ?? '';
 
     <h4 style="margin:10px 0 5px;color:#23412e;">Resident Information</h4>
     <div class="form-row">
-      <input type="text" name="resident_full_name" placeholder="Resident Full Name*" value="<?php echo htmlspecialchars($fullName); ?>" required>
-      <input type="text" name="resident_house" placeholder="House/Unit No.*" value="<?php echo htmlspecialchars($houseNumber); ?>" required>
+      <input type="text" id="resident_full_name" name="resident_full_name" placeholder="Resident Full Name*" value="<?php echo htmlspecialchars($fullName); ?>" required>
+      <input type="text" id="resident_house" name="resident_house" placeholder="House/Unit No.*" value="<?php echo htmlspecialchars($houseNumber); ?>" required>
     </div>
     <div class="form-row">
-      <input type="email" name="resident_email" placeholder="Resident Email*" value="<?php echo htmlspecialchars($email); ?>" required>
-      <input type="tel" name="resident_contact" placeholder="Resident Contact Number*" value="<?php echo htmlspecialchars($phone); ?>" required>
+      <input type="email" id="resident_email" name="resident_email" placeholder="Resident Email*" value="<?php echo htmlspecialchars($email); ?>" required>
+      <input type="tel" id="resident_contact" name="resident_contact" placeholder="Resident Contact Number*" value="<?php echo htmlspecialchars($phone); ?>" required>
     </div>
 
     <h4 style="margin:20px 0 5px;color:#23412e;">Visitor Information</h4>
     <div class="form-row">
-      <input type="text" name="visitor_first_name" placeholder="Visitor First Name*" required>
-      <input type="text" name="visitor_last_name" placeholder="Visitor Last Name*" required>
+      <input type="text" id="visitor_first_name" name="visitor_first_name" placeholder="Visitor First Name*" required>
+      <input type="text" id="visitor_last_name" name="visitor_last_name" placeholder="Visitor Last Name*" required>
     </div>
     <div class="form-row">
       <select name="visitor_sex" required>
@@ -96,8 +96,8 @@ $phone = $user['phone'] ?? '';
         <label for="birthdate">Birthdate*</label>
       </div>
     </div>
-    <input type="tel" name="visitor_contact" placeholder="Visitor Contact Number*" required>
-    <input type="email" name="visitor_email" placeholder="Visitor Email*" required>
+    <input type="tel" id="visitor_contact" name="visitor_contact" placeholder="Visitor Contact Number*" required>
+    <input type="email" id="visitor_email" name="visitor_email" placeholder="Visitor Email*" required>
 
     <label class="upload-box">
       <input type="file" name="visitor_valid_id" accept="image/*" hidden required>
@@ -139,25 +139,15 @@ $phone = $user['phone'] ?? '';
     <p><small>Note: Your visitor will need this code to check the status of their Entry Pass,
       since they don’t have their own VictorianPass account.</small></p>
     <p><small><em>You can still view and manage the request in your resident dashboard.</em></small></p>
-    <button class="close-btn" onclick="closeModal()">OK</button>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:10px;flex-wrap:wrap;">
+      <button class="close-btn" onclick="closeModal()">Close</button>
+    </div>
   </div>
 </div>
 <script>
 const reserveCheck = document.getElementById('reserveCheck');
 const submitBtn   = document.getElementById('submitBtn');
 const entryForm   = document.getElementById('entryForm');
-
-reserveCheck.addEventListener('change',()=>{
-  if(reserveCheck.checked){
-    submitBtn.textContent='Next';
-    submitBtn.type='button';
-    submitBtn.onclick=()=>{window.location.href='reserve.php';};
-  }else{
-    submitBtn.textContent='Submit Request';
-    submitBtn.type='submit';
-    submitBtn.onclick=null;
-  }
-});
 
 function openModal(refCode){
   document.getElementById('refCode').textContent = refCode;
@@ -167,21 +157,49 @@ function closeModal(){
   document.getElementById('refModal').style.display = 'none';
 }
 
+// Client-side validation similar to signup
+function blockDigits(e){ if(/[0-9]/.test(e.key)){ e.preventDefault(); alert('Numbers are not allowed in name fields.'); } }
+function sanitizeNoDigits(e){ const cleaned=e.target.value.replace(/[0-9]/g,''); if(e.target.value!==cleaned){ e.target.value=cleaned; } }
+function validatePhoneInput(el){ const val=el.value.trim(); return /^\+63\d+$/.test(val); }
+['resident_full_name','visitor_first_name','visitor_last_name'].forEach(function(id){ const el=document.getElementById(id); if(!el) return; el.addEventListener('keydown',blockDigits); el.addEventListener('input',sanitizeNoDigits); });
+
+// Toggle button behavior when reserving amenity
+function updateSubmitBehavior(){
+  if (reserveCheck.checked){
+    submitBtn.textContent = 'Next';
+    submitBtn.type = 'button';
+    submitBtn.onclick = function(){ window.location.href = 'reserve.php'; };
+  } else {
+    submitBtn.textContent = 'Submit Request';
+    submitBtn.type = 'submit';
+    submitBtn.onclick = null;
+  }
+}
+updateSubmitBehavior();
+reserveCheck.addEventListener('change', updateSubmitBehavior);
+
 entryForm.addEventListener('submit', async (e)=>{
-  if(!reserveCheck.checked){
-    e.preventDefault();
-    try {
-      const fd = new FormData(entryForm);
-      const res = await fetch('submit_guest.php', { method: 'POST', body: fd });
-      const data = await res.json();
-      if (data && data.success) {
-        openModal(String(data.ref_code || ''));
-      } else {
-        alert(data.message || 'Failed to submit guest request.');
-      }
-    } catch (err) {
-      alert('Error connecting to server.');
+  if (reserveCheck.checked) { return; }
+  e.preventDefault();
+  const rc=document.getElementById('resident_contact');
+  const vc=document.getElementById('visitor_contact');
+  let valid=true;
+  if(rc && !validatePhoneInput(rc)){ alert('Resident contact must start with +63 and contain numbers only after.'); valid=false; }
+  if(vc && !validatePhoneInput(vc)){ alert('Visitor contact must start with +63 and contain numbers only after.'); valid=false; }
+  if(!valid) return;
+  try {
+    const fd = new FormData(entryForm);
+    const res = await fetch('submit_guest.php', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data && data.success) {
+      const ref = String(data.ref_code || '');
+      const epId = String(data.entry_pass_id || '');
+      openModal(ref);
+    } else {
+      alert(data.message || 'Failed to submit guest request.');
     }
+  } catch (err) {
+    alert('Error connecting to server.');
   }
 });
 </script>

@@ -214,8 +214,20 @@
     });
 
     function goBack() {
-      window.location.href = "qr.php";
+      // Prefer returning to the previous page if available
+      if (document.referrer && document.referrer.indexOf(location.origin) === 0) {
+        window.location.href = document.referrer;
+        return;
+      }
+      if (history.length > 1) {
+        history.back();
+        return;
+      }
+      // Fallback to the status entry page
+      window.location.href = "status.html";
     }
+
+    // Reservation button removed per request
 
     function openQR(name, type, status, qrPath) {
       document.getElementById("qrModal").style.display = "flex";

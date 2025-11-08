@@ -15,6 +15,7 @@ body {
   align-items: center;
   padding: 12px 5%;
   background: #2b2623;
+  position: relative; /* allow absolute-positioned children like nav-instructions */
 }
 
 .logo {
@@ -66,6 +67,12 @@ body {
   color: #222;
 }
 
+/* Check Status in Navbar */
+.btn-status {
+  background: #e5ddc6;
+  color: #23412e;
+}
+
 .btn-nav:hover {
   transform: scale(1.05);
   opacity: 0.9;
@@ -79,12 +86,29 @@ body {
   cursor: pointer;
 }
 
+/* Instructions box anchored to bottom-left of navbar */
+.nav-instructions {
+  position: absolute;
+  left: 5%; /* aligns with navbar horizontal padding */
+  bottom: 6px;
+  background: rgba(229, 221, 198, 0.92);
+  color: #23412e;
+  font-size: 0.85rem;
+  padding: 8px 12px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  line-height: 1.35;
+  max-width: 340px;
+  z-index: 2;
+}
+.nav-instructions strong { font-weight: 700; }
+
 /* Hero Section */
 .hero {
   position: relative;
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  justify-content: center;
+  align-items: center;
   padding: 40px 5%;
   min-height: 90vh;
   background: url("mainpage/background.svg") center/cover no-repeat;
@@ -104,24 +128,37 @@ body {
 }
 
 .hero-content {
-  max-width: 50%;
+  max-width: 800px;
+  text-align: center;
+  margin: 0 auto;
 }
 
 .hero-content h1 {
   font-size: 4rem;
-  line-height: 0.8;
+  line-height: 1.0;
   letter-spacing: 1px;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
   font-weight: 900;
   text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.6);
 }
-.tagline {
-  
-  font-size: 1.7rem;
-  font-weight: 600;
-  margin-bottom: 20px;
-  line-height: 1.4;
+.welcome-subtitle {
+  text-align: center;
+  font-size: 1.2rem;
+  font-weight: 500;
+  margin: 10px auto 16px;
+  line-height: 1.35;
+  color: #f4f4f4;
   text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.5);
+  max-width: 900px;
+}
+.tagline {
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 500;
+  margin: 12px auto 22px;
+  line-height: 1.35;
+  text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.5);
+  max-width: 780px;
 }
 
 /* View QR Button */
@@ -156,6 +193,7 @@ body {
   display: flex;
   gap: 40px;
   margin-top: 20px;
+  justify-content: center;
 }
 .hero-icons a {
   text-decoration: none;
@@ -175,6 +213,20 @@ body {
 .hero-icons a:hover {
   transform: scale(1.05);
   background: rgba(255, 255, 255, 0.1);
+}
+
+/* Center action buttons and instructions */
+.action-buttons { display: flex; justify-content: center; }
+.form-instruction, .page-instructions { text-align: center; }
+
+/* Divider under WELCOME */
+.hero-divider {
+  width: 64px;
+  height: 3px;
+  background: #e5ddc6;
+  border-radius: 2px;
+  margin: 12px auto 14px;
+  opacity: 0.9;
 }
 
 /* Entry Pass Form */
@@ -292,6 +344,32 @@ body {
   .entry-form {
     margin-top: 20px;
     width: 100%;
+  }
+}
+
+/* Fixed instructions box at bottom-left of the viewport */
+.bottom-instructions {
+  position: fixed;
+  left: 20px;
+  bottom: 20px;
+  background: rgba(229, 221, 198, 0.95);
+  color: #23412e;
+  font-size: 0.9rem;
+  padding: 10px 14px;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  line-height: 1.4;
+  max-width: 360px;
+  z-index: 999;
+}
+.bottom-instructions strong { font-weight: 700; }
+
+@media (max-width: 768px) {
+  .bottom-instructions {
+    left: 12px;
+    bottom: 12px;
+    font-size: 0.85rem;
+    max-width: 300px;
   }
 }
 

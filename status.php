@@ -83,7 +83,7 @@ if ($result && $result->num_rows > 0) {
         'name' => $fullName,
         'type' => $row['amenity'],
         'status' => $statusVal,
-        'qr_path' => 'mainpage/qr.png',
+        'qr_path' => (!empty($row['qr_path']) ? $row['qr_path'] : 'mainpage/qr.png'),
         'message' => $statusMessage,
         'email' => $email,
         'phone' => $phone,
