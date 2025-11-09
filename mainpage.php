@@ -24,19 +24,7 @@ function ensureEntryPassesTable($con) {
 
 ensureEntryPassesTable($con);
 
-// Ensure downpayment support columns exist on entry_passes
-function ensureEntryPassesPaymentColumns($con) {
-  $col1 = $con->query("SHOW COLUMNS FROM entry_passes LIKE 'downpayment_receipt_path'");
-  if (!$col1 || $col1->num_rows === 0) {
-    $con->query("ALTER TABLE entry_passes ADD COLUMN downpayment_receipt_path VARCHAR(255) NULL COMMENT 'Path to uploaded downpayment receipt'");
-  }
-  $col2 = $con->query("SHOW COLUMNS FROM entry_passes LIKE 'downpayment_status'");
-  if (!$col2 || $col2->num_rows === 0) {
-    $con->query("ALTER TABLE entry_passes ADD COLUMN downpayment_status ENUM('pending','uploaded','verified','rejected') DEFAULT 'pending' COMMENT 'Downpayment status for visitor entry'");
-  }
-}
-
-ensureEntryPassesPaymentColumns($con);
+// No longer storing downpayment on entry_passes; we link it to reservations via ref_code
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
   // Collect form data

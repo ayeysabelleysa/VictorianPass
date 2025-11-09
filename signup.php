@@ -22,9 +22,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   $terms_agreed = isset($_POST['terms_agreed']) ? $_POST['terms_agreed'] : '0';
   $serverErrors = [];
 
-  // 🛑 Require verified house number
+  // 🛑 Require verified house number (targets the homeowner section via houseHidden)
   if (empty($house_number)) {
-    $serverErrors['house'] = 'Please verify your House Number before signing up.';
+    $serverErrors['houseHidden'] = 'Please verify your House Number before signing up.';
   }
 
   if ($password !== $confirm_password) {
@@ -57,7 +57,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   $checkHouse->execute();
   $checkHouse->store_result();
   if ($checkHouse->num_rows === 0) {
-    $serverErrors['house'] = 'Invalid or unregistered House Number.';
+    $serverErrors['houseHidden'] = 'Invalid or unregistered House Number.';
   }
   $checkHouse->close();
 
@@ -67,7 +67,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   $checkDuplicate->execute();
   $checkDuplicate->store_result();
   if ($checkDuplicate->num_rows > 0) {
-    $serverErrors['house'] = 'This house already has a registered account.';
+    $serverErrors['houseHidden'] = 'This house number is already registered.';
   }
   $checkDuplicate->close();
 

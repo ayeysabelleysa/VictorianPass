@@ -14,35 +14,33 @@ function ensureReservationEntryPassColumn($con) {
 
 ensureReservationEntryPassColumn($con);
 
-// Ensure entry_passes has downpayment columns and enforce payment before reservation
-function ensureEntryPassesPaymentColumns($con) {
-  $col1 = $con->query("SHOW COLUMNS FROM entry_passes LIKE 'downpayment_receipt_path'");
-  if (!$col1 || $col1->num_rows === 0) {
-    $con->query("ALTER TABLE entry_passes ADD COLUMN downpayment_receipt_path VARCHAR(255) NULL");
-  }
-  $col2 = $con->query("SHOW COLUMNS FROM entry_passes LIKE 'downpayment_status'");
-  if (!$col2 || $col2->num_rows === 0) {
-    $con->query("ALTER TABLE entry_passes ADD COLUMN downpayment_status ENUM('pending','uploaded','verified','rejected') DEFAULT 'pending'");
-  }
+// Ensure reservations columns are nullable, supporting placeholder record before amenity selection
+function ensureReservationsNullable($con) {
+  @$con->query("ALTER TABLE reservations MODIFY amenity VARCHAR(100) NULL");
+  @$con->query("ALTER TABLE reservations MODIFY start_date DATE NULL");
+  @$con->query("ALTER TABLE reservations MODIFY end_date DATE NULL");
+  @$con->query("ALTER TABLE reservations MODIFY persons INT NULL");
+  @$con->query("ALTER TABLE reservations MODIFY price DECIMAL(10,2) NULL");
 }
-ensureEntryPassesPaymentColumns($con);
+ensureReservationsNullable($con);
 
-// Require downpayment before allowing reservation when entry_pass_id is present
+// Require downpayment (receipt uploaded) before allowing reservation when entry_pass_id is present
 if (isset($_GET['entry_pass_id']) && $_GET['entry_pass_id'] !== '') {
   $epid = intval($_GET['entry_pass_id']);
   if ($epid > 0) {
-    $stmtEP = $con->prepare("SELECT downpayment_status FROM entry_passes WHERE id = ?");
-    $stmtEP->bind_param('i', $epid);
-    if ($stmtEP->execute()) {
-      $resEP = $stmtEP->get_result();
-      $rowEP = $resEP ? $resEP->fetch_assoc() : null;
-      $status = $rowEP ? ($rowEP['downpayment_status'] ?? 'pending') : 'pending';
-      if (!in_array($status, ['uploaded','verified'])) {
+    // Check linked reservation receipt presence
+    $stmtR = $con->prepare("SELECT ref_code, receipt_path FROM reservations WHERE entry_pass_id = ? ORDER BY id DESC LIMIT 1");
+    $stmtR->bind_param('i', $epid);
+    if ($stmtR->execute()) {
+      $resR = $stmtR->get_result();
+      $rowR = $resR ? $resR->fetch_assoc() : null;
+      $hasReceipt = $rowR && !empty($rowR['receipt_path']);
+      if (!$hasReceipt) {
         header('Location: downpayment.php?entry_pass_id=' . urlencode($epid) . '&continue=reserve');
         exit;
       }
     }
-    $stmtEP->close();
+    $stmtR->close();
   }
 }
 
@@ -54,6 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $price = $persons * 1; // Example: $1 per person
   $user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : NULL;
   $entry_pass_id = isset($_GET['entry_pass_id']) ? $_GET['entry_pass_id'] : NULL;
+  $ref_code = isset($_GET['ref_code']) ? $_GET['ref_code'] : '';
 
   // Generate unique Status Code (e.g. VP-XXXXX)
   $ref = "VP-" . str_pad(rand(0, 99999), 5, '0', STR_PAD_LEFT);
@@ -71,11 +70,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (intval($row['cnt']) > 0) {
       $errorMsg = 'Selected dates are not available. Please choose different dates.';
     } else {
-      // Use $con instead of $conn (since your connect.php defines $con)
-      $stmt = $con->prepare("INSERT INTO reservations (ref_code, amenity, start_date, end_date, persons, price, user_id, entry_pass_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-      $stmt->bind_param("ssssiiis", $ref, $amenity, $start, $end, $persons, $price, $user_id, $entry_pass_id);
-      $stmt->execute();
-      $generatedCode = $ref;
+      if ($ref_code) {
+        // Update the existing placeholder reservation created during downpayment
+        $stmt = $con->prepare("UPDATE reservations SET amenity = ?, start_date = ?, end_date = ?, persons = ?, price = ?, user_id = COALESCE(?, user_id) WHERE ref_code = ?");
+        $stmt->bind_param("sssiiis", $amenity, $start, $end, $persons, $price, $user_id, $ref_code);
+        $stmt->execute();
+        $generatedCode = $ref_code;
+      } else {
+        // Create a new reservation (resident flow or no placeholder exists)
+        $ref = "VP-" . str_pad(rand(0, 99999), 5, '0', STR_PAD_LEFT);
+        $stmt = $con->prepare("INSERT INTO reservations (ref_code, amenity, start_date, end_date, persons, price, user_id, entry_pass_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("ssssiiis", $ref, $amenity, $start, $end, $persons, $price, $user_id, $entry_pass_id);
+        $stmt->execute();
+        $generatedCode = $ref;
+      }
     }
   }
 }
@@ -165,6 +173,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_dates') {
     .modal-content h2{margin:0 0 12px;font-weight:700;color:#23412e;}
     .ref-code{font-size:1.4rem;font-weight:700;background:#f3f3f3;padding:10px 16px;border-radius:10px;display:inline-block;margin-bottom:18px;}
     .close-btn{background:#23412e;color:#fff;border:none;padding:10px 20px;border-radius:10px;cursor:pointer;font-weight:600;}
+    .btn-secondary{background:#e5ddc6;color:#222;border:none;padding:10px 22px;border-radius:10px;cursor:pointer;font-weight:600;text-decoration:none;display:inline-block;}
   </style>
 </head>
 <body>
@@ -244,7 +253,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_dates') {
     <p>Your Status Code:</p>
     <div class="ref-code"><?php echo htmlspecialchars($generatedCode); ?></div>
     <p>Use this code in the <b>Check Status</b> page to track your reservation.</p>
-    <button class="close-btn" onclick="closeModal()">OK</button>
+    <div style="text-align:center;margin-top:8px;">
+      <button class="close-btn" onclick="closeModal()">OK</button>
+    </div>
+    <div style="text-align:center;margin-top:12px;">
+      <a href="mainpage.php#" class="btn-secondary" title="Back to Visitor Home">← Back to Visitor Home</a>
+    </div>
   </div>
 </div>
 

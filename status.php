@@ -11,7 +11,9 @@ if ($code === '') {
 // Build query to retrieve reservation and personal details
 $stmt = $con->prepare("SELECT r.*, 
                              e.full_name AS ep_full_name, e.email AS ep_email, e.contact AS ep_phone, e.address AS ep_address,
-                             u.first_name, u.last_name, u.email, u.phone, u.house_number
+                             e.sex AS ep_sex, e.birthdate AS ep_birthdate,
+                             u.first_name, u.last_name, u.email, u.phone, u.house_number,
+                             u.sex AS user_sex, u.birthdate AS user_birthdate
                        FROM reservations r
                        LEFT JOIN entry_passes e ON r.entry_pass_id = e.id
                        LEFT JOIN users u ON r.user_id = u.id
@@ -28,16 +30,28 @@ if ($result && $result->num_rows > 0) {
     $today = date('Y-m-d');
     $statusVal = 'pending';
     
+    // Determine effective expiration: minimum of DB end_date and 2-day TTL
+    $ttlDays = 2;
+    $startYmd = !empty($row['start_date']) ? $row['start_date'] : null;
+    $createdYmd = !empty($row['created_at']) ? $row['created_at'] : null;
+    $dbEndYmd = !empty($row['end_date']) ? $row['end_date'] : null;
+    $ttlEndYmd = null;
+    if ($startYmd) {
+        $ttlEndYmd = date('Y-m-d', strtotime("$startYmd +$ttlDays days"));
+    } elseif ($createdYmd) {
+        $ttlEndYmd = date('Y-m-d', strtotime("$createdYmd +$ttlDays days"));
+    }
+    $effectiveEndYmd = $dbEndYmd ? ($ttlEndYmd ? min($dbEndYmd, $ttlEndYmd) : $dbEndYmd) : $ttlEndYmd;
+
     if (isset($row['approval_status']) && $row['approval_status'] !== '') {
         $statusVal = $row['approval_status'];
-        
-        // Check if approved reservation has expired
-        if ($statusVal === 'approved' && isset($row['end_date']) && $row['end_date'] < $today) {
+        // Expire if past effective end
+        if ($statusVal === 'approved' && $effectiveEndYmd && $effectiveEndYmd < $today) {
             $statusVal = 'expired';
         }
     } else {
-        // Fallback: check if expired based on end date
-        if (isset($row['end_date']) && $row['end_date'] < $today) {
+        // Fallback: check if expired based on effective end
+        if ($effectiveEndYmd && $effectiveEndYmd < $today) {
             $statusVal = 'expired';
         } else {
             $statusVal = 'pending';
@@ -54,7 +68,7 @@ if ($result && $result->num_rows > 0) {
             $statusMessage = 'Pending: Awaiting admin review.';
             break;
         case 'expired':
-            $statusMessage = 'Expired: This reservation has passed its end date.';
+            $statusMessage = 'Expired: This pass has reached its validity end.';
             break;
         case 'denied':
             $statusMessage = 'Denied: Your reservation was not approved.';
@@ -76,6 +90,9 @@ if ($result && $result->num_rows > 0) {
     $email = !empty($row['ep_email']) ? $row['ep_email'] : ($row['email'] ?? '');
     $phone = !empty($row['ep_phone']) ? $row['ep_phone'] : ($row['phone'] ?? '');
     $address = !empty($row['ep_address']) ? $row['ep_address'] : (($row['house_number'] ?? '') ? ('Block ' . $row['house_number']) : '');
+    $sex = !empty($row['ep_sex']) ? $row['ep_sex'] : ($row['user_sex'] ?? '');
+    $birthRaw = !empty($row['ep_birthdate']) ? $row['ep_birthdate'] : ($row['user_birthdate'] ?? null);
+    $birthdate = $birthRaw ? date('m/d/y', strtotime($birthRaw)) : '';
     
     echo json_encode([
         'success' => true,
@@ -88,8 +105,13 @@ if ($result && $result->num_rows > 0) {
         'email' => $email,
         'phone' => $phone,
         'address' => $address,
+        'contact' => $phone,
+        'sex' => $sex,
+        'birthdate' => $birthdate,
+        'purpose' => isset($row['purpose']) ? $row['purpose'] : '',
         'start_date' => isset($row['start_date']) ? date('m/d/y', strtotime($row['start_date'])) : '',
-        'end_date' => isset($row['end_date']) ? date('m/d/y', strtotime($row['end_date'])) : ''
+        'end_date' => isset($row['end_date']) ? date('m/d/y', strtotime($row['end_date'])) : '',
+        'expires_at' => $effectiveEndYmd ? date('m/d/y', strtotime($effectiveEndYmd)) : ''
     ]);
     exit;
 }

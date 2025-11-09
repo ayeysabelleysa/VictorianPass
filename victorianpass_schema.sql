@@ -41,6 +41,19 @@ INSERT IGNORE INTO houses (house_number, address) VALUES
 ('VH-2002', 'Blk 5 Lot 9, Victorian Heights Subdivision'),
 ('VH-3001', 'Blk 7 Lot 15, Victorian Heights Subdivision');
 
+-- Additional sample houses
+INSERT IGNORE INTO houses (house_number, address) VALUES
+('VH-3002', 'Blk 7 Lot 16, Victorian Heights Subdivision'),
+('VH-3003', 'Blk 7 Lot 17, Victorian Heights Subdivision'),
+('VH-3004', 'Blk 7 Lot 18, Victorian Heights Subdivision'),
+('VH-3005', 'Blk 7 Lot 19, Victorian Heights Subdivision'),
+('VH-3006', 'Blk 7 Lot 20, Victorian Heights Subdivision'),
+('VH-3007', 'Blk 8 Lot 1, Victorian Heights Subdivision'),
+('VH-3008', 'Blk 8 Lot 2, Victorian Heights Subdivision'),
+('VH-4001', 'Blk 9 Lot 4, Victorian Heights Subdivision'),
+('VH-4002', 'Blk 9 Lot 5, Victorian Heights Subdivision'),
+('VH-5001', 'Blk 11 Lot 2, Victorian Heights Subdivision');
+
 -- =====================================================
 -- USERS TABLE (Registered residents)
 -- =====================================================
@@ -59,7 +72,7 @@ CREATE TABLE IF NOT EXISTS users (
   address VARCHAR(255) NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_user_type (user_type),
-  INDEX idx_house_number (house_number),
+  UNIQUE KEY uniq_house_number (house_number),
   INDEX idx_email (email)
 ) ENGINE=InnoDB;
 
@@ -88,11 +101,11 @@ CREATE TABLE IF NOT EXISTS entry_passes (
 CREATE TABLE IF NOT EXISTS reservations (
   id INT AUTO_INCREMENT PRIMARY KEY,
   ref_code VARCHAR(50) NOT NULL UNIQUE,
-  amenity VARCHAR(100) NOT NULL,
-  start_date DATE NOT NULL,
-  end_date DATE NOT NULL,
-  persons INT NOT NULL,
-  price DECIMAL(10,2) NOT NULL,
+  amenity VARCHAR(100) NULL COMMENT 'Nullable for visitor placeholder before amenity selection',
+  start_date DATE NULL COMMENT 'Nullable until visitor selects dates',
+  end_date DATE NULL COMMENT 'Nullable until visitor selects dates',
+  persons INT NULL COMMENT 'Nullable until visitor sets party size',
+  price DECIMAL(10,2) NULL COMMENT 'Nullable until pricing is computed',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
   -- Linking fields

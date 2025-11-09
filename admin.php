@@ -2,6 +2,22 @@
 session_start();
 include 'connect.php';
 
+// Handle AJAX request for user details (admin resident profile)
+if (isset($_GET['action']) && $_GET['action'] == 'get_user_details' && isset($_GET['id'])) {
+    $user_id = intval($_GET['id']);
+    $stmt = $con->prepare("SELECT id, first_name, middle_name, last_name, email, phone, sex, birthdate, house_number, address, created_at, user_type, IFNULL(status,'active') as status FROM users WHERE id = ?");
+    $stmt->bind_param('i', $user_id);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    if ($res && $row = $res->fetch_assoc()) {
+        echo json_encode(['success' => true, 'details' => $row]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'User not found']);
+    }
+    $stmt->close();
+    exit;
+}
+
 // Handle AJAX request for visitor details
 if (isset($_GET['action']) && $_GET['action'] == 'get_visitor_details' && isset($_GET['id'])) {
     $reservation_id = intval($_GET['id']);
@@ -69,6 +85,61 @@ if (isset($_POST['incident_action']) && isset($_POST['report_id'])) {
     }
     header("Location: admin.php?page=report");
     exit;
+}
+
+// Handle resident account actions (delete/deactivate/activate)
+if (isset($_POST['user_action']) && isset($_POST['user_id'])) {
+    $uid = intval($_POST['user_id']);
+    $action = $_POST['user_action'];
+
+    // Ensure users table has status column
+    $check = $con->query("SHOW COLUMNS FROM users LIKE 'status'");
+    if ($check && $check->num_rows === 0) {
+        $con->query("ALTER TABLE users ADD COLUMN status ENUM('active','disabled') NOT NULL DEFAULT 'active'");
+    }
+
+    if ($action === 'deactivate_user') {
+        $stmt = $con->prepare("UPDATE users SET status='disabled' WHERE id = ?");
+        $stmt->bind_param('i', $uid);
+        $ok = $stmt->execute();
+        $stmt->close();
+        if ($ok) {
+            echo "<script>alert('User has been deactivated.'); window.location.href='admin.php?page=residents';</script>";
+        } else {
+            echo "<script>alert('Failed to deactivate user.'); window.location.href='admin.php?page=residents';</script>";
+        }
+        exit;
+    }
+    if ($action === 'activate_user') {
+        $stmt = $con->prepare("UPDATE users SET status='active' WHERE id = ?");
+        $stmt->bind_param('i', $uid);
+        $ok = $stmt->execute();
+        $stmt->close();
+        echo "<script>alert('User has been reactivated.'); window.location.href='admin.php?page=residents';</script>";
+        exit;
+    }
+    if ($action === 'delete_user') {
+        // Safely unlink reservations before deleting user
+        $con->begin_transaction();
+        try {
+            $stmt1 = $con->prepare("UPDATE reservations SET user_id = NULL WHERE user_id = ?");
+            $stmt1->bind_param('i', $uid);
+            $stmt1->execute();
+            $stmt1->close();
+            
+            $stmt2 = $con->prepare("DELETE FROM users WHERE id = ?");
+            $stmt2->bind_param('i', $uid);
+            $stmt2->execute();
+            $stmt2->close();
+            
+            $con->commit();
+            echo "<script>alert('User account deleted.'); window.location.href='admin.php?page=residents';</script>";
+        } catch (Exception $e) {
+            $con->rollback();
+            echo "<script>alert('Failed to delete user: " . htmlspecialchars($e->getMessage()) . "'); window.location.href='admin.php?page=residents';</script>";
+        }
+        exit;
+    }
 }
 
 // Ensure admin session based on existing login.php (role-based)
@@ -182,9 +253,11 @@ function getIncidentProofs($con, $reportId) {
 // Function to get visitor requests with personal details
 function getVisitorRequests($con) {
     $query = "SELECT r.*, ep.full_name, ep.middle_name, ep.last_name, ep.sex, ep.birthdate, 
-                     ep.contact, ep.address, ep.valid_id_path, ep.created_at as entry_created
+                     ep.contact, ep.address, ep.valid_id_path, ep.created_at as entry_created,
+                     u.house_number AS res_house_number
               FROM reservations r 
               JOIN entry_passes ep ON r.entry_pass_id = ep.id 
+              LEFT JOIN users u ON r.user_id = u.id
               WHERE r.entry_pass_id IS NOT NULL 
               ORDER BY r.created_at DESC";
     $result = $con->query($query);
@@ -197,9 +270,11 @@ function getVisitorRequests($con) {
 // Split visitor-related requests by source
 function getResidentVisitorRequests($con) {
     $query = "SELECT r.*, ep.full_name, ep.middle_name, ep.last_name, ep.sex, ep.birthdate, 
-                     ep.contact, ep.email, ep.address, ep.valid_id_path, ep.created_at as entry_created
+                     ep.contact, ep.email, ep.address, ep.valid_id_path, ep.created_at as entry_created,
+                     u.house_number AS res_house_number
               FROM reservations r 
               JOIN entry_passes ep ON r.entry_pass_id = ep.id 
+              LEFT JOIN users u ON r.user_id = u.id
               WHERE r.entry_pass_id IS NOT NULL AND r.user_id IS NOT NULL
               ORDER BY r.created_at DESC";
     $result = $con->query($query);
@@ -259,6 +334,15 @@ function ensureIncidentTables($con) {
 ensureReservationStatusColumn($con);
 autoExpireReservations($con);
 ensureIncidentTables($con);
+
+// Ensure users table has a status column to support deactivation
+function ensureUsersStatusColumn($con) {
+    $check = $con->query("SHOW COLUMNS FROM users LIKE 'status'");
+    if ($check && $check->num_rows === 0) {
+        $con->query("ALTER TABLE users ADD COLUMN status ENUM('active','disabled') NOT NULL DEFAULT 'active'");
+    }
+}
+ensureUsersStatusColumn($con);
 
 // Ensure reservations has a QR path column
 function ensureReservationQrColumn($con) {
@@ -585,6 +669,7 @@ body{margin:0;background:#f3efe9;color:#222;}
         <th>Email</th>
         <th>Phone</th>
         <th>Registered On</th>
+        <th>Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -598,10 +683,29 @@ body{margin:0;background:#f3efe9;color:#222;}
               echo "<td>" . $resident['email'] . "</td>";
               echo "<td>" . $resident['phone'] . "</td>";
               echo "<td>" . date('M d, Y', strtotime($resident['created_at'])) . "</td>";
+              echo "<td class='actions'>";
+              // View Details button
+              echo "<button type='button' class='btn btn-view' onclick='showUserDetails(" . intval($resident['id']) . ")' style='margin-right:6px;'>View Details</button>";
+
+              // Deactivate/Activate toggle
+              $isDisabled = isset($resident['status']) && $resident['status'] === 'disabled';
+              echo "<form method='post' style='display:inline;'>";
+              echo "<input type='hidden' name='user_id' value='" . intval($resident['id']) . "'>";
+              echo "<input type='hidden' name='user_action' value='" . ($isDisabled ? "activate_user" : "deactivate_user") . "'>";
+              echo "<button type='submit' class='btn " . ($isDisabled ? "btn-approve" : "btn-reject") . "' style='margin-right:6px;' onclick='return confirm(" . json_encode($isDisabled ? "Reactivate this user?" : "Deactivate this user?") . ")'>" . ($isDisabled ? "Activate" : "Deactivate") . "</button>";
+              echo "</form>";
+
+              // Delete button
+              echo "<form method='post' style='display:inline;' onsubmit='return confirm(\"Delete this account? This cannot be undone.\")'>";
+              echo "<input type='hidden' name='user_id' value='" . intval($resident['id']) . "'>";
+              echo "<input type='hidden' name='user_action' value='delete_user'>";
+              echo "<button type='submit' class='btn btn-remove'>Delete</button>";
+              echo "</form>";
+              echo "</td>";
               echo "</tr>";
           }
       } else {
-          echo "<tr><td colspan='5' style='text-align:center;'>No residents found</td></tr>";
+          echo "<tr><td colspan='6' style='text-align:center;'>No residents found</td></tr>";
       }
       ?>
     </tbody>
@@ -658,6 +762,7 @@ body{margin:0;background:#f3efe9;color:#222;}
     <thead>
       <tr>
         <th>Name</th>
+        <th>House #</th>
         <th>Amenity</th>
         <th>Persons</th>
         <th>Status</th>
@@ -675,6 +780,10 @@ body{margin:0;background:#f3efe9;color:#222;}
               // Visitor full name from resident-submitted guest form
               $fullName = trim(($req['full_name'] ?? '') . ' ' . ($req['middle_name'] ?? '') . ' ' . ($req['last_name'] ?? ''));
               echo "<td><strong>" . htmlspecialchars($fullName) . "</strong></td>";
+
+              // Resident House Number
+              $houseNo = !empty($req['res_house_number']) ? htmlspecialchars($req['res_house_number']) : '<span class=\'muted\'>-</span>';
+              echo "<td>" . $houseNo . "</td>";
 
               // Amenity (or Guest Entry when none)
               $amenityDisplay = !empty($req['amenity']) ? $req['amenity'] : 'Guest Entry';
@@ -719,7 +828,7 @@ body{margin:0;background:#f3efe9;color:#222;}
           }
       }
       if (!$hasResidentRequests) {
-          echo "<tr><td colspan='5' style='text-align:center;'>No resident requests found</td></tr>";
+          echo "<tr><td colspan='6' style='text-align:center;'>No resident requests found</td></tr>";
       }
       ?>
     </tbody>
@@ -1142,6 +1251,57 @@ window.addEventListener('click', function(event){
 });
 </script>
 
+<!-- User Details Modal -->
+<div id="userModal" class="modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
+  <div class="modal-content" style="background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 600px; border-radius: 8px;">
+    <span class="close" onclick="closeUserModal()" style="color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+    <h3 style="margin-top: 0; color: #23412e;">Resident Profile</h3>
+    <div id="userDetailsContent"></div>
+  </div>
+  </div>
+
+<script>
+function showUserDetails(userId){
+  fetch('admin.php?action=get_user_details&id=' + userId)
+    .then(r => r.json())
+    .then(data => {
+      if(!data.success){ alert('Error loading user details: ' + (data.message||'Unknown error')); return; }
+      const d = data.details || {};
+      const fullName = [d.first_name||'', d.middle_name||'', d.last_name||''].join(' ').replace(/\s+/g,' ').trim();
+      const content = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <div>
+            <h4 style="color:#23412e;margin-bottom:10px;">Personal</h4>
+            ${fullName?`<p><strong>Name:</strong> ${fullName}</p>`:''}
+            ${d.sex?`<p><strong>Sex:</strong> ${d.sex}</p>`:''}
+            ${d.birthdate?`<p><strong>Birthdate:</strong> ${new Date(d.birthdate).toLocaleDateString()}</p>`:''}
+            ${d.email?`<p><strong>Email:</strong> ${d.email}</p>`:''}
+            ${d.phone?`<p><strong>Phone:</strong> ${d.phone}</p>`:''}
+          </div>
+          <div>
+            <h4 style="color:#23412e;margin-bottom:10px;">Residence</h4>
+            ${d.house_number?`<p><strong>House No.:</strong> ${d.house_number}</p>`:''}
+            ${d.address?`<p><strong>Address:</strong> ${d.address}</p>`:''}
+            ${d.created_at?`<p><strong>Registered:</strong> ${new Date(d.created_at).toLocaleString()}</p>`:''}
+            ${d.status?`<p><strong>Status:</strong> ${d.status.charAt(0).toUpperCase()+d.status.slice(1)}</p>`:''}
+          </div>
+        </div>`;
+      document.getElementById('userDetailsContent').innerHTML = content;
+      document.getElementById('userModal').style.display = 'block';
+    })
+    .catch(err => { console.error(err); alert('Error loading user details'); });
+}
+
+function closeUserModal(){
+  document.getElementById('userModal').style.display = 'none';
+}
+
+window.addEventListener('click', function(event){
+  const umodal = document.getElementById('userModal');
+  if(event.target === umodal){ umodal.style.display = 'none'; }
+});
+</script>
+
 </main>
 </div>
 </body>
@@ -1150,21 +1310,22 @@ window.addEventListener('click', function(event){
  <!-- VISITOR REQUESTS -->
  <?php if ($currentPage == 'visitor_requests'): ?>
  <section class="panel" id="visitor-requests-panel">
-   <h3>Visitor Entry Pass Requests</h3>
-   <table class="table">
-     <thead>
-       <tr>
-         <th>Visitor Name</th>
-         <th>Personal Details</th>
-         <th>Contact</th>
-         <th>Address</th>
-         <th>Valid ID</th>
-         <th>Request Date</th>
-         <th>Status</th>
-         <th>Actions</th>
-       </tr>
-     </thead>
-     <tbody>
+ <h3>Visitor Entry Pass Requests</h3>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Visitor Name</th>
+        <th>Personal Details</th>
+        <th>Contact</th>
+        <th>Address</th>
+        <th>Resident House #</th>
+        <th>Valid ID</th>
+        <th>Request Date</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
        <?php
        $visitorRequests = getVisitorRequests($con);
        if ($visitorRequests && $visitorRequests->num_rows > 0) {
@@ -1186,6 +1347,10 @@ window.addEventListener('click', function(event){
                
                // Address
                echo "<td>" . htmlspecialchars($request['address']) . "</td>";
+
+               // Resident House Number (if linked)
+               $resHouse = !empty($request['res_house_number']) ? htmlspecialchars($request['res_house_number']) : '<span class=\'muted\'>-</span>';
+               echo "<td>" . $resHouse . "</td>";
                
                // Valid ID
                echo "<td>";
@@ -1232,10 +1397,10 @@ window.addEventListener('click', function(event){
                echo "</tr>";
            }
        } else {
-           echo "<tr><td colspan='8' style='text-align:center;'>No visitor requests found</td></tr>";
+           echo "<tr><td colspan='9' style='text-align:center;'>No visitor requests found</td></tr>";
        }
        ?>
-     </tbody>
-   </table>
+    </tbody>
+  </table>
  </section>
  <?php endif; ?>

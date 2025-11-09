@@ -309,13 +309,12 @@ if (!file_exists($qrAbsPath)) {
     <!-- Sidebar -->
     <div class="sidebar">
       <div class="menu-top">
-        <div class="menu-item"><a href="mainpage.php"><img src="dashboard.svg">Dashboard</a></div>
+        <div class="menu-item"><a href="profileresident.php"><img src="dashboard.svg">Dashboard</a></div>
         <div class="menu-item"><a href="profileresident.php"><img src="dashboard.svg">Profile</a></div>
-        <div class="menu-item compact"><a href="guestform.php"><img src="mainpage/ticket.svg">Guest Form</a></div>
-        <div class="menu-item compact report"><a href="residentreport.php"><img src="mainpage/report.svg">Report Incident</a></div>
-        <div class="menu-note-pair">
-          Create a visitor request and share the status code.
-          <br>Submit complaints or concerns to the subdivision admin.
+        <br><div class="menu-item compact"><a href="guestform.php"><img src="mainpage/ticket.svg">Guest Form</a></div>
+         <div class="menu-note-pair">Create a visitor request and share the status code.</div>
+        <br><div class="menu-item compact report"><a href="residentreport.php"><img src="mainpage/report.svg">Report Incident</a></div>
+        <div class="menu-note-pair"><br>Submit complaints or concerns to the subdivision admin.
         </div>
       </div>
 

@@ -46,6 +46,34 @@ $phone = $user['phone'] ?? '';
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
 <style>
 <?php echo file_get_contents('guestform.css') ?: '';?>
+/* Inline warnings copied from signup style */
+.field-warning {
+  color: #333;
+  font-size: 0.85rem;
+  margin-top: 6px;
+  background: #fff;
+  border-left: 4px solid #c0392b; /* error accent */
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  position: relative;
+  z-index: 2;
+}
+.field-warning .warn-icon {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #c0392b; color: #fff; display: inline-flex;
+  align-items: center; justify-content: center; font-size: 0.75rem;
+  flex-shrink: 0; line-height: 1;
+}
+.field-warning .msg { color: #333; }
+.field-warning .close-warn {
+  margin-left: auto; background: transparent; border: 0; font-size: 1rem;
+  cursor: pointer; color: #888; line-height: 1;
+}
+.field-warning .close-warn:hover { color: #555; }
 </style>
 </head>
 <body>
@@ -100,10 +128,17 @@ $phone = $user['phone'] ?? '';
     <input type="email" id="visitor_email" name="visitor_email" placeholder="Visitor Email*" required>
 
     <label class="upload-box">
-      <input type="file" name="visitor_valid_id" accept="image/*" hidden required>
+      <input type="file" id="visitor_valid_id" name="visitor_valid_id" accept="image/*" hidden required>
       <img src="mainpage/upload.svg" alt="Upload">
       <p>Upload Visitor’s Valid ID*<br><small>(e.g. National ID, Driver’s License)</small></p>
     </label>
+
+    <div id="idPreviewWrap" style="display:none;margin:8px 0 14px;">
+      <img id="idPreview" alt="Valid ID Preview" style="max-width:240px;border-radius:10px;border:1px solid #e6ebe6;display:block;">
+      <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" id="btnClearId" class="btn-next" style="background:#e6ebe6;color:#23412e;">Remove Selected ID</button>
+      </div>
+    </div>
 
     <h4 style="margin:20px 0 5px;color:#23412e;">Visit Details</h4>
     <div class="form-row">
@@ -123,7 +158,7 @@ $phone = $user['phone'] ?? '';
     </div>
 
     <div class="form-actions">
-      <a href="mainpage.php" class="btn-back">Back</a>
+      <a href="profileresident.php" class="btn-back">Back</a>
       <button type="submit" class="btn-next" id="submitBtn">Submit Request</button>
     </div>
   </form>
@@ -148,6 +183,10 @@ $phone = $user['phone'] ?? '';
 const reserveCheck = document.getElementById('reserveCheck');
 const submitBtn   = document.getElementById('submitBtn');
 const entryForm   = document.getElementById('entryForm');
+const idInput = document.getElementById('visitor_valid_id');
+const idPreviewWrap = document.getElementById('idPreviewWrap');
+const idPreview = document.getElementById('idPreview');
+const btnClearId = document.getElementById('btnClearId');
 
 function openModal(refCode){
   document.getElementById('refCode').textContent = refCode;
@@ -157,11 +196,53 @@ function closeModal(){
   document.getElementById('refModal').style.display = 'none';
 }
 
-// Client-side validation similar to signup
-function blockDigits(e){ if(/[0-9]/.test(e.key)){ e.preventDefault(); alert('Numbers are not allowed in name fields.'); } }
-function sanitizeNoDigits(e){ const cleaned=e.target.value.replace(/[0-9]/g,''); if(e.target.value!==cleaned){ e.target.value=cleaned; } }
-function validatePhoneInput(el){ const val=el.value.trim(); return /^\+63\d+$/.test(val); }
+// Inline warnings helper (mirrors signup)
+function setWarning(key, message){
+  const inputEl = document.getElementById(key);
+  let container = null;
+  if (inputEl){
+    container = inputEl.closest('.form-group') || inputEl.closest('.form-row') || inputEl.closest('.upload-box') || inputEl.parentNode;
+  }
+  if (!container) return;
+  let warnEl = container.querySelector('.field-warning[data-for="'+key+'"]');
+  if (message){
+    if (!warnEl){
+      warnEl = document.createElement('div');
+      warnEl.className = 'field-warning';
+      warnEl.setAttribute('data-for', key);
+      warnEl.setAttribute('role','alert');
+      container.appendChild(warnEl);
+    }
+    let icon = warnEl.querySelector('.warn-icon');
+    if (!icon){ icon = document.createElement('span'); icon.className='warn-icon'; icon.textContent='!'; warnEl.appendChild(icon); }
+    let msgSpan = warnEl.querySelector('.msg');
+    if (!msgSpan){ msgSpan = document.createElement('span'); msgSpan.className='msg'; warnEl.appendChild(msgSpan); }
+    msgSpan.textContent = message;
+    let closer = warnEl.querySelector('.close-warn');
+    if (!closer){
+      closer = document.createElement('button');
+      closer.type = 'button';
+      closer.className = 'close-warn';
+      closer.setAttribute('aria-label','Dismiss');
+      closer.textContent = '\u00d7';
+      warnEl.appendChild(closer);
+      closer.addEventListener('click', function(){ warnEl.remove(); });
+    }
+  } else {
+    if (warnEl) warnEl.remove();
+  }
+}
+
+// Client-side validation following signup patterns
+function blockDigits(e){ if(/[0-9]/.test(e.key)){ e.preventDefault(); setWarning(e.target.id, 'Numbers are not allowed in this field.'); } }
+function sanitizeNoDigits(e){ const val=e.target.value; const cleaned=val.replace(/[0-9]/g,''); if(val!==cleaned){ e.target.value=cleaned; setWarning(e.target.id,'Numbers were removed.'); } else { setWarning(e.target.id,''); } }
+function isValidPhone(el){ const val=el.value.trim(); return /^\+63\d+$/.test(val); }
+function isValidEmail(el){ const val=el.value.trim(); return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val); }
 ['resident_full_name','visitor_first_name','visitor_last_name'].forEach(function(id){ const el=document.getElementById(id); if(!el) return; el.addEventListener('keydown',blockDigits); el.addEventListener('input',sanitizeNoDigits); });
+
+// Live phone/email warnings
+['resident_contact','visitor_contact'].forEach(function(id){ const el=document.getElementById(id); if(!el) return; el.addEventListener('input', function(e){ setWarning(id, isValidPhone(el)? '' : 'Contact must start with +63 and contain numbers only after.'); }); });
+['resident_email','visitor_email'].forEach(function(id){ const el=document.getElementById(id); if(!el) return; el.addEventListener('input', function(e){ setWarning(id, isValidEmail(el)? '' : 'Please enter a valid email.'); }); });
 
 // Toggle button behavior when reserving amenity
 function updateSubmitBehavior(){
@@ -178,14 +259,30 @@ function updateSubmitBehavior(){
 updateSubmitBehavior();
 reserveCheck.addEventListener('change', updateSubmitBehavior);
 
+// Preview selected valid ID and allow clearing
+if (idInput) idInput.addEventListener('change', function(){
+  const file = idInput.files && idInput.files[0];
+  if (!file) { idPreviewWrap.style.display='none'; setWarning('visitor_valid_id','Please upload Visitor’s Valid ID.'); return; }
+  const reader = new FileReader();
+  reader.onload = function(e){ idPreview.src = e.target.result; idPreviewWrap.style.display = 'block'; };
+  reader.readAsDataURL(file);
+  setWarning('visitor_valid_id','');
+});
+if (btnClearId) btnClearId.addEventListener('click', function(){ idInput.value=''; idPreviewWrap.style.display='none'; setWarning('visitor_valid_id','Please upload Visitor’s Valid ID.'); });
+
 entryForm.addEventListener('submit', async (e)=>{
   if (reserveCheck.checked) { return; }
   e.preventDefault();
-  const rc=document.getElementById('resident_contact');
-  const vc=document.getElementById('visitor_contact');
-  let valid=true;
-  if(rc && !validatePhoneInput(rc)){ alert('Resident contact must start with +63 and contain numbers only after.'); valid=false; }
-  if(vc && !validatePhoneInput(vc)){ alert('Visitor contact must start with +63 and contain numbers only after.'); valid=false; }
+  let valid = true;
+  const reqIds = ['resident_full_name','resident_house','resident_email','resident_contact','visitor_first_name','visitor_last_name','visitor_contact','visitor_email','birthdate'];
+  reqIds.forEach(function(id){ const el=document.getElementById(id); if(!el) return; if(!String(el.value||'').trim()){ setWarning(id,'This field is required.'); valid=false; }});
+  const rc=document.getElementById('resident_contact'); const vc=document.getElementById('visitor_contact');
+  if(rc && !isValidPhone(rc)){ setWarning('resident_contact','Contact must start with +63 and contain numbers only after.'); valid=false; }
+  if(vc && !isValidPhone(vc)){ setWarning('visitor_contact','Contact must start with +63 and contain numbers only after.'); valid=false; }
+  const re=document.getElementById('resident_email'); const ve=document.getElementById('visitor_email');
+  if(re && !isValidEmail(re)){ setWarning('resident_email','Please enter a valid email.'); valid=false; }
+  if(ve && !isValidEmail(ve)){ setWarning('visitor_email','Please enter a valid email.'); valid=false; }
+  if(idInput && !(idInput.files && idInput.files[0])){ setWarning('visitor_valid_id','Please upload Visitor’s Valid ID.'); valid=false; }
   if(!valid) return;
   try {
     const fd = new FormData(entryForm);
@@ -193,13 +290,12 @@ entryForm.addEventListener('submit', async (e)=>{
     const data = await res.json();
     if (data && data.success) {
       const ref = String(data.ref_code || '');
-      const epId = String(data.entry_pass_id || '');
       openModal(ref);
     } else {
-      alert(data.message || 'Failed to submit guest request.');
+      setWarning('visitor_email', data.message || 'Failed to submit guest request.');
     }
   } catch (err) {
-    alert('Error connecting to server.');
+    setWarning('visitor_email', 'Error connecting to server.');
   }
 });
 </script>

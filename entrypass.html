@@ -34,6 +34,35 @@
     .btn-next { background:#23412e; color:#fff; border:none; cursor:pointer; }
     .btn-back:hover, .btn-next:hover { transform:scale(1.05); opacity:0.9; }
     @media(max-width:768px){ .form-row{flex-direction:column;} .entry-form{padding:25px;} }
+
+    /* Inline warnings copied from signup style */
+    .field-warning {
+      color: #333;
+      font-size: 0.85rem;
+      margin-top: 6px;
+      background: #fff;
+      border-left: 4px solid #c0392b; /* error accent */
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+      border-radius: 8px;
+      padding: 8px 10px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      position: relative;
+      z-index: 2;
+    }
+    .field-warning .warn-icon {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #c0392b; color: #fff; display: inline-flex;
+      align-items: center; justify-content: center; font-size: 0.75rem;
+      flex-shrink: 0; line-height: 1;
+    }
+    .field-warning .msg { color: #333; }
+    .field-warning .close-warn {
+      margin-left: auto; background: transparent; border: 0; font-size: 1rem;
+      cursor: pointer; color: #888; line-height: 1;
+    }
+    .field-warning .close-warn:hover { color: #555; }
   </style>
 </head>
 <body>
@@ -54,13 +83,13 @@
         <span>Entry Pass</span>
       </div>
 
-      <input type="text" name="first_name" placeholder="First Name*" required>
-      <input type="text" name="middle_name" placeholder="Middle Name">
-      <input type="text" name="last_name" placeholder="Last Name*" required>
-      <input type="text" name="address" placeholder="Address*" required>
+      <input type="text" id="first_name" name="first_name" placeholder="First Name*" required>
+      <input type="text" id="middle_name" name="middle_name" placeholder="Middle Name">
+      <input type="text" id="last_name" name="last_name" placeholder="Last Name*" required>
+      <input type="text" id="address" name="address" placeholder="Address*" required>
 
       <div class="form-row">
-        <select name="sex" required>
+        <select id="sex" name="sex" required>
           <option value="" disabled selected>Sex*</option>
           <option value="Male">Male</option>
           <option value="Female">Female</option>
@@ -75,14 +104,21 @@
       </div>
 
       <div class="form-row">
-        <input type="tel" name="contact" placeholder="Phone Number*" required>
+        <input type="tel" id="contact" name="contact" placeholder="Phone Number*" required>
       </div>
 
       <label class="upload-box">
-        <input type="file" name="valid_id" hidden required>
+        <input type="file" id="valid_id" name="valid_id" accept="image/*" hidden required>
         <img src="mainpage/upload.svg" alt="Upload">
         <p>Upload a Valid ID* <br><small>(e.g. National ID, Driver's License)</small></p>
       </label>
+
+      <div id="idPreviewWrap" style="display:none;margin:8px 0 14px;">
+        <img id="idPreview" alt="Valid ID Preview" style="max-width:240px;border-radius:10px;border:1px solid #e6ebe6;display:block;">
+        <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;">
+          <button type="button" id="btnClearId" class="btn-next" style="background:#ddd;color:#222;">Remove Selected ID</button>
+        </div>
+      </div>
 
       <div class="form-actions">
         <a href="mainpage.php" class="btn-back">Back</a>
@@ -92,25 +128,119 @@
   </section>
 
   <script>
-    // Client-side validation equivalent to original inline form
+    // Signup-style inline warnings (placed directly under the offending field)
+    function setWarning(key, message){
+      var inputEl = document.getElementById(key);
+      if (!inputEl) return;
+
+      // Choose a safe insertion target that keeps layout intact
+      var uploadBox = inputEl.closest('.upload-box');
+      var group = inputEl.closest('.form-group');
+      var row = inputEl.closest('.form-row');
+      var target = uploadBox || group || row || inputEl;
+
+      // Unique warning element per field
+      var warnId = 'warn-' + key;
+      var warnEl = document.getElementById(warnId);
+
+      if (message){
+        if (!warnEl){
+          warnEl = document.createElement('div');
+          warnEl.className = 'field-warning';
+          warnEl.id = warnId;
+          warnEl.setAttribute('data-for', key);
+          warnEl.setAttribute('role','alert');
+          warnEl.setAttribute('aria-live','polite');
+          // Insert warning directly after the chosen target so it appears beneath the field
+          target.insertAdjacentElement('afterend', warnEl);
+        }
+        var icon = warnEl.querySelector('.warn-icon');
+        if (!icon){ icon = document.createElement('span'); icon.className='warn-icon'; icon.textContent='!'; warnEl.appendChild(icon); }
+        var msgSpan = warnEl.querySelector('.msg');
+        if (!msgSpan){ msgSpan = document.createElement('span'); msgSpan.className='msg'; warnEl.appendChild(msgSpan); }
+        msgSpan.textContent = message;
+        var closer = warnEl.querySelector('.close-warn');
+        if (!closer){
+          closer = document.createElement('button');
+          closer.type = 'button';
+          closer.className = 'close-warn';
+          closer.setAttribute('aria-label','Dismiss');
+          closer.textContent = '\u00d7';
+          warnEl.appendChild(closer);
+          closer.addEventListener('click', function(){ warnEl.remove(); });
+        }
+      } else {
+        if (warnEl) warnEl.remove();
+      }
+    }
+
     document.addEventListener('DOMContentLoaded', function(){
       var entryForm = document.getElementById('entryForm');
       if (!entryForm) return;
-      function blockDigits(e){ if(/[0-9]/.test(e.key)){ e.preventDefault(); alert('Numbers are not allowed in name fields.'); } }
-      function sanitizeNoDigits(e){ var cleaned=e.target.value.replace(/[0-9]/g,''); if(e.target.value!==cleaned){ e.target.value=cleaned; } }
-      ['first_name','middle_name','last_name']
-        .map(function(n){ return entryForm.querySelector('[name="'+n+'"]'); })
-        .filter(function(el){ return !!el; })
-        .forEach(function(el){ el.addEventListener('keydown', blockDigits); el.addEventListener('input', sanitizeNoDigits); });
-      var phoneInput = entryForm.querySelector('[name="contact"]');
-      entryForm.addEventListener('submit', function(e){
-        if (phoneInput){
-          var val = phoneInput.value.trim();
-          if (val !== '' && !/^\+63\d+$/.test(val)){
-            alert('Phone number must start with +63 and contain digits only after.');
-            e.preventDefault();
-          }
+
+      var first = document.getElementById('first_name');
+      var middle = document.getElementById('middle_name');
+      var last = document.getElementById('last_name');
+      var address = document.getElementById('address');
+      var sex = document.getElementById('sex');
+      var birthdate = document.getElementById('birthdate');
+      var contact = document.getElementById('contact');
+      var idInput = document.getElementById('valid_id');
+      var idPreviewWrap = document.getElementById('idPreviewWrap');
+      var idPreview = document.getElementById('idPreview');
+      var btnClearId = document.getElementById('btnClearId');
+
+      function blockDigits(e){
+        if(/[0-9]/.test(e.key)){
+          e.preventDefault();
+          setWarning(e.target.id, 'Numbers are not allowed in this field.');
         }
+      }
+      function sanitizeNoDigits(e){
+        var val = e.target.value;
+        var cleaned = val.replace(/[0-9]/g,'');
+        if (val !== cleaned){
+          e.target.value = cleaned;
+          setWarning(e.target.id, 'Numbers were removed.');
+        } else {
+          setWarning(e.target.id, '');
+        }
+      }
+      [first, middle, last].forEach(function(inp){ if(!inp) return; inp.addEventListener('keydown', blockDigits); inp.addEventListener('input', sanitizeNoDigits); });
+
+      if (contact){
+        contact.addEventListener('input', function(e){
+          var val = e.target.value.trim();
+          if (!/^\+63\d+$/.test(val)){
+            setWarning('contact', 'Phone number must start with +63 and contain numbers only after.');
+          } else {
+            setWarning('contact', '');
+          }
+        });
+      }
+
+      if (idInput) idInput.addEventListener('change', function(){
+        var file = idInput.files && idInput.files[0];
+        if (!file){ idPreviewWrap.style.display='none'; setWarning('valid_id','Please upload a Valid ID.'); return; }
+        var reader = new FileReader();
+        reader.onload = function(e){ idPreview.src = e.target.result; idPreviewWrap.style.display = 'block'; };
+        reader.readAsDataURL(file);
+        setWarning('valid_id', '');
+      });
+      if (btnClearId) btnClearId.addEventListener('click', function(){ idInput.value=''; idPreviewWrap.style.display='none'; setWarning('valid_id','Please upload a Valid ID.'); });
+
+      entryForm.addEventListener('submit', function(e){
+        var valid = true;
+        [first, last, address].forEach(function(inp){
+          if (!inp) return;
+          if (!inp.value.trim()){ setWarning(inp.id, 'This field is required.'); valid = false; }
+          if (/\d/.test(inp.value)){ setWarning(inp.id, 'Numbers are not allowed in this field.'); valid = false; }
+        });
+        if (sex && !sex.value){ setWarning('sex', 'Please select Sex.'); valid = false; }
+        if (birthdate && !birthdate.value){ setWarning('birthdate', 'Please provide a birthdate.'); valid = false; }
+        if (contact){ var val = contact.value.trim(); if (!/^\+63\d+$/.test(val)){ setWarning('contact', 'Phone number must start with +63 and contain numbers only after.'); valid = false; } }
+        if (idInput && !(idInput.files && idInput.files[0])){ setWarning('valid_id', 'Please upload a Valid ID.'); valid = false; }
+        if (!valid) e.preventDefault();
       });
     });
   </script>

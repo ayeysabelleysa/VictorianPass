@@ -39,6 +39,8 @@
     .status-message {
       font-size: 1.2rem; font-weight: 500; margin: 20px 0; padding: 12px; border-radius: 8px;
     }
+    .status-details { font-size: 0.95rem; color: #333; text-align: left; margin-top: 8px; }
+    .status-details p { margin: 6px 0; }
     .approved { background: #e6f7ed; color: #1e7d46; border: 1px solid #1e7d46; }
     .pending  { background: #fff9e6; color: #b68b00; border: 1px solid #b68b00; }
     .expired  { background: #f0f0f0; color: #555; border: 1px solid #999; }
@@ -91,7 +93,7 @@
     .modal-header img { height: 28px; }
     .close-btn { font-size: 20px; cursor: pointer; color: #fff; }
     .qr-section { text-align: center; background: #fff; padding: 20px; }
-    .qr-section img { width: 150px; height: 150px; }
+    .qr-section img { width: 220px; height: 220px; }
     .qr-details { padding: 15px; font-size: 0.9rem; line-height: 1.4; color: #eee; }
     
     /* Upload Modal Styles */
@@ -110,6 +112,7 @@
   <div class="status-card" id="statusCard">
     <h2>Entry Pass Status</h2>
     <div id="statusResult" class="status-message">Loading...</div>
+    <div id="statusDetails" class="status-details" style="display:none;"></div>
   </div>
 
   <div class="dashboard" id="dashboard">
@@ -182,8 +185,33 @@
             window.statusData = data; // Make it globally available
             
             if (data.success) {
-              statusDiv.textContent = `✅ ${data.status.toUpperCase()} - ${data.message}`;
-              statusDiv.className = `status-message ${data.status.toLowerCase()}`;
+              // If this page was opened directly (likely via QR scan), redirect to full QR card
+              const internalRef = document.referrer && document.referrer.indexOf(location.origin) === 0;
+              if (!internalRef) {
+                window.location.replace(`qr_view.php?code=${encodeURIComponent(code)}`);
+                return;
+              }
+              const status = (data.status || '').toLowerCase();
+              let bannerText = '';
+              switch (status) {
+                case 'approved': bannerText = '✅ Valid Entry Pass'; break;
+                case 'expired': bannerText = '❌ Expired Entry Pass'; break;
+                case 'pending': bannerText = '⏳ Pending Review'; break;
+                case 'denied': bannerText = '❌ Denied Entry Pass'; break;
+                default: bannerText = `⚠️ ${data.message || 'Unknown status'}`;
+              }
+              statusDiv.textContent = bannerText;
+              statusDiv.className = `status-message ${status}`;
+
+              const detailsEl = document.getElementById('statusDetails');
+              const accessWindow = `${data.start_date || '-'}${data.expires_at ? ' → ' + data.expires_at : ''}`;
+              detailsEl.innerHTML = `
+                <p><strong>Name:</strong> ${data.name}</p>
+                ${data.purpose ? `<p><strong>Purpose:</strong> ${data.purpose}</p>` : ''}
+                <p><strong>Type:</strong> ${data.type}</p>
+                <p><strong>Valid Dates:</strong> ${accessWindow}</p>
+              `;
+              detailsEl.style.display = 'block';
               setTimeout(() => {
                 statusCard.style.display = "none";
                 dashboard.style.display = "block";
@@ -231,20 +259,36 @@
 
     function openQR(name, type, status, qrPath) {
       document.getElementById("qrModal").style.display = "flex";
-      document.getElementById("qrImage").src = qrPath || "mainpage/qr.png";
+
+      const params = new URLSearchParams(window.location.search);
+      const scannedCode = params.get('code') || ((window.statusData || {}).code) || '';
+      const basePath = window.location.pathname.replace(/\/[^\/]*$/, '');
+      const verificationLink = `${location.origin}${basePath}/qr_view.php?code=${encodeURIComponent(scannedCode)}`;
+
+      const useStoredQR = qrPath && !/mainpage\/qr\.png$/i.test(qrPath);
+      const dynamicQR = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(verificationLink)}`;
+      document.getElementById("qrImage").src = useStoredQR ? qrPath : dynamicQR;
       
-      // Get all personal details from the data object
       const data = window.statusData || {};
-      
+      const accessWindow = `${data.start_date || '-'}${data.expires_at ? ' → ' + data.expires_at : ''}`;
+      const statusLower = (status || '').toLowerCase();
+      const banner = statusLower === 'approved' ? '✅ Valid Entry Pass'
+                    : statusLower === 'expired' ? '❌ Expired Entry Pass'
+                    : statusLower === 'pending' ? '⏳ Pending Review'
+                    : `⚠️ ${status}`;
+
       document.getElementById("qrDetails").innerHTML = `
+        <p style="font-weight:600;">${banner}</p>
         <p><strong>Name:</strong> ${name}</p>
+        ${data.birthdate ? `<p><strong>Birthdate:</strong> ${data.birthdate}</p>` : ''}
+        ${data.sex ? `<p><strong>Sex:</strong> ${data.sex}</p>` : ''}
+        ${data.contact ? `<p><strong>Contact:</strong> ${data.contact}</p>` : ''}
+        ${data.address ? `<p><strong>Address:</strong> ${data.address}</p>` : ''}
+        ${data.purpose ? `<p><strong>Purpose:</strong> ${data.purpose}</p>` : ''}
         <p><strong>Type:</strong> ${type}</p>
-        <p><strong>Status:</strong> ${status}</p>
-        <p><strong>Address:</strong> ${data.address || 'Not provided'}</p>
-        <p><strong>Email:</strong> ${data.email || 'Not provided'}</p>
-        <p><strong>Phone:</strong> ${data.phone || 'Not provided'}</p>
-        <p><strong>Valid From:</strong> ${data.start_date || 'Not specified'}</p>
-        <p><strong>Expiration:</strong> ${data.end_date || 'Not specified'}</p>`;
+        <p><strong>Valid Dates:</strong> ${accessWindow}</p>
+        <p><strong>Full QR Card:</strong> <a href="${verificationLink}" target="_blank" style="color:#9bd08f;">Open full QR card</a></p>
+      `;
     }
 
     function closeQR() {
