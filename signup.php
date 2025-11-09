@@ -11,7 +11,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   $middle_name = trim($_POST['middle_name']);
   $last_name = trim($_POST['last_name']);
   $phone = trim($_POST['phone']);
-  $email = trim($_POST['email']);
+  // Normalize and validate email
+  $email = strtolower(trim($_POST['email']));
   $password = trim($_POST['password']);
   $confirm_password = trim($_POST['confirm_password']);
   $sex = $_POST['sex'];
@@ -35,32 +36,40 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $serverErrors['terms'] = 'Please read and agree to the Terms & Conditions.';
   }
 
-  // 🔍 Check if email exists
-  $checkEmail = $con->prepare("SELECT id FROM users WHERE email = ?");
-  $checkEmail->bind_param("s", $email);
-  $checkEmail->execute();
-  $emailResult = $checkEmail->get_result();
-  if ($emailResult->num_rows > 0) {
-    $serverErrors['email'] = 'Email already exists.';
+  // 🔎 Validate email format
+  if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    $serverErrors['email'] = 'Please enter a valid email address.';
+  } else {
+    // 🔍 Check if email exists (case-insensitive, portable API)
+    $checkEmail = $con->prepare("SELECT id FROM users WHERE LOWER(email) = ?");
+    $checkEmail->bind_param("s", $email);
+    $checkEmail->execute();
+    $checkEmail->store_result();
+    if ($checkEmail->num_rows > 0) {
+      $serverErrors['email'] = 'Email already exists.';
+    }
+    $checkEmail->close();
   }
 
   // 🔍 Check house validity
   $checkHouse = $con->prepare("SELECT id FROM houses WHERE house_number = ?");
   $checkHouse->bind_param("s", $house_number);
   $checkHouse->execute();
-  $houseResult = $checkHouse->get_result();
-  if ($houseResult->num_rows === 0) {
+  $checkHouse->store_result();
+  if ($checkHouse->num_rows === 0) {
     $serverErrors['house'] = 'Invalid or unregistered House Number.';
   }
+  $checkHouse->close();
 
   // 🚫 Prevent duplicate account for same house
   $checkDuplicate = $con->prepare("SELECT id FROM users WHERE house_number = ?");
   $checkDuplicate->bind_param("s", $house_number);
   $checkDuplicate->execute();
-  $dupResult = $checkDuplicate->get_result();
-  if ($dupResult->num_rows > 0) {
+  $checkDuplicate->store_result();
+  if ($checkDuplicate->num_rows > 0) {
     $serverErrors['house'] = 'This house already has a registered account.';
   }
+  $checkDuplicate->close();
 
   // ✅ Register user if no errors
   if (empty($serverErrors)) {
@@ -75,7 +84,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       // Mark success; show banner and auto-redirect via JS
       $registration_success = true;
     } else {
-      $serverErrors['form'] = 'An error occurred. Please try again.';
+      // Handle duplicate email race condition safely
+      if ($con->errno === 1062) {
+        $serverErrors['email'] = 'Email already exists.';
+      } else {
+        $serverErrors['form'] = 'An error occurred. Please try again.';
+      }
     }
   }
 }
@@ -146,13 +160,30 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     }
 
     .field-warning {
-      color: #c0392b;
-      font-size: 0.8rem;
-      margin-top: 4px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
+      color: #333;
+      font-size: 0.85rem;
+      margin-top: 6px;
+      background: #fff;
+      border-left: 4px solid #c0392b;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+      border-radius: 8px;
+      padding: 8px 10px;
+      display: flex; /* notification-style inline card */
+      align-items: flex-start;
+      gap: 8px;
+      position: relative;
+      z-index: 2; /* ensure close button clickable over toggle icon */
     }
+    .password-field { position: relative; display: block; }
+    .toggle-password { top: 50%; transform: translateY(-50%); z-index: 0; }
+    .field-warning .warn-icon {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #c0392b; color: #fff; display: inline-flex;
+      align-items: center; justify-content: center; font-size: 0.75rem;
+      flex-shrink: 0; line-height: 1;
+    }
+    .field-warning .msg { color: #333; }
+    .field-warning .close-warn { margin-left: auto; background: transparent; border: 0; font-size: 1rem; }
     .field-warning:empty { display: none; }
     .close-warn { cursor: pointer; color: #888; line-height: 1; }
     .close-warn:hover { color: #555; }
@@ -177,7 +208,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       <h1>Sign Up</h1>
       <p class="subtitle">Create your Account</p>
 
-      <form class="signup-form" id="signupForm" method="POST" action="signup.php" <?php if ($registration_success) echo 'style="display:none"'; ?>>
+      <form class="signup-form" id="signupForm" method="POST" action="signup.php" novalidate <?php if ($registration_success) echo 'style="display:none"'; ?>>
         <input type="hidden" id="terms_agreed" name="terms_agreed" value="0">
         <div class="form-row">
           <div class="input-wrap">
@@ -405,8 +436,54 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     window.addEventListener('scroll', _repositionAll, { passive: true });
     window.addEventListener('resize', _repositionAll);
     function setWarning(key, message){
-      if (message){ _showPopover(key, message); }
-      else { _removePopover(key); }
+      const inputEl = document.getElementById(key);
+      let container = null;
+      if (key === 'houseHidden') {
+        container = document.querySelector('.homeowner');
+      } else if (key === 'terms') {
+        container = document.querySelector('.terms');
+      } else if (inputEl) {
+        container = inputEl.closest('.input-wrap') || inputEl.closest('.password-field') || inputEl.closest('.form-group');
+      }
+      if (!container) return;
+      let warnEl = container.querySelector('.field-warning[data-for="'+key+'"]');
+      if (message){
+        if (!warnEl){
+          warnEl = document.createElement('div');
+          warnEl.className = 'field-warning';
+          warnEl.setAttribute('data-for', key);
+          warnEl.setAttribute('role','alert');
+          container.appendChild(warnEl);
+        }
+        // Build notification-style content
+        let icon = warnEl.querySelector('.warn-icon');
+        if (!icon){
+          icon = document.createElement('span');
+          icon.className = 'warn-icon';
+          icon.textContent = '!';
+          warnEl.appendChild(icon);
+        }
+        let msgSpan = warnEl.querySelector('.msg');
+        if (!msgSpan){
+          msgSpan = document.createElement('span');
+          msgSpan.className = 'msg';
+          warnEl.appendChild(msgSpan);
+        }
+        msgSpan.textContent = message;
+        let closer = warnEl.querySelector('.close-warn');
+        if (!closer){
+          closer = document.createElement('button');
+          closer.type = 'button';
+          closer.className = 'close-warn';
+          closer.setAttribute('aria-label','Dismiss');
+          closer.textContent = '\u00d7';
+          warnEl.appendChild(closer);
+          closer.addEventListener('click', function(){ warnEl.remove(); });
+          closer.addEventListener('keydown', function(evt){ if (evt.key==='Enter' || evt.key===' '){ evt.preventDefault(); warnEl.remove(); } });
+        }
+      } else {
+        if (warnEl) warnEl.remove();
+      }
     }
 
     document.addEventListener('DOMContentLoaded', function() {
@@ -447,13 +524,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       if (phone) {
         phone.addEventListener('input', function(e) {
           const val = e.target.value;
-          const isValidPrefix = val.startsWith('+63');
+          const isValidPrefix = val.startsWith('+09');
           const rest = val.slice(3);
           const restDigitsOnly = /^\d*$/.test(rest);
           if (!isValidPrefix || !restDigitsOnly) {
-            setWarning('phone', 'Contact must start with +63 and contain numbers only after.');
+            setWarning('phone', 'Contact must start with +09 and contain numbers only.');
           } else {
-            // no toast for clearing
+            setWarning('phone', '');
           }
         });
       }
@@ -486,11 +563,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             }
           });
 
-          // Phone format
+          // Phone format: +09 followed by digits
           if (phone) {
             const val = phone.value;
-            if (!/^\+63\d+$/.test(val)) {
-              setWarning('phone', 'Contact must start with +63 and contain numbers only after.');
+            if (!/^\+09\d+$/.test(val)) {
+              setWarning('phone', 'Contact must start with +09 and contain numbers only.');
               valid = false;
             }
           }
@@ -519,8 +596,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       }
     });
   </script>
-  <!-- Layer for floating field warnings -->
-  <div id="warnLayer" class="warn-layer" aria-live="polite" aria-atomic="true"></div>
+  <!-- Inline warnings are inserted per field; floating layer removed -->
   <?php if (!empty($serverErrors ?? [])) { ?>
   <script>
     document.addEventListener('DOMContentLoaded', function() {

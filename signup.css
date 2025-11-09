@@ -122,6 +122,7 @@ input[type="tel"] {
 /* Password Field */
 .password-field {
   position: relative;
+  display: block; /* ensure warnings stack below input consistently */
 }
 .password-field img {
   position: absolute;
@@ -203,17 +204,30 @@ input[type="tel"] {
 /* Inline warnings */
 .input-wrap { position: relative; flex: 1; }
 .field-warning {
-  color: #c0392b; /* subtle red */
-  font-size: 0.8rem;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  position: absolute;
-  top: -14px;
-  right: 8px;
-  z-index: 2;
+  color: #333;
+  font-size: 0.85rem;
+  margin-top: 6px;
+  background: #fff;
+  border-left: 4px solid #c0392b; /* error accent */
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex; /* notification-style inline card */
+  align-items: flex-start;
+  gap: 8px;
 }
-.password-field .field-warning { position: absolute; top: -14px; right: 8px; }
+.password-field .field-warning { position: static; margin-top: 6px; }
+.field-warning .warn-icon {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #c0392b; color: #fff; display: inline-flex;
+  align-items: center; justify-content: center; font-size: 0.75rem;
+  flex-shrink: 0; line-height: 1;
+}
+.field-warning .msg { color: #333; }
+.field-warning .close-warn { margin-left: auto; background: transparent; border: 0; font-size: 1rem; cursor: pointer; }
+.field-warning .close-warn:hover { color: #555; }
+.field-warning { position: relative; z-index: 2; }
+.toggle-password { z-index: 0; }
 .homeowner { position: relative; }
 .terms { position: relative; }
 .field-warning:empty {
@@ -259,57 +273,7 @@ input[type="tel"] {
 .toast-success { border-left-color: #28a745; }
 .toast-info { border-left-color: #23412e; }
 
-/* Floating field popovers */
-.warn-layer {
-  position: fixed;
-  inset: 0;
-  z-index: 2000;
-  pointer-events: none;
-}
-.field-popover {
-  position: absolute;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  padding: 10px 12px;
-  min-width: 220px;
-  max-width: min(92vw, 360px);
-  color: #333;
-  border-left: 4px solid #f5a623; /* orange accent like sample */
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  pointer-events: auto; /* allow clicking close */
-  overflow-wrap: anywhere;
-}
-.field-popover::before {
-  content: "";
-  position: absolute;
-  top: -8px;
-  left: 18px;
-  border-left: 8px solid transparent;
-  border-right: 8px solid transparent;
-  border-bottom: 8px solid #fff; /* arrow */
-  filter: drop-shadow(0 -2px 2px rgba(0,0,0,0.08));
-}
-.field-popover .popover-icon {
-  width: 18px;
-  height: 18px;
-  background: #f5a623;
-  border-radius: 4px;
-  color: #fff;
-  font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-}
-.field-popover .popover-close {
-  margin-left: auto;
-  cursor: pointer;
-  color: #888;
-}
-.field-popover .popover-close:hover { color: #555; }
+/* Removed floating popovers for consistency across browsers */
 
 /* Responsive */
 @media (max-width: 768px) {
@@ -324,8 +288,7 @@ input[type="tel"] {
 /* Password fields with toggle */
 .password-field {
   position: relative;
-  display: flex;
-  align-items: center;
+  display: block; /* stack warning below input */
 }
 
 .password-field input {
@@ -340,6 +303,9 @@ input[type="tel"] {
   font-size: 1rem;
   color: #666;
   transition: color 0.2s ease;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 0; /* keep behind notification card */
 }
 
 .toggle-password:hover {
@@ -479,5 +445,9 @@ input[type="date"] {
   width: 100%;
   appearance: none; /* cleaner dropdown */
 }
+
+/* Cross-browser text rendering normalization */
+html { -webkit-text-size-adjust: 100%; }
+body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
 
