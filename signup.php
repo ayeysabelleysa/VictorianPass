@@ -18,6 +18,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   $birthdate = $_POST['birthdate'];
   $house_number = isset($_POST['house_number']) ? trim($_POST['house_number']) : '';
   $address = isset($_POST['address']) ? trim($_POST['address']) : '';
+  $terms_agreed = isset($_POST['terms_agreed']) ? $_POST['terms_agreed'] : '0';
   $serverErrors = [];
 
   // 🛑 Require verified house number
@@ -27,6 +28,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
   if ($password !== $confirm_password) {
     $serverErrors['confirm_password'] = 'Passwords do not match.';
+  }
+
+  // ✅ Require Terms & Conditions agreement (server-side safeguard)
+  if ($terms_agreed !== '1') {
+    $serverErrors['terms'] = 'Please read and agree to the Terms & Conditions.';
   }
 
   // 🔍 Check if email exists
@@ -172,6 +178,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       <p class="subtitle">Create your Account</p>
 
       <form class="signup-form" id="signupForm" method="POST" action="signup.php" <?php if ($registration_success) echo 'style="display:none"'; ?>>
+        <input type="hidden" id="terms_agreed" name="terms_agreed" value="0">
         <div class="form-row">
           <div class="input-wrap">
             <input type="text" name="first_name" id="first_name" placeholder="First Name*" required>
@@ -337,6 +344,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         terms.checked = true;
         terms.disabled = false;
       }
+      const ta = document.getElementById('terms_agreed');
+      if (ta) { ta.value = '1'; }
       closeTerms();
       // Clear any popover on terms
       if (typeof setWarning === 'function') setWarning('terms', '');
@@ -602,6 +611,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       const checkbox = document.getElementById("terms");
       checkbox.disabled = false;
       checkbox.checked = true;
+      const ta = document.getElementById('terms_agreed');
+      if (ta) { ta.value = '1'; }
       closeTerms();
     }
   </script>
