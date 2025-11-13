@@ -34,6 +34,11 @@ $fullName = trim(($user['first_name'] ?? '') . ' ' . ($user['middle_name'] ?? ''
 $houseNumber = $user['house_number'] ?? '';
 $email = $user['email'] ?? '';
 $phone = $user['phone'] ?? '';
+// Normalize resident phone to 09 format if stored as +63
+$phoneNormalized = $phone;
+if (preg_match('/^\+63(9\d{9})$/', $phone)) {
+  $phoneNormalized = '0' . substr($phone, 3); // +63xxxxxxxxxx -> 0xxxxxxxxxx
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -105,7 +110,7 @@ $phone = $user['phone'] ?? '';
     </div>
     <div class="form-row">
       <input type="email" id="resident_email" name="resident_email" placeholder="Resident Email*" value="<?php echo htmlspecialchars($email); ?>" required>
-      <input type="tel" id="resident_contact" name="resident_contact" placeholder="Resident Contact Number*" value="<?php echo htmlspecialchars($phone); ?>" required>
+      <input type="tel" id="resident_contact" name="resident_contact" placeholder="Resident Contact Number*" value="<?php echo htmlspecialchars($phoneNormalized); ?>" required>
     </div>
 
     <h4 style="margin:20px 0 5px;color:#23412e;">Visitor Information</h4>
@@ -149,7 +154,7 @@ $phone = $user['phone'] ?? '';
 
     <div class="reserve-note">
       <label for="reserveCheck">
-        <input type="checkbox" id="reserveCheck">
+        <input type="checkbox" id="reserveCheck" name="wants_amenity" value="1">
         Reserve an amenity instead of a regular visit
       </label>
       <div class="note-text">
@@ -187,6 +192,9 @@ const idInput = document.getElementById('visitor_valid_id');
 const idPreviewWrap = document.getElementById('idPreviewWrap');
 const idPreview = document.getElementById('idPreview');
 const btnClearId = document.getElementById('btnClearId');
+const visitDate = entryForm.querySelector('input[name="visit_date"]');
+const visitTime = entryForm.querySelector('input[name="visit_time"]');
+const visitPurpose = entryForm.querySelector('textarea[name="visit_purpose"]');
 
 function openModal(refCode){
   document.getElementById('refCode').textContent = refCode;
@@ -236,24 +244,31 @@ function setWarning(key, message){
 // Client-side validation following signup patterns
 function blockDigits(e){ if(/[0-9]/.test(e.key)){ e.preventDefault(); setWarning(e.target.id, 'Numbers are not allowed in this field.'); } }
 function sanitizeNoDigits(e){ const val=e.target.value; const cleaned=val.replace(/[0-9]/g,''); if(val!==cleaned){ e.target.value=cleaned; setWarning(e.target.id,'Numbers were removed.'); } else { setWarning(e.target.id,''); } }
-function isValidPhone(el){ const val=el.value.trim(); return /^\+63\d+$/.test(val); }
+function isValidPhone(el){ const val=el.value.trim(); return /^09\d{9}$/.test(val); }
 function isValidEmail(el){ const val=el.value.trim(); return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val); }
 ['resident_full_name','visitor_first_name','visitor_last_name'].forEach(function(id){ const el=document.getElementById(id); if(!el) return; el.addEventListener('keydown',blockDigits); el.addEventListener('input',sanitizeNoDigits); });
 
 // Live phone/email warnings
-['resident_contact','visitor_contact'].forEach(function(id){ const el=document.getElementById(id); if(!el) return; el.addEventListener('input', function(e){ setWarning(id, isValidPhone(el)? '' : 'Contact must start with +63 and contain numbers only after.'); }); });
+['resident_contact','visitor_contact'].forEach(function(id){ const el=document.getElementById(id); if(!el) return; el.addEventListener('input', function(e){ setWarning(id, isValidPhone(el)? '' : 'Phone must start with 09 and contain numbers only.'); }); });
 ['resident_email','visitor_email'].forEach(function(id){ const el=document.getElementById(id); if(!el) return; el.addEventListener('input', function(e){ setWarning(id, isValidEmail(el)? '' : 'Please enter a valid email.'); }); });
 
 // Toggle button behavior when reserving amenity
 function updateSubmitBehavior(){
   if (reserveCheck.checked){
+    // Keep as submit so we can create the guest_form then redirect with ref_code
     submitBtn.textContent = 'Next';
-    submitBtn.type = 'button';
-    submitBtn.onclick = function(){ window.location.href = 'reserve.php'; };
+    submitBtn.type = 'submit';
+    submitBtn.onclick = null;
+    if (visitDate) visitDate.required = false;
+    if (visitTime) visitTime.required = false;
+    if (visitPurpose) visitPurpose.required = false;
   } else {
     submitBtn.textContent = 'Submit Request';
     submitBtn.type = 'submit';
     submitBtn.onclick = null;
+    if (visitDate) visitDate.required = true;
+    if (visitTime) visitTime.required = true;
+    if (visitPurpose) visitPurpose.required = true;
   }
 }
 updateSubmitBehavior();
@@ -271,14 +286,13 @@ if (idInput) idInput.addEventListener('change', function(){
 if (btnClearId) btnClearId.addEventListener('click', function(){ idInput.value=''; idPreviewWrap.style.display='none'; setWarning('visitor_valid_id','Please upload Visitor’s Valid ID.'); });
 
 entryForm.addEventListener('submit', async (e)=>{
-  if (reserveCheck.checked) { return; }
   e.preventDefault();
   let valid = true;
   const reqIds = ['resident_full_name','resident_house','resident_email','resident_contact','visitor_first_name','visitor_last_name','visitor_contact','visitor_email','birthdate'];
   reqIds.forEach(function(id){ const el=document.getElementById(id); if(!el) return; if(!String(el.value||'').trim()){ setWarning(id,'This field is required.'); valid=false; }});
   const rc=document.getElementById('resident_contact'); const vc=document.getElementById('visitor_contact');
-  if(rc && !isValidPhone(rc)){ setWarning('resident_contact','Contact must start with +63 and contain numbers only after.'); valid=false; }
-  if(vc && !isValidPhone(vc)){ setWarning('visitor_contact','Contact must start with +63 and contain numbers only after.'); valid=false; }
+  if(rc && !isValidPhone(rc)){ setWarning('resident_contact','Phone must start with 09 and contain numbers only.'); valid=false; }
+  if(vc && !isValidPhone(vc)){ setWarning('visitor_contact','Phone must start with 09 and contain numbers only.'); valid=false; }
   const re=document.getElementById('resident_email'); const ve=document.getElementById('visitor_email');
   if(re && !isValidEmail(re)){ setWarning('resident_email','Please enter a valid email.'); valid=false; }
   if(ve && !isValidEmail(ve)){ setWarning('visitor_email','Please enter a valid email.'); valid=false; }
@@ -290,7 +304,13 @@ entryForm.addEventListener('submit', async (e)=>{
     const data = await res.json();
     if (data && data.success) {
       const ref = String(data.ref_code || '');
-      openModal(ref);
+      if (reserveCheck.checked) {
+        // Proceed to amenity reservation page carrying the ref_code
+        const url = 'reserve_guest.php?wants_amenity=1&ref_code=' + encodeURIComponent(ref);
+        window.location.href = url;
+      } else {
+        openModal(ref);
+      }
     } else {
       setWarning('visitor_email', data.message || 'Failed to submit guest request.');
     }

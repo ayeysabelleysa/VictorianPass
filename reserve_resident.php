@@ -4,121 +4,64 @@ include 'connect.php';
 $generatedCode = '';
 $errorMsg = '';
 
-// If a resident is logged in and not handling a visitor entry pass, redirect to resident-only reservation page
-if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && (!isset($_GET['entry_pass_id']) || $_GET['entry_pass_id'] === '')) {
-  header('Location: reserve_resident.php');
+// Require resident login
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'resident') {
+  header('Location: login.php');
   exit;
 }
+$user_id = intval($_SESSION['user_id']);
 
-// Ensure reservations has entry_pass_id column to link entry pass info
-function ensureReservationEntryPassColumn($con) {
-  $col = $con->query("SHOW COLUMNS FROM reservations LIKE 'entry_pass_id'");
-  if (!$col || $col->num_rows === 0) {
-    $con->query("ALTER TABLE reservations ADD COLUMN entry_pass_id INT NULL");
-  }
-}
-
-ensureReservationEntryPassColumn($con);
-
-// Ensure reservations columns are nullable, supporting placeholder record before amenity selection
-function ensureReservationsNullable($con) {
-  @$con->query("ALTER TABLE reservations MODIFY amenity VARCHAR(100) NULL");
-  @$con->query("ALTER TABLE reservations MODIFY start_date DATE NULL");
-  @$con->query("ALTER TABLE reservations MODIFY end_date DATE NULL");
-  @$con->query("ALTER TABLE reservations MODIFY persons INT NULL");
-  @$con->query("ALTER TABLE reservations MODIFY price DECIMAL(10,2) NULL");
-}
-ensureReservationsNullable($con);
-
-// Require downpayment (receipt uploaded) before allowing reservation when entry_pass_id is present
-if (isset($_GET['entry_pass_id']) && $_GET['entry_pass_id'] !== '') {
-  $epid = intval($_GET['entry_pass_id']);
-  if ($epid > 0) {
-    // Check linked reservation receipt presence
-    $stmtR = $con->prepare("SELECT ref_code, receipt_path FROM reservations WHERE entry_pass_id = ? ORDER BY id DESC LIMIT 1");
-    $stmtR->bind_param('i', $epid);
-    if ($stmtR->execute()) {
-      $resR = $stmtR->get_result();
-      $rowR = $resR ? $resR->fetch_assoc() : null;
-      $hasReceipt = $rowR && !empty($rowR['receipt_path']);
-      if (!$hasReceipt) {
-        header('Location: downpayment.php?entry_pass_id=' . urlencode($epid) . '&continue=reserve');
-        exit;
-      }
-    }
-    $stmtR->close();
-  }
-}
-
+// Handle submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $amenity = $_POST['amenity'] ?? 'Pool';
   $start   = $_POST['startDate'] ?? '';
   $end     = $_POST['endDate'] ?? '';
   $persons = intval($_POST['persons'] ?? 1);
-  $price = $persons * 1; // Example: $1 per person
-  $user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : NULL;
-  $entry_pass_id = isset($_GET['entry_pass_id']) ? $_GET['entry_pass_id'] : NULL;
-  $ref_code = isset($_GET['ref_code']) ? $_GET['ref_code'] : '';
+  $price = $persons * 1; // UI only
 
-  // Generate unique Status Code (e.g. VP-XXXXX)
-  $ref = "VP-" . str_pad(rand(0, 99999), 5, '0', STR_PAD_LEFT);
+  // Generate resident ref code
+  $ref = "RR-" . str_pad(rand(0, 99999), 5, '0', STR_PAD_LEFT);
 
   // Validate inputs
   if (!$start || !$end) {
     $errorMsg = 'Please select a start and end date.';
   } else {
-    // Server-side overlap check to prevent double booking across all sources
-    $cnt = 0;
-    $check1 = $con->prepare("SELECT COUNT(*) AS c FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND start_date <= ? AND end_date >= ?");
-    $check1->bind_param("sss", $amenity, $end, $start);
-    $check1->execute(); $r1 = $check1->get_result(); $cnt += ($r1 && ($rw=$r1->fetch_assoc())) ? intval($rw['c']) : 0; $check1->close();
-    $check2 = $con->prepare("SELECT COUNT(*) AS c FROM resident_reservations WHERE amenity = ? AND start_date <= ? AND end_date >= ?");
-    $check2->bind_param("sss", $amenity, $end, $start);
-    $check2->execute(); $r2 = $check2->get_result(); $cnt += ($r2 && ($rw=$r2->fetch_assoc())) ? intval($rw['c']) : 0; $check2->close();
-    $check3 = $con->prepare("SELECT COUNT(*) AS c FROM guest_forms WHERE amenity = ? AND start_date <= ? AND end_date >= ? AND (approval_status IN ('pending','approved'))");
-    $check3->bind_param("sss", $amenity, $end, $start);
-    $check3->execute(); $r3 = $check3->get_result(); $cnt += ($r3 && ($rw=$r3->fetch_assoc())) ? intval($rw['c']) : 0; $check3->close();
-    if ($cnt > 0) {
+    // Prevent double-booking (resident reservations)
+    $check = $con->prepare("SELECT COUNT(*) AS cnt FROM resident_reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND start_date <= ? AND end_date >= ?");
+    $check->bind_param("sss", $amenity, $end, $start);
+    $check->execute();
+    $res = $check->get_result();
+    $row = $res ? $res->fetch_assoc() : ['cnt' => 0];
+    if (intval($row['cnt']) > 0) {
       $errorMsg = 'Selected dates are not available. Please choose different dates.';
     } else {
-      if ($ref_code) {
-        // Update the existing placeholder reservation created during downpayment
-        $stmt = $con->prepare("UPDATE reservations SET amenity = ?, start_date = ?, end_date = ?, persons = ?, price = ?, user_id = COALESCE(?, user_id) WHERE ref_code = ?");
-        $stmt->bind_param("sssiiis", $amenity, $start, $end, $persons, $price, $user_id, $ref_code);
-        $stmt->execute();
-        $generatedCode = $ref_code;
-      } else {
-        // Create a new reservation (resident flow or no placeholder exists)
-        $ref = "VP-" . str_pad(rand(0, 99999), 5, '0', STR_PAD_LEFT);
-        $stmt = $con->prepare("INSERT INTO reservations (ref_code, amenity, start_date, end_date, persons, price, user_id, entry_pass_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("ssssiiis", $ref, $amenity, $start, $end, $persons, $price, $user_id, $entry_pass_id);
-        $stmt->execute();
-        $generatedCode = $ref;
-      }
+      // Insert into resident_reservations (store persons in notes)
+      $notes = "Persons: " . $persons;
+      $stmt = $con->prepare("INSERT INTO resident_reservations (user_id, amenity, start_date, end_date, notes, approval_status, ref_code) VALUES (?, ?, ?, ?, ?, 'pending', ?)");
+      $stmt->bind_param("isssss", $user_id, $amenity, $start, $end, $notes, $ref);
+      $stmt->execute();
+      $generatedCode = $ref;
     }
   }
 }
 
-// Lightweight endpoint to return booked dates for the selected amenity
+// Lightweight endpoint to return booked dates for the selected amenity (resident)
 if (isset($_GET['action']) && $_GET['action'] === 'booked_dates') {
   header('Content-Type: application/json');
   $amenity = $_GET['amenity'] ?? 'Pool';
+  $stmt = $con->prepare("SELECT start_date, end_date FROM resident_reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved'))");
+  $stmt->bind_param("s", $amenity);
+  $stmt->execute();
+  $result = $stmt->get_result();
   $dates = [];
-  $collect = function($res) use (&$dates) {
-    while ($row = $res->fetch_assoc()) {
-      if (empty($row['start_date']) || empty($row['end_date'])) continue;
-      $start = new DateTime($row['start_date']);
-      $end = new DateTime($row['end_date']);
-      $period = new DatePeriod($start, new DateInterval('P1D'), (clone $end)->modify('+1 day'));
-      foreach ($period as $d) { $dates[] = $d->format('Y-m-d'); }
+  while ($row = $result->fetch_assoc()) {
+    $start = new DateTime($row['start_date']);
+    $end = new DateTime($row['end_date']);
+    $period = new DatePeriod($start, new DateInterval('P1D'), (clone $end)->modify('+1 day'));
+    foreach ($period as $d) {
+      $dates[] = $d->format('Y-m-d');
     }
-  };
-  $stmt1 = $con->prepare("SELECT start_date, end_date FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved'))");
-  $stmt1->bind_param("s", $amenity); $stmt1->execute(); $collect($stmt1->get_result()); $stmt1->close();
-  $stmt2 = $con->prepare("SELECT start_date, end_date FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved')");
-  $stmt2->bind_param("s", $amenity); $stmt2->execute(); $collect($stmt2->get_result()); $stmt2->close();
-  $stmt3 = $con->prepare("SELECT start_date, end_date FROM guest_forms WHERE amenity = ? AND approval_status IN ('pending','approved')");
-  $stmt3->bind_param("s", $amenity); $stmt3->execute(); $collect($stmt3->get_result()); $stmt3->close();
+  }
   echo json_encode(['dates' => array_values(array_unique($dates))]);
   exit;
 }
@@ -128,12 +71,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_dates') {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VictorianPass - Reserve</title>
+  <title>VictorianPass - Reserve (Resident)</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
   <link rel="icon" type="image/png" href="mainpage/logo.svg">
 
   <style>
-    /* ✅ Keep original design */
+    /* Based on main reserve.css styling */
     body{margin:0;font-family:'Poppins',sans-serif;background:#111;color:#fff;animation:fadeIn .6s ease-in-out;}
     @keyframes fadeIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);} }
     .navbar{display:flex;justify-content:space-between;align-items:center;padding:14px 6%;background:#2b2623;position:sticky;top:0;z-index:1000;}
@@ -191,7 +134,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_dates') {
   </style>
 </head>
 <body>
-   
+  
 <header class="navbar">
   <div class="logo">
     <a href="mainpage.php"><img src="mainpage/logo.svg" alt="VictorianPass Logo"></a>
@@ -216,8 +159,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_dates') {
   </div>
 
   <div class="hero-text">
-    <h1>Reserve Amenity for Events</h1>
-    <p>Every moment deserves a space — reserve yours in a place made for memories.</p>
+    <h1>Reserve Amenity (Resident)</h1>
+    <p>Book amenities for yourself as a resident — same simple flow, resident-specific.</p>
     <a href="#amenities" class="btn-main">Explore Amenities →</a>
   </div>
 </section>
@@ -256,7 +199,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_dates') {
         <small id="price">$1</small>
         <input type="hidden" name="persons" id="personsInput" value="1">
       </div>
-      <button class="btn-submit" type="submit">Submit</button>
+      <div class="res-item">
+        <button class="btn-submit" type="submit">Submit</button>
+      </div>
     </div>
   </div>
 </form>
@@ -264,20 +209,21 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_dates') {
 <div id="refModal" class="modal" style="<?php echo $generatedCode ? 'display:flex;' : ''; ?>">
   <div class="modal-content">
     <h2>Reservation Submitted!</h2>
-    <p>Your Status Code:</p>
-    <div class="ref-code"><?php echo htmlspecialchars($generatedCode); ?></div>
-    <p>Use this code in the <b>Check Status</b> page to track your reservation.</p>
+    <p>View on Dashboard to track and manage this reservation.</p>
+  <!--  <div style="text-align:center;margin-top:8px;">
+      <a href="profileresident.php" class="btn-main" title="View on Dashboard">View on Dashboard</a>
+    </div> -->
+    <div style="text-align:center;margin-top:12px;">
+      <a href="profileresident.php" class="btn-secondary" title="Back to Profile">← Back to Profile</a>
+    </div>
     <div style="text-align:center;margin-top:8px;">
       <button class="close-btn" onclick="closeModal()">OK</button>
-    </div>
-    <div style="text-align:center;margin-top:12px;">
-      <a href="mainpage.php#" class="btn-secondary" title="Back to Visitor Home">← Back to Visitor Home</a>
     </div>
   </div>
 </div>
 
 <script>
-  // Calendar logic
+  // Calendar logic (resident)
   const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
   let today=new Date(),currentMonth=today.getMonth(),currentYear=today.getFullYear();
   const monthAndYear=document.getElementById("monthAndYear"),calendarBody=document.getElementById("calendar-body");
@@ -287,7 +233,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_dates') {
 
   async function loadBookedDates(){
     try{
-      const res=await fetch(`reserve.php?action=booked_dates&amenity=${encodeURIComponent(selectedAmenity)}`);
+      const res=await fetch(`reserve_resident.php?action=booked_dates&amenity=${encodeURIComponent(selectedAmenity)}`);
       const data=await res.json();
       bookedDates=new Set(data.dates||[]);
     }catch(e){

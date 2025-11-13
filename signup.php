@@ -71,6 +71,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   }
   $checkDuplicate->close();
 
+  // 📞 Validate Philippine mobile number: must start with 09 and be 11 digits
+  if (empty($phone) || !preg_match('/^09\d{9}$/', $phone)) {
+    $serverErrors['phone'] = 'Phone must start with 09 and contain numbers only.';
+  }
+
   // ✅ Register user if no errors
   if (empty($serverErrors)) {
     $hashed = password_hash($password, PASSWORD_DEFAULT);
@@ -523,12 +528,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
       if (phone) {
         phone.addEventListener('input', function(e) {
-          const val = e.target.value;
-          const isValidPrefix = val.startsWith('+09');
-          const rest = val.slice(3);
-          const restDigitsOnly = /^\d*$/.test(rest);
-          if (!isValidPrefix || !restDigitsOnly) {
-            setWarning('phone', 'Contact must start with +09 and contain numbers only.');
+          const val = e.target.value.trim();
+          if (!/^09\d{9}$/.test(val)) {
+            setWarning('phone', 'Phone must start with 09 and contain numbers only.');
           } else {
             setWarning('phone', '');
           }
@@ -563,11 +565,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             }
           });
 
-          // Phone format: +09 followed by digits
+          // Phone format: 09 followed by 9 digits (PH mobile)
           if (phone) {
-            const val = phone.value;
-            if (!/^\+09\d+$/.test(val)) {
-              setWarning('phone', 'Contact must start with +09 and contain numbers only.');
+            const val = phone.value.trim();
+            if (!/^09\d{9}$/.test(val)) {
+              setWarning('phone', 'Phone must start with 09 and contain numbers only.');
               valid = false;
             }
           }

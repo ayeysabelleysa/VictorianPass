@@ -15,6 +15,7 @@ $resident_email     = trim($_POST['resident_email'] ?? '');
 $resident_contact   = trim($_POST['resident_contact'] ?? '');
 
 $visitor_first_name = trim($_POST['visitor_first_name'] ?? '');
+$visitor_middle_name = trim($_POST['visitor_middle_name'] ?? '');
 $visitor_last_name  = trim($_POST['visitor_last_name'] ?? '');
 $visitor_sex        = trim($_POST['visitor_sex'] ?? '');
 $visitor_birthdate  = trim($_POST['visitor_birthdate'] ?? '');
@@ -27,10 +28,15 @@ $visit_purpose = trim($_POST['visit_purpose'] ?? '');
 // Persons count (optional on form; default to 1)
 $visit_persons = isset($_POST['visit_persons']) ? max(1, intval($_POST['visit_persons'])) : 1;
 
+// Determine amenity intent early
+$wants_amenity = isset($_POST['wants_amenity']) ? 1 : 0;
+
 // Validate required inputs
+// If reserving an amenity, allow Visit Details (date/time/purpose) to be blank; otherwise require them.
 if ($resident_full_name === '' || $resident_house === '' || $resident_email === '' || $resident_contact === '' ||
     $visitor_first_name === '' || $visitor_last_name === '' || $visitor_sex === '' || $visitor_birthdate === '' ||
-    $visitor_contact === '' || $visitor_email === '' || $visit_date === '' || $visit_time === '' || $visit_purpose === '') {
+    $visitor_contact === '' || $visitor_email === '' ||
+    (!$wants_amenity && ($visit_date === '' || $visit_time === '' || $visit_purpose === ''))) {
   echo json_encode(['success' => false, 'message' => 'Please fill in all required fields.']);
   exit;
 }
@@ -45,12 +51,12 @@ if (!preg_match($namePattern, $visitor_first_name) || !preg_match($namePattern, 
   echo json_encode(['success' => false, 'message' => 'Visitor names must contain letters only.']);
   exit;
 }
-if (!preg_match('/^\+63\d+$/', $resident_contact)) {
-  echo json_encode(['success' => false, 'message' => 'Resident contact must start with +63 and contain numbers only after.']);
+if (!preg_match('/^09\d{9}$/', $resident_contact)) {
+  echo json_encode(['success' => false, 'message' => 'Resident phone must start with 09 and contain numbers only.']);
   exit;
 }
-if (!preg_match('/^\+63\d+$/', $visitor_contact)) {
-  echo json_encode(['success' => false, 'message' => 'Visitor contact must start with +63 and contain numbers only after.']);
+if (!preg_match('/^09\d{9}$/', $visitor_contact)) {
+  echo json_encode(['success' => false, 'message' => 'Visitor phone must start with 09 and contain numbers only.']);
   exit;
 }
 if (!filter_var($resident_email, FILTER_VALIDATE_EMAIL) || !filter_var($visitor_email, FILTER_VALIDATE_EMAIL)) {
@@ -86,44 +92,95 @@ if (isset($_FILES['visitor_valid_id']) && $_FILES['visitor_valid_id']['error'] =
   exit;
 }
 
-// Insert into entry_passes (visitor personal details)
-$full_name = trim($visitor_first_name . ' ' . $visitor_last_name);
-$stmtEP = $con->prepare("INSERT INTO entry_passes (full_name, last_name, sex, birthdate, contact, email, address, valid_id_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-// The form does not collect visitor address; reuse resident_house as placeholder address for gate pass visibility
-$visitor_address = $resident_house;
-$stmtEP->bind_param('ssssssss', $full_name, $visitor_last_name, $visitor_sex, $visitor_birthdate, $visitor_contact, $visitor_email, $visitor_address, $validIdPath);
+// Ensure guest_forms table exists
+$con->query("CREATE TABLE IF NOT EXISTS guest_forms (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  resident_user_id INT NULL,
+  resident_house VARCHAR(100) NULL,
+  resident_email VARCHAR(150) NULL,
+  visitor_first_name VARCHAR(100) NOT NULL,
+  visitor_middle_name VARCHAR(100) NULL,
+  visitor_last_name VARCHAR(100) NOT NULL,
+  visitor_sex VARCHAR(20) NULL,
+  visitor_birthdate DATE NULL,
+  visitor_contact VARCHAR(50) NULL,
+  visitor_email VARCHAR(150) NULL,
+  valid_id_path VARCHAR(255) NULL,
+  visit_date DATE NULL,
+  visit_time VARCHAR(20) NULL,
+  purpose VARCHAR(255) NULL,
+  wants_amenity TINYINT(1) NOT NULL DEFAULT 0,
+  persons INT NULL,
+  ref_code VARCHAR(50) NOT NULL UNIQUE,
+  approval_status ENUM('pending','approved','denied') DEFAULT 'pending',
+  approved_by INT NULL,
+  approval_date DATETIME NULL,
+  qr_path VARCHAR(255) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL,
+  INDEX idx_resident_user_id (resident_user_id),
+  INDEX idx_ref_code (ref_code)
+) ENGINE=InnoDB");
 
-if (!$stmtEP->execute()) {
-  echo json_encode(['success' => false, 'message' => 'Failed to save entry pass: ' . $con->error]);
-  exit;
-}
-$entry_pass_id = $stmtEP->insert_id;
-$stmtEP->close();
-
-// Create a reference code
+// Generate a reference code for this guest form
 $ref_code = 'VP-' . strtoupper(bin2hex(random_bytes(4)));
 
-// Insert reservation-like record for tracking the request (amenity left generic)
-$amenity = 'Guest Entry';
-$persons = $visit_persons;
-$price   = 0.00;
-// Ensure reservations table has a 'purpose' column to capture visit purpose
-$colPurpose = $con->query("SHOW COLUMNS FROM reservations LIKE 'purpose'");
-if ($colPurpose && $colPurpose->num_rows === 0) {
-  $con->query("ALTER TABLE reservations ADD COLUMN purpose VARCHAR(255) NULL AFTER user_id");
+// Attempt to link to a resident account
+$resident_user_id = isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : null;
+if ($resident_user_id === null) {
+  $stmtU = $con->prepare("SELECT id FROM users WHERE email = ? OR house_number = ? LIMIT 1");
+  if ($stmtU) {
+    $stmtU->bind_param('ss', $resident_email, $resident_house);
+    if ($stmtU->execute()) {
+      $resU = $stmtU->get_result();
+      if ($resU) {
+        $rowU = $resU->fetch_assoc();
+        if ($rowU && isset($rowU['id'])) {
+          $resident_user_id = intval($rowU['id']);
+        }
+      }
+    }
+    $stmtU->close();
+  }
 }
-$stmtR = $con->prepare("INSERT INTO reservations (ref_code, amenity, start_date, end_date, persons, price, entry_pass_id, user_id, purpose, approval_status, payment_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending')");
-$start_date = $visit_date;
-$end_date   = $visit_date; // same-day visit
-$user_id = isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : null;
-$stmtR->bind_param('ssssidiss', $ref_code, $amenity, $start_date, $end_date, $persons, $price, $entry_pass_id, $user_id, $visit_purpose);
 
-if (!$stmtR->execute()) {
-  echo json_encode(['success' => false, 'message' => 'Failed to save request: ' . $con->error]);
+// Insert into guest_forms
+$stmtGF = $con->prepare("INSERT INTO guest_forms (
+  resident_user_id, resident_house, resident_email,
+  visitor_first_name, visitor_middle_name, visitor_last_name,
+  visitor_sex, visitor_birthdate, visitor_contact, visitor_email,
+  valid_id_path, visit_date, visit_time, purpose, persons, wants_amenity, ref_code, approval_status
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')");
+
+// $wants_amenity already determined above
+
+$stmtGF->bind_param(
+  'isssssssssssssiis',
+  $resident_user_id,
+  $resident_house,
+  $resident_email,
+  $visitor_first_name,
+  $visitor_middle_name,
+  $visitor_last_name,
+  $visitor_sex,
+  $visitor_birthdate,
+  $visitor_contact,
+  $visitor_email,
+  $validIdPath,
+  $visit_date,
+  $visit_time,
+  $visit_purpose,
+  $visit_persons,
+  $wants_amenity,
+  $ref_code
+);
+
+if (!$stmtGF->execute()) {
+  echo json_encode(['success' => false, 'message' => 'Failed to save guest form: ' . $con->error]);
   exit;
 }
-$stmtR->close();
+$stmtGF->close();
 
-echo json_encode(['success' => true, 'ref_code' => $ref_code, 'entry_pass_id' => $entry_pass_id]);
+echo json_encode(['success' => true, 'ref_code' => $ref_code]);
 exit;
 ?>

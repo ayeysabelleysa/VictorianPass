@@ -81,6 +81,18 @@
     .status-pending { background: #fff9e6; color: #b68b00; }
     .status-expired { background: #f0f0f0; color: #555; }
 
+    /* Details Modal Styles (match site cards) */
+    .details-content { width: 480px; max-width: 92vw; max-height: 85vh; overflow-y: auto; background:#fff; border-radius:14px; box-shadow:0 8px 18px rgba(0,0,0,0.12); }
+    .modal-header { display:flex; align-items:center; justify-content:space-between; background:#fff; padding:12px 16px; border-bottom:1px solid #e6ebe6; }
+    .modal-header h3{ margin:0; color:#23412e; font-size:1.05rem; font-weight:700; }
+    .close-btn { font-size:20px; cursor:pointer; color:#23412e; }
+    .details-body { padding: 16px; color: #222; font-size: 0.95rem; background:#fff; }
+    .details-section { margin-bottom: 14px; }
+    .details-section h4 { margin: 0 0 8px 0; font-size: 1rem; color: #23412e; font-weight:700; }
+    .details-table { width: 100%; border-collapse: separate; border-spacing: 0 10px; }
+    .details-table th{ width:38%; font-weight:600; color:#6b7a6d; padding:6px 8px; vertical-align:middle; }
+    .details-table td{ background:#f7faf7; border:1px solid #e6ebe6; color:#222; padding:10px 12px; border-radius:10px; }
+
     .modal {
       display: none; position: fixed; top: 0; left: 0;
       width: 100%; height: 100%;
@@ -88,10 +100,9 @@
       justify-content: center; align-items: center;
       z-index: 1000;
     }
-    .modal-content { background: #222; border-radius: 12px; width: 350px; color: #fff; overflow: hidden; position: relative; }
-    .modal-header { display: flex; align-items: center; justify-content: space-between; background: #111; padding: 10px 16px; }
+    .modal-content { background: #fff; border-radius: 12px; width: 350px; max-width: 90vw; max-height: 85vh; overflow-y: auto; color: #222; position: relative; box-shadow:0 8px 18px rgba(0,0,0,0.12); }
+    @media (max-width: 600px){ .details-content{ width: 92vw; } }
     .modal-header img { height: 28px; }
-    .close-btn { font-size: 20px; cursor: pointer; color: #fff; }
     .qr-section { text-align: center; background: #fff; padding: 20px; }
     .qr-section img { width: 220px; height: 220px; }
     .qr-details { padding: 15px; font-size: 0.9rem; line-height: 1.4; color: #eee; }
@@ -112,7 +123,6 @@
   <div class="status-card" id="statusCard">
     <h2>Entry Pass Status</h2>
     <div id="statusResult" class="status-message">Loading...</div>
-    <div id="statusDetails" class="status-details" style="display:none;"></div>
   </div>
 
   <div class="dashboard" id="dashboard">
@@ -122,7 +132,17 @@
     </div>
     <table>
       <thead>
-        <tr><th>Name</th><th>Type</th><th>Status</th><th>QR Code</th><th>Proof of Payment</th></tr>
+        <tr>
+          <th>Name</th>
+          <th>Amenity</th>
+          <th>Date</th>
+          <th>Persons</th>
+          <th>Price</th>
+          <th>Status</th>
+          <th>Details</th>
+          <th>QR Code</th>
+          <th>Proof of Payment</th>
+        </tr>
       </thead>
       <tbody id="dashboardRows"></tbody>
     </table>
@@ -138,6 +158,19 @@
         <img id="qrImage" src="" alt="QR Code" />
       </div>
       <div class="qr-details" id="qrDetails"></div>
+    </div>
+  </div>
+
+  <!-- Details Modal -->
+  <div class="modal" id="detailsModal">
+    <div class="modal-content details-content">
+      <div class="modal-header">
+        <h3>Reservation Details</h3>
+        <span class="close-btn" onclick="closeDetails()">&times;</span>
+      </div>
+      <div class="details-body" id="detailsBody">
+        <!-- Filled dynamically -->
+      </div>
     </div>
   </div>
 
@@ -170,8 +203,8 @@
       const params = new URLSearchParams(window.location.search);
       const code = params.get("code");
       const statusDiv = document.getElementById("statusResult");
-      const dashboard = document.getElementById("dashboard");
       const statusCard = document.getElementById("statusCard");
+      const dashboard = document.getElementById("dashboard");
       const dashboardRows = document.getElementById("dashboardRows");
 
       if (!code) {
@@ -203,31 +236,34 @@
               statusDiv.textContent = bannerText;
               statusDiv.className = `status-message ${status}`;
 
-              const detailsEl = document.getElementById('statusDetails');
-              const accessWindow = `${data.start_date || '-'}${data.expires_at ? ' → ' + data.expires_at : ''}`;
-              detailsEl.innerHTML = `
-                <p><strong>Name:</strong> ${data.name}</p>
-                ${data.purpose ? `<p><strong>Purpose:</strong> ${data.purpose}</p>` : ''}
-                <p><strong>Type:</strong> ${data.type}</p>
-                <p><strong>Valid Dates:</strong> ${accessWindow}</p>
-              `;
-              detailsEl.style.display = 'block';
+              statusCard.style.display = 'block';
               setTimeout(() => {
                 statusCard.style.display = "none";
                 dashboard.style.display = "block";
+                const dateDisplay = (data.start_date && data.end_date)
+                  ? `${data.start_date} → ${data.end_date}`
+                  : (data.start_date && data.expires_at)
+                    ? `${data.start_date} → ${data.expires_at}`
+                    : (data.start_date || '-')
+                const personsDisplay = (function(p){ const n = parseInt(p, 10); return isNaN(n) ? '-' : String(n); })(data.persons);
+                const priceDisplay = (function(p){ const n = parseFloat(p); if (isNaN(n)) return '-'; try { return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(n); } catch(e) { return `₱ ${n.toFixed(2)}`; } })(data.price);
                 dashboardRows.innerHTML = `
                   <tr>
                     <td>${data.name}</td>
                     <td>${data.type}</td>
-                    <td><span class="status-badge status-${data.status.toLowerCase()}">${data.status}</span></td>
-                    <td><button class="qr-btn ${data.status.toLowerCase() === 'approved' ? '' : 'disabled'}" 
-                        onclick="${data.status.toLowerCase() === 'approved' ? `openQR('${data.name}','${data.type}','${data.status}','${data.qr_path}')` : 'return false;'}"
-                        ${data.status.toLowerCase() !== 'approved' ? 'disabled' : ''}>
-                        ${data.status.toLowerCase() === 'approved' ? 'View QR' : 'QR Disabled'}
+                    <td>${dateDisplay}</td>
+                    <td>${personsDisplay}</td>
+                    <td>${priceDisplay}</td>
+                    <td><span class="status-badge status-${(data.status||'').toLowerCase()}">${data.status}</span></td>
+                    <td><button class="qr-btn" onclick="openDetails()">View More Details</button></td>
+                    <td><button class="qr-btn ${(data.status||'').toLowerCase() === 'approved' ? '' : 'disabled'}" 
+                        onclick="${(data.status||'').toLowerCase() === 'approved' ? `openQR('${data.name}','${data.type}','${data.status}','${data.qr_path}')` : 'return false;'}"
+                        ${(data.status||'').toLowerCase() !== 'approved' ? 'disabled' : ''}>
+                        ${(data.status||'').toLowerCase() === 'approved' ? 'View QR' : 'QR Disabled'}
                     </button></td>
                     <td><button class="upload-btn" onclick="openUploadModal()">Upload Receipt</button></td>
                   </tr>`;
-              }, 2000);
+              }, 600);
             } else {
               statusDiv.textContent = `⚠️ ${data.message}`;
               statusDiv.className = "status-message declined";
@@ -242,7 +278,6 @@
     });
 
     function goBack() {
-      // Prefer returning to the previous page if available
       if (document.referrer && document.referrer.indexOf(location.origin) === 0) {
         window.location.href = document.referrer;
         return;
@@ -251,8 +286,7 @@
         history.back();
         return;
       }
-      // Fallback to the status entry page
-      window.location.href = "status.html";
+      window.location.href = "checkurstatus.php";
     }
 
     // Reservation button removed per request
@@ -293,6 +327,53 @@
 
     function closeQR() {
       document.getElementById("qrModal").style.display = "none";
+    }
+
+    function openDetails() {
+      const data = window.statusData || {};
+      const isGuestEntry = String(data.type || '').toLowerCase() === 'guest entry';
+      const dateDisplay = (data.start_date && data.end_date)
+        ? `${data.start_date} → ${data.end_date}`
+        : (data.start_date && data.expires_at)
+          ? `${data.start_date} → ${data.expires_at}`
+          : (data.start_date || '-')
+      const personsDisplay = (function(p){ const n = parseInt(p, 10); return isNaN(n) ? '-' : String(n); })(data.persons);
+      const priceDisplay = (function(p){ const n = parseFloat(p); if (isNaN(n)) return '-'; try { return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(n); } catch(e) { return `₱ ${n.toFixed(2)}`; } })(data.price);
+
+      const yourInfo = [
+        ['Name', data.name || '-'],
+        ['Email', data.email || '-'],
+        ['Contact', data.contact || '-'],
+        ['Address', data.address || '-'],
+        ['Birthdate', data.birthdate || '-'],
+        ['Sex', data.sex || '-']
+      ].map(([k,v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('');
+
+      const resRows = [];
+      if (!isGuestEntry && (data.type || '')) resRows.push(['Amenity', data.type]);
+      resRows.push(['Purpose', data.purpose || '-']);
+      resRows.push(['Date', dateDisplay]);
+      if (data.persons) resRows.push(['Persons', personsDisplay]);
+      if (!isGuestEntry && data.price != null && data.price !== '') resRows.push(['Price', priceDisplay]);
+      const reservationInfo = resRows.map(([k,v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('');
+
+      const html = `
+        <div class="details-section">
+          <h4>Your Information</h4>
+          <table class="details-table">${yourInfo}</table>
+        </div>
+        <div class="details-section">
+          <h4>Reservation Details</h4>
+          <table class="details-table">${reservationInfo}</table>
+        </div>`;
+
+      document.getElementById('detailsBody').innerHTML = html;
+      document.getElementById('detailsModal').style.display = 'flex';
+    }
+
+    function closeDetails() {
+      document.getElementById('detailsModal').style.display = 'none';
+      document.getElementById('detailsBody').innerHTML = '';
     }
 
     function openUploadModal() {
@@ -352,8 +433,10 @@
     window.onclick = function(event) {
       const qrModal = document.getElementById("qrModal");
       const uploadModal = document.getElementById("uploadModal");
+      const detailsModal = document.getElementById('detailsModal');
       if (event.target === qrModal) closeQR();
       if (event.target === uploadModal) closeUploadModal();
+      if (event.target === detailsModal) closeDetails();
     };
   </script>
 </body>

@@ -64,12 +64,13 @@ CREATE TABLE IF NOT EXISTS users (
   last_name VARCHAR(100) NOT NULL,
   phone VARCHAR(20) NOT NULL,
   email VARCHAR(150) NOT NULL UNIQUE,
-  user_type ENUM('resident', 'visitor') DEFAULT 'resident',
+  user_type ENUM('resident') DEFAULT 'resident',
   password VARCHAR(255) NOT NULL,
   sex ENUM('Male', 'Female') NOT NULL,
   birthdate DATE NOT NULL,
   house_number VARCHAR(50) NOT NULL,
   address VARCHAR(255) NOT NULL,
+  status ENUM('active','disabled') NOT NULL DEFAULT 'active',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_user_type (user_type),
   UNIQUE KEY uniq_house_number (house_number),
@@ -111,6 +112,7 @@ CREATE TABLE IF NOT EXISTS reservations (
   -- Linking fields
   entry_pass_id INT NULL COMMENT 'Links to entry_passes table for visitor details',
   user_id INT NULL COMMENT 'Links to users table for registered residents',
+  purpose VARCHAR(255) NULL COMMENT 'Purpose of visit or reservation',
 
   -- Request/approval status
   approval_status ENUM('pending', 'approved', 'denied') DEFAULT 'pending' COMMENT 'Admin approval status',
@@ -124,6 +126,7 @@ CREATE TABLE IF NOT EXISTS reservations (
 
   -- Payment and receipt fields
   receipt_path VARCHAR(255) NULL COMMENT 'Path to uploaded payment receipt',
+  qr_path VARCHAR(255) NULL,
   payment_status ENUM('pending', 'verified', 'rejected') DEFAULT 'pending' COMMENT 'Payment verification status',
   verified_by INT NULL COMMENT 'Staff ID who verified payment',
   verification_date DATETIME NULL COMMENT 'When payment was verified',
@@ -135,6 +138,62 @@ CREATE TABLE IF NOT EXISTS reservations (
   INDEX idx_approval_status (approval_status),
   INDEX idx_payment_status (payment_status),
   INDEX idx_created_at (created_at)
+) ENGINE=InnoDB;
+
+-- =====================================================
+-- RESIDENT RESERVATIONS TABLE (Resident amenity bookings)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS resident_reservations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  amenity VARCHAR(100) NOT NULL,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  notes TEXT,
+  approval_status ENUM('pending','approved','denied') DEFAULT 'pending',
+  approved_by INT NULL,
+  approval_date DATETIME NULL,
+  ref_code VARCHAR(20) NOT NULL UNIQUE,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  qr_path VARCHAR(255) NULL,
+  CONSTRAINT fk_rr_user FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB;
+
+-- =====================================================
+-- GUEST FORMS TABLE (Visitor gate-entry requests linked to a resident)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS guest_forms (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  resident_user_id INT NULL,
+  resident_house VARCHAR(100) NULL,
+  resident_email VARCHAR(150) NULL,
+  visitor_first_name VARCHAR(100) NOT NULL,
+  visitor_middle_name VARCHAR(100) NULL,
+  visitor_last_name VARCHAR(100) NOT NULL,
+  visitor_sex VARCHAR(20) NULL,
+  visitor_birthdate DATE NULL,
+  visitor_contact VARCHAR(50) NULL,
+  visitor_email VARCHAR(150) NULL,
+  valid_id_path VARCHAR(255) NULL,
+  visit_date DATE NULL,
+  visit_time VARCHAR(20) NULL,
+  purpose VARCHAR(255) NULL,
+  wants_amenity TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1=Amenity reservation chosen from Guest Form',
+  amenity VARCHAR(100) NULL,
+  start_date DATE NULL,
+  end_date DATE NULL,
+  persons INT NULL,
+  price DECIMAL(10,2) NULL,
+  ref_code VARCHAR(50) NOT NULL UNIQUE,
+  approval_status ENUM('pending','approved','denied') DEFAULT 'pending',
+  approved_by INT NULL,
+  approval_date DATETIME NULL,
+  qr_path VARCHAR(255) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL,
+  INDEX idx_resident_user_id (resident_user_id),
+  INDEX idx_ref_code (ref_code)
 ) ENGINE=InnoDB;
 
 -- =====================================================
@@ -202,6 +261,18 @@ ALTER TABLE incident_proofs
   FOREIGN KEY (report_id) REFERENCES incident_reports(id)
   ON DELETE CASCADE ON UPDATE CASCADE;
 
+-- Link guest forms to users (resident who requested the entry)
+ALTER TABLE guest_forms
+  ADD CONSTRAINT fk_guest_forms_user
+  FOREIGN KEY (resident_user_id) REFERENCES users(id)
+  ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- Link guest forms approvals to staff
+ALTER TABLE guest_forms
+  ADD CONSTRAINT fk_guest_forms_staff_approval
+  FOREIGN KEY (approved_by) REFERENCES staff(id)
+  ON DELETE SET NULL ON UPDATE CASCADE;
+
 -- =====================================================
 -- SAMPLE DATA (Optional - for testing)
 -- Remove if you prefer a clean database
@@ -209,13 +280,17 @@ ALTER TABLE incident_proofs
 
 -- Sample resident users (password values shown are placeholders)
 INSERT IGNORE INTO users (first_name, middle_name, last_name, phone, email, user_type, password, sex, birthdate, house_number, address) VALUES
-('John', 'Michael', 'Doe', '+639123456789', 'john.doe@email.com', 'resident', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Male', '1990-05-15', 'VH-1001', 'Blk 1 Lot 5, Victorian Heights Subdivision'),
-('Maria', 'Santos', 'Cruz', '+639987654321', 'maria.cruz@email.com', 'resident', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Female', '1985-08-22', 'VH-1002', 'Blk 1 Lot 6, Victorian Heights Subdivision');
+('John', 'Michael', 'Doe', '09123456789', 'john.doe@email.com', 'resident', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Male', '1990-05-15', 'VH-1001', 'Blk 1 Lot 5, Victorian Heights Subdivision'),
+('Maria', 'Santos', 'Cruz', '09987654321', 'maria.cruz@email.com', 'resident', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Female', '1985-08-22', 'VH-1002', 'Blk 1 Lot 6, Victorian Heights Subdivision');
 
 -- Sample entry passes for visitors
 INSERT IGNORE INTO entry_passes (full_name, middle_name, last_name, sex, birthdate, contact, email, address) VALUES
-('Jane', 'Smith', 'Johnson', 'Female', '1992-03-10', '+639111222333', 'jane.johnson@email.com', '123 Main Street, Quezon City'),
-('Robert', 'Lee', 'Wilson', 'Male', '1988-12-05', '+639444555666', 'robert.wilson@email.com', '456 Oak Avenue, Makati City');
+('Jane', 'Smith', 'Johnson', 'Female', '1992-03-10', '09111222333', 'jane.johnson@email.com', '123 Main Street, Quezon City'),
+('Robert', 'Lee', 'Wilson', 'Male', '1988-12-05', '09444555666', 'robert.wilson@email.com', '456 Oak Avenue, Makati City');
+
+-- Sample resident amenity reservation
+INSERT IGNORE INTO resident_reservations (user_id, amenity, start_date, end_date, notes, approval_status, ref_code)
+VALUES (1, 'Basketball Court', '2025-11-15', '2025-11-15', 'Evening practice', 'pending', 'RR-TEST001');
 
 -- =====================================================
 -- COMPLETION NOTE

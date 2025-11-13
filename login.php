@@ -53,7 +53,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $_SESSION['role']      = $row['user_type'];
 
                 echo "<script>alert('Login successful!');</script>";
-                echo "<script>window.location.href='mainpage.php';</script>";
+                if ($row['user_type'] === 'resident') {
+                    echo "<script>window.location.href='profileresident.php';</script>";
+                } else {
+                    echo "<script>window.location.href='mainpage.php';</script>";
+                }
                 exit();
             } else {
                 echo "<script>alert('Incorrect password!'); window.history.back();</script>";

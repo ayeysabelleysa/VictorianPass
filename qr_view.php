@@ -25,26 +25,13 @@ if (empty($error)) {
 
     $today = date('Y-m-d');
     $statusVal = 'pending';
-    // Compute 2-day TTL expiration alongside any DB end_date
-    $ttlDays = 2;
-    $startYmd = !empty($row['start_date']) ? $row['start_date'] : null;
-    $createdYmd = !empty($row['created_at']) ? $row['created_at'] : null;
-    $dbEndYmd = !empty($row['end_date']) ? $row['end_date'] : null;
-    $ttlEndYmd = null;
-    if ($startYmd) {
-      $ttlEndYmd = date('Y-m-d', strtotime("$startYmd +$ttlDays days"));
-    } elseif ($createdYmd) {
-      $ttlEndYmd = date('Y-m-d', strtotime("$createdYmd +$ttlDays days"));
-    }
-    $effectiveEndYmd = $dbEndYmd ? ($ttlEndYmd ? min($dbEndYmd, $ttlEndYmd) : $dbEndYmd) : $ttlEndYmd;
+    // Expire only 1 day after approval
+    $approvalDateYmd = !empty($row['approval_date']) ? date('Y-m-d', strtotime($row['approval_date'])) : null;
+    $expireAfterApprovalYmd = $approvalDateYmd ? date('Y-m-d', strtotime($approvalDateYmd . ' +1 day')) : null;
 
     if (!empty($row['approval_status'])) {
       $statusVal = $row['approval_status'];
-      if ($statusVal === 'approved' && $effectiveEndYmd && $effectiveEndYmd < $today) {
-        $statusVal = 'expired';
-      }
-    } else {
-      if ($effectiveEndYmd && $effectiveEndYmd < $today) {
+      if ($statusVal === 'approved' && $expireAfterApprovalYmd && $today > $expireAfterApprovalYmd) {
         $statusVal = 'expired';
       }
     }
@@ -73,7 +60,7 @@ if (empty($error)) {
     }
 
     $publishDate = !empty($row['start_date']) ? date('m/d/y', strtotime($row['start_date'])) : '';
-    $expireDate = $effectiveEndYmd ? date('m/d/y', strtotime($effectiveEndYmd)) : '';
+    $expireDate = $expireAfterApprovalYmd ? date('m/d/y', strtotime($expireAfterApprovalYmd)) : '';
     $validWindow = ($publishDate ?: '-') . ($expireDate ? (' → ' . $expireDate) : '');
 
     $qrPath = !empty($row['qr_path']) ? $row['qr_path'] : '';

@@ -25,46 +25,8 @@ $stmt = mysqli_prepare($con, "SELECT id, first_name, middle_name, last_name, ema
   }
 }
 
-// Handle profile updates (phone, address)
+// Disable resident-side editing; only Admin can update details
 $updateMessage = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_profile' && $con) {
-  $newPhone = isset($_POST['phone']) ? trim($_POST['phone']) : '';
-  $newAddress = isset($_POST['address']) ? trim($_POST['address']) : '';
-  $errs = [];
-  if ($newPhone !== '' && !preg_match('/^\+63\d+$/', $newPhone)) {
-    $errs[] = 'Phone must start with +63 and contain digits only.';
-  }
-  if ($newAddress === '') {
-    $errs[] = 'Address cannot be empty.';
-  }
-  if (empty($errs)) {
-    $stmt = mysqli_prepare($con, "UPDATE users SET phone = ?, address = ? WHERE id = ?");
-    if ($stmt) {
-      mysqli_stmt_bind_param($stmt, 'ssi', $newPhone, $newAddress, $userId);
-      if (mysqli_stmt_execute($stmt)) {
-        $updateMessage = 'Profile updated successfully.';
-        // Refresh user data
-        $stmt2 = mysqli_prepare($con, "SELECT id, first_name, middle_name, last_name, email, phone, birthdate, house_number, address FROM users WHERE id = ?");
-        if ($stmt2) {
-          mysqli_stmt_bind_param($stmt2, 'i', $userId);
-          mysqli_stmt_execute($stmt2);
-          $result2 = mysqli_stmt_get_result($stmt2);
-          if ($result2 && mysqli_num_rows($result2) === 1) {
-            $user = mysqli_fetch_assoc($result2);
-          }
-          mysqli_stmt_close($stmt2);
-        }
-      } else {
-        $updateMessage = 'Failed to update profile. Please try again.';
-      }
-      mysqli_stmt_close($stmt);
-    } else {
-      $updateMessage = 'System error. Please try later.';
-    }
-  } else {
-    $updateMessage = implode(' ', $errs);
-  }
-}
 
 if (!$user) {
   // Fallback if user not found
@@ -309,12 +271,12 @@ if (!file_exists($qrAbsPath)) {
     <!-- Sidebar -->
     <div class="sidebar">
       <div class="menu-top">
-        <div class="menu-item"><a href="profileresident.php"><img src="dashboard.svg">Dashboard</a></div>
-        <div class="menu-item"><a href="profileresident.php"><img src="dashboard.svg">Profile</a></div>
+        <div class="menu-item"><a href="mainpage.php"><img src="mainpage/start.svg">Main Page</a></div><br>
+        <div class="menu-item"><a href="reserve_resident.php"><img src="mainpage/ticket.svg">Reserve an Amenity</a></div><div class="menu-note-pair"> Make a reservation to use an amenity for yourself as a resident.</div>
         <br><div class="menu-item compact"><a href="guestform.php"><img src="mainpage/ticket.svg">Guest Form</a></div>
-         <div class="menu-note-pair">Create a visitor request and share the status code.</div>
+         <div class="menu-note-pair"> Submit a guest entry request for your visitor.</div>
         <br><div class="menu-item compact report"><a href="residentreport.php"><img src="mainpage/report.svg">Report Incident</a></div>
-        <div class="menu-note-pair"><br>Submit complaints or concerns to the subdivision admin.
+        <div class="menu-note-pair"><br> Report suspicious persons or activities within the subdivision.
         </div>
       </div>
 
@@ -334,30 +296,20 @@ if (!file_exists($qrAbsPath)) {
             <p><?php echo htmlspecialchars($user['email']); ?></p>
           </div>
         </div>
-        <?php if (!empty($updateMessage)) { ?>
-          <div style="margin-bottom:10px;padding:10px 12px;border-left:4px solid #23412e;background:#f1f9f1;color:#23412e;border-radius:6px;">
-            <?php echo htmlspecialchars($updateMessage); ?>
-          </div>
-        <?php } ?>
+        <!-- <div style="margin-bottom:10px;padding:10px 12px;border-left:4px solid #c0392b;background:#fff;color:#c0392b;border-radius:6px;">
+          Editing is disabled for residents. Please contact Admin to update your details.
+        </div> -->
 
         <div class="info-row"><span class="info-label">Name:</span><span class="info-value"><?php echo htmlspecialchars($fullName); ?></span></div>
         <div class="info-row"><span class="info-label">Email:</span><span class="info-value" id="emailVal"><?php echo htmlspecialchars($user['email']); ?></span></div>
 
-        <form id="updateForm" method="POST" action="">
-          <input type="hidden" name="action" value="update_profile">
-          <div class="info-row"><span class="info-label">Mobile:</span>
-            <span class="info-value">
-              <input type="tel" name="phone" value="<?php echo htmlspecialchars($user['phone'] ?? '+63'); ?>" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:8px;">
-            </span>
-          </div>
-          <div class="info-row"><span class="info-label">Address:</span>
-            <span class="info-value">
-              <input type="text" name="address" value="<?php echo htmlspecialchars($user['address'] ?? ''); ?>" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:8px;">
-            </span>
-          </div>
-          <div class="info-row"><span class="info-label">Birth date:</span><span class="info-value"><?php echo htmlspecialchars($user['birthdate'] ?? ''); ?></span></div>
-          <button type="submit" class="save-btn">Save Changes</button>
-        </form>
+        <?php
+          $dispPhone = isset($user['phone']) ? $user['phone'] : '';
+          if (preg_match('/^\+63(9\d{9})$/', $dispPhone)) { $dispPhone = '0' . substr($dispPhone, 3); }
+        ?>
+        <div class="info-row"><span class="info-label">Mobile:</span><span class="info-value"><?php echo htmlspecialchars($dispPhone ?: ''); ?></span></div>
+        <div class="info-row"><span class="info-label">Address:</span><span class="info-value"><?php echo htmlspecialchars($user['address'] ?? ''); ?></span></div>
+        <div class="info-row"><span class="info-label">Birth date:</span><span class="info-value"><?php echo htmlspecialchars($user['birthdate'] ?? ''); ?></span></div>
       </div>
 
       <!-- Entries & Requests -->
@@ -367,7 +319,8 @@ if (!file_exists($qrAbsPath)) {
           // Fetch latest reservations/requests for this resident
           $reservations = [];
           if ($con) {
-            $stmtR = mysqli_prepare($con, "SELECT ref_code, amenity, start_date, end_date, approval_status FROM reservations WHERE user_id = ? ORDER BY created_at DESC LIMIT 20");
+            // Existing reservations
+            $stmtR = mysqli_prepare($con, "SELECT ref_code, amenity, start_date, end_date, approval_status, created_at FROM reservations WHERE user_id = ? ORDER BY created_at DESC LIMIT 20");
             if ($stmtR) {
               mysqli_stmt_bind_param($stmtR, 'i', $userId);
               mysqli_stmt_execute($stmtR);
@@ -377,6 +330,39 @@ if (!file_exists($qrAbsPath)) {
               }
               mysqli_stmt_close($stmtR);
             }
+            // Resident amenity reservations (new table)
+            $stmtRR = mysqli_prepare($con, "SELECT ref_code, amenity, start_date, end_date, approval_status, created_at FROM resident_reservations WHERE user_id = ? ORDER BY created_at DESC LIMIT 20");
+            if ($stmtRR) {
+              mysqli_stmt_bind_param($stmtRR, 'i', $userId);
+              mysqli_stmt_execute($stmtRR);
+              $resRR = mysqli_stmt_get_result($stmtRR);
+              if ($resRR) {
+                while ($rowRR = mysqli_fetch_assoc($resRR)) { $reservations[] = $rowRR; }
+              }
+              mysqli_stmt_close($stmtRR);
+            }
+            // Guest entry requests and guest amenity reservations from guest_forms
+            $stmtGF = mysqli_prepare($con, "SELECT ref_code, amenity, start_date, end_date, visit_date, approval_status, created_at FROM guest_forms WHERE resident_user_id = ? ORDER BY created_at DESC LIMIT 20");
+            if ($stmtGF) {
+              mysqli_stmt_bind_param($stmtGF, 'i', $userId);
+              mysqli_stmt_execute($stmtGF);
+              $resGF = mysqli_stmt_get_result($stmtGF);
+              if ($resGF) {
+                while ($rowGF = mysqli_fetch_assoc($resGF)) {
+                  $reservations[] = [
+                    'ref_code' => $rowGF['ref_code'] ?? null,
+                    'amenity' => !empty($rowGF['amenity']) ? $rowGF['amenity'] : 'Guest Entry',
+                    'start_date' => !empty($rowGF['start_date']) ? $rowGF['start_date'] : ($rowGF['visit_date'] ?? null),
+                    'end_date' => !empty($rowGF['end_date']) ? $rowGF['end_date'] : ($rowGF['visit_date'] ?? null),
+                    'approval_status' => $rowGF['approval_status'] ?? 'pending',
+                    'created_at' => $rowGF['created_at'] ?? null,
+                  ];
+                }
+              }
+              mysqli_stmt_close($stmtGF);
+            }
+            // Sort combined list by created_at desc
+            usort($reservations, function($a, $b){ return strcmp($b['created_at'] ?? '', $a['created_at'] ?? ''); });
           }
 
           // Helper to compute status and css class
@@ -395,7 +381,7 @@ if (!file_exists($qrAbsPath)) {
         ?>
         <table>
           <tr>
-            <th>Action</th>
+            <th>Type</th>
             <th>Dates</th>
             <th>Status</th>
             <th>View</th>
@@ -436,15 +422,6 @@ if (!file_exists($qrAbsPath)) {
       </div>
     </div>
   </div>
-  <script>
-    function promptUpdate(){
-      var newEmail = prompt('Enter new email (leave blank to keep):', document.getElementById('emailVal').textContent.trim());
-      if (newEmail === null) return; // cancelled
-      var newPass = prompt('Enter new password (leave blank to keep):');
-      if (newEmail !== null) document.getElementById('emailInput').value = newEmail.trim();
-      if (newPass !== null) document.getElementById('passwordInput').value = newPass.trim();
-      document.getElementById('updateForm').submit();
-    }
-  </script>
+  
 </body>
 </html>

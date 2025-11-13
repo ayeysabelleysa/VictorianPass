@@ -211,8 +211,8 @@
       if (contact){
         contact.addEventListener('input', function(e){
           var val = e.target.value.trim();
-          if (!/^\+63\d+$/.test(val)){
-            setWarning('contact', 'Phone number must start with +63 and contain numbers only after.');
+          if (!/^09\d{9}$/.test(val)){
+            setWarning('contact', 'Phone number must start with 09 and contain numbers only.');
           } else {
             setWarning('contact', '');
           }
@@ -234,11 +234,12 @@
         [first, last, address].forEach(function(inp){
           if (!inp) return;
           if (!inp.value.trim()){ setWarning(inp.id, 'This field is required.'); valid = false; }
-          if (/\d/.test(inp.value)){ setWarning(inp.id, 'Numbers are not allowed in this field.'); valid = false; }
+          // Names cannot contain digits; address may include digits
+          if (inp !== address && /\d/.test(inp.value)){ setWarning(inp.id, 'Numbers are not allowed in this field.'); valid = false; }
         });
         if (sex && !sex.value){ setWarning('sex', 'Please select Sex.'); valid = false; }
         if (birthdate && !birthdate.value){ setWarning('birthdate', 'Please provide a birthdate.'); valid = false; }
-        if (contact){ var val = contact.value.trim(); if (!/^\+63\d+$/.test(val)){ setWarning('contact', 'Phone number must start with +63 and contain numbers only after.'); valid = false; } }
+        if (contact){ var val = contact.value.trim(); if (!/^09\d{9}$/.test(val)){ setWarning('contact', 'Phone number must start with 09 and contain numbers only.'); valid = false; } }
         if (idInput && !(idInput.files && idInput.files[0])){ setWarning('valid_id', 'Please upload a Valid ID.'); valid = false; }
         if (!valid) e.preventDefault();
       });

@@ -239,7 +239,7 @@ $hasRef = $ref_code !== '';
     if (btnNext) btnNext.addEventListener('click', function(){
       if (btnNext.disabled) return;
       if (continueMode === 'reserve' && entryPassId){
-        window.location.href = 'reserve.php?entry_pass_id=' + encodeURIComponent(entryPassId) + '&ref_code=' + encodeURIComponent(refCode);
+        window.location.href = 'reserve.php?entry_pass_id=' + encodeURIComponent(entryPassId) + (refCode ? ('&ref_code=' + encodeURIComponent(refCode)) : '');
       } else {
         window.location.href = 'reserve.php';
       }

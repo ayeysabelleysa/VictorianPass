@@ -4,21 +4,29 @@ include 'connect.php';
 $generatedCode = '';
 $errorMsg = '';
 
-// If a resident is logged in and not handling a visitor entry pass, redirect to resident-only reservation page
-if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && (!isset($_GET['entry_pass_id']) || $_GET['entry_pass_id'] === '')) {
-  header('Location: reserve_resident.php');
+// Require a valid guest form reference code
+$ref_code = isset($_GET['ref_code']) ? $_GET['ref_code'] : '';
+if ($ref_code === '') {
+  header('Location: guestform.php');
   exit;
 }
 
-// Ensure reservations has entry_pass_id column to link entry pass info
-function ensureReservationEntryPassColumn($con) {
-  $col = $con->query("SHOW COLUMNS FROM reservations LIKE 'entry_pass_id'");
-  if (!$col || $col->num_rows === 0) {
-    $con->query("ALTER TABLE reservations ADD COLUMN entry_pass_id INT NULL");
+$gfRow = null;
+$residentOwnerId = null;
+$stmtGF = $con->prepare("SELECT id, resident_user_id FROM guest_forms WHERE ref_code = ? LIMIT 1");
+if ($stmtGF) {
+  $stmtGF->bind_param('s', $ref_code);
+  if ($stmtGF->execute()) {
+    $resGF = $stmtGF->get_result();
+    $gfRow = $resGF ? $resGF->fetch_assoc() : null;
+    if ($gfRow) { $residentOwnerId = $gfRow['resident_user_id'] ?? null; }
   }
+  $stmtGF->close();
 }
-
-ensureReservationEntryPassColumn($con);
+if (!$gfRow) {
+  header('Location: guestform.php');
+  exit;
+}
 
 // Ensure reservations columns are nullable, supporting placeholder record before amenity selection
 function ensureReservationsNullable($con) {
@@ -30,44 +38,19 @@ function ensureReservationsNullable($con) {
 }
 ensureReservationsNullable($con);
 
-// Require downpayment (receipt uploaded) before allowing reservation when entry_pass_id is present
-if (isset($_GET['entry_pass_id']) && $_GET['entry_pass_id'] !== '') {
-  $epid = intval($_GET['entry_pass_id']);
-  if ($epid > 0) {
-    // Check linked reservation receipt presence
-    $stmtR = $con->prepare("SELECT ref_code, receipt_path FROM reservations WHERE entry_pass_id = ? ORDER BY id DESC LIMIT 1");
-    $stmtR->bind_param('i', $epid);
-    if ($stmtR->execute()) {
-      $resR = $stmtR->get_result();
-      $rowR = $resR ? $resR->fetch_assoc() : null;
-      $hasReceipt = $rowR && !empty($rowR['receipt_path']);
-      if (!$hasReceipt) {
-        header('Location: downpayment.php?entry_pass_id=' . urlencode($epid) . '&continue=reserve');
-        exit;
-      }
-    }
-    $stmtR->close();
-  }
-}
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $amenity = $_POST['amenity'] ?? 'Pool';
   $start   = $_POST['startDate'] ?? '';
   $end     = $_POST['endDate'] ?? '';
   $persons = intval($_POST['persons'] ?? 1);
   $price = $persons * 1; // Example: $1 per person
-  $user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : NULL;
-  $entry_pass_id = isset($_GET['entry_pass_id']) ? $_GET['entry_pass_id'] : NULL;
-  $ref_code = isset($_GET['ref_code']) ? $_GET['ref_code'] : '';
-
-  // Generate unique Status Code (e.g. VP-XXXXX)
-  $ref = "VP-" . str_pad(rand(0, 99999), 5, '0', STR_PAD_LEFT);
+  $user_id = $residentOwnerId ? intval($residentOwnerId) : NULL;
 
   // Validate inputs
   if (!$start || !$end) {
     $errorMsg = 'Please select a start and end date.';
   } else {
-    // Server-side overlap check to prevent double booking across all sources
+    // Overlap across reservations (visitors), resident_reservations (residents), and guest_forms (guest amenities)
     $cnt = 0;
     $check1 = $con->prepare("SELECT COUNT(*) AS c FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND start_date <= ? AND end_date >= ?");
     $check1->bind_param("sss", $amenity, $end, $start);
@@ -81,20 +64,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($cnt > 0) {
       $errorMsg = 'Selected dates are not available. Please choose different dates.';
     } else {
-      if ($ref_code) {
-        // Update the existing placeholder reservation created during downpayment
-        $stmt = $con->prepare("UPDATE reservations SET amenity = ?, start_date = ?, end_date = ?, persons = ?, price = ?, user_id = COALESCE(?, user_id) WHERE ref_code = ?");
-        $stmt->bind_param("sssiiis", $amenity, $start, $end, $persons, $price, $user_id, $ref_code);
-        $stmt->execute();
-        $generatedCode = $ref_code;
-      } else {
-        // Create a new reservation (resident flow or no placeholder exists)
-        $ref = "VP-" . str_pad(rand(0, 99999), 5, '0', STR_PAD_LEFT);
-        $stmt = $con->prepare("INSERT INTO reservations (ref_code, amenity, start_date, end_date, persons, price, user_id, entry_pass_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("ssssiiis", $ref, $amenity, $start, $end, $persons, $price, $user_id, $entry_pass_id);
-        $stmt->execute();
-        $generatedCode = $ref;
-      }
+      // Store amenity reservation details on guest_forms
+      $stmtUp = $con->prepare("UPDATE guest_forms SET wants_amenity = 1, amenity = ?, start_date = ?, end_date = ?, persons = ?, price = ?, updated_at = NOW() WHERE ref_code = ?");
+      $stmtUp->bind_param("sssids", $amenity, $start, $end, $persons, $price, $ref_code);
+      $stmtUp->execute();
+      $generatedCode = $ref_code;
     }
   }
 }
@@ -128,7 +102,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_dates') {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VictorianPass - Reserve</title>
+  <title>VictorianPass - Reserve (Guest)</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
   <link rel="icon" type="image/png" href="mainpage/logo.svg">
 
@@ -202,6 +176,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_dates') {
   </div>
 </header>
 
+
 <section class="hero">
   <div class="calendar">
     <div class="calendar-header">
@@ -263,15 +238,15 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_dates') {
 
 <div id="refModal" class="modal" style="<?php echo $generatedCode ? 'display:flex;' : ''; ?>">
   <div class="modal-content">
-    <h2>Reservation Submitted!</h2>
-    <p>Your Status Code:</p>
-    <div class="ref-code"><?php echo htmlspecialchars($generatedCode); ?></div>
-    <p>Use this code in the <b>Check Status</b> page to track your reservation.</p>
-    <div style="text-align:center;margin-top:8px;">
-      <button class="close-btn" onclick="closeModal()">OK</button>
-    </div>
-    <div style="text-align:center;margin-top:12px;">
-      <a href="mainpage.php#" class="btn-secondary" title="Back to Visitor Home">← Back to Visitor Home</a>
+    <h2>Request Submitted!</h2>
+    <p>Your guest request has been successfully submitted.</p>
+    <p><strong>Share this status code with your visitor:</strong></p>
+    <div id="refCode" class="ref-code"><?php echo htmlspecialchars($generatedCode); ?></div>
+    <p><small>Note: Your visitor will need this code to check the status of their Entry Pass,
+      since they don’t have their own VictorianPass account.</small></p>
+    <p><small><em>You can still view and manage the request in your resident dashboard.</em></small></p>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:10px;flex-wrap:wrap;">
+      <button class="close-btn" onclick="closeModal()">Close</button>
     </div>
   </div>
 </div>
@@ -287,7 +262,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_dates') {
 
   async function loadBookedDates(){
     try{
-      const res=await fetch(`reserve.php?action=booked_dates&amenity=${encodeURIComponent(selectedAmenity)}`);
+      const res=await fetch(`reserve_guest.php?action=booked_dates&amenity=${encodeURIComponent(selectedAmenity)}`);
       const data=await res.json();
       bookedDates=new Set(data.dates||[]);
     }catch(e){

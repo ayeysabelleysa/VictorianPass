@@ -24,6 +24,26 @@ function ensureEntryPassesTable($con) {
 
 ensureEntryPassesTable($con);
 
+// Load resident mini profile data (for dropdown)
+$residentName = '';
+$residentHouse = '';
+$hasResidentProfile = false;
+if (isset($_SESSION['user_id']) && isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident') {
+  $uid = (int)$_SESSION['user_id'];
+  if ($stmt = $con->prepare("SELECT first_name, middle_name, last_name, house_number FROM users WHERE id = ? LIMIT 1")) {
+    $stmt->bind_param("i", $uid);
+    if ($stmt->execute()) {
+      $stmt->bind_result($first, $middle, $last, $house);
+      if ($stmt->fetch()) {
+        $residentName = trim($first . ' ' . (($middle ?? '') ? ($middle . ' ') : '') . $last);
+        $residentHouse = $house ?? '';
+        $hasResidentProfile = true;
+      }
+    }
+    $stmt->close();
+  }
+}
+
 // No longer storing downpayment on entry_passes; we link it to reservations via ref_code
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
@@ -79,8 +99,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   <title>VictorianPass</title>
   <link rel="icon" type="image/png" href="mainpage/logo.svg">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="mainpage.css">
-  <link rel="stylesheet" href="responsive.css">
+  <?php $mainCssVer = @filemtime(__DIR__ . '/mainpage.css') ?: time(); $respCssVer = @filemtime(__DIR__ . '/responsive.css') ?: time(); ?>
+  <link rel="stylesheet" href="mainpage.css?v=<?php echo $mainCssVer; ?>">
+  <link rel="stylesheet" href="responsive.css?v=<?php echo $respCssVer; ?>">
 
   <style>
     /* Global Poppins Font Application */
@@ -315,6 +336,22 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       cursor: pointer;
     }
     .btn-change:hover { opacity: 0.9; }
+
+    /* Profile icon + dropdown */
+    .profile-icon { width: 36px; height: 36px; border-radius: 50%; border: 2px solid #23412e; cursor: pointer; object-fit: cover; }
+    .profile-icon-wrap { position: relative; display: inline-block; }
+    .profile-dropdown { position: absolute; right: 0; top: 125%; width: 260px; background: #fff; color: #222; border-radius: 12px; box-shadow: 0 10px 20px rgba(0,0,0,0.15); border: 1px solid #eee; z-index: 1100; display: none; overflow: hidden; }
+    .profile-dropdown .mini-profile { display: flex; align-items: center; gap: 10px; padding: 12px; border-bottom: 1px solid #f0f0f0; }
+    .profile-dropdown .mini-avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid #23412e; }
+    .profile-dropdown .mini-text { display: flex; flex-direction: column; }
+    .profile-dropdown .mini-name { font-weight: 600; font-size: 0.95rem; }
+    .profile-dropdown .mini-house { color: #666; font-size: 0.85rem; }
+    .profile-dropdown .actions { display: flex; gap: 8px; padding: 10px 12px; }
+    .profile-dropdown .btn { flex: 1; text-align: center; padding: 8px 10px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9rem; }
+    .profile-dropdown .btn-view { background: #23412e; color: #fff; }
+    .profile-dropdown .btn-view:hover { background: #1a2f21; }
+    .profile-dropdown .btn-logout { background: #e5ddc6; color: #222; }
+    .profile-dropdown .btn-logout:hover { opacity: 0.9; }
   </style>
 </head>
 
@@ -335,9 +372,24 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       <div class="nav-links" id="navLinks" style="display: none;">
         <a href="login.php" class="btn-nav btn-login">Login</a>
         <a href="signup.php" class="btn-nav btn-register">Register</a>
-        <a href="profileresident.php" id="profileIcon" style="display: none;">
+        <div id="profileIcon" class="profile-icon-wrap" style="display: none;">
           <img src="mainpage/profile'.jpg" alt="Profile" class="profile-icon">
-        </a>
+          <?php if ($hasResidentProfile): ?>
+          <div id="profileDropdown" class="profile-dropdown" role="dialog" aria-label="Resident quick profile">
+            <div class="mini-profile">
+              <img src="mainpage/profile'.jpg" alt="Avatar" class="mini-avatar">
+              <div class="mini-text">
+                <span class="mini-name"><?php echo htmlspecialchars($residentName); ?></span>
+                <span class="mini-house">House No.: <?php echo htmlspecialchars($residentHouse); ?></span>
+              </div>
+            </div>
+            <div class="actions">
+              <a href="profileresident.php" class="btn btn-view">View More</a>
+              <a href="logout.php" class="btn btn-logout">Log Out</a>
+            </div>
+          </div>
+          <?php endif; ?>
+        </div>
       </div>
     </div>
 
@@ -497,6 +549,29 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         if (loginBtn) loginBtn.style.display = 'none';
         if (registerBtn) registerBtn.style.display = 'none';
       <?php endif; ?>
+    });
+  </script>
+  <script>
+    // Profile dropdown interactions: click/hover to open, click outside to close
+    document.addEventListener('DOMContentLoaded', function(){
+      const iconWrap = document.getElementById('profileIcon');
+      const dd = document.getElementById('profileDropdown');
+      if (!iconWrap || !dd) return;
+
+      const openDD = () => { dd.style.display = 'block'; };
+      const closeDD = () => { dd.style.display = 'none'; };
+      const toggleDD = () => { dd.style.display = (dd.style.display === 'block') ? 'none' : 'block'; };
+
+      // Toggle when clicking the icon itself; allow clicks inside dropdown to navigate
+      iconWrap.addEventListener('click', function(e){
+        if (dd.contains(e.target)) return; // let dropdown links work normally
+        e.stopPropagation();
+        toggleDD();
+      });
+      iconWrap.addEventListener('mouseenter', function(){ openDD(); });
+      iconWrap.addEventListener('mouseleave', function(){ setTimeout(function(){ if (!dd.matches(':hover')) closeDD(); }, 160); });
+      dd.addEventListener('mouseleave', function(){ closeDD(); });
+      window.addEventListener('click', function(e){ if (!iconWrap.contains(e.target) && !dd.contains(e.target)) closeDD(); });
     });
   </script>
 
