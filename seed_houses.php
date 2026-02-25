@@ -2,7 +2,7 @@
 include('connect.php');
 
 $start = 1;
-$end = 2200;
+$end = 2220;
 $address = 'Victorian Heights Subdivision';
 
 $con->query("DELETE FROM houses");

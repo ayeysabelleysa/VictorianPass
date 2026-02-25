@@ -16,6 +16,9 @@ $scheme = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset(
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
 $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/VictorianPass'), '/\\');
 $verificationLink = sprintf('%s://%s%s/qr_view.php?code=%s', $scheme, $host, $basePath, urlencode($code));
+$hasPoolBookingType = false;
+$poolCheck = $con->query("SHOW COLUMNS FROM reservations LIKE 'pool_booking_type'");
+if ($poolCheck && $poolCheck->num_rows > 0) { $hasPoolBookingType = true; }
 
 // 1. Try Guest Forms
 $stmtGF = $con->prepare("SELECT gf.*, u.house_number AS res_house_number, u.first_name AS res_first_name, u.last_name AS res_last_name, u.email AS res_email, u.phone AS res_phone FROM guest_forms gf LEFT JOIN users u ON gf.resident_user_id = u.id WHERE gf.ref_code = ?");
@@ -58,8 +61,10 @@ if ($resGF && $resGF->num_rows > 0) {
     $rPersons = null;
     $rPrice = null;
     $rDownpayment = null;
+    $rPoolType = '';
 
-    $stmtR = $con->prepare("SELECT amenity, start_date, end_date, start_time, end_time, persons, price, downpayment, qr_path, payment_status, receipt_path, denial_reason, approval_status, receipt_attempts FROM reservations WHERE ref_code = ? LIMIT 1");
+    $poolCol = $hasPoolBookingType ? "pool_booking_type" : "NULL AS pool_booking_type";
+    $stmtR = $con->prepare("SELECT amenity, start_date, end_date, start_time, end_time, persons, price, downpayment, qr_path, payment_status, receipt_path, denial_reason, approval_status, receipt_attempts, $poolCol FROM reservations WHERE ref_code = ? LIMIT 1");
     if ($stmtR) {
         $stmtR->bind_param('s', $row['ref_code']);
         if ($stmtR->execute()) {
@@ -74,6 +79,7 @@ if ($resGF && $resGF->num_rows > 0) {
                 $rPersons = isset($r['persons']) ? intval($r['persons']) : null;
                 $rPrice = isset($r['price']) ? floatval($r['price']) : null;
                 $rDownpayment = isset($r['downpayment']) ? floatval($r['downpayment']) : null;
+                $rPoolType = $r['pool_booking_type'] ?? '';
 
                 $rPayStatus = strtolower(trim($r['payment_status'] ?? ''));
                 $rReceipt = $r['receipt_path'] ?? '';
@@ -141,7 +147,8 @@ if ($resGF && $resGF->num_rows > 0) {
         'receipt_path' => isset($rReceipt) ? $rReceipt : '',
         'denial_reason' => isset($rReason) ? $rReason : '',
         'receipt_attempts' => isset($rAttempts) ? intval($rAttempts) : 0,
-        'valid_id_path' => $validIdPath
+        'valid_id_path' => $validIdPath,
+        'pool_booking_type' => $rPoolType
     ];
 }
 
@@ -259,7 +266,8 @@ if (!$data) {
             'payment_status' => strtolower(trim($row['payment_status'] ?? '')),
             'receipt_path' => $row['receipt_path'] ?? '',
             'denial_reason' => $row['denial_reason'] ?? '',
-            'receipt_attempts' => $attempts
+            'receipt_attempts' => $attempts,
+            'pool_booking_type' => $row['pool_booking_type'] ?? ''
         ];
     }
 }
@@ -324,7 +332,8 @@ if (!$data) {
             'verification' => $verificationLink,
             'payment_status' => '',
             'receipt_path' => '',
-            'denial_reason' => ''
+            'denial_reason' => '',
+            'pool_booking_type' => $row['pool_booking_type'] ?? ''
         ];
     }
 }
@@ -498,12 +507,32 @@ if (!$data) {
     </div>
 
     <?php if ($data['has_reservation'] && !empty($data['amenity'])): ?>
+    <?php
+        $poolTypeLabel = '';
+        $amenityRaw = trim((string)($data['amenity'] ?? ''));
+        if (strcasecmp($amenityRaw, 'Pool') === 0) {
+            $pt = strtolower(trim((string)($data['pool_booking_type'] ?? '')));
+            if ($pt === 'whole_pool') { $poolTypeLabel = 'Whole Pool'; }
+            else if ($pt === 'per_person') { $poolTypeLabel = 'Shared Pool'; }
+            else {
+                $personsVal = isset($data['persons']) ? intval($data['persons']) : 0;
+                if ($personsVal >= 20) { $poolTypeLabel = 'Whole Pool'; }
+                else if ($personsVal > 0) { $poolTypeLabel = 'Shared Pool'; }
+            }
+        }
+    ?>
     <div class="section-title">Amenity Booking Details</div>
     <div class="info-grid">
         <div class="info-row">
             <span class="info-label">Amenity Type</span>
             <span class="info-value"><?php echo htmlspecialchars($data['amenity']); ?></span>
         </div>
+        <?php if ($poolTypeLabel !== ''): ?>
+        <div class="info-row">
+            <span class="info-label">Pool Type</span>
+            <span class="info-value"><?php echo htmlspecialchars($poolTypeLabel); ?></span>
+        </div>
+        <?php endif; ?>
         <?php if(!empty($data['reserved_by'])): ?>
         <div class="info-row">
             <span class="info-label">Reserved By</span>

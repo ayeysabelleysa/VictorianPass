@@ -237,6 +237,7 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
 .persons .counter{justify-content:center;margin-top:10px}
 .note{display:block;color:#666;font-size:.85rem;margin-top:6px}
 .reservation-card p{margin:0;font-weight:500;color:#374151;line-height:1.5}
+.date-extra{margin-top:12px}
 
 @media (min-width:1024px){
   .reservation-left .res-item{
@@ -958,7 +959,7 @@ input:focus-visible {
   .reservation-grid .reservation-left{grid-area:form}
 }
 .toast{position:fixed; top:14px; left:50%; transform:translateX(-50%); background:#23412e; color:#fff; padding:10px 14px; border-radius:10px; box-shadow:0 8px 18px rgba(0,0,0,.12); font-size:.9rem; z-index:1000; display:none}
-#amenityImageModalImg{width:720px; height:480px; object-fit:cover;}
+#amenityImageModalImg{width:100%; height:auto; max-width:85vw; max-height:80vh; object-fit:contain;}
 @media (max-width:640px){
   body{padding-top:64px}
   .navbar{padding:10px 4%}
@@ -989,4 +990,29 @@ input:focus-visible {
   .booking-step{min-width:0}
   .step-title{font-size:0.85rem}
 }
-@media (max-width:768px){ #amenityImageModalImg{ width:90vw; height:60vh; } }
+@media (max-width:768px){ #amenityImageModalImg{ width:90vw; max-height:75vh; } }
+
+/* Additional mobile calendar responsiveness tweaks */
+@media (max-width:480px) {
+  .calendar {
+    padding: 10px;
+    max-width: 340px;
+    border-radius: 12px;
+    margin-left: 8px;
+    margin-right: 8px;
+  }
+  .calendar-header h3 { font-size: 1.05rem; }
+  .calendar-header button { padding: 6px 10px; font-size: 1rem; width:40px; height:40px; border-radius:10px; }
+  .calendar table { table-layout: fixed; width: 100%; }
+  .calendar th, .calendar td { padding: 6px 0; font-size: 0.72rem; }
+  .calendar td { border-radius: 8px; }
+  .calendar td:hover:not(.disabled) { transform: none; }
+  .calendar td.available { box-shadow: none; }
+}
+
+@media (max-width:360px) {
+  .calendar { max-width: 300px; padding: 8px; }
+  .calendar-header h3 { font-size: 1rem; }
+  .calendar th, .calendar td { font-size: 0.65rem; padding: 4px 0; }
+  .calendar-header button { width:36px; height:36px; padding:6px; }
+}

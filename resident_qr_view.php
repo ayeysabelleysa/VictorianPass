@@ -5,10 +5,13 @@ include 'connect.php';
 $rid = isset($_GET['rid']) ? intval($_GET['rid']) : 0;
 $code = isset($_GET['code']) ? trim($_GET['code']) : '';
 
-function vp_resident_link($rid){
+function vp_resident_link($rid, $code = ''){
   $scheme = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')) ? 'https' : 'http';
   $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
   $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/VictorianPass'), '/\\');
+  if ($code !== '') {
+    return sprintf('%s://%s%s/resident_qr_view.php?code=%s', $scheme, $host, $basePath, urlencode($code));
+  }
   return sprintf('%s://%s%s/resident_qr_view.php?rid=%d', $scheme, $host, $basePath, $rid);
 }
 
@@ -18,11 +21,17 @@ $isGuest = false;
 $topLabel = 'OFFICIAL PROOF OF RESIDENCY';
 $statusBadge = '<span class="badge disabled">Unknown</span>';
 $error = '';
+$residentCode = '';
+$displayPhone = '';
+function vp_resident_status_badge(){
+  return '<span class="badge active">Welcome Resident</span>';
+}
 
 if ($con instanceof mysqli) {
   // Check if this is a Guest Pass lookup via Code
-  if (!empty($code)) {
-    $isGuest = true;
+  if (!empty($code) && stripos($code, 'VH-') === 0) {
+    $residentCode = strtoupper($code);
+  } elseif (!empty($code)) {
     $stmt = $con->prepare("SELECT g.*, u.first_name as host_fname, u.last_name as host_lname, u.house_number as host_block, u.address as host_address 
                            FROM guest_forms g 
                            LEFT JOIN users u ON g.resident_user_id = u.id 
@@ -33,6 +42,7 @@ if ($con instanceof mysqli) {
       $res = $stmt->get_result();
       if ($res && $res->num_rows > 0) {
         $guest = $res->fetch_assoc();
+        $isGuest = true;
         $topLabel = 'AUTHORIZED GUEST PASS';
         
         // Determine Validity
@@ -51,11 +61,29 @@ if ($con instanceof mysqli) {
         $fullName = trim(($guest['visitor_first_name'] ?? '') . ' ' . ($guest['visitor_last_name'] ?? ''));
         $displayPhone = $guest['visitor_contact'] ?? '';
       } else {
-        $error = 'Invalid Guest Pass Code.';
+        $residentCode = strtoupper($code);
       }
       $stmt->close();
     }
   } 
+  // Resident Lookup via Code
+  if (!$isGuest && $residentCode !== '') {
+    $stmt = $con->prepare("SELECT id, first_name, middle_name, last_name, email, phone, birthdate, house_number, address, user_type, IFNULL(status,'active') as status FROM users WHERE house_number = ? LIMIT 1");
+    $stmt->bind_param('s', $residentCode);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    if ($res && $res->num_rows > 0) { 
+        $user = $res->fetch_assoc(); 
+        $fullName = trim(($user['first_name'] ?? '') . ' ' . ($user['middle_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
+        
+        if (($user['user_type'] ?? '') !== 'resident') { 
+            $error = 'Invalid user type.'; 
+        } else {
+            $statusBadge = vp_resident_status_badge();
+        }
+    }
+    $stmt->close();
+  }
   // Resident Lookup via RID
   elseif ($rid > 0) {
     $stmt = $con->prepare("SELECT id, first_name, middle_name, last_name, email, phone, birthdate, house_number, address, user_type, IFNULL(status,'active') as status FROM users WHERE id = ?");
@@ -86,9 +114,14 @@ if (!empty($displayPhone)) {
 }
 
 if ($isGuest && $guest) {
-    $link = vp_resident_link(0) . '&code=' . urlencode($code); // Self-link for guest
+    $link = vp_resident_link(0, $code);
 } else {
-    $link = ($user ? vp_resident_link(intval($user['id'])) : vp_resident_link($rid));
+    $residentHouseCode = $user ? strtoupper(trim((string)($user['house_number'] ?? ''))) : $residentCode;
+    if ($residentHouseCode !== '') {
+      $link = vp_resident_link(0, $residentHouseCode);
+    } else {
+      $link = ($user ? vp_resident_link(intval($user['id'])) : vp_resident_link($rid));
+    }
 }
 ?>
 <!DOCTYPE html>

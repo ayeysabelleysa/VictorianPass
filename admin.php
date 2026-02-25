@@ -77,11 +77,11 @@ function ensureDownpaymentColumn($con){
 function ensureHouseRange($con){
   if(!($con instanceof mysqli)) return;
   @$con->begin_transaction();
-  @$con->query("DELETE FROM houses WHERE house_number NOT REGEXP '^VH-[0-9]{4}$' OR CAST(SUBSTRING(house_number,4) AS UNSIGNED) < 1 OR CAST(SUBSTRING(house_number,4) AS UNSIGNED) > 2200");
+  @$con->query("DELETE FROM houses WHERE house_number NOT REGEXP '^VH-[0-9]{4}$' OR CAST(SUBSTRING(house_number,4) AS UNSIGNED) < 1 OR CAST(SUBSTRING(house_number,4) AS UNSIGNED) > 2220");
   $stmt = $con->prepare("INSERT IGNORE INTO houses (house_number, address) VALUES (?, ?)");
   if ($stmt) {
     $addr = 'Victorian Heights Subdivision';
-    for ($i=1; $i<=2200; $i++){
+    for ($i=1; $i<=2220; $i++){
       $hn = 'VH-' . str_pad((string)$i, 4, '0', STR_PAD_LEFT);
       $stmt->bind_param('ss', $hn, $addr);
       $stmt->execute();
@@ -169,6 +169,10 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_user_details' && isset($_G
 if (isset($_GET['action']) && $_GET['action'] == 'get_visitor_details' && isset($_GET['id'])) {
     $id = intval($_GET['id']);
     $source = isset($_GET['source']) ? $_GET['source'] : '';
+    $hasPoolBookingType = false;
+    $poolCheck = $con->query("SHOW COLUMNS FROM reservations LIKE 'pool_booking_type'");
+    if ($poolCheck && $poolCheck->num_rows > 0) { $hasPoolBookingType = true; }
+    $poolCol = $hasPoolBookingType ? "r.pool_booking_type AS pool_booking_type" : "'' AS pool_booking_type";
 
     // Try new guest_forms source unless explicitly a reservation
     if ($source !== 'reservation') {
@@ -176,7 +180,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_visitor_details' && isset(
                                     u.first_name AS res_first_name, u.middle_name AS res_middle_name, u.last_name AS res_last_name,
                                     u.email AS res_email, u.phone AS res_phone, u.house_number AS res_house_number,
                                     r.payment_status AS r_payment_status, r.price AS r_price, r.downpayment AS r_downpayment,
-                                    r.amenity AS r_amenity, r.start_date AS r_start_date, r.end_date AS r_end_date,
+                                    r.amenity AS r_amenity, $poolCol, r.start_date AS r_start_date, r.end_date AS r_end_date,
                                     r.start_time AS r_start_time, r.end_time AS r_end_time,
                                     r.receipt_path AS r_receipt_path, r.receipt_attempts AS receipt_attempts,
                                     r.persons AS r_persons, r.ref_code AS r_ref_code
@@ -221,6 +225,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_visitor_details' && isset(
             'price' => $isAmenity ? (isset($row['price']) ? floatval($row['price']) : (isset($row['r_price']) ? floatval($row['r_price']) : null)) : null,
             'downpayment' => $isAmenity ? (isset($row['r_downpayment']) ? floatval($row['r_downpayment']) : null) : null,
             'payment_status' => isset($row['r_payment_status']) ? strtolower($row['r_payment_status']) : null,
+            'pool_booking_type' => $row['pool_booking_type'] ?? '',
             'ref_code' => ($row['r_ref_code'] ?: $row['ref_code']),
             'approval_status' => $row['approval_status'],
             'approved_by' => $row['approved_by'],
@@ -4393,13 +4398,15 @@ body.modal-open { overflow: hidden; }
     .header-actions { order: 2; }
     .header-search { order: 3; width: 100%; }
     .search { width: 100%; }
-    .page-header { padding: 16px 20px 6px; }
+    .page-header { padding: 12px 16px 6px; }
+    .main { margin-left: 0; width: 100%; }
     
-    .dashboard-grid, .panel { padding: 0 20px; margin: 0 0 20px 0; }
-    .panel { margin: 0 20px 20px 20px; padding: 20px; }
+    .dashboard-grid, .panel { padding: 0 16px; margin: 0 0 16px 0; }
+    .panel { margin: 0 16px 16px 16px; padding: 16px; }
     
-    table { min-width: 600px; }
-    .content-row { overflow-x: auto; }
+    table { min-width: 520px; }
+    th, td { padding: 10px 12px; font-size: 0.8rem; }
+    .content-row { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
 .notif-badge { font-family: 'Poppins', sans-serif; }
 </style>
@@ -6015,6 +6022,8 @@ function showVisitorDetails(id, source) {
         const visitEndDateVal = (isGuestEntry ? null : details.end_date);
         const visitStartTimeVal = (isGuestEntry ? details.visit_time : details.start_time);
         const visitEndTimeVal = (isGuestEntry ? null : details.end_time);
+      const poolTypeRaw = (details.pool_booking_type || '').toString().toLowerCase();
+      const poolTypeLabel = (String(details.amenity||'').toLowerCase()==='pool' && poolTypeRaw) ? (poolTypeRaw==='whole_pool' ? 'Whole Pool' : 'Shared Pool') : '';
         const sectionTitle = isGuestEntry ? 'Visit Details' : 'Reservation Details';
         const approvalStatus = (details.approval_status || 'pending').toLowerCase();
         let stClass = 'st-pending';
@@ -6079,6 +6088,7 @@ function showVisitorDetails(id, source) {
                 ${visitDateVal ? `<div class="info-row"><span class="info-label">Date</span><span class="info-value">${new Date(visitDateVal).toLocaleDateString()}${visitEndDateVal ? ' - ' + new Date(visitEndDateVal).toLocaleDateString() : ''}</span></div>` : ''}
                 ${(visitStartTimeVal || visitEndTimeVal) ? `<div class="info-row"><span class="info-label">Time</span><span class="info-value">${fmtTime(visitStartTimeVal)}${visitEndTimeVal ? ' - ' + fmtTime(visitEndTimeVal) : ''}</span></div>` : ''}
                 ${details.amenity && details.amenity !== 'Guest Entry' ? `<div class="info-row"><span class="info-label">Amenity</span><span class="info-value">${details.amenity}</span></div>` : ''}
+                ${poolTypeLabel ? `<div class="info-row"><span class="info-label">Pool Type</span><span class="info-value">${poolTypeLabel}</span></div>` : ''}
                 ${priceBlock}
               </div>
             </div>
@@ -6114,6 +6124,7 @@ function showVisitorDetails(id, source) {
               <div class="info-grid">
                 ${details.ref_code ? `<div class="info-row"><span class="info-label">Reference Code</span><span class="info-value">${details.ref_code}</span></div>` : ''}
                 ${details.amenity && details.amenity !== 'Guest Entry' ? `<div class="info-row"><span class="info-label">Amenity</span><span class="info-value">${details.amenity}</span></div>` : ''}
+                ${poolTypeLabel ? `<div class="info-row"><span class="info-label">Pool Type</span><span class="info-value">${poolTypeLabel}</span></div>` : ''}
                 ${visitDateVal ? `<div class="info-row"><span class="info-label">Date</span><span class="info-value">${new Date(visitDateVal).toLocaleDateString()}${visitEndDateVal ? ' - ' + new Date(visitEndDateVal).toLocaleDateString() : ''}</span></div>` : ''}
                 ${(visitStartTimeVal || visitEndTimeVal) ? `<div class="info-row"><span class="info-label">Time</span><span class="info-value">${fmtTime(visitStartTimeVal)}${visitEndTimeVal ? ' - ' + fmtTime(visitEndTimeVal) : ''}</span></div>` : ''}
                 ${details.persons ? `<div class="info-row"><span class="info-label">No. of Persons</span><span class="info-value">${details.persons}</span></div>` : ''}
@@ -6198,6 +6209,17 @@ function showReservationDetails(reservationId, expectedType){
       const ps = ((d.payment_status||'pending')+'').toLowerCase();
       const att = parseInt(d.receipt_attempts||0, 10);
       const approvalStatus = (d.approval_status || 'pending').toLowerCase();
+      const poolTypeRaw = (d.pool_booking_type || '').toString().toLowerCase();
+      let poolTypeLabel = '';
+      if (String(d.amenity||'').toLowerCase()==='pool') {
+        if (poolTypeRaw === 'whole_pool') { poolTypeLabel = 'Whole Pool'; }
+        else if (poolTypeRaw === 'per_person') { poolTypeLabel = 'Shared Pool'; }
+        else {
+          const personsVal = parseInt(d.persons||0, 10);
+          if (personsVal >= 20) { poolTypeLabel = 'Whole Pool'; }
+          else if (personsVal > 0) { poolTypeLabel = 'Shared Pool'; }
+        }
+      }
       let stClass = 'st-pending';
       let stLabel = 'Pending Review';
       if (approvalStatus.includes('approv')) { stClass = 'st-approved'; stLabel = 'Approved'; }
@@ -6250,6 +6272,7 @@ function showReservationDetails(reservationId, expectedType){
           <div class="info-grid">
             ${d.ref_code?`<div class="info-row"><span class="info-label">Reference Code</span><span class="info-value">${d.ref_code}</span></div>`:''}
             ${d.amenity?`<div class="info-row"><span class="info-label">Amenity</span><span class="info-value">${d.amenity}</span></div>`:''}
+            ${poolTypeLabel?`<div class="info-row"><span class="info-label">Pool Type</span><span class="info-value">${poolTypeLabel}</span></div>`:''}
             ${reservedBy?`<div class="info-row"><span class="info-label">Reserved By</span><span class="info-value">${reservedBy}</span></div>`:''}
             ${d.start_date?`<div class="info-row"><span class="info-label">Start Date</span><span class="info-value">${new Date(d.start_date).toLocaleDateString()}</span></div>`:''}
             ${d.end_date?`<div class="info-row"><span class="info-label">End Date</span><span class="info-value">${new Date(d.end_date).toLocaleDateString()}</span></div>`:''}
@@ -6320,6 +6343,17 @@ function showResidentReservationDetails(rrId){
       const bookedByName = d.booked_by_name || '';
       const isBookedByGuest = (bookedByRole === 'guest' || bookedByRole === 'co_owner');
       const isResidentGuest = !!d.gf_id || isBookedByGuest;
+      const poolTypeRaw = (d.pool_booking_type || '').toString().toLowerCase();
+      let poolTypeLabel = '';
+      if (String(d.amenity||'').toLowerCase()==='pool') {
+        if (poolTypeRaw === 'whole_pool') { poolTypeLabel = 'Whole Pool'; }
+        else if (poolTypeRaw === 'per_person') { poolTypeLabel = 'Shared Pool'; }
+        else {
+          const personsVal = parseInt(d.persons||0, 10);
+          if (personsVal >= 20) { poolTypeLabel = 'Whole Pool'; }
+          else if (personsVal > 0) { poolTypeLabel = 'Shared Pool'; }
+        }
+      }
       
       let userType = ((d.user_type || 'Resident').charAt(0).toUpperCase() + (d.user_type || 'Resident').slice(1));
       if (isResidentGuest) {
@@ -6396,6 +6430,7 @@ function showResidentReservationDetails(rrId){
             <div class="info-grid">
               ${d.ref_code?`<div class="info-row"><span class="info-label">Reference Code</span><span class="info-value">${d.ref_code}</span></div>`:''}
               ${d.amenity?`<div class="info-row"><span class="info-label">Amenity</span><span class="info-value">${d.amenity}</span></div>`:''}
+              ${poolTypeLabel?`<div class="info-row"><span class="info-label">Pool Type</span><span class="info-value">${poolTypeLabel}</span></div>`:''}
               ${reservedBy?`<div class="info-row"><span class="info-label">Reserved By</span><span class="info-value">${reservedBy}</span></div>`:''}
               ${d.start_date?`<div class="info-row"><span class="info-label">Start Date</span><span class="info-value">${new Date(d.start_date).toLocaleDateString()}</span></div>`:''}
               ${d.end_date?`<div class="info-row"><span class="info-label">End Date</span><span class="info-value">${new Date(d.end_date).toLocaleDateString()}</span></div>`:''}

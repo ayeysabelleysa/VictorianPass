@@ -414,16 +414,38 @@ if ($code === '') {
     exit;
 }
 
-// Check if code is a Resident QR URL (contains resident_qr_view.php?rid=X)
+// Check if code is a Resident QR URL (contains resident_qr_view.php?rid=X or code=VH-XXXX)
 $residentId = 0;
+if (strpos($code, '://') !== false) {
+    $parts = parse_url($code);
+    if (!empty($parts['query'])) {
+        $qs = [];
+        parse_str($parts['query'], $qs);
+        if (!empty($qs['rid'])) {
+            $residentId = intval($qs['rid']);
+        }
+        if (!empty($qs['code'])) {
+            $code = trim((string)$qs['code']);
+        }
+    }
+}
 if (preg_match('/rid=(\d+)/', $code, $matches)) {
     $residentId = intval($matches[1]);
 }
+$residentCode = '';
+if (stripos($code, 'VH-') === 0) {
+    $residentCode = strtoupper($code);
+}
 
-if ($residentId > 0) {
+if ($residentId > 0 || $residentCode !== '') {
     // Handle Resident Scan
-    $stmtRes = $con->prepare("SELECT id, first_name, middle_name, last_name, email, phone, house_number, address, status FROM users WHERE id = ?");
-    $stmtRes->bind_param('i', $residentId);
+    if ($residentId > 0) {
+        $stmtRes = $con->prepare("SELECT id, first_name, middle_name, last_name, email, phone, house_number, address, status FROM users WHERE id = ? LIMIT 1");
+        $stmtRes->bind_param('i', $residentId);
+    } else {
+        $stmtRes = $con->prepare("SELECT id, first_name, middle_name, last_name, email, phone, house_number, address, status FROM users WHERE house_number = ? LIMIT 1");
+        $stmtRes->bind_param('s', $residentCode);
+    }
     $stmtRes->execute();
     $resRes = $stmtRes->get_result();
     
@@ -437,7 +459,10 @@ if ($residentId > 0) {
              $statusVal = 'Inactive';
         }
         
-        $refCode = 'RES-' . $rUser['id'];
+        $refCode = $residentCode !== '' ? $residentCode : (string)($rUser['house_number'] ?? '');
+        if ($refCode === '') {
+            $refCode = 'RES-' . $rUser['id'];
+        }
         
         $resp = [
             'success' => true,

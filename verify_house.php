@@ -4,11 +4,11 @@ include("connect.php");
 function ensureHouseRange($con){
   if(!($con instanceof mysqli)) return;
   @$con->begin_transaction();
-  @$con->query("DELETE FROM houses WHERE house_number NOT REGEXP '^VH-[0-9]{4}$' OR CAST(SUBSTRING(house_number,4) AS UNSIGNED) < 1 OR CAST(SUBSTRING(house_number,4) AS UNSIGNED) > 2200");
+  @$con->query("DELETE FROM houses WHERE house_number NOT REGEXP '^VH-[0-9]{4}$' OR CAST(SUBSTRING(house_number,4) AS UNSIGNED) < 1 OR CAST(SUBSTRING(house_number,4) AS UNSIGNED) > 2220");
   $stmt = $con->prepare("INSERT IGNORE INTO houses (house_number, address) VALUES (?, ?)");
   if ($stmt) {
     $addr = 'Victorian Heights Subdivision';
-    for ($i=1; $i<=2200; $i++){
+    for ($i=1; $i<=2220; $i++){
       $hn = 'VH-' . str_pad((string)$i, 4, '0', STR_PAD_LEFT);
       $stmt->bind_param('ss', $hn, $addr);
       $stmt->execute();

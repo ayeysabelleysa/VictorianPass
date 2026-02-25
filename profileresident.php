@@ -184,7 +184,7 @@ $displayPhone = $phoneNormalized ?: $phoneRaw;
 // Fetch saved guests for resident (Approved only)
 $guestRows = [];
 if ($con instanceof mysqli) {
-  $stmtG = $con->prepare("SELECT id, visitor_first_name, visitor_middle_name, visitor_last_name, visitor_email, visitor_contact, created_at, ref_code FROM guest_forms WHERE resident_user_id = ? AND approval_status = 'approved' ORDER BY created_at DESC");
+  $stmtG = $con->prepare("SELECT id, visitor_first_name, visitor_middle_name, visitor_last_name, visitor_email, visitor_contact, created_at, ref_code FROM guest_forms WHERE resident_user_id = ? AND approval_status IN ('approved','permission_granted') ORDER BY created_at DESC");
   if ($stmtG) {
     $stmtG->bind_param('i', $userId);
     $stmtG->execute();
@@ -210,8 +210,14 @@ if (!$isAccountBlocked) {
     $scheme = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')) ? 'https' : 'http';
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
     $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/VictorianPass'), '/\\');
-    $qrLink = sprintf('%s://%s%s/resident_qr_view.php?rid=%d', $scheme, $host, $basePath, intval($user['id'] ?? $userId));
-    $qrRelPath = 'uploads/qr_resident_' . intval($user['id'] ?? $userId) . '.png';
+    $houseCode = strtoupper(trim((string)($user['house_number'] ?? '')));
+    if ($houseCode !== '') {
+        $qrLink = sprintf('%s://%s%s/resident_qr_view.php?code=%s', $scheme, $host, $basePath, urlencode($houseCode));
+        $qrRelPath = 'uploads/qr_resident_' . preg_replace('/[^A-Z0-9]+/', '_', $houseCode) . '.png';
+    } else {
+        $qrLink = sprintf('%s://%s%s/resident_qr_view.php?rid=%d', $scheme, $host, $basePath, intval($user['id'] ?? $userId));
+        $qrRelPath = 'uploads/qr_resident_' . intval($user['id'] ?? $userId) . '.png';
+    }
     $qrAbsPath = __DIR__ . '/' . $qrRelPath;
     // Always ensure the cached QR encodes the current resident ID link
     $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' . urlencode($qrLink);
@@ -258,16 +264,32 @@ if ($con instanceof mysqli) {
         $con->query("ALTER TABLE guest_forms ADD COLUMN scanned_at DATETIME NULL");
     }
 }
-$stmt = $con->prepare("SELECT 'reservation' as type, r.amenity, r.start_date, r.start_time, r.end_time, r.status, r.approval_status, r.payment_status, r.denial_reason, r.created_at, r.updated_at, r.ref_code, r.booking_for, r.booked_by_role, r.booked_by_name, r.scanned_at, r.receipt_attempts, gf.id AS gf_id, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name FROM reservations r LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code WHERE r.user_id = ? AND r.status <> 'deleted' AND r.approval_status <> 'deleted' ORDER BY r.created_at DESC");
+$stmt = $con->prepare("SELECT 'reservation' as type, r.amenity, r.start_date, r.end_date, r.start_time, r.end_time, r.status, r.approval_status, r.payment_status, r.denial_reason, r.created_at, r.updated_at, r.ref_code, r.booking_for, r.booked_by_role, r.booked_by_name, r.scanned_at, r.receipt_attempts, gf.id AS gf_id, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name FROM reservations r LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code WHERE r.user_id = ? AND r.status <> 'deleted' AND r.approval_status <> 'deleted' ORDER BY r.created_at DESC");
 if ($stmt) {
     $stmt->bind_param("i", $userId);
     $stmt->execute();
     $res = $stmt->get_result();
     while ($row = $res->fetch_assoc()) {
         $start = $row['start_date'];
+        $end = $row['end_date'] ?? null;
         $sTime = strtotime($row['start_time'] ?? '');
         $eTime = strtotime($row['end_time'] ?? '');
-        $timeStr = ($sTime ? date('g:i A', $sTime) : '') . ' - ' . ($eTime ? date('g:i A', $eTime) : '');
+        $dateText = '';
+        if (!empty($start)) {
+            $startText = date('m/d/y', strtotime($start));
+            $endText = !empty($end) ? date('m/d/y', strtotime($end)) : $startText;
+            $dateText = $startText . ' - ' . $endText;
+        } else {
+            $dateText = 'Date not set';
+        }
+        if ($sTime || $eTime) {
+            $startTimeText = $sTime ? date('g:i A', $sTime) : '';
+            $endTimeText = $eTime ? date('g:i A', $eTime) : '';
+            $timeStr = ($startTimeText !== '' && $endTimeText !== '') ? ($startTimeText . ' - ' . $endTimeText) : ($startTimeText !== '' ? $startTimeText : $endTimeText);
+            if ($timeStr !== '') {
+                $dateText = trim($dateText . ' ' . $timeStr);
+            }
+        }
         $statusVal = $row['approval_status'] ?? '';
         if ($statusVal === '' || $statusVal === null) {
             $statusVal = $row['status'] ?? 'pending';
@@ -318,7 +340,7 @@ if ($stmt) {
         }
         $refCodeVal = $row['ref_code'] ?? 'RES';
         $reservationRefs[$refCodeVal] = true;
-        $details = trim(date('m/d/y', strtotime($start)) . ' ' . $timeStr);
+        $details = trim($dateText);
         $statusLower = strtolower((string)($statusVal ?? ''));
         $reason = trim((string)($row['denial_reason'] ?? ''));
         $isDenied = (strpos($statusLower, 'denied') !== false || strpos($statusLower, 'rejected') !== false);
@@ -368,9 +390,12 @@ if ($stmt) {
         }
         $start = $row['start_date'];
         $end = $row['end_date'];
-        $dateText = $start ? date('m/d/y', strtotime($start)) : '';
-        if ($end && $end !== $start) {
-            $dateText .= ' - ' . date('m/d/y', strtotime($end));
+        if ($start) {
+            $startText = date('m/d/y', strtotime($start));
+            $endText = $end ? date('m/d/y', strtotime($end)) : $startText;
+            $dateText = $startText . ' - ' . $endText;
+        } else {
+            $dateText = '';
         }
         $sTime = strtotime($row['start_time'] ?? '');
         $eTime = strtotime($row['end_time'] ?? '');
