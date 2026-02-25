@@ -3815,5 +3815,66 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 <script src="js/logout-modal.js"></script>
+<script>
+// Global functions for incident report details modal (moved from get_report_details.php)
+function addProofs(reportId){
+  var input = document.getElementById('addProofInput');
+  if(!input || !input.files || input.files.length===0){ alert('Select files to upload.'); return; }
+  var fd = new FormData();
+  fd.append('action','add_proof');
+  fd.append('report_id', String(reportId));
+  for(var i=0;i<input.files.length;i++){ fd.append('proof[]', input.files[i]); }
+  
+  // Optional: Provide feedback
+  var btn = document.querySelector('#activityModalBody button[onclick*="addProofs"]');
+  if(btn) { btn.disabled = true; btn.innerText = 'Uploading...'; }
+
+  fetch('submit_report.php',{ method:'POST', body: fd })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(!d || !d.success){ 
+        alert(d && d.message ? d.message : 'Upload failed'); 
+        if(btn) { btn.disabled = false; btn.innerText = 'Upload'; }
+        return; 
+      }
+      location.reload();
+    })
+    .catch(function(){ 
+      alert('Upload failed'); 
+      if(btn) { btn.disabled = false; btn.innerText = 'Upload'; }
+    });
+}
+function removeProof(reportId, proofId){
+  if(!confirm('Are you sure you want to remove this proof?')) return;
+  var body = new URLSearchParams({ action:'delete_proof', report_id:String(reportId), proof_id:String(proofId) });
+  fetch('submit_report.php',{ method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: body })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ if(!d || !d.success){ alert('Remove failed'); return; } location.reload(); })
+    .catch(function(){ alert('Remove failed'); });
+}
+function replaceProof(reportId, proofId){
+  var tmp = document.createElement('input');
+  tmp.type = 'file';
+  tmp.accept = '.jpg,.jpeg,.png,.pdf,.doc,.docx';
+  tmp.onchange = function(){
+    if(!tmp.files || tmp.files.length===0) return;
+    var fd = new FormData();
+    fd.append('action','add_proof');
+    fd.append('report_id', String(reportId));
+    fd.append('proof[]', tmp.files[0]);
+    fetch('submit_report.php',{ method:'POST', body: fd })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(!d || !d.success){ alert(d && d.message ? d.message : 'Replace failed'); return; }
+        var body = new URLSearchParams({ action:'delete_proof', report_id:String(reportId), proof_id:String(proofId) });
+        return fetch('submit_report.php',{ method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: body });
+      })
+      .then(function(r){ if(!r) return; return r.json(); })
+      .then(function(d2){ location.reload(); })
+      .catch(function(){ alert('Replace failed'); });
+  };
+  tmp.click();
+}
+</script>
 </body>
 </html>
