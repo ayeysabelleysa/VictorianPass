@@ -453,7 +453,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'list_today_scans') {
           WHERE DATE(scanned_at) = CURDATE()
           GROUP BY ref_code
         ) t ON e.ref_code = t.ref_code AND e.scanned_at = t.ms
-        WHERE (e.scanned_by_guard_id IS NOT NULL OR TRIM(COALESCE(e.scanned_by_name,'')) <> '')
         ORDER BY e.scanned_at DESC";
   $res = $con->query($q);
   if ($res) {
@@ -538,19 +537,13 @@ if (isset($_GET['action']) && $_GET['action'] === 'list_expected') {
   $hasRREndTime = false;
   $chkRREndTime = $con->query("SHOW COLUMNS FROM resident_reservations LIKE 'end_time'");
   if ($chkRREndTime && $chkRREndTime->num_rows > 0) { $hasRREndTime = true; }
-  $gfScanWhere = " AND NOT EXISTS (SELECT 1 FROM entry_scans es WHERE es.ref_code = gf.ref_code)";
-  $resScanWhere = " AND NOT EXISTS (SELECT 1 FROM entry_scans es WHERE es.ref_code = r.ref_code)";
-  $rrScanWhere = " AND NOT EXISTS (SELECT 1 FROM entry_scans es WHERE es.ref_code = rr.ref_code)";
-$resGF = $con->query("SELECT gf.ref_code, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name, gf.visit_date, gf.start_date, gf.end_date, gf.amenity, " . ($hasGFResDate ? "gf.reservation_date" : "NULL AS reservation_date") . ", " . ($hasGFVisitTime ? "gf.visit_time AS start_time" : "NULL AS start_time") . ", NULL AS end_time, TRIM(gf.approval_status) AS approval_status, gf.approval_date, u.first_name AS res_first_name, u.middle_name AS res_middle_name, u.last_name AS res_last_name FROM guest_forms gf LEFT JOIN users u ON gf.resident_user_id = u.id WHERE LOWER(TRIM(gf.approval_status)) IN ('approved','permission_granted','permission granted','access_granted','access granted')" . $gfScanWhere);
+  $resGF = $con->query("SELECT gf.ref_code, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name, gf.visit_date, gf.start_date, gf.end_date, gf.amenity, " . ($hasGFResDate ? "gf.reservation_date" : "NULL AS reservation_date") . ", " . ($hasGFVisitTime ? "gf.visit_time AS start_time" : "NULL AS start_time") . ", NULL AS end_time, TRIM(gf.approval_status) AS approval_status, gf.approval_date, u.first_name AS res_first_name, u.middle_name AS res_middle_name, u.last_name AS res_last_name FROM guest_forms gf LEFT JOIN users u ON gf.resident_user_id = u.id WHERE LOWER(TRIM(gf.approval_status))='approved'");
   if ($resGF) {
     while ($r = $resGF->fetch_assoc()) {
       $nm = trim(($r['visitor_first_name'] ?? '').' '.($r['visitor_middle_name'] ?? '').' '.($r['visitor_last_name'] ?? ''));
-      $sd = $normalize($r['visit_date'] ?? '') ?: $normalize($r['start_date'] ?? '') ?: $normalize($r['reservation_date'] ?? '');
+      $sd = $normalize($r['visit_date'] ?? '') ?: $normalize($r['start_date'] ?? '') ?: $normalize($r['reservation_date'] ?? '') ?: ($r['approval_date'] ? date('Y-m-d', strtotime($r['approval_date'])) : null);
       $ed = $normalize($r['end_date'] ?? '') ?: $sd;
-      if(!$sd){
-        $sd = $start;
-        $ed = $start;
-      }
+      if(!$sd) continue;
       if($ed < $start || $sd > $end) continue;
       $addedBy = trim(($r['res_first_name'] ?? '').' '.($r['res_middle_name'] ?? '').' '.($r['res_last_name'] ?? ''));
       $rows[] = [
@@ -567,7 +560,7 @@ $resGF = $con->query("SELECT gf.ref_code, gf.visitor_first_name, gf.visitor_midd
       ];
     }
   }
-  $resR = $con->query("SELECT r.ref_code, r.start_date, r.end_date, r.amenity, " . ($hasResDate ? "r.reservation_date" : "NULL AS reservation_date") . ", " . ($hasResStartTime ? "r.start_time" : "NULL AS start_time") . ", " . ($hasResEndTime ? "r.end_time" : "NULL AS end_time") . ", r.approval_date, TRIM(COALESCE(r.approval_status, r.status)) AS status, r.entry_pass_id, r.booking_for, r.account_type, r.guest_id, r.guest_ref_code, e.full_name AS ep_full_name, u.first_name, u.middle_name, u.last_name, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name FROM reservations r LEFT JOIN entry_passes e ON r.entry_pass_id = e.id LEFT JOIN users u ON r.user_id = u.id LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code WHERE LOWER(TRIM(COALESCE(r.approval_status, r.status)))='approved'" . $resScanWhere);
+  $resR = $con->query("SELECT r.ref_code, r.start_date, r.end_date, r.amenity, " . ($hasResDate ? "r.reservation_date" : "NULL AS reservation_date") . ", " . ($hasResStartTime ? "r.start_time" : "NULL AS start_time") . ", " . ($hasResEndTime ? "r.end_time" : "NULL AS end_time") . ", r.approval_date, TRIM(COALESCE(r.approval_status, r.status)) AS status, r.entry_pass_id, r.booking_for, r.account_type, r.guest_id, r.guest_ref_code, e.full_name AS ep_full_name, u.first_name, u.middle_name, u.last_name, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name FROM reservations r LEFT JOIN entry_passes e ON r.entry_pass_id = e.id LEFT JOIN users u ON r.user_id = u.id LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code WHERE LOWER(TRIM(COALESCE(r.approval_status, r.status)))='approved'");
   if ($resR) {
     while ($r = $resR->fetch_assoc()) {
       $sd = $normalize($r['start_date'] ?? '') ?: $normalize($r['reservation_date'] ?? '') ?: ($r['approval_date'] ? date('Y-m-d', strtotime($r['approval_date'])) : null);
@@ -592,7 +585,7 @@ $resGF = $con->query("SELECT gf.ref_code, gf.visitor_first_name, gf.visitor_midd
       ];
     }
   }
-  $resRR = $con->query("SELECT rr.ref_code, rr.start_date, rr.end_date, rr.amenity, " . ($hasRRResDate ? "rr.reservation_date" : "NULL AS reservation_date") . ", " . ($hasRRStartTime ? "rr.start_time" : "NULL AS start_time") . ", " . ($hasRREndTime ? "rr.end_time" : "NULL AS end_time") . ", rr.approval_date, rr.approval_status, u.first_name, u.middle_name, u.last_name, r2.booking_for, r2.account_type, r2.guest_id, r2.guest_ref_code, r2.entry_pass_id, gf2.visitor_first_name, gf2.visitor_middle_name, gf2.visitor_last_name FROM resident_reservations rr LEFT JOIN users u ON rr.user_id = u.id LEFT JOIN reservations r2 ON rr.ref_code = r2.ref_code LEFT JOIN guest_forms gf2 ON rr.ref_code = gf2.ref_code WHERE LOWER(TRIM(rr.approval_status))='approved'" . $rrScanWhere);
+  $resRR = $con->query("SELECT rr.ref_code, rr.start_date, rr.end_date, rr.amenity, " . ($hasRRResDate ? "rr.reservation_date" : "NULL AS reservation_date") . ", " . ($hasRRStartTime ? "rr.start_time" : "NULL AS start_time") . ", " . ($hasRREndTime ? "rr.end_time" : "NULL AS end_time") . ", rr.approval_date, rr.approval_status, u.first_name, u.middle_name, u.last_name, r2.booking_for, r2.account_type, r2.guest_id, r2.guest_ref_code, r2.entry_pass_id, gf2.visitor_first_name, gf2.visitor_middle_name, gf2.visitor_last_name FROM resident_reservations rr LEFT JOIN users u ON rr.user_id = u.id LEFT JOIN reservations r2 ON rr.ref_code = r2.ref_code LEFT JOIN guest_forms gf2 ON rr.ref_code = gf2.ref_code WHERE LOWER(TRIM(rr.approval_status))='approved'");
   if ($resRR) {
     while ($r = $resRR->fetch_assoc()) {
       $sd = $normalize($r['start_date'] ?? '') ?: $normalize($r['reservation_date'] ?? '') ?: ($r['approval_date'] ? date('Y-m-d', strtotime($r['approval_date'])) : null);
@@ -632,7 +625,6 @@ $resGF = $con->query("SELECT gf.ref_code, gf.visitor_first_name, gf.visitor_midd
 <link rel="icon" type="image/png" href="images/logo.svg">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<link rel="stylesheet" href="css/reserve.css">
 <style>
 /* Modern Admin Dashboard CSS (Imported from admin.php) */
 :root {
@@ -1224,16 +1216,16 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
     position: fixed;
     bottom: 20px;
     right: 20px;
-    background: linear-gradient(135deg, #f59e0b, #fcd34d);
-    border-left: 6px solid #b45309;
-    box-shadow: 0 12px 24px rgba(180, 83, 9, 0.35);
+    background: var(--bg-surface);
+    border-left: 5px solid var(--primary);
+    box-shadow: var(--shadow-lg);
     border-radius: 8px;
     padding: 16px;
     width: min(96vw, 380px);
     z-index: 2000;
     opacity: 0;
     transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
-    color: #1f2937;
+    color: var(--text-main);
     flex-direction: column;
     gap: 8px;
     max-height: 40vh;
@@ -1242,8 +1234,6 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
     overflow-wrap: anywhere;
     white-space: normal;
     hyphens: auto;
-    font-weight: 700;
-    border: 1px solid #f59e0b;
 }
 .toast.show { display: flex; opacity: 1; transform: translateY(0); animation: slideInLeft 0.3s; }
 
@@ -1282,8 +1272,12 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
 
 @media (max-width: 768px) {
     .scan-row {
+        display: flex;
         flex-direction: column;
+        gap: 10px;
         align-items: stretch;
+        margin-bottom: 15px;
+        padding: 0 16px;
     }
     .scan-input {
         min-width: auto;
@@ -1292,18 +1286,33 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
     }
     .scan-input input {
         width: 100%;
+        padding: 10px 12px;
+        font-size: 0.9rem;
         box-sizing: border-box;
     }
     .scan-actions {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
         width: 100%;
+    }
+    .scan-actions .btn {
+        padding: 9px 6px;
+        font-size: 0.75rem;
+        line-height: 1.3;
+        white-space: normal;
+        word-break: break-word;
+        text-align: center;
+        min-height: 38px;
+        min-width: auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 }
 
 /* Responsive */
 @media(max-width:900px){
-    .app { display: block; }
     .sidebar {
         position: fixed;
         left: 0;
@@ -1313,16 +1322,17 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
         transition: transform 0.25s ease;
         box-shadow: 2px 0 10px rgba(0,0,0,0.2);
         z-index: 100;
-        width: min(86vw, var(--sidebar-width));
+        width: var(--sidebar-width);
     }
     .sidebar.open { transform: translateX(0); }
     .sidebar-overlay.show { display: block; }
     .main { width: 100%; }
     .dashboard { grid-template-columns: 1fr; }
     .top-header { 
+        padding: 10px 12px; 
         height: auto;
         min-height: var(--header-height);
-        position: sticky;
+        position: fixed;
         top: 0;
         left: 0;
         right: 0;
@@ -1331,22 +1341,26 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
         box-sizing: border-box;
     }
     .main {
-        padding-top: 0;
+        padding-top: var(--header-height);
     }
+    .page-header { padding: 16px 20px 6px; }
+    .panel, .card, .card-box { margin: 0 16px 20px 16px; padding: 18px; }
+    .dashboard { padding: 0 16px; }
+    .page-header h2 { font-size: 1.3rem; }
+    .header-title { font-size: 1.05rem; }
+    .header-subtitle { font-size: 0.78rem; }
     table { min-width: 100%; }
-    th, td { white-space: normal; word-break: break-word; }
+    th, td { padding: 10px 12px; font-size: 0.82rem; white-space: normal; word-break: break-word; }
     th { position: static; }
-    .panel { overflow-x: auto; max-width: 100%; }
+    .panel { overflow-x: visible; }
     .notif-panel { right: 16px; width: min(92vw, 360px); }
-    .table-responsive-wrapper { max-width: 100%; }
-    .main { overflow-x: hidden; }
 }
 .dashboard .panel { margin: 0; }
 
 .scan-search {
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 24px;
+    border-radius: 20px;
     padding: 10px 15px;
     width: 100%;
     outline: none;
@@ -1370,21 +1384,6 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
     flex-wrap: wrap;
     padding: 0 30px;
 }
-.scan-input-row{
-    display:flex;
-    gap:10px;
-    align-items:center;
-    flex-wrap:nowrap;
-    width:100%;
-}
-.scan-input-row .scan-search{
-    flex:1;
-    min-width:0;
-}
-.scan-confirm-btn{
-    white-space:nowrap;
-    min-width:140px;
-}
 .scan-input {
     flex: 1;
     min-width: 250px;
@@ -1397,15 +1396,6 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
 .scan-actions .btn {
     flex: 0 1 auto;
     min-width: 120px;
-}
-@media (min-width: 901px) {
-    .scan-row { align-items: center; }
-    .scan-input { flex: 1 1 420px; max-width: 520px; }
-    .scan-input-row { max-width: 520px; }
-    .scan-actions { margin-left: auto; }
-    .scan-actions .btn { min-width: 140px; }
-    .scan-confirm-btn { min-width: 140px; }
-    .qr-scanner-panel { max-width: 560px; }
 }
 
 /* Expected Controls Mobile Responsive */
@@ -1439,35 +1429,38 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
 .custom-range .btn {
     white-space: nowrap;
 }
-.section-label {
-    margin: 6px 30px 8px;
-    font-weight: 600;
-    color: #2c3e50;
-}
-.section-label.spaced {
-    margin-top: 16px;
-}
 
 @media (max-width: 768px) {
     .expected-controls {
+        margin: 0 16px 12px 16px;
+        gap: 10px;
     }
     .quick-filters {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
     }
     .quick-filters .btn {
         flex: none;
         min-width: auto;
+        padding: 8px 6px;
+        font-size: 0.75rem;
+        min-height: 36px;
     }
     .custom-range {
         flex-direction: column;
+        gap: 8px;
     }
     .custom-range input {
         width: 100%;
+        padding: 10px 12px;
+        font-size: 0.85rem;
         box-sizing: border-box;
     }
     .custom-range .btn {
         width: 100%;
+        padding: 10px 12px;
+        font-size: 0.8rem;
     }
 }
 .scan-search:focus {
@@ -1478,7 +1471,7 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
 .qr-scanner-panel{
     margin-top:12px;
     padding:12px;
-    border:1px solid #e5e7eb;
+    border:1px solid var(--border);
     border-radius:16px;
     background:var(--bg-surface);
     display:none;
@@ -1501,7 +1494,6 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
     padding:8px 12px;
     border-radius:8px;
     font-weight:600;
-    font-family:'Poppins', sans-serif;
     cursor:pointer;
 }
 .qr-scanner-close:hover{ background:#d1d5db; }
@@ -1510,9 +1502,6 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
     max-height:360px;
     background:#000;
     border-radius:12px;
-    aspect-ratio: 4 / 3;
-    object-fit: cover;
-    height: auto;
 }
 .qr-scanner-msg{
     margin-top:8px;
@@ -1520,7 +1509,7 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
     color:#6b7280;
     font-weight:600;
 }
-.qr-scanner-msg.error{ color:#b91c1c; font-weight:700; }
+.qr-scanner-msg.error{ color:#b30000; }
 .scan-actions .btn{ min-height: 40px; }
 .profile-mini {
     display: flex;
@@ -1552,7 +1541,6 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
 }
 .logout-btn:hover { background: #a93226; color: #fff; }
 .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); backdrop-filter: blur(4px); align-items: center; justify-content: center; }
-.modal.open { display: flex; }
 .modal.modal-top { z-index: 3000; }
 .modal-content { background-color: var(--bg-surface); margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-lg); position: relative; display: flex; flex-direction: column; gap: 12px; width: min(92vw, 640px); aspect-ratio: auto; max-height: 90vh; overflow: hidden; animation: slideIn 0.3s ease-out; }
 .modal-content h3 { padding: 12px 16px; border-bottom: 1px solid var(--border-light); margin: 0; font-size: 1.05rem; background: var(--bg-surface); position: sticky; top: 0; z-index: 10; color: #23412e; font-weight: 700; }
@@ -1606,24 +1594,13 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
     .notif-panel{ right: 12px; top: calc(var(--header-height) + 8px); }
 }
 @media(max-width:600px){
-    .top-header{ gap: 12px; }
-    .header-brand{ width: 100%; }
-    .header-actions{ width: 100%; justify-content: flex-start; flex-wrap: wrap; gap: 10px; }
-    .header-subtitle{ display: none; }
-    .scan-actions{ grid-template-columns: repeat(2, 1fr); }
-    .quick-filters{ grid-template-columns: repeat(2, 1fr); }
-    .scan-input-row{
-        flex-direction: column;
-        align-items: stretch;
-    }
-    .scan-confirm-btn{
-        width: 100%;
-        min-width: 0;
-    }
-}
-@media(max-width:420px){
-    .scan-actions{ grid-template-columns: 1fr; }
-    .quick-filters{ grid-template-columns: 1fr; }
+    .top-header{ padding: 10px 12px; gap: 12px; }
+    .sidebar-toggle, .icon-btn, .notif-btn{ width: 44px; height: 44px; }
+    .btn, .action-btn{ padding: 12px 14px; font-size: 0.9rem; min-height: 44px; }
+    .scan-search{ padding: 12px 16px; font-size: 0.95rem; }
+    .panel h3{ font-size: 1rem; }
+    .page-header{ padding: 14px 14px 4px; }
+    .panel, .card, .card-box{ margin: 0 12px 18px 12px; padding: 16px; }
 }
 </style>
 </head>
@@ -1679,12 +1656,10 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
       <h3>Today's Entry</h3>
       <div class="scan-row">
         <div class="scan-input">
-             <div class="scan-input-row">
-               <input id="scanCode" type="text" class="scan-search" placeholder="Enter reference code">
-               <button class="btn btn-approve scan-confirm-btn" onclick="scanCode()">Confirm Scan</button>
-             </div>
+             <input id="scanCode" type="text" class="scan-search" placeholder="Enter reference code for manual scanning">
         </div>
         <div class="scan-actions">
+            <button class="btn btn-approve" onclick="scanCode()">Scan</button>
             <button class="btn" id="scanQrBtn" style="background:#111827;color:#fff"><i class="fas fa-camera"></i> Scan QR Code</button>
             <button class="btn" onclick="openStatusCard()" style="background:#23412e;color:#fff">Open QR Card</button>
         </div>
@@ -1743,7 +1718,7 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
           <button class="btn btn-view" id="applyExpected">Custom Range</button>
         </div>
       </div>
-      <div class="section-label">Amenity Reservation</div>
+      <div style="margin:6px 30px 8px; font-weight:600; color:#2c3e50;">Amenity Reservation</div>
       <div class="table-responsive-wrapper">
         <table id="expectedTable" class="history-table">
           <tr><th>Code</th><th>Name</th><th>Type</th><th>Amenity Reserve</th><th>Reservation Schedule</th><th>Status</th></tr>
@@ -1752,7 +1727,7 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
           </tbody>
         </table>
       </div>
-      <div class="section-label spaced">Guest Entries</div>
+      <div style="margin:16px 30px 8px; font-weight:600; color:#2c3e50;">Guest Entries</div>
       <div class="table-responsive-wrapper">
         <table id="expectedGuestTable" class="history-table">
           <tr><th>Code</th><th>Added By</th><th>Type</th><th>Amenity Reserve</th><th>Reservation Schedule</th><th>Status</th></tr>
@@ -2010,10 +1985,7 @@ function showToast(message, type){
   const toast = document.getElementById('toast');
   if(!toast){ return; }
   toast.textContent = message;
-  const isError = type === 'error';
-  toast.style.background = isError ? 'linear-gradient(135deg, #b45309, #f59e0b)' : 'linear-gradient(135deg, #f59e0b, #fcd34d)';
-  toast.style.borderLeftColor = '#b45309';
-  toast.style.color = '#1f2937';
+  toast.style.background = type === 'error' ? "var(--status-rejected)" : "var(--status-approved)";
   toast.classList.remove('show');
   toast.style.display = 'block';
   requestAnimationFrame(() => {
@@ -2033,15 +2005,6 @@ let qrStream = null;
 let qrDetector = null;
 let qrScanActive = false;
 let qrScanRaf = 0;
-function isIOSDevice(){
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-}
-function getQrFallbackMessage(){
-  if(isIOSDevice()){
-    return 'In-app QR scanning is not supported. Open the Camera app to scan the QR code, or use manual code entry.';
-  }
-  return 'In-app QR scanning is not supported. Open your device camera app to scan the QR code, or use manual code entry.';
-}
 function setQrMessage(msg, isError){
   const el = document.getElementById('qrScannerMsg');
   if(!el) return;
@@ -2055,7 +2018,7 @@ function startQrScanner(){
   const video = document.getElementById('qrVideo');
   if(!video){ setQrMessage('Camera view unavailable.', true); return; }
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-    setQrMessage(getQrFallbackMessage(), true);
+    setQrMessage('Camera not supported on this device. Use manual code entry.', true);
     return;
   }
   setQrMessage('Requesting camera access...', false);
@@ -2068,7 +2031,7 @@ function startQrScanner(){
     })
     .then(()=>{
       if(!('BarcodeDetector' in window)){
-        setQrMessage(getQrFallbackMessage(), true);
+        setQrMessage('QR scanning is not supported on this device. Use manual code entry.', true);
         return;
       }
       try { qrDetector = new BarcodeDetector({ formats: ['qr_code'] }); }
@@ -2079,10 +2042,10 @@ function startQrScanner(){
     })
     .catch(err=>{
       const msg = err && err.name === 'NotAllowedError'
-        ? (isIOSDevice() ? 'Camera access denied. Open the Camera app to scan the QR code, or allow camera access in Settings.' : 'Camera access denied. Allow permission to scan.')
+        ? 'Camera access denied. Allow permission to scan.'
         : (err && err.name === 'NotFoundError'
-          ? getQrFallbackMessage()
-          : getQrFallbackMessage());
+          ? 'No camera found on this device.'
+          : 'Unable to access camera. Use manual code entry.');
       setQrMessage(msg, true);
     });
 }
@@ -2122,20 +2085,12 @@ function stopQrScanner(){
   if(panel){ panel.style.display = 'none'; }
   setQrMessage('', false);
 }
-function isResidentRefCode(code){
-  return /^VH-/i.test(String(code||'').trim());
-}
-function getResidentProofUrl(basePath, code){
-  return `${location.origin}${basePath}/resident_qr_view.php?code=${encodeURIComponent(code)}`;
-}
 function scanCode(){
   const raw=(document.getElementById('scanCode').value||'').trim();
   if(!raw){ showToast('Enter a code to scan','error'); return; }
   const basePath = window.location.pathname.replace(/\/[^\/]*$/, '');
   let codeForLog = raw;
-  let openUrl = isResidentRefCode(raw)
-    ? getResidentProofUrl(basePath, raw)
-    : `${location.origin}${basePath}/qr_view.php?code=${encodeURIComponent(raw)}`;
+  let openUrl = `${location.origin}${basePath}/qr_view.php?code=${encodeURIComponent(raw)}`;
   let parsedUrl = null;
   try { parsedUrl = new URL(raw); } catch(_){}
   if(parsedUrl){
@@ -2143,9 +2098,7 @@ function scanCode(){
     const ridParam = parsedUrl.searchParams.get('rid');
     if(codeParam){
       codeForLog = codeParam;
-      openUrl = isResidentRefCode(codeParam)
-        ? getResidentProofUrl(basePath, codeParam)
-        : `${location.origin}${basePath}/qr_view.php?code=${encodeURIComponent(codeParam)}`;
+      openUrl = `${location.origin}${basePath}/qr_view.php?code=${encodeURIComponent(codeParam)}`;
     } else if(ridParam && parsedUrl.pathname.indexOf('resident_qr_view.php') !== -1){
       codeForLog = raw;
       openUrl = parsedUrl.href;
@@ -2156,9 +2109,7 @@ function scanCode(){
     if(codeMatch && codeMatch[1]){
       const codeParam = decodeURIComponent(codeMatch[1]);
       codeForLog = codeParam;
-      openUrl = isResidentRefCode(codeParam)
-        ? getResidentProofUrl(basePath, codeParam)
-        : `${location.origin}${basePath}/qr_view.php?code=${encodeURIComponent(codeParam)}`;
+      openUrl = `${location.origin}${basePath}/qr_view.php?code=${encodeURIComponent(codeParam)}`;
     } else if(ridMatch && ridMatch[1]){
       codeForLog = raw;
       openUrl = `${location.origin}${basePath}/resident_qr_view.php?rid=${encodeURIComponent(ridMatch[1])}`;
@@ -2181,7 +2132,7 @@ if(scanQrBtn){ scanQrBtn.addEventListener('click', startQrScanner); }
 window.addEventListener('beforeunload', stopQrScanner);
 function renderDashboardEntries(rows){ const tbl=document.getElementById('entryTable'); if(!tbl) return; const header=tbl.querySelector('tr'); const rowsToRemove=Array.from(tbl.querySelectorAll('tr')).slice(1); rowsToRemove.forEach(tr=>tr.remove()); if(!rows||rows.length===0){ const tr=document.createElement('tr'); tr.id='emptyRow'; tr.innerHTML=`<td colspan="5" style="text-align:center;color:#6b6b6b">Awaiting scans...</td>`; tbl.appendChild(tr); return; } rows.forEach(r=>{ const tr=document.createElement('tr'); const scheduleDisplay=formatScheduleRow(r); const amenityDisplay=r.amenity||'-'; const statusDisplay=formatEntryStatus(r.status); tr.innerHTML=`<td>${r.code||'-'}</td><td>${r.type||'-'}</td><td>${amenityDisplay}</td><td>${scheduleDisplay}</td><td>${statusDisplay}</td>`; tbl.appendChild(tr); }); }
 function loadDashboardEntries(){ fetch('guard.php?action=list_today_scans').then(r=>r.json()).then(data=>{ if(data&&data.success){ renderDashboardEntries(data.entries||[]); } }).catch(_=>{}); }
-  function openStatusCard(){ const code=(document.getElementById('scanCode').value||'').trim(); if(!code){ showToast('Enter a code first','error'); return; } const basePath = window.location.pathname.replace(/\/[^\/]*$/, ''); const codeMatch = code.match(/[?&]code=([^&]+)/i); const extracted = codeMatch && codeMatch[1] ? decodeURIComponent(codeMatch[1]) : code; const url = isResidentRefCode(extracted) ? getResidentProofUrl(basePath, extracted) : `${location.origin}${basePath}/qr_view.php?code=${encodeURIComponent(extracted)}`; window.open(url,'_blank'); }
+  function openStatusCard(){ const code=(document.getElementById('scanCode').value||'').trim(); if(!code){ showToast('Enter a code first','error'); return; } window.open(`qr_view.php?code=${encodeURIComponent(code)}`,'_blank'); }
 // Incident listing & escalation
 let lastIncidentIds = new Set();
 function setActionClicked(btn){
@@ -2312,7 +2263,7 @@ function formatScheduleRow(r){
 }
 function isApprovedStatus(s){
   const v=String(s||'').toLowerCase();
-  return v.indexOf('approv')!==-1 || v.indexOf('permission')!==-1 || v.indexOf('granted')!==-1 || v.indexOf('access')!==-1;
+  return v.indexOf('approv')!==-1;
 }
 function renderExpected(rows){
   const tbody=document.getElementById('expectedBody'); if(!tbody) return;
@@ -2445,7 +2396,7 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 </script>
 <script src="js/logout-modal.js"></script>
-<div id="incidentDetailsModal" class="modal" style="display:none">
+<div id="incidentDetailsModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">
       <h3>Incident Details</h3>
@@ -2465,7 +2416,7 @@ document.addEventListener('DOMContentLoaded', function(){
     </div>
   </div>
 </div>
-<div id="proofImageModal" class="modal modal-top image-modal" style="display:none">
+<div id="proofImageModal" class="modal modal-top image-modal">
   <div class="modal-content">
     <button class="modal-close" onclick="closeProofImage()">×</button>
     <img id="proofImagePreview" src="" alt="Proof preview">

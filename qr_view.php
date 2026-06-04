@@ -342,7 +342,6 @@ if (empty($error)) {
                 'schedule_date' => $validityLabel,
                 'schedule_time' => $timeRange,
                 'pax' => isset($row['persons']) && $row['persons'] !== null ? (int)$row['persons'] : 1,
-                'pool_booking_type' => $row['pool_booking_type'] ?? '',
                 'status' => $statusVal,
                 'scanned_at' => $scannedAt,
                 'guardian_block' => $guardianBlocked
@@ -421,7 +420,6 @@ if (empty($error)) {
                 'schedule_date' => $validityLabel,
                 'schedule_time' => $timeRange,
                 'pax' => isset($row['persons']) && $row['persons'] !== null ? (int)$row['persons'] : 1,
-                'pool_booking_type' => $row['pool_booking_type'] ?? '',
                 'status' => $statusVal,
                 'scanned_at' => $scannedAt,
                 'guardian_block' => $guardianBlocked
@@ -798,26 +796,6 @@ if (empty($error)) {
                     <span class="label">Amenity</span>
                     <span class="value"><?php echo htmlspecialchars($data['amenity']); ?></span>
                 </div>
-                <?php
-                    $poolTypeLabel = '';
-                    $amenityRaw = trim((string)($data['amenity'] ?? ''));
-                    if (strcasecmp($amenityRaw, 'Pool') === 0) {
-                        $pt = strtolower(trim((string)($data['pool_booking_type'] ?? '')));
-                        if ($pt === 'whole_pool') { $poolTypeLabel = 'Whole Pool'; }
-                        else if ($pt === 'per_person') { $poolTypeLabel = 'Shared Pool'; }
-                        else {
-                            $personsVal = isset($data['pax']) ? intval($data['pax']) : 0;
-                            if ($personsVal >= 20) { $poolTypeLabel = 'Whole Pool'; }
-                            else if ($personsVal > 0) { $poolTypeLabel = 'Shared Pool'; }
-                        }
-                    }
-                ?>
-                <?php if ($poolTypeLabel !== ''): ?>
-                <div class="detail-row">
-                    <span class="label">Pool Type</span>
-                    <span class="value"><?php echo htmlspecialchars($poolTypeLabel); ?></span>
-                </div>
-                <?php endif; ?>
                 <?php endif; ?>
 
                 <?php if (!empty($data['schedule_date'])): ?>

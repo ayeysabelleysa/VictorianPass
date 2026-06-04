@@ -33,9 +33,6 @@ function ensureReservationBookerColumns($con){
     }
 }
 ensureReservationBookerColumns($con);
-$hasPoolBookingType = false;
-$poolCheck = $con->query("SHOW COLUMNS FROM reservations LIKE 'pool_booking_type'");
-if ($poolCheck && $poolCheck->num_rows > 0) { $hasPoolBookingType = true; }
 // Pull pending reservation context
 $continue = isset($_GET['continue']) ? $_GET['continue'] : 'reserve';
 $userType = isset($_SESSION['user_type']) ? $_SESSION['user_type'] : '';
@@ -69,8 +66,7 @@ $user_id = isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : null;
 $pending = isset($_SESSION['pending_reservation']) ? $_SESSION['pending_reservation'] : null;
 
 if ((!is_array($pending) || empty($pending)) && $ref_code !== '' && ($con instanceof mysqli)) {
-    $poolCol = $hasPoolBookingType ? "pool_booking_type" : "NULL AS pool_booking_type";
-    $stmtC = $con->prepare("SELECT amenity, start_date, end_date, start_time, end_time, persons, price, downpayment, entry_pass_id, booking_for, $poolCol FROM reservations WHERE ref_code = ? LIMIT 1");
+    $stmtC = $con->prepare("SELECT amenity, start_date, end_date, start_time, end_time, persons, price, downpayment, entry_pass_id, booking_for FROM reservations WHERE ref_code = ? LIMIT 1");
     $stmtC->bind_param('s', $ref_code);
     $stmtC->execute();
     $resC = $stmtC->get_result();
@@ -85,8 +81,7 @@ if ((!is_array($pending) || empty($pending)) && $ref_code !== '' && ($con instan
             'price' => isset($rwC['price']) ? floatval($rwC['price']) : null,
             'downpayment' => isset($rwC['downpayment']) ? floatval($rwC['downpayment']) : null,
             'entry_pass_id' => isset($rwC['entry_pass_id']) ? intval($rwC['entry_pass_id']) : null,
-            'booking_for' => $rwC['booking_for'] ?? null,
-            'pool_booking_type' => $rwC['pool_booking_type'] ?? ''
+            'booking_for' => $rwC['booking_for'] ?? null
         ];
         $_SESSION['pending_reservation'] = $pending;
         if ($entry_pass_id <= 0 && !empty($pending['entry_pass_id'])) { $entry_pass_id = intval($pending['entry_pass_id']); }
@@ -151,9 +146,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
       $downpayment = isset($pending['downpayment']) ? floatval($pending['downpayment']) : null;
       $entry_pass_id_post = isset($pending['entry_pass_id']) ? intval($pending['entry_pass_id']) : ($entry_pass_id_post_form ?: null);
       $booking_for = isset($pending['booking_for']) ? trim($pending['booking_for']) : '';
-      $pool_booking_type = isset($pending['pool_booking_type']) ? trim($pending['pool_booking_type']) : '';
       if ($booking_for === '') { $booking_for = null; }
-      if ($amenity === 'Pool') { $pool_booking_type = ($pool_booking_type === 'whole_pool') ? 'whole_pool' : 'per_person'; } else { $pool_booking_type = null; }
       $guest_id = isset($pending['guest_id']) ? trim($pending['guest_id']) : '';
       $guest_ref_code = isset($pending['guest_ref_code']) ? trim($pending['guest_ref_code']) : '';
       $booked_by_role = null;
@@ -213,14 +206,14 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
         $acct = ($continue_post === 'reserve_resident') ? 'resident' : 'visitor';
         $hadLegacy = false;
         if($con instanceof mysqli){ $chk=$con->prepare("SELECT id FROM resident_reservations WHERE ref_code = ? LIMIT 1"); $chk->bind_param('s',$ref_code); $chk->execute(); $cr=$chk->get_result(); $hadLegacy = ($cr && $cr->num_rows>0); $chk->close(); }
-        $stmt = $con->prepare("UPDATE reservations SET amenity = COALESCE(?, amenity), start_date = COALESCE(?, start_date), end_date = COALESCE(?, end_date), start_time = COALESCE(?, start_time), end_time = COALESCE(?, end_time), persons = COALESCE(?, persons), price = COALESCE(?, price), downpayment = COALESCE(?, downpayment), pool_booking_type = COALESCE(?, pool_booking_type), receipt_path = COALESCE(?, receipt_path), gcash_reference_number = COALESCE(?, gcash_reference_number), user_id = COALESCE(?, user_id), entry_pass_id = COALESCE(?, entry_pass_id), booking_for = COALESCE(?, booking_for), booked_by_role = COALESCE(?, booked_by_role), booked_by_name = COALESCE(?, booked_by_name), account_type = COALESCE(account_type, ?), payment_status='submitted', approval_status='pending', receipt_uploaded_at = COALESCE(receipt_uploaded_at, NOW()) WHERE ref_code = ?");
-        $stmt->bind_param('sssssiddsssiisssss', $amenity, $start, $end, $startTime, $endTime, $persons, $price, $downpayment, $pool_booking_type, $receiptPath, $gcashReferenceNumber, $uid, $entry_pass_id_post, $booking_for, $booked_by_role, $booked_by_name, $acct, $ref_code);
+        $stmt = $con->prepare("UPDATE reservations SET amenity = COALESCE(?, amenity), start_date = COALESCE(?, start_date), end_date = COALESCE(?, end_date), start_time = COALESCE(?, start_time), end_time = COALESCE(?, end_time), persons = COALESCE(?, persons), price = COALESCE(?, price), downpayment = COALESCE(?, downpayment), receipt_path = COALESCE(?, receipt_path), gcash_reference_number = COALESCE(?, gcash_reference_number), user_id = COALESCE(?, user_id), entry_pass_id = COALESCE(?, entry_pass_id), booking_for = COALESCE(?, booking_for), booked_by_role = COALESCE(?, booked_by_role), booked_by_name = COALESCE(?, booked_by_name), account_type = COALESCE(account_type, ?), payment_status='submitted', approval_status='pending', receipt_uploaded_at = COALESCE(receipt_uploaded_at, NOW()) WHERE ref_code = ?");
+        $stmt->bind_param('sssssidssiisssss', $amenity, $start, $end, $startTime, $endTime, $persons, $price, $downpayment, $receiptPath, $gcashReferenceNumber, $uid, $entry_pass_id_post, $booking_for, $booked_by_role, $booked_by_name, $acct, $ref_code);
         $stmt->execute();
         $affected = $stmt->affected_rows;
         $stmt->close();
         if ($affected === 0) {
-          $ins = $con->prepare("INSERT INTO reservations (ref_code, amenity, start_date, end_date, start_time, end_time, persons, price, downpayment, pool_booking_type, receipt_path, gcash_reference_number, user_id, entry_pass_id, booking_for, booked_by_role, booked_by_name, account_type, payment_status, approval_status, receipt_uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', 'pending', NOW())");
-          $ins->bind_param('ssssssiddsssiissss', $ref_code, $amenity, $start, $end, $startTime, $endTime, $persons, $price, $downpayment, $pool_booking_type, $receiptPath, $gcashReferenceNumber, $uid, $entry_pass_id_post, $booking_for, $booked_by_role, $booked_by_name, $acct);
+          $ins = $con->prepare("INSERT INTO reservations (ref_code, amenity, start_date, end_date, start_time, end_time, persons, price, downpayment, receipt_path, gcash_reference_number, user_id, entry_pass_id, booking_for, booked_by_role, booked_by_name, account_type, payment_status, approval_status, receipt_uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', 'pending', NOW())");
+          $ins->bind_param('ssssssidssiissss', $ref_code, $amenity, $start, $end, $startTime, $endTime, $persons, $price, $downpayment, $receiptPath, $gcashReferenceNumber, $uid, $entry_pass_id_post, $booking_for, $booked_by_role, $booked_by_name, $acct);
           $ins->execute();
           $ins->close();
         }
@@ -360,8 +353,8 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     $amenity = isset($pending['amenity']) ? $pending['amenity'] : '';
     $price   = isset($pending['price']) ? floatval($pending['price']) : 0.0;
     $downpayment = isset($pending['downpayment']) ? floatval($pending['downpayment']) : null;
-    $isHourBased = in_array($amenity, ['Basketball Court','Tennis Court','Clubhouse'], true);
-    $isPersonBased = in_array($amenity, ['Pool'], true);
+    $isHourBased = in_array($amenity, ['Basketball Court','Tennis Court','Clubhouse','Multi-Purpose Building'], true);
+    $isPersonBased = in_array($amenity, [], true);
     if ($downpayment === null || $downpayment <= 0) { $downpayment = round($price * 0.5, 2); }
     $remaining = max(0, round($price - $downpayment, 2));
     $durationText = '--';
@@ -372,7 +365,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
         $sdObj = new DateTime($sd);
         $edObj = new DateTime($ed);
         $days = 0;
-        if ($amenity === 'Pool') {
+        if (false && $amenity === 'Pool') {
           $period = new DatePeriod($sdObj, new DateInterval('P1D'), (clone $edObj)->modify('+1 day'));
           foreach ($period as $d) {
             $dow = intval($d->format('N'));

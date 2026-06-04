@@ -300,6 +300,30 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
       <p class="tagline">Every home has a story — start yours in a place worth remembering.</p>
 
+      <!-- AI Search Bar Section -->
+      <div class="ai-search-section">
+        <div class="ai-search-wrapper">
+          <svg class="ai-search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
+          <input 
+            type="text" 
+            class="ai-search-input" 
+            id="aiSearchInput"
+            placeholder="Ask VictorianPass AI anything..." 
+            spellcheck="false"
+          />
+          <svg class="ai-sparkle-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"></path>
+          </svg>
+        </div>
+        <div class="ai-suggested-questions">
+          <div class="suggested-label">Suggested:</div>
+          <button class="suggested-btn" data-question="How do I register?">How do I register?</button>
+          <button class="suggested-btn" data-question="Request a visitor pass">Request a visitor pass</button>
+          <button class="suggested-btn" data-question="View subdivision amenities">View amenities</button>
+          <button class="suggested-btn" data-question="Contact administration">Contact admin</button>
+        </div>
+      </div>
+
       <div class="action-buttons" style="margin-top: 30px; gap:15px; flex-wrap:wrap;">
         <?php if (!$isLoggedIn): ?>
           <button class="btn-change btn-start" onclick="window.location.href='login.php'">Let’s Start</button>
@@ -350,9 +374,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <div class="section-divider"></div>
     <div class="amenities-grid">
       <div class="amenity-card">
-        <img src="images/communitypool.png" alt="Community Pool">
-        <h3 class="title">Community Pool</h3>
-        <p class="desc">Relax and enjoy the pool with easy and convenient reservation options.</p>
+        <img src="images/multipurposebuilding.jpg" alt="Multi-Purpose Building">
+        <h3 class="title">Multi-Purpose Building</h3>
+        <p class="desc">A versatile space for various community activities, events, and recreational uses.</p>
       </div>
       <div class="amenity-card">
         <img src="images/clubhouse.png" alt="Clubhouse">
@@ -485,5 +509,71 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     });
   </script>
 
+  <!-- Floating AI Chat Button -->
+  <button class="ai-chat-float" id="aiChatToggle" title="Open AI Assistant">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+    </svg>
+    <span class="ai-chat-badge">AI</span>
+  </button>
+
+  <!-- Chatbot Panel -->
+  <div class="ai-chatbot-panel" id="aiChatbotPanel">
+    <div class="chatbot-header">
+      <h3>VictorianPass AI Assistant</h3>
+      <div class="chatbot-controls">
+        <button class="chatbot-btn-minimize" id="chatbotMinimize" title="Minimize">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+        </button>
+        <button class="chatbot-btn-close" id="chatbotClose" title="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="chatbot-welcome" id="chatbotWelcome">
+      <div class="welcome-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"></path>
+        </svg>
+      </div>
+      <h4>Hello! I'm the VictorianPass AI Assistant</h4>
+      <p>How can I help you today?</p>
+    </div>
+
+    <div class="chatbot-messages" id="chatbotMessages"></div>
+
+    <div class="chatbot-typing" id="chatbotTyping" style="display:none;">
+      <div class="typing-indicator">
+        <span></span><span></span><span></span>
+      </div>
+      <span>AI is thinking...</span>
+    </div>
+
+    <div class="chatbot-input-area">
+      <input 
+        type="text" 
+        class="chatbot-input" 
+        id="chatbotInput" 
+        placeholder="Type your message..."
+        autocomplete="off"
+      />
+      <button class="chatbot-send-btn" id="chatbotSendBtn" title="Send">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+      </button>
+    </div>
+
+    <button class="chatbot-clear-btn" id="chatbotClear" title="Clear Chat">Clear Chat</button>
+  </div>
+
 </body>
 </html>
+  <script src="js/mainpage_ai.js"></script>

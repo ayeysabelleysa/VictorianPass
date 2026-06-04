@@ -192,6 +192,11 @@ if ($con instanceof mysqli) {
     <div class="input-wrap">
       <input type="text" id="visitor_address" name="visitor_address" placeholder="Guest Address (e.g., Blk 00 Lot 00)*" required>
     </div>
+    <h4 style="margin:20px 0 5px;color:#111827;">Visit Schedule</h4>
+    <div class="form-row">
+      <input type="date" id="visit_date" name="visit_date" required>
+      <input type="time" id="visit_time" name="visit_time" required>
+    </div>
 
     <label class="upload-box">
       <input type="file" id="visitor_valid_id" name="visitor_valid_id" accept="image/*" hidden required>
@@ -480,7 +485,7 @@ if (birthdateEl) {
 
   function validateForm(){
   let valid = true;
-  const reqIds = ['resident_full_name','resident_house','resident_email','resident_contact','visitor_first_name','visitor_last_name','visitor_email','visitor_address','birthdate','visitor_contact'];
+  const reqIds = ['resident_full_name','resident_house','resident_email','resident_contact','visitor_first_name','visitor_last_name','visitor_email','visitor_address','birthdate','visitor_contact','visit_date','visit_time'];
   reqIds.forEach(function(id){
     const el = document.getElementById(id);
     if(!el) return;
@@ -531,6 +536,8 @@ function buildVerifySummary(){
   const visContactEl = document.getElementById('visitor_contact');
   const visEmailEl = document.getElementById('visitor_email');
   const visAddressEl = document.getElementById('visitor_address');
+  const visitDateEl = document.getElementById('visit_date');
+  const visitTimeEl = document.getElementById('visit_time');
   const vSexEl = document.getElementById('visitor_sex');
   const personsEl = document.getElementById('visit_persons');
   const resName = resNameEl ? resNameEl.value.trim() : '';
@@ -541,6 +548,8 @@ function buildVerifySummary(){
   const visContact = visContactEl ? visContactEl.value.trim() : '';
   const visEmail = visEmailEl ? visEmailEl.value.trim() : '';
   const visAddress = visAddressEl ? visAddressEl.value.trim() : '';
+  const visitDate = visitDateEl ? visitDateEl.value.trim() : '';
+  const visitTime = visitTimeEl ? visitTimeEl.value.trim() : '';
   const vSex = vSexEl ? vSexEl.value : '';
   const vBirth = birthdateEl ? birthdateEl.value : '';
   const personsVal = personsEl && personsEl.value ? personsEl.value : '1';
@@ -553,7 +562,9 @@ function buildVerifySummary(){
     ['Visitor Birthdate', vBirth || '-'],
     ['Visitor Contact', visContact || '-'],
     ['Visitor Email', visEmail || '-'],
-    ['Visitor Address', visAddress || '-']
+    ['Visitor Address', visAddress || '-'],
+    ['Visit Date', visitDate || '-'],
+    ['Visit Time', visitTime || '-']
   ];
   verifySummary.innerHTML = items.map(function(x){
     return '<div style="display:flex;justify-content:space-between;margin:4px 0"><span style="font-weight:600">'+x[0]+'</span><span>'+x[1]+'</span></div>';

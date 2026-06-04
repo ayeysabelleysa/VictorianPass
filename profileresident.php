@@ -227,6 +227,36 @@ if (!$isAccountBlocked) {
 
 $activeSection = 'panel-requests';
 
+// Fetch point transactions
+$pointTransactions = [];
+if ($con instanceof mysqli) {
+    $stmt = $con->prepare("SELECT id, transaction_type, amount, description, reservation_ref_code, created_at FROM point_transactions WHERE user_id = ? ORDER BY created_at DESC");
+    if ($stmt) {
+        $stmt->bind_param("i", $userId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        while ($row = $res->fetch_assoc()) {
+            $pointTransactions[] = $row;
+        }
+        $stmt->close();
+    }
+}
+
+// Fetch current user points
+$currentPoints = 0;
+if ($con instanceof mysqli) {
+    $stmt = $con->prepare("SELECT points FROM users WHERE id = ? LIMIT 1");
+    if ($stmt) {
+        $stmt->bind_param("i", $userId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        if ($row = $res->fetch_assoc()) {
+            $currentPoints = $row['points'];
+        }
+        $stmt->close();
+    }
+}
+
 // Fetch Activities (Reservations, Reports, Guest Forms)
 $activities = [];
 $reservationRefs = [];
@@ -905,6 +935,13 @@ body.account-blocked { overflow: hidden; }
     <nav class="nav-menu">
       <a href="#" class="nav-item <?php echo $activeSection === 'panel-requests' ? 'active' : ''; ?>" data-section="panel-requests"><i class="fa-solid fa-list"></i> <span>My Requests</span></a>
       <a href="reserve.php" class="nav-item"><i class="fa-solid fa-ticket"></i> <span>Amenity Reservation</span></a>
+      <a href="#" class="nav-item" data-section="panel-points-history">
+        <i class="fa-solid fa-coins"></i>
+        <span>
+          Points History
+          <small style="display:block; font-size:0.7rem; color:#999; font-weight:400; margin-top:2px;">Smart Waste Segregation Station</small>
+        </span>
+      </a>
       <a href="#" class="nav-item" data-section="panel-guest-form"><i class="fa-solid fa-user-plus"></i> <span>Guest Form</span></a>
       <a href="#" class="nav-item" data-section="panel-my-guests"><i class="fa-solid fa-user-group"></i> <span>My Guests</span></a>
       <a href="report_incident.php" class="nav-item"><i class="fa-solid fa-triangle-exclamation"></i> <span>Report Incident</span></a>
@@ -1070,9 +1107,7 @@ body.account-blocked { overflow: hidden; }
                       $displayTitle = trim($parts[0] ?? '');
                     }
                     if ($displayTitle === '') { $displayTitle = 'Amenity'; }
-                    $amenityName = $displayTitle;
-                    if (strcasecmp($amenityName, 'Pool') === 0) { $amenityName = 'Community Pool'; }
-                    $displayTitle = 'Reservation – ' . $amenityName;
+                    $displayTitle = 'Reservation – ' . $displayTitle;
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
@@ -1112,6 +1147,52 @@ body.account-blocked { overflow: hidden; }
                    <div class="item-extra" data-loaded="0"></div>
                  </div>
               </div>
+              <?php endforeach; ?>
+            <?php endif; ?>
+          </div>
+        </div>
+
+        <div class="panel-section" id="panel-points-history" style="display:none;">
+          <div class="activity-list-header">
+            <div>
+              Points History
+              <div style="font-size:0.8rem; color:#999; margin-top:4px;"><i class="fa-solid fa-coins"></i> Current Balance: <strong style="color:#23412e;"><?php echo number_format($currentPoints); ?> pts</strong></div>
+            </div>
+          </div>
+
+          <div class="item-list" style="margin-top:20px;">
+            <?php if (empty($pointTransactions)): ?>
+              <div style="padding:20px; text-align:center; color:#777;">No point transactions yet.</div>
+            <?php else: ?>
+              <?php foreach ($pointTransactions as $tx): 
+                $isEarn = $tx['transaction_type'] === 'earn';
+                $txIcon = $isEarn ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down';
+                $txColor = $isEarn ? '#16a34a' : '#dc2626';
+                $txAmount = $isEarn ? '+' . $tx['amount'] : '-' . $tx['amount'];
+                $txDate = date('m/d/y g:i A', strtotime($tx['created_at']));
+              ?>
+                <div class="list-item">
+                  <div class="item-icon" style="background:<?php echo $txColor; ?>15; color:<?php echo $txColor; ?>;">
+                    <i class="fa-solid <?php echo $txIcon; ?>"></i>
+                  </div>
+                  <div class="item-content">
+                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                      <div class="item-left">
+                        <span class="status-badge" style="background:<?php echo $txColor; ?>15; color:<?php echo $txColor; ?>; border:1px solid <?php echo $txColor; ?>30; padding:4px 10px; border-radius:10px;">
+                          <?php echo $isEarn ? 'Earned' : 'Redeemed'; ?>
+                        </span>
+                        <span class="item-title" style="margin-left:8px;"><?php echo htmlspecialchars($tx['description']); ?></span>
+                      </div>
+                      <div style="font-weight:800; color:<?php echo $txColor; ?>; font-size:1rem;"><?php echo $txAmount; ?> pts</div>
+                    </div>
+                    <div style="font-size:0.8rem; color:#999; margin-left:48px;">
+                      <?php echo $txDate; ?>
+                      <?php if (!empty($tx['reservation_ref_code'])): ?>
+                        • Ref: <?php echo htmlspecialchars($tx['reservation_ref_code']); ?>
+                      <?php endif; ?>
+                    </div>
+                  </div>
+                </div>
               <?php endforeach; ?>
             <?php endif; ?>
           </div>
@@ -1165,9 +1246,7 @@ body.account-blocked { overflow: hidden; }
                       $displayTitle = trim($parts[0] ?? '');
                     }
                     if ($displayTitle === '') { $displayTitle = 'Amenity'; }
-                    $amenityName = $displayTitle;
-                    if (strcasecmp($amenityName, 'Pool') === 0) { $amenityName = 'Community Pool'; }
-                    $displayTitle = 'Reservation – ' . $amenityName;
+                    $displayTitle = 'Reservation – ' . $displayTitle;
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
@@ -3488,9 +3567,7 @@ body.account-blocked { overflow: hidden; }
                   var parts=rest.split(' - ');
                   displayTitle=parts[0]?parts[0].trim():'Amenity';
                 }
-                var amenityName=displayTitle||'Amenity';
-                if(amenityName.toLowerCase()==='pool') amenityName='Community Pool';
-                displayTitle='Reservation – '+amenityName;
+                displayTitle='Reservation – '+(displayTitle||'Amenity');
               }
               var createdText=formatNotifDateTime(item.date||'');
               li=document.createElement('div');

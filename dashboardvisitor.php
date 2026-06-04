@@ -526,7 +526,6 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
                     }
                     if ($displayTitle === '') { $displayTitle = 'Amenity'; }
                     $amenityName = $displayTitle;
-                    if (strcasecmp($amenityName, 'Pool') === 0) { $amenityName = 'Community Pool'; }
                     $displayTitle = 'Reservation – ' . $amenityName;
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
@@ -614,7 +613,6 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
                     }
                     if ($displayTitle === '') { $displayTitle = 'Amenity'; }
                     $amenityName = $displayTitle;
-                    if (strcasecmp($amenityName, 'Pool') === 0) { $amenityName = 'Community Pool'; }
                     $displayTitle = 'Reservation – ' . $amenityName;
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
@@ -1248,7 +1246,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
                 }
                 if(displayTitle==='') displayTitle='Amenity';
                 var amenityName=displayTitle;
-                if(amenityName.toLowerCase()==='pool') amenityName='Community Pool';
+
                 displayTitle='Reservation – '+amenityName;
               }
               var detailsText=String(item.details||'');

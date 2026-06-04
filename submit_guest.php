@@ -32,15 +32,15 @@ if ($visitor_birthdate !== '') {
 $visitor_email      = trim($_POST['visitor_email'] ?? '');
 
 
-$visit_date    = null;
-$visit_time    = null;
+$visit_date    = trim($_POST['visit_date'] ?? '');
+$visit_time    = trim($_POST['visit_time'] ?? '');
 $visit_purpose = null;
 $visit_persons = 1;
 $wants_amenity = 0;
 
 if ($resident_full_name === '' || $resident_house === '' || $resident_email === '' || $resident_contact === '' ||
     $visitor_first_name === '' || $visitor_last_name === '' || $visitor_sex === '' || $visitor_birthdate === '' ||
-    $visitor_contact === '' || $visitor_address === '') {
+    $visitor_contact === '' || $visitor_address === '' || $visit_date === '' || $visit_time === '') {
   echo json_encode(['success' => false, 'message' => 'Please fill in all required fields.']);
   exit;
 }
