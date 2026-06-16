@@ -169,15 +169,18 @@ document.addEventListener('DOMContentLoaded', function() {
         const content = document.createElement('div');
         content.className = 'message-content';
         
-        // Handle line breaks in response
-        const paragraphs = text.split('\n');
-        paragraphs.forEach((para, index) => {
-            if (para.trim()) {
-                const p = document.createElement('div');
-                p.textContent = para;
-                content.appendChild(p);
-            }
-        });
+        // AI responses use HTML formatting, user messages use plain text
+        if (sender === 'ai') {
+            // Create a wrapper div and use innerHTML for AI responses (safe from untrusted input)
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = text;
+            content.appendChild(wrapper);
+        } else {
+            // User messages: plain text only (no HTML parsing)
+            const p = document.createElement('div');
+            p.textContent = text;
+            content.appendChild(p);
+        }
 
         if (sender === 'user') {
             messageDiv.appendChild(content);

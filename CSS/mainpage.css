@@ -860,6 +860,23 @@ html { scroll-behavior: smooth; }
   transform: translateY(-1px);
 }
 
+/* Smart Waste Segregation Questions - Green Styling */
+.suggested-btn-waste {
+  background: rgba(76, 175, 80, 0.2);
+  color: #b3e5b3;
+  border: 1px solid rgba(76, 175, 80, 0.5);
+  font-weight: 600;
+  box-shadow: 0 0 8px rgba(76, 175, 80, 0.2);
+}
+
+.suggested-btn-waste:hover {
+  background: rgba(76, 175, 80, 0.3);
+  border-color: rgba(76, 175, 80, 0.8);
+  box-shadow: 0 0 12px rgba(76, 175, 80, 0.4);
+  transform: translateY(-2px);
+  color: #d4f1d4;
+}
+
 /* Floating AI Chat Button */
 .ai-chat-float {
   position: fixed;
@@ -1087,6 +1104,33 @@ html { scroll-behavior: smooth; }
   color: #222;
   border-radius: 2px 10px 10px 10px;
   margin-right: auto;
+}
+
+/* HTML Formatting in Chatbot Responses */
+.message-ai .message-content ul,
+.message-ai .message-content ol {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.message-ai .message-content li {
+  margin: 4px 0;
+  line-height: 1.5;
+}
+
+.message-ai .message-content strong {
+  font-weight: 600;
+  color: #23412e;
+}
+
+.message-ai .message-content br {
+  display: block;
+  content: '';
+  margin: 4px 0;
+}
+
+.message-ai .message-content div {
+  margin-bottom: 8px;
 }
 
 /* Typing Indicator */

@@ -141,6 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if (!is_string($tokenPosted) || !hash_equals($_SESSION['csrf_token'] ?? '', $tokenPosted)) {
     $errorMsg = 'Invalid form submission.';
   } else {
+    $use_points_post = isset($_POST['use_points']) ? intval($_POST['use_points']) : 0;
     $amenity = isset($_POST['amenity']) ? $_POST['amenity'] : '';
     $start   = isset($_POST['startDate']) ? $_POST['startDate'] : '';
     $end     = isset($_POST['endDate']) ? $_POST['endDate'] : '';
@@ -940,13 +941,14 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                   <div style="font-weight:800; color:#92400e; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
                     💡 Earn More Points
                   </div>
-                  <ul style="margin:0; padding-left:20px; color:#78350f; line-height:1.8;">
-                    <li><strong>Recycle Paper:</strong> +25 points per kg</li>
-                    <li><strong>Recycle Plastic Bottles:</strong> +30 points per kg</li>
-                    <li><strong>Recycle Aluminum Cans:</strong> +40 points per kg</li>
-                    <li><strong>Recycle Glass:</strong> +20 points per kg</li>
-                    <li><strong>Community Cleanup Day:</strong> +100 points</li>
+                  <ul style="margin:0; padding-left:20px; color:#78350f; line-height:2;">
+                    <li>♻️ Recycle PET Plastic Bottles (≤1000ml): <strong>+55 points per kg</strong></li>
+                    <li>🥫 Recycle Aluminum Cans: <strong>+140 points per kg</strong></li>
+                    <li>📄 Recycle Paper & Cardboard: <strong>+30 points per kg</strong></li>
                   </ul>
+                  <p style="margin:12px 0 0 0; color:#78350f; font-size:0.95rem; line-height:1.5;">
+                    Visit the Smart Waste Segregation Station and recycle eligible materials to earn points that can be redeemed for free amenity reservations.
+                  </p>
                 </div>
               <?php endif; ?>
             </div>
@@ -1053,7 +1055,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                 </div>
 
                 <div style="margin-top:16px; padding:12px 14px; background:linear-gradient(135deg,#f0faf2,#e8f6ec); border:1px solid #cfe6d4; border-radius:10px; font-size:0.85rem; color:#1f5a33; line-height:1.4;">
-                  💡 <strong>Pro Tip:</strong> You can use the points you have collected in the smart waste station when booking an amenity for a free 1 hour! Click on "View Rewards" (on the bottom points bar) to see your options!
+                  💡 <strong>Pro Tip:</strong> You can use the points you have collected in the smart waste station when booking an amenity for a free 1 hour! Click on "View Rewards" to see your options!
                 </div>
               </div>
             </div>

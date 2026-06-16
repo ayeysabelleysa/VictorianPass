@@ -321,6 +321,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
           <button class="suggested-btn" data-question="Request a visitor pass">Request a visitor pass</button>
           <button class="suggested-btn" data-question="View subdivision amenities">View amenities</button>
           <button class="suggested-btn" data-question="Contact administration">Contact admin</button>
+          <button class="suggested-btn suggested-btn-waste" data-question="How do I use the smart waste segregation station?">♻️ Use Station</button>
+          <button class="suggested-btn suggested-btn-waste" data-question="How many points do I need for a free hour at the tennis court?">♻️ Amenity Points</button>
+          <button class="suggested-btn suggested-btn-waste" data-question="What is my total points right now?">♻️ My Points</button>
         </div>
       </div>
 

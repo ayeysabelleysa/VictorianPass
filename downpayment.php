@@ -207,13 +207,13 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
         $hadLegacy = false;
         if($con instanceof mysqli){ $chk=$con->prepare("SELECT id FROM resident_reservations WHERE ref_code = ? LIMIT 1"); $chk->bind_param('s',$ref_code); $chk->execute(); $cr=$chk->get_result(); $hadLegacy = ($cr && $cr->num_rows>0); $chk->close(); }
         $stmt = $con->prepare("UPDATE reservations SET amenity = COALESCE(?, amenity), start_date = COALESCE(?, start_date), end_date = COALESCE(?, end_date), start_time = COALESCE(?, start_time), end_time = COALESCE(?, end_time), persons = COALESCE(?, persons), price = COALESCE(?, price), downpayment = COALESCE(?, downpayment), receipt_path = COALESCE(?, receipt_path), gcash_reference_number = COALESCE(?, gcash_reference_number), user_id = COALESCE(?, user_id), entry_pass_id = COALESCE(?, entry_pass_id), booking_for = COALESCE(?, booking_for), booked_by_role = COALESCE(?, booked_by_role), booked_by_name = COALESCE(?, booked_by_name), account_type = COALESCE(account_type, ?), payment_status='submitted', approval_status='pending', receipt_uploaded_at = COALESCE(receipt_uploaded_at, NOW()) WHERE ref_code = ?");
-        $stmt->bind_param('sssssidssiisssss', $amenity, $start, $end, $startTime, $endTime, $persons, $price, $downpayment, $receiptPath, $gcashReferenceNumber, $uid, $entry_pass_id_post, $booking_for, $booked_by_role, $booked_by_name, $acct, $ref_code);
+        $stmt->bind_param('sssssiiddsiiissss', $amenity, $start, $end, $startTime, $endTime, $persons, $price, $downpayment, $receiptPath, $gcashReferenceNumber, $uid, $entry_pass_id_post, $booking_for, $booked_by_role, $booked_by_name, $acct, $ref_code);
         $stmt->execute();
         $affected = $stmt->affected_rows;
         $stmt->close();
         if ($affected === 0) {
-          $ins = $con->prepare("INSERT INTO reservations (ref_code, amenity, start_date, end_date, start_time, end_time, persons, price, downpayment, receipt_path, gcash_reference_number, user_id, entry_pass_id, booking_for, booked_by_role, booked_by_name, account_type, payment_status, approval_status, receipt_uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', 'pending', NOW())");
-          $ins->bind_param('ssssssidssiissss', $ref_code, $amenity, $start, $end, $startTime, $endTime, $persons, $price, $downpayment, $receiptPath, $gcashReferenceNumber, $uid, $entry_pass_id_post, $booking_for, $booked_by_role, $booked_by_name, $acct);
+          $ins = $con->prepare("INSERT INTO reservations (ref_code, amenity, start_date, end_date, start_time, end_time, persons, price, downpayment, receipt_path, gcash_reference_number, user_id, entry_pass_id, booking_for, booked_by_role, booked_by_name, account_type, payment_status, approval_status, receipt_uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', 'pending', NOW())");
+          $ins->bind_param('sssssiiddsiiissss', $ref_code, $amenity, $start, $end, $startTime, $endTime, $persons, $price, $downpayment, $receiptPath, $gcashReferenceNumber, $uid, $entry_pass_id_post, $booking_for, $booked_by_role, $booked_by_name, $acct);
           $ins->execute();
           $ins->close();
         }
