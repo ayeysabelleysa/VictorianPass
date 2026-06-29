@@ -780,8 +780,8 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     return $b['score'] - $a['score'];
   });
 
-  // Take top 3
-  $aiRecommendations = array_slice($aiRecommendations, 0, 3);
+  // Take top 2
+  $aiRecommendations = array_slice($aiRecommendations, 0, 2);
 
   if ($currentResident && !empty($currentResident['house_number'])) {
     $hn = $currentResident['house_number'];
@@ -843,6 +843,15 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
             
             <!-- Modal Content -->
             <div style="padding:24px;">
+              <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-radius:14px; background:linear-gradient(135deg,#ecfdf5,#d1fae5); border:1px solid #86efac; margin-bottom:20px; color:#14532d;">
+                <div style="width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; background:#166534; color:#fff; font-size:1.15rem; flex-shrink:0;">♻</div>
+                <div style="display:flex; flex-direction:column; gap:2px;">
+                  <div style="font-size:0.78rem; font-weight:800; letter-spacing:0.08em; text-transform:uppercase;">Station Partner</div>
+                  <div style="font-size:1rem; font-weight:800;">VictorianEcoPoint</div>
+                  <div style="font-size:0.84rem; line-height:1.35;">Smart Waste Segregation Station</div>
+                </div>
+              </div>
+
               <!-- Current Points -->
               <div style="background:linear-gradient(135deg,#23412e,#1f3528); color:#fff; padding:20px; border-radius:16px; margin-bottom:24px;">
                 <div style="font-size:0.9rem; opacity:0.9; margin-bottom:4px;">Your Current Balance</div>
@@ -947,7 +956,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                     <li>📄 Recycle Paper & Cardboard: <strong>+30 points per kg</strong></li>
                   </ul>
                   <p style="margin:12px 0 0 0; color:#78350f; font-size:0.95rem; line-height:1.5;">
-                    Visit the Smart Waste Segregation Station and recycle eligible materials to earn points that can be redeemed for free amenity reservations.
+                    Visit VictorianEcoPoint Smart Waste Segregation Station and recycle eligible materials to earn points that can be redeemed for free amenity reservations.
                   </p>
                 </div>
               <?php endif; ?>
@@ -1050,13 +1059,15 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                   <div class="step-index">3</div>
                   <div class="step-content">
                     <div class="step-title">Review &amp; pay</div>
-                    <div class="step-subtitle">Check your reservation details and partial downpayment</div>
+                    <div class="step-subtitle">Check your reservation details, cash payment, or point redemption guide</div>
                   </div>
                 </div>
 
+                <?php if ($isResident): ?>
                 <div style="margin-top:16px; padding:12px 14px; background:linear-gradient(135deg,#f0faf2,#e8f6ec); border:1px solid #cfe6d4; border-radius:10px; font-size:0.85rem; color:#1f5a33; line-height:1.4;">
-                  💡 <strong>Pro Tip:</strong> You can use the points you have collected in the smart waste station when booking an amenity for a free 1 hour! Click on "View Rewards" to see your options!
+                  💡 <strong>Pro Tip:</strong> You can use the points you have collected in VictorianEcoPoint Smart Waste Segregation Station when booking an amenity for a free 1 hour. Click on "View Rewards" to see your options.
                 </div>
+                <?php endif; ?>
               </div>
             </div>
             <?php if (!empty($errorMsg)) { ?><div class="alert-error"><?php echo htmlspecialchars($errorMsg); ?></div><?php } ?>
@@ -1106,6 +1117,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                 <div class="amenity-preview-meta" id="amenityPreviewDays"></div>
                 <div class="amenity-preview-meta" id="amenityPreviewHours"></div>
                 <div class="amenity-preview-meta" id="amenityPreviewPrice"></div>
+                <div class="amenity-preview-mode" id="amenityPreviewMode" style="display:none;"></div>
                 <button type="button" id="amenityReturnBtn" class="btn-secondary amenity-return" style="display:none;">
                   <img src="images/change.png" alt="" class="amenity-change-icon"> Change Amenity
                 </button>
@@ -1252,18 +1264,33 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
 
                     <!-- Points Redemption Toggle -->
                     <?php if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident'): ?>
-                    <div class="res-item" style="margin-top:16px;">
-                      <div style="display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid #e5e7eb;border-radius:10px;background:#f9fafb;">
-                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;">
-                          <input type="checkbox" id="use-points-toggle" style="width:20px;height:20px;">
-                          Redeem points for this booking
-                        </label>
+                    <div class="res-item booking-mode-row" style="margin-top:16px;">
+                      <div class="booking-mode-shell">
+                        <div class="booking-mode-title">Book with cash or redeem points</div>
+                        <div class="booking-mode-grid">
+                          <button type="button" class="booking-mode-card is-active" id="bookingModeCash">
+                            <span class="booking-mode-label">Cash</span>
+                            <span class="booking-mode-value">Pay online downpayment</span>
+                            <span class="booking-mode-meta">Use the regular VictorianPass booking flow.</span>
+                          </button>
+                          <button type="button" class="booking-mode-card" id="bookingModePoints">
+                            <span class="booking-mode-label">Redeem Points</span>
+                            <span class="booking-mode-value" id="bookingModePointsRequired">Select an amenity first</span>
+                            <span class="booking-mode-meta">Free 1-hour booking when you have enough VictorianEcoPoint points.</span>
+                          </button>
+                        </div>
+                        <input type="checkbox" id="use-points-toggle" style="display:none;">
+                        <div class="booking-mode-guide" id="bookingModeGuide">
+                          Choose an amenity to compare the cash amount and the point redemption requirement.
+                        </div>
                         <div id="redemption-info" style="display:none;font-size:0.9rem;">
                           <p style="margin:4px 0 8px 0; padding:8px 10px; border-radius:8px; background:#fff3cd; border:1px solid #ffc107; color:#856404; font-size:0.85rem; font-weight:600;">
                             ⚠️ <strong>Point redemptions are limited to one free hour per reservation.</strong>
                           </p>
+                          <p style="margin:4px 0;">Current balance: <span id="current-points-guide" style="color:#23412e;font-weight:700;"><?php echo number_format($residentPoints); ?> pts</span></p>
                           <p style="margin:4px 0;">Required points: <span id="required-points" style="color:#23412e;font-weight:700;"></span></p>
                           <p style="margin:4px 0;">Remaining balance: <span id="remaining-points" style="color:#23412e;font-weight:700;"></span></p>
+                          <p style="margin:4px 0;">Current savings guide: <span id="savings-guide" style="color:#166534;font-weight:700;">Select an amenity first</span></p>
                         </div>
                       </div>
                     </div>
@@ -1376,6 +1403,43 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
         return 750;
       default:
         return 0;
+    }
+  }
+
+  function getAmenitySavingsValue(amenity) {
+    return amenity ? getHourlyRate(amenity) : 0;
+  }
+
+  function updateBookingModeCards() {
+    const toggle = document.getElementById('use-points-toggle');
+    const cashBtn = document.getElementById('bookingModeCash');
+    const pointsBtn = document.getElementById('bookingModePoints');
+    const pointsRequiredLabel = document.getElementById('bookingModePointsRequired');
+    const guide = document.getElementById('bookingModeGuide');
+    const savingsGuide = document.getElementById('savings-guide');
+    const currentPointsGuide = document.getElementById('current-points-guide');
+    const amenity = document.getElementById('amenityField')?.value || selectedAmenity || '';
+    const pointsRequired = getPointsRequired(amenity);
+    const savingsValue = getAmenitySavingsValue(amenity);
+    if (cashBtn) cashBtn.classList.toggle('is-active', !toggle || !toggle.checked);
+    if (pointsBtn) pointsBtn.classList.toggle('is-active', !!(toggle && toggle.checked));
+    if (pointsRequiredLabel) {
+      pointsRequiredLabel.textContent = amenity ? (pointsRequired.toLocaleString() + ' pts for 1 free hour') : 'Select an amenity first';
+    }
+    if (guide) {
+      if (!amenity) {
+        guide.textContent = 'Choose an amenity to compare the cash amount and the point redemption requirement.';
+      } else if (toggle && toggle.checked) {
+        guide.textContent = 'Redeem points for one free hour and save around P' + savingsValue.toLocaleString() + ' on this booking.';
+      } else {
+        guide.textContent = 'Cash booking is active. You can switch to point redemption and save around P' + savingsValue.toLocaleString() + ' for the first hour when eligible.';
+      }
+    }
+    if (savingsGuide) {
+      savingsGuide.textContent = amenity ? ('Save around P' + savingsValue.toLocaleString() + ' for the first free hour') : 'Select an amenity first';
+    }
+    if (currentPointsGuide) {
+      currentPointsGuide.textContent = residentPoints.toLocaleString() + ' pts';
     }
   }
 
@@ -1546,13 +1610,29 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     // Update price and downpayment
     updateDisplayedPrice();
     updateDownpaymentSuggestion();
+    updateBookingModeCards();
   }
 
   document.addEventListener('DOMContentLoaded', function() {
     const toggle = document.getElementById('use-points-toggle');
+    const cashBtn = document.getElementById('bookingModeCash');
+    const pointsBtn = document.getElementById('bookingModePoints');
     if (toggle) {
       toggle.addEventListener('change', updateRedemptionInfo);
     }
+    if (cashBtn && toggle) {
+      cashBtn.addEventListener('click', function() {
+        toggle.checked = false;
+        updateRedemptionInfo();
+      });
+    }
+    if (pointsBtn && toggle) {
+      pointsBtn.addEventListener('click', function() {
+        toggle.checked = true;
+        updateRedemptionInfo();
+      });
+    }
+    updateBookingModeCards();
 
     // If hours change while points are enabled, disable points toggle and show error
     const hoursInputs = [document.getElementById('hoursInput'), document.getElementById('hoursSelect')].filter(el => el);
@@ -2008,6 +2088,12 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
       if(label){ pPrice.textContent=label; pPrice.style.display='block'; }
       else { pPrice.textContent=''; pPrice.style.display='none'; }
     }
+    const pMode=document.getElementById('amenityPreviewMode');
+    if(pMode){
+      const bookingNote=getAmenityBookingNote(info.value);
+      if(bookingNote){ pMode.textContent=bookingNote; pMode.style.display='block'; }
+      else { pMode.textContent=''; pMode.style.display='none'; }
+    }
     const pImg=document.getElementById('amenityPreviewImg');
     if(pImg){ pImg.src=info.img; pImg.alt=info.title; }
     const pWrap=document.getElementById('amenityPreview');
@@ -2044,6 +2130,8 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     if(info.days){ inner+=`<p class="inline-meta"><strong>Availability:</strong> ${info.days}</p>`; }
     const rateLabel=getAmenityPriceLabel(info.value);
     if(rateLabel){ inner+=`<p class="inline-meta"><strong>Rate:</strong> ${rateLabel}</p>`; }
+    const bookingNote=getAmenityBookingNote(info.value);
+    if(bookingNote){ inner+=`<p class="inline-note">${bookingNote}</p>`; }
     if(Number.isFinite(info.capacity)){ inner+=`<p class="inline-meta"><strong>Capacity:</strong> ${info.capacity} guests</p>`; }
     body.innerHTML=inner;
     panel.appendChild(body);
@@ -2418,6 +2506,16 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     }
     return '';
   }
+  function getAmenityBookingNote(amen){
+    if(!amen) return '';
+    if(currentUserType === 'resident'){
+      const requiredPoints=getPointsRequired(amen);
+      if(requiredPoints > 0){
+        return `Cash booking or redeem ${requiredPoints.toLocaleString()} pts for 1 free hour.`;
+      }
+    }
+    return 'Cash booking is available for this amenity.';
+  }
   function refreshPricingForBookingFor(){
     updateDisplayedPrice();
     updateDownpaymentSuggestion();
@@ -2445,9 +2543,21 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     const dpText=document.getElementById('dpAmountText'); if(dpText){ dpText.textContent='₱' + downpayment.toFixed(2); }
     const bd=document.getElementById('priceBreakdown');
     if(bd){
-      bd.style.display='none';
-      bd.innerHTML='';
+      if(amen){
+        const requiredPoints = getPointsRequired(amen);
+        const savingsValue = getAmenitySavingsValue(amen);
+        bd.style.display='block';
+        if(usePoints){
+          bd.innerHTML='Redeem mode active: ' + requiredPoints.toLocaleString() + ' pts for 1 free hour. Estimated savings: P' + savingsValue.toLocaleString() + '.';
+        }else{
+          bd.innerHTML='Cash mode active. You can also redeem ' + requiredPoints.toLocaleString() + ' pts to save around P' + savingsValue.toLocaleString() + ' on the first hour.';
+        }
+      }else{
+        bd.style.display='none';
+        bd.innerHTML='';
+      }
     }
+    updateBookingModeCards();
     updateBookingSummary();
   }
   function updateDownpaymentSuggestion(){
@@ -2472,6 +2582,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
         document.getElementById('reservationTitle').textContent='Reserve an Amenity';
         document.getElementById('reservationHint').textContent='Select an amenity to continue';
         const prev=document.getElementById('amenityPreview'); if(prev){ prev.style.display='none'; }
+        updateBookingModeCards();
       }catch(_){}
       return;
     }
@@ -2516,6 +2627,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
       document.getElementById('timeSectionLabel').style.display='block';
       renderTimeSlotButtons();
     }
+    updateBookingModeCards();
     updateHoursSelectEnabled();
   }
 

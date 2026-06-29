@@ -74,6 +74,51 @@ function ensureDownpaymentColumn($con){
          @$con->query("ALTER TABLE reservations ADD COLUMN receipt_uploaded_at DATETIME NULL");
      }
  }
+function ensureUsersPointsColumn($con){
+  if(!($con instanceof mysqli)) return;
+  $c = $con->query("SHOW COLUMNS FROM users LIKE 'points'");
+  if(!$c || $c->num_rows === 0){
+    @$con->query("ALTER TABLE users ADD COLUMN points INT NOT NULL DEFAULT 0");
+  }
+}
+function ensurePointTransactionsTable($con){
+  if(!($con instanceof mysqli)) return;
+  @$con->query("CREATE TABLE IF NOT EXISTS point_transactions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    transaction_type ENUM('earn','redeem','adjustment') NOT NULL DEFAULT 'earn',
+    amount INT NOT NULL DEFAULT 0,
+    description VARCHAR(255) NULL,
+    reservation_ref_code VARCHAR(20) NULL,
+    material_type VARCHAR(50) NULL,
+    weight_kg DECIMAL(10,2) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_point_transactions_user_id (user_id),
+    INDEX idx_point_transactions_type (transaction_type),
+    INDEX idx_point_transactions_created (created_at)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+  $checks = [
+    "SHOW COLUMNS FROM point_transactions LIKE 'reservation_ref_code'" => "ALTER TABLE point_transactions ADD COLUMN reservation_ref_code VARCHAR(20) NULL AFTER description",
+    "SHOW COLUMNS FROM point_transactions LIKE 'material_type'" => "ALTER TABLE point_transactions ADD COLUMN material_type VARCHAR(50) NULL AFTER reservation_ref_code",
+    "SHOW COLUMNS FROM point_transactions LIKE 'weight_kg'" => "ALTER TABLE point_transactions ADD COLUMN weight_kg DECIMAL(10,2) NULL AFTER material_type"
+  ];
+  foreach ($checks as $checkQuery => $alterQuery) {
+    $exists = $con->query($checkQuery);
+    if (!$exists || $exists->num_rows === 0) {
+      @$con->query($alterQuery);
+    }
+  }
+}
+function smartWasteMaterialLabel($materialType = '', $description = ''){
+  $value = strtolower(trim((string)$materialType));
+  $desc = strtolower((string)$description);
+  $haystack = trim($value . ' ' . $desc);
+  if (strpos($haystack, 'plastic') !== false || strpos($haystack, 'pet') !== false) return 'Plastic (PET)';
+  if (strpos($haystack, 'aluminum') !== false || strpos($haystack, 'aluminium') !== false || strpos($haystack, 'can') !== false) return 'Aluminum Cans';
+  if (strpos($haystack, 'cardboard') !== false) return 'Cardboard';
+  if (strpos($haystack, 'paper') !== false) return 'Paper';
+  return 'Other';
+}
 function ensureHouseRange($con){
   if(!($con instanceof mysqli)) return;
   @$con->begin_transaction();
@@ -146,6 +191,8 @@ ensureGuestFormsAmenityColumns($con);
 ensureDenialReasonColumns($con);
 ensureEmailStatusColumns($con);
 ensureDownpaymentColumn($con);
+ensureUsersPointsColumn($con);
+ensurePointTransactionsTable($con);
 ensureHouseRange($con);
 ensureReceiptAttemptsColumn($con);
 
@@ -3370,6 +3417,51 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-main); }
     box-shadow: inset 3px 0 0 var(--accent);
 }
 
+.nav-item.smart-waste-link {
+    background: rgba(34, 197, 94, 0.12);
+    color: #c7f9cc;
+    border: 1px solid rgba(34, 197, 94, 0.28);
+}
+
+.nav-item.smart-waste-link i {
+    color: #7ee787;
+}
+
+.nav-item.smart-waste-link:hover,
+.nav-item.smart-waste-link.active {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.26), rgba(22, 163, 74, 0.18));
+    color: #ffffff;
+    border-color: rgba(134, 239, 172, 0.45);
+    box-shadow: inset 3px 0 0 #7ee787, 0 8px 18px rgba(34, 197, 94, 0.18);
+}
+
+.nav-item.smart-waste-link:hover i,
+.nav-item.smart-waste-link.active i {
+    color: #dcfce7;
+}
+
+.nav-item .nav-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.nav-item .nav-copy small {
+    font-size: 0.68rem;
+    font-weight: 600;
+    line-height: 1.2;
+    opacity: 0.78;
+}
+
+.nav-item.smart-waste-link .nav-copy strong {
+    font-size: 0.95rem;
+}
+
+.nav-item.smart-waste-link .nav-copy small {
+    color: #dcfce7;
+    opacity: 0.92;
+}
+
 .nav-item img {
     width: 20px;
     height: 20px;
@@ -3587,6 +3679,12 @@ body.sidebar-collapsed .sidebar-footer .text-muted-link { padding: 10px; width: 
     font-weight: 500;
 }
 
+.dashboard-widget-subtext {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
 /* Panels & Cards */
 .panel, .card-box {
     background: var(--bg-surface);
@@ -3616,6 +3714,396 @@ body.sidebar-collapsed .sidebar-footer .text-muted-link { padding: 10px; width: 
     background: transparent;
 }
 .panel .content-row { margin: 0; }
+
+/* Smart Waste Station */
+.smart-waste-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.75fr) minmax(300px, 1fr);
+    gap: 24px;
+    align-items: start;
+}
+.smart-waste-main,
+.smart-waste-side {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    min-width: 0;
+}
+.smart-waste-card {
+    background: linear-gradient(180deg, #ffffff 0%, #fbfcfd 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: var(--shadow-sm);
+    min-width: 0;
+    overflow: hidden;
+}
+.smart-waste-card h4 {
+    font-size: 1.05rem;
+    margin-bottom: 6px;
+}
+.smart-waste-note {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+}
+.smart-waste-chart {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 12px;
+    align-items: end;
+    min-height: 180px;
+}
+.smart-waste-bar-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+.smart-waste-bar {
+    width: 100%;
+    min-height: 18px;
+    border-radius: 12px 12px 6px 6px;
+    background: linear-gradient(180deg, #7ed957 0%, #3a7d1f 100%);
+    box-shadow: inset 0 -1px 0 rgba(255,255,255,0.15);
+}
+.smart-waste-bar-value {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+.smart-waste-bar-label {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+.smart-waste-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.smart-waste-list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-light);
+}
+.smart-waste-list-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+.smart-waste-material-icon,
+.smart-waste-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.smart-waste-avatar {
+    background: linear-gradient(135deg, #23412e 0%, #2f7d32 100%);
+    color: #fff;
+    font-size: 0.82rem;
+}
+.smart-waste-material-icon {
+    background: #eef6ef;
+    color: #2f7d32;
+}
+.smart-waste-list-main {
+    flex: 1;
+    min-width: 0;
+}
+.smart-waste-list-title {
+    font-weight: 700;
+    color: var(--text-main);
+    font-size: 0.92rem;
+}
+.smart-waste-list-subtitle {
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+}
+.smart-waste-list-value {
+    font-weight: 800;
+    color: var(--success);
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+.smart-waste-progress {
+    margin-top: 8px;
+    width: 100%;
+    height: 8px;
+    background: #edf2f7;
+    border-radius: 999px;
+    overflow: hidden;
+}
+.smart-waste-progress-bar {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #7ed957 0%, #3cb371 100%);
+}
+.smart-waste-status-pill,
+.smart-waste-tier-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    padding: 5px 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.smart-waste-status-pill {
+    background: #ecfdf3;
+    color: #15803d;
+}
+.smart-waste-tier-pill {
+    background: #f3f4f6;
+    color: #374151;
+}
+.smart-waste-tier-pill.is-unlocked {
+    background: #ecfdf3;
+    color: #166534;
+}
+.smart-waste-status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+}
+.smart-waste-status-box {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    background: #fff;
+}
+.smart-waste-status-label {
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    margin-bottom: 4px;
+}
+.smart-waste-status-value {
+    font-weight: 800;
+    color: var(--text-main);
+}
+.smart-waste-bin-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+}
+.smart-waste-bin-card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    background: #fff;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+}
+.smart-waste-bin-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+.smart-waste-bin-label {
+    font-weight: 800;
+    color: var(--text-main);
+    font-size: 0.92rem;
+}
+.smart-waste-bin-subtitle {
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    margin-top: 2px;
+}
+.smart-waste-bin-percent {
+    font-weight: 800;
+    font-size: 1.15rem;
+    color: var(--text-main);
+    white-space: nowrap;
+}
+.smart-waste-meter {
+    width: 100%;
+    height: 12px;
+    border-radius: 999px;
+    background: #edf2f7;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+.smart-waste-meter-bar {
+    height: 100%;
+    border-radius: inherit;
+}
+.smart-waste-bin-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+}
+.smart-waste-bin-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+.smart-waste-bin-pill.is-empty {
+    background: #f3f4f6;
+    color: #4b5563;
+}
+.smart-waste-bin-pill.is-low {
+    background: #ecfdf3;
+    color: #15803d;
+}
+.smart-waste-bin-pill.is-medium {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+.smart-waste-bin-pill.is-high {
+    background: #fff7ed;
+    color: #c2410c;
+}
+.smart-waste-bin-pill.is-full {
+    background: #fef2f2;
+    color: #b91c1c;
+}
+.smart-waste-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+}
+.smart-waste-kpi {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    background: #fff;
+}
+.smart-waste-kpi-label {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    margin-bottom: 4px;
+}
+.smart-waste-kpi-value {
+    color: var(--text-main);
+    font-size: 1.2rem;
+    font-weight: 800;
+}
+.smart-waste-kpi-subtext {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    margin-top: 4px;
+}
+.smart-waste-table-compact table {
+    min-width: 100%;
+}
+.smart-waste-table-compact th,
+.smart-waste-table-compact td {
+    white-space: nowrap;
+}
+.smart-waste-table-compact td.wrap {
+    white-space: normal;
+}
+.smart-waste-empty {
+    padding: 18px;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    color: var(--text-secondary);
+    background: #fafafa;
+    text-align: center;
+}
+.smart-waste-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+}
+.smart-waste-upload-form label {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+.smart-waste-upload-form input,
+.smart-waste-upload-form select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 0.9rem;
+    background: #fff;
+}
+.smart-waste-preview {
+    margin-top: 14px;
+    border: 1px dashed var(--border);
+    border-radius: 14px;
+    background: #f8fafc;
+    padding: 12px;
+    display: none;
+    justify-content: center;
+}
+.smart-waste-preview img {
+    width: 100%;
+    max-height: 260px;
+    object-fit: contain;
+    border-radius: 10px;
+}
+.smart-waste-upload-actions {
+    margin-top: 14px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.smart-waste-upload-status {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-size: 0.88rem;
+    display: none;
+}
+.smart-waste-upload-status.is-info {
+    display: block;
+    background: #eff6ff;
+    color: #1d4ed8;
+    border: 1px solid #bfdbfe;
+}
+.smart-waste-upload-status.is-success {
+    display: block;
+    background: #ecfdf3;
+    color: #15803d;
+    border: 1px solid #86efac;
+}
+.smart-waste-upload-status.is-error {
+    display: block;
+    background: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+}
+.smart-waste-config-note {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: #fffbeb;
+    color: #92400e;
+    border: 1px solid #fcd34d;
+    font-size: 0.85rem;
+}
+.table-responsive-wrapper {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+.smart-waste-card .table-responsive-wrapper table {
+    min-width: 760px;
+}
 
 /* Utilities */
 .mb-20 { margin-bottom: 20px; }
@@ -4354,6 +4842,18 @@ body.modal-open { overflow: hidden; }
 .ml-6 { margin-left: 6px; }
 
 /* Responsive Design */
+@media (max-width: 1200px) {
+    .smart-waste-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 900px) {
+    .smart-waste-chart {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
 @media (max-width: 768px) {
     .app { flex-direction: column; }
     .sidebar { width: 100%; height: auto; position: sticky; top: 0; border-right: none; border-bottom: 1px solid rgba(255,255,255,0.08); }
@@ -4396,6 +4896,52 @@ body.modal-open { overflow: hidden; }
     table { min-width: 520px; }
     th, td { padding: 10px 12px; font-size: 0.8rem; }
     .content-row { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .smart-waste-layout {
+        grid-template-columns: 1fr;
+    }
+    .smart-waste-chart {
+        gap: 8px;
+        min-height: 140px;
+    }
+    .smart-waste-card {
+        padding: 16px;
+    }
+    .smart-waste-status-grid {
+        grid-template-columns: 1fr;
+    }
+    .smart-waste-card .table-responsive-wrapper table {
+        min-width: 680px;
+    }
+}
+.smart-waste-brand-banner {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 16px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+    border: 1px solid #86efac;
+    color: #14532d;
+    margin-bottom: 14px;
+    box-shadow: 0 12px 24px rgba(34, 197, 94, 0.12);
+}
+
+.smart-waste-brand-banner .kicker {
+    font-size: 0.74rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.smart-waste-brand-banner .station-name {
+    font-size: 1.3rem;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.smart-waste-brand-banner .station-desc {
+    font-size: 0.92rem;
+    line-height: 1.35;
 }
 .notif-badge { font-family: 'Poppins', sans-serif; }
 </style>
@@ -4416,6 +4962,7 @@ body.modal-open { overflow: hidden; }
        <a href="?page=resident_guest_forms" class="nav-item <?php echo $currentPage == 'resident_guest_forms' ? 'active' : ''; ?>" data-page="resident_guest_forms"><i class="fa-solid fa-user-plus"></i><span>Resident's Guest Request</span></a>
        <a href="?page=visitor_requests" class="nav-item <?php echo $currentPage == 'visitor_requests' ? 'active' : ''; ?>" data-page="visitor_requests"><i class="fa-solid fa-clipboard-list"></i><span>Visitor Requests</span></a>
        <a href="?page=report" class="nav-item <?php echo $currentPage == 'report' ? 'active' : ''; ?>" data-page="report"><i class="fa-solid fa-triangle-exclamation"></i><span>View Reported Incidents</span></a>
+    <a href="?page=smart_waste" class="nav-item smart-waste-link <?php echo $currentPage == 'smart_waste' ? 'active' : ''; ?>" data-page="smart_waste"><i class="fa-solid fa-recycle"></i><span class="nav-copy"><strong>VictorianEcoPoint</strong><small>Smart Waste Segregation Station</small></span></a>
     <a href="?page=security" class="nav-item <?php echo $currentPage == 'security' ? 'active' : ''; ?>" data-page="security"><i class="fa-solid fa-shield-halved"></i><span>Security Guards</span></a>
     <a href="?page=history" class="nav-item <?php echo $currentPage == 'history' ? 'active' : ''; ?>" data-page="history"><i class="fa-solid fa-box-archive"></i><span>Archived Requests</span></a>
     <a href="?page=summary" class="nav-item <?php echo $currentPage == 'summary' ? 'active' : ''; ?>" data-page="summary"><i class="fa-solid fa-chart-column"></i><span>Summary Report</span></a>
@@ -4436,6 +4983,7 @@ body.modal-open { overflow: hidden; }
       'visitor_requests' => 'Visitor Requests',
       'reservations' => 'Reservations',
       'report' => 'View Reported Incidents',
+      'smart_waste' => 'VictorianEcoPoint',
       'security' => 'Security Guards',
       'residents' => 'Residents',
       'cancelled' => 'Cancelled Requests',
@@ -4751,6 +5299,411 @@ body.modal-open { overflow: hidden; }
     <div class="dashboard-widget">
       <div class="dashboard-widget-value"><?php echo intval($cards['scheduled_arrivals_total'] ?? 0); ?></div>
       <div class="dashboard-widget-label">Guard Scheduled Arrivals (Admin Approved)</div>
+    </div>
+  </div>
+</section>
+<?php endif; ?>
+
+<?php if ($currentPage == 'smart_waste'): ?>
+<?php
+  $smartWasteStats = [
+    'resident_count' => 0,
+    'total_points_balance' => 0,
+    'earned_points' => 0,
+    'redeemed_points' => 0,
+    'log_count' => 0,
+    'conversion_count' => 0,
+    'redemption_count' => 0,
+    'total_kg_collected' => 0
+  ];
+  $weeklyActivity = [];
+  $stationCapacityLiters = 120;
+  $materialConfigs = [
+    'Plastic (PET)' => ['icon' => 'fa-bottle-water', 'color' => '#22c55e', 'liters_per_kg' => 24],
+    'Paper' => ['icon' => 'fa-file-lines', 'color' => '#60a5fa', 'liters_per_kg' => 8],
+    'Aluminum Cans' => ['icon' => 'fa-prescription-bottle', 'color' => '#f59e0b', 'liters_per_kg' => 16],
+    'Cardboard' => ['icon' => 'fa-box-open', 'color' => '#c084fc', 'liters_per_kg' => 14]
+  ];
+  $materialStats = [];
+  foreach ($materialConfigs as $label => $config) {
+    $materialStats[$label] = [
+      'kg_total' => 0.0,
+      'kg_today' => 0.0,
+      'txn_count' => 0,
+      'fill_liters' => 0.0,
+      'fill_percent' => 0,
+      'fill_status' => 'Empty',
+      'fill_class' => 'is-empty'
+    ];
+  }
+  $redemptionRecords = [];
+  $stationActivityLogs = [];
+  $participationStats = [
+    'all_time_count' => 0,
+    'last30_count' => 0,
+    'last7_count' => 0,
+    'all_time_rate' => 0,
+    'last30_rate' => 0,
+    'last7_rate' => 0
+  ];
+  $todayKey = date('Y-m-d');
+  $dateCursor = new DateTimeImmutable('today -6 days');
+  for ($i = 0; $i < 7; $i++) {
+    $key = $dateCursor->format('Y-m-d');
+    $weeklyActivity[$key] = [
+      'label' => $dateCursor->format('D'),
+      'count' => 0
+    ];
+    $dateCursor = $dateCursor->modify('+1 day');
+  }
+  if ($con instanceof mysqli) {
+    if ($res = $con->query("SELECT COUNT(*) AS c, COALESCE(SUM(points),0) AS total_points FROM users WHERE user_type='resident' AND COALESCE(status,'active') <> 'denied'")) {
+      if ($row = $res->fetch_assoc()) {
+        $smartWasteStats['resident_count'] = intval($row['c'] ?? 0);
+        $smartWasteStats['total_points_balance'] = intval($row['total_points'] ?? 0);
+      }
+    }
+    if ($res = $con->query("SELECT
+      COUNT(*) AS log_count,
+      SUM(CASE WHEN transaction_type='earn' THEN 1 ELSE 0 END) AS conversion_count,
+      SUM(CASE WHEN transaction_type='redeem' THEN 1 ELSE 0 END) AS redemption_count,
+      COALESCE(SUM(CASE WHEN transaction_type='earn' THEN amount ELSE 0 END),0) AS earned_points,
+      COALESCE(SUM(CASE WHEN transaction_type='redeem' THEN amount ELSE 0 END),0) AS redeemed_points,
+      COALESCE(SUM(CASE WHEN transaction_type='earn' THEN weight_kg ELSE 0 END),0) AS total_kg_collected
+      FROM point_transactions")) {
+      if ($row = $res->fetch_assoc()) {
+        $smartWasteStats['log_count'] = intval($row['log_count'] ?? 0);
+        $smartWasteStats['conversion_count'] = intval($row['conversion_count'] ?? 0);
+        $smartWasteStats['redemption_count'] = intval($row['redemption_count'] ?? 0);
+        $smartWasteStats['earned_points'] = intval($row['earned_points'] ?? 0);
+        $smartWasteStats['redeemed_points'] = intval($row['redeemed_points'] ?? 0);
+        $smartWasteStats['total_kg_collected'] = floatval($row['total_kg_collected'] ?? 0);
+      }
+    }
+    if ($res = $con->query("SELECT DATE(created_at) AS activity_date, COUNT(*) AS activity_count
+      FROM point_transactions
+      WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+      GROUP BY DATE(created_at)")) {
+      while ($row = $res->fetch_assoc()) {
+        $key = $row['activity_date'] ?? '';
+        if ($key !== '' && isset($weeklyActivity[$key])) {
+          $weeklyActivity[$key]['count'] = intval($row['activity_count'] ?? 0);
+        }
+      }
+    }
+    if ($res = $con->query("SELECT material_type, description, COALESCE(weight_kg,0) AS weight_kg, created_at
+      FROM point_transactions
+      WHERE transaction_type='earn'")) {
+      while ($row = $res->fetch_assoc()) {
+        $label = smartWasteMaterialLabel($row['material_type'] ?? '', $row['description'] ?? '');
+        if (!isset($materialStats[$label])) {
+          continue;
+        }
+        $weightValue = floatval($row['weight_kg'] ?? 0);
+        $materialStats[$label]['kg_total'] += $weightValue;
+        $materialStats[$label]['txn_count']++;
+        $createdDate = !empty($row['created_at']) ? date('Y-m-d', strtotime((string)$row['created_at'])) : '';
+        if ($createdDate === $todayKey) {
+          $materialStats[$label]['kg_today'] += $weightValue;
+        }
+      }
+    }
+    if ($res = $con->query("SELECT COUNT(DISTINCT user_id) AS c
+      FROM point_transactions
+      WHERE transaction_type='earn'")) {
+      if ($row = $res->fetch_assoc()) {
+        $participationStats['all_time_count'] = intval($row['c'] ?? 0);
+      }
+    }
+    if ($res = $con->query("SELECT COUNT(DISTINCT user_id) AS c
+      FROM point_transactions
+      WHERE transaction_type='earn' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")) {
+      if ($row = $res->fetch_assoc()) {
+        $participationStats['last30_count'] = intval($row['c'] ?? 0);
+      }
+    }
+    if ($res = $con->query("SELECT COUNT(DISTINCT user_id) AS c
+      FROM point_transactions
+      WHERE transaction_type='earn' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)")) {
+      if ($row = $res->fetch_assoc()) {
+        $participationStats['last7_count'] = intval($row['c'] ?? 0);
+      }
+    }
+    if ($res = $con->query("SELECT pt.amount, pt.description, pt.reservation_ref_code, pt.created_at,
+      u.first_name, u.last_name
+      FROM point_transactions pt
+      LEFT JOIN users u ON u.id = pt.user_id
+      WHERE pt.transaction_type='redeem'
+      ORDER BY pt.created_at DESC
+      LIMIT 8")) {
+      while ($row = $res->fetch_assoc()) {
+        $redemptionRecords[] = $row;
+      }
+    }
+    if ($res = $con->query("SELECT pt.transaction_type, pt.amount, pt.description, pt.material_type, pt.weight_kg, pt.created_at, pt.reservation_ref_code,
+      u.first_name, u.last_name
+      FROM point_transactions pt
+      LEFT JOIN users u ON u.id = pt.user_id
+      ORDER BY pt.created_at DESC
+      LIMIT 15")) {
+      while ($row = $res->fetch_assoc()) {
+        $stationActivityLogs[] = $row;
+      }
+    }
+  }
+  foreach ($materialStats as $label => &$materialRow) {
+    $litersPerKg = floatval($materialConfigs[$label]['liters_per_kg'] ?? 0);
+    $estimatedLiters = min($stationCapacityLiters, $materialRow['kg_today'] * $litersPerKg);
+    $fillPercent = $stationCapacityLiters > 0 ? intval(round(($estimatedLiters / $stationCapacityLiters) * 100)) : 0;
+    $materialRow['fill_liters'] = $estimatedLiters;
+    $materialRow['fill_percent'] = $fillPercent;
+    if ($fillPercent >= 95) {
+      $materialRow['fill_status'] = 'Full';
+      $materialRow['fill_class'] = 'is-full';
+    } elseif ($fillPercent >= 75) {
+      $materialRow['fill_status'] = 'Near Full';
+      $materialRow['fill_class'] = 'is-high';
+    } elseif ($fillPercent >= 40) {
+      $materialRow['fill_status'] = 'Moderate';
+      $materialRow['fill_class'] = 'is-medium';
+    } elseif ($fillPercent > 0) {
+      $materialRow['fill_status'] = 'Low';
+      $materialRow['fill_class'] = 'is-low';
+    } else {
+      $materialRow['fill_status'] = 'Empty';
+      $materialRow['fill_class'] = 'is-empty';
+    }
+  }
+  unset($materialRow);
+  $residentBase = max(1, intval($smartWasteStats['resident_count']));
+  $participationStats['all_time_rate'] = round(($participationStats['all_time_count'] / $residentBase) * 100, 1);
+  $participationStats['last30_rate'] = round(($participationStats['last30_count'] / $residentBase) * 100, 1);
+  $participationStats['last7_rate'] = round(($participationStats['last7_count'] / $residentBase) * 100, 1);
+  $maxWeeklyCount = 1;
+  foreach ($weeklyActivity as $day) {
+    if (($day['count'] ?? 0) > $maxWeeklyCount) {
+      $maxWeeklyCount = intval($day['count']);
+    }
+  }
+  $maxMaterialKg = 1;
+  foreach ($materialStats as $materialRow) {
+    if (($materialRow['kg_total'] ?? 0) > $maxMaterialKg) {
+      $maxMaterialKg = floatval($materialRow['kg_total']);
+    }
+  }
+?>
+<section class="panel" id="smart-waste-panel">
+  <div class="smart-waste-brand-banner">
+    <span class="station-name">VictorianEcoPoint</span>
+    <span class="station-desc">Smart Waste Segregation Station</span>
+  </div>
+  <h3>EcoPoint Admin Panel</h3>
+  <div class="notice">View estimated live bin levels, total collected kilograms, resident participation rates, point redemption records, and station activity logs for VictorianEcoPoint inside the existing VictorianPass admin dashboard.</div>
+
+  <div class="dashboard-grid" style="padding:0; margin:0 0 20px;">
+    <div class="dashboard-widget">
+      <div class="dashboard-widget-label">Bin Capacity</div>
+      <div class="dashboard-widget-value"><?php echo number_format($stationCapacityLiters); ?>L</div>
+      <div class="dashboard-widget-subtext">Per material bin capacity</div>
+    </div>
+    <div class="dashboard-widget">
+      <div class="dashboard-widget-label">Total Kg Collected</div>
+      <div class="dashboard-widget-value"><?php echo number_format($smartWasteStats['total_kg_collected'], 2); ?></div>
+      <div class="dashboard-widget-subtext">Logged recyclable weight across all materials</div>
+    </div>
+    <div class="dashboard-widget">
+      <div class="dashboard-widget-label">Participation Rate</div>
+      <div class="dashboard-widget-value"><?php echo number_format($participationStats['all_time_rate'], 1); ?>%</div>
+      <div class="dashboard-widget-subtext"><?php echo number_format($participationStats['all_time_count']); ?> of <?php echo number_format($smartWasteStats['resident_count']); ?> residents have deposited</div>
+    </div>
+    <div class="dashboard-widget">
+      <div class="dashboard-widget-label">Redemption Records</div>
+      <div class="dashboard-widget-value"><?php echo number_format($smartWasteStats['redemption_count']); ?></div>
+      <div class="dashboard-widget-subtext"><?php echo number_format($smartWasteStats['redeemed_points']); ?> total points redeemed</div>
+    </div>
+  </div>
+
+  <div class="smart-waste-layout">
+    <div class="smart-waste-main">
+      <div class="smart-waste-card">
+        <h4>Real-Time Bin Fill Levels</h4>
+        <div class="smart-waste-note">Estimated live fill level per material using today's logged deposits and a 120L capacity for each VictorianEcoPoint bin.</div>
+        <div class="smart-waste-bin-grid">
+          <?php foreach ($materialStats as $label => $materialRow): ?>
+            <?php $materialConfig = $materialConfigs[$label] ?? ['icon' => 'fa-recycle', 'color' => '#2f7d32']; ?>
+            <div class="smart-waste-bin-card">
+              <div class="smart-waste-bin-head">
+                <div>
+                  <div class="smart-waste-bin-label">
+                    <i class="fa-solid <?php echo htmlspecialchars($materialConfig['icon']); ?>" style="color:<?php echo htmlspecialchars($materialConfig['color']); ?>; margin-right:6px;"></i>
+                    <?php echo htmlspecialchars($label); ?>
+                  </div>
+                  <div class="smart-waste-bin-subtitle"><?php echo number_format($materialRow['kg_today'], 2); ?> kg logged today</div>
+                </div>
+                <div class="smart-waste-bin-percent"><?php echo number_format($materialRow['fill_percent']); ?>%</div>
+              </div>
+              <div class="smart-waste-meter">
+                <div class="smart-waste-meter-bar" style="width:<?php echo max(0, min(100, intval($materialRow['fill_percent']))); ?>%; background:<?php echo htmlspecialchars($materialConfig['color']); ?>;"></div>
+              </div>
+              <div class="smart-waste-bin-meta">
+                <span><?php echo number_format($materialRow['fill_liters'], 1); ?> / <?php echo number_format($stationCapacityLiters); ?> L</span>
+                <span class="smart-waste-bin-pill <?php echo htmlspecialchars($materialRow['fill_class']); ?>"><?php echo htmlspecialchars($materialRow['fill_status']); ?></span>
+              </div>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+
+      <div class="smart-waste-card">
+        <h4>Station Activity Logs</h4>
+        <div class="smart-waste-note">Latest VictorianEcoPoint transactions with resident, material, weight, points, and reference tracking.</div>
+        <div class="table-responsive-wrapper smart-waste-table-compact">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Resident</th>
+                <th>Activity</th>
+                <th>Material</th>
+                <th>Weight</th>
+                <th>Points</th>
+                <th>Reference</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php if (empty($stationActivityLogs)): ?>
+                <tr><td colspan="7" style="text-align:center;">No station activity logs found.</td></tr>
+              <?php else: ?>
+                <?php foreach ($stationActivityLogs as $log): ?>
+                  <?php
+                    $logName = trim(($log['first_name'] ?? '') . ' ' . ($log['last_name'] ?? ''));
+                    if ($logName === '') { $logName = 'Resident'; }
+                    $txType = strtolower(trim((string)($log['transaction_type'] ?? 'adjustment')));
+                    $activityLabel = $txType === 'earn' ? 'Earn' : ($txType === 'redeem' ? 'Redeem' : 'Adjustment');
+                    $materialLabel = $txType === 'earn' ? smartWasteMaterialLabel($log['material_type'] ?? '', $log['description'] ?? '') : '-';
+                    $weightLabel = ($txType === 'earn' && floatval($log['weight_kg'] ?? 0) > 0) ? number_format(floatval($log['weight_kg'] ?? 0), 2) . ' kg' : '-';
+                    $pointsValue = intval($log['amount'] ?? 0);
+                    $pointsLabel = ($txType === 'redeem' ? '-' : '+') . number_format($pointsValue) . ' pts';
+                    $eventTime = !empty($log['created_at']) ? date('M d, Y g:i A', strtotime($log['created_at'])) : '-';
+                    $referenceCode = trim((string)($log['reservation_ref_code'] ?? ''));
+                  ?>
+                  <tr>
+                    <td><?php echo htmlspecialchars($eventTime); ?></td>
+                    <td><?php echo htmlspecialchars($logName); ?></td>
+                    <td><span class="smart-waste-status-pill"><?php echo htmlspecialchars(strtoupper($activityLabel)); ?></span></td>
+                    <td><?php echo htmlspecialchars($materialLabel); ?></td>
+                    <td><?php echo htmlspecialchars($weightLabel); ?></td>
+                    <td style="font-weight:800; color:<?php echo $txType === 'redeem' ? '#b91c1c' : '#166534'; ?>;"><?php echo htmlspecialchars($pointsLabel); ?></td>
+                    <td class="wrap"><?php echo htmlspecialchars($referenceCode !== '' ? $referenceCode : 'N/A'); ?></td>
+                  </tr>
+                <?php endforeach; ?>
+              <?php endif; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="smart-waste-card">
+        <h4>Weekly Station Activity</h4>
+        <div class="smart-waste-note">Last 7 days of logged VictorianEcoPoint point activity.</div>
+        <div class="smart-waste-chart">
+          <?php foreach ($weeklyActivity as $day): ?>
+            <?php
+              $barHeight = max(18, intval((($day['count'] ?? 0) / $maxWeeklyCount) * 120));
+              if (($day['count'] ?? 0) === 0) { $barHeight = 18; }
+            ?>
+            <div class="smart-waste-bar-wrap">
+              <div class="smart-waste-bar-value"><?php echo intval($day['count'] ?? 0); ?></div>
+              <div class="smart-waste-bar" style="height:<?php echo $barHeight; ?>px;"></div>
+              <div class="smart-waste-bar-label"><?php echo htmlspecialchars($day['label'] ?? ''); ?></div>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+    </div>
+
+    <div class="smart-waste-side">
+      <div class="smart-waste-card">
+        <h4>Total Kg Collected Per Material Type</h4>
+        <div class="smart-waste-note">All-time collected weight and deposit volume for each VictorianEcoPoint material category.</div>
+        <div class="smart-waste-list">
+          <?php foreach ($materialStats as $label => $materialRow): ?>
+            <?php $materialConfig = $materialConfigs[$label] ?? ['icon' => 'fa-recycle', 'color' => '#2f7d32']; ?>
+            <div class="smart-waste-list-item">
+              <span class="smart-waste-material-icon" style="color:<?php echo htmlspecialchars($materialConfig['color']); ?>;">
+                <i class="fa-solid <?php echo htmlspecialchars($materialConfig['icon']); ?>"></i>
+              </span>
+              <div class="smart-waste-list-main">
+                <div class="smart-waste-list-title"><?php echo htmlspecialchars($label); ?></div>
+                <div class="smart-waste-list-subtitle"><?php echo number_format($materialRow['txn_count']); ?> deposit logs</div>
+                <div class="smart-waste-progress">
+                  <div class="smart-waste-progress-bar" style="width:<?php echo intval(($materialRow['kg_total'] / $maxMaterialKg) * 100); ?>%; background:<?php echo htmlspecialchars($materialConfig['color']); ?>;"></div>
+                </div>
+              </div>
+              <div class="smart-waste-list-value"><?php echo number_format($materialRow['kg_total'], 2); ?> kg</div>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+
+      <div class="smart-waste-card">
+        <h4>Resident Participation Rates</h4>
+        <div class="smart-waste-note">Participation is based on unique residents who logged at least one earn transaction in VictorianEcoPoint.</div>
+        <div class="smart-waste-kpi-grid">
+          <div class="smart-waste-kpi">
+            <div class="smart-waste-kpi-label">All-Time Participation</div>
+            <div class="smart-waste-kpi-value"><?php echo number_format($participationStats['all_time_rate'], 1); ?>%</div>
+            <div class="smart-waste-kpi-subtext"><?php echo number_format($participationStats['all_time_count']); ?> residents of <?php echo number_format($smartWasteStats['resident_count']); ?></div>
+          </div>
+          <div class="smart-waste-kpi">
+            <div class="smart-waste-kpi-label">Active in Last 30 Days</div>
+            <div class="smart-waste-kpi-value"><?php echo number_format($participationStats['last30_rate'], 1); ?>%</div>
+            <div class="smart-waste-kpi-subtext"><?php echo number_format($participationStats['last30_count']); ?> recently participating residents</div>
+          </div>
+          <div class="smart-waste-kpi">
+            <div class="smart-waste-kpi-label">Active in Last 7 Days</div>
+            <div class="smart-waste-kpi-value"><?php echo number_format($participationStats['last7_rate'], 1); ?>%</div>
+            <div class="smart-waste-kpi-subtext"><?php echo number_format($participationStats['last7_count']); ?> active residents this week</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="smart-waste-card">
+        <h4>Point Redemption Records</h4>
+        <div class="smart-waste-note">Most recent point redemption transactions linked to resident rewards and booking references.</div>
+        <?php if (empty($redemptionRecords)): ?>
+          <div class="smart-waste-empty">No point redemption records found yet.</div>
+        <?php else: ?>
+          <div class="smart-waste-list">
+            <?php foreach ($redemptionRecords as $record): ?>
+              <?php
+                $recordName = trim(($record['first_name'] ?? '') . ' ' . ($record['last_name'] ?? ''));
+                if ($recordName === '') { $recordName = 'Resident'; }
+                $recordDate = !empty($record['created_at']) ? date('M d, Y g:i A', strtotime($record['created_at'])) : '-';
+                $recordDesc = trim((string)($record['description'] ?? ''));
+                if ($recordDesc === '') { $recordDesc = 'Amenity reward redemption'; }
+                $recordRef = trim((string)($record['reservation_ref_code'] ?? ''));
+              ?>
+              <div class="smart-waste-list-item">
+                <span class="smart-waste-material-icon" style="background:#fef2f2; color:#b91c1c;">
+                  <i class="fa-solid fa-gift"></i>
+                </span>
+                <div class="smart-waste-list-main">
+                  <div class="smart-waste-list-title"><?php echo htmlspecialchars($recordName); ?></div>
+                  <div class="smart-waste-list-subtitle">
+                    <?php echo htmlspecialchars($recordDesc); ?>
+                    <?php if ($recordRef !== ''): ?>
+                      • Ref: <?php echo htmlspecialchars($recordRef); ?>
+                    <?php endif; ?>
+                    <br><?php echo htmlspecialchars($recordDate); ?>
+                  </div>
+                </div>
+                <div class="smart-waste-list-value" style="color:#b91c1c;">-<?php echo number_format(intval($record['amount'] ?? 0)); ?> pts</div>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
+      </div>
     </div>
   </div>
 </section>

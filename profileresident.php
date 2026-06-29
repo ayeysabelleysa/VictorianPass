@@ -73,6 +73,16 @@ function ensurePasswordField($con){
   }
 }
 ensurePasswordField($con);
+function residentEcoPointMaterialLabel($materialType = '', $description = ''){
+  $value = strtolower(trim((string)$materialType));
+  $desc = strtolower((string)$description);
+  $haystack = trim($value . ' ' . $desc);
+  if (strpos($haystack, 'plastic') !== false || strpos($haystack, 'pet') !== false) return 'Plastic (PET)';
+  if (strpos($haystack, 'aluminum') !== false || strpos($haystack, 'aluminium') !== false || strpos($haystack, 'can') !== false) return 'Aluminum Cans';
+  if (strpos($haystack, 'cardboard') !== false) return 'Cardboard';
+  if (strpos($haystack, 'paper') !== false) return 'Paper';
+  return 'Other';
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
   $current = $_POST['current_password'] ?? '';
   $newPass = $_POST['new_password'] ?? '';
@@ -230,7 +240,7 @@ $activeSection = 'panel-requests';
 // Fetch point transactions
 $pointTransactions = [];
 if ($con instanceof mysqli) {
-    $stmt = $con->prepare("SELECT id, transaction_type, amount, description, reservation_ref_code, created_at FROM point_transactions WHERE user_id = ? ORDER BY created_at DESC");
+    $stmt = $con->prepare("SELECT id, transaction_type, amount, description, reservation_ref_code, material_type, weight_kg, created_at FROM point_transactions WHERE user_id = ? ORDER BY created_at DESC");
     if ($stmt) {
         $stmt->bind_param("i", $userId);
         $stmt->execute();
@@ -255,6 +265,72 @@ if ($con instanceof mysqli) {
         }
         $stmt->close();
     }
+}
+$ecoPointWeeklyCap = 250;
+$ecoPointDailySessionsMax = 3;
+$ecoPointExpiryDays = 365;
+$ecoPointWeeklyStats = [
+    'Plastic (PET)' => ['points' => 0, 'weight' => 0.0],
+    'Aluminum Cans' => ['points' => 0, 'weight' => 0.0],
+    'Paper' => ['points' => 0, 'weight' => 0.0],
+    'Cardboard' => ['points' => 0, 'weight' => 0.0]
+];
+$ecoPointWeeklyPoints = 0;
+$ecoPointTodaySessionsUsed = 0;
+$ecoPointRecyclingHistory = [];
+$ecoPointNextExpiryTs = null;
+$todayDateKey = date('Y-m-d');
+$weekStartDateKey = date('Y-m-d', strtotime('monday this week'));
+$weekEndDateKey = date('Y-m-d', strtotime('sunday this week'));
+foreach ($pointTransactions as $tx) {
+    $txType = strtolower(trim((string)($tx['transaction_type'] ?? '')));
+    if ($txType !== 'earn') {
+        continue;
+    }
+    $createdAt = (string)($tx['created_at'] ?? '');
+    $createdTs = $createdAt !== '' ? strtotime($createdAt) : false;
+    $createdDateKey = $createdTs ? date('Y-m-d', $createdTs) : '';
+    $materialLabel = residentEcoPointMaterialLabel($tx['material_type'] ?? '', $tx['description'] ?? '');
+    $weightKg = floatval($tx['weight_kg'] ?? 0);
+    $pointsEarned = intval($tx['amount'] ?? 0);
+    $ecoPointRecyclingHistory[] = [
+        'date_label' => $createdTs ? date('m/d/y g:i A', $createdTs) : '-',
+        'material_label' => $materialLabel,
+        'weight_kg' => $weightKg,
+        'points_earned' => $pointsEarned,
+        'description' => (string)($tx['description'] ?? '')
+    ];
+    if ($createdDateKey === $todayDateKey) {
+        $ecoPointTodaySessionsUsed++;
+    }
+    if ($createdDateKey !== '' && $createdDateKey >= $weekStartDateKey && $createdDateKey <= $weekEndDateKey) {
+        $ecoPointWeeklyPoints += $pointsEarned;
+        if (isset($ecoPointWeeklyStats[$materialLabel])) {
+            $ecoPointWeeklyStats[$materialLabel]['points'] += $pointsEarned;
+            $ecoPointWeeklyStats[$materialLabel]['weight'] += $weightKg;
+        }
+    }
+    if ($createdTs) {
+        $expiryTs = strtotime('+' . $ecoPointExpiryDays . ' days', $createdTs);
+        if ($expiryTs && $expiryTs > time() && ($ecoPointNextExpiryTs === null || $expiryTs < $ecoPointNextExpiryTs)) {
+            $ecoPointNextExpiryTs = $expiryTs;
+        }
+    }
+}
+$ecoPointWeeklyRemaining = max(0, $ecoPointWeeklyCap - $ecoPointWeeklyPoints);
+$ecoPointWeeklyProgress = $ecoPointWeeklyCap > 0 ? min(100, round(($ecoPointWeeklyPoints / $ecoPointWeeklyCap) * 100)) : 0;
+$ecoPointSessionsRemaining = max(0, $ecoPointDailySessionsMax - $ecoPointTodaySessionsUsed);
+$ecoPointExpiryCountdownLabel = 'No active recycling points yet';
+$ecoPointExpiryCountdownSubtext = 'Start using VictorianEcoPoint to begin your points cycle.';
+if ($ecoPointNextExpiryTs !== null) {
+    $secondsLeft = max(0, $ecoPointNextExpiryTs - time());
+    $daysLeft = (int)floor($secondsLeft / 86400);
+    $hoursLeft = (int)floor(($secondsLeft % 86400) / 3600);
+    $ecoPointExpiryCountdownLabel = $daysLeft . ' day' . ($daysLeft === 1 ? '' : 's');
+    if ($daysLeft < 1) {
+        $ecoPointExpiryCountdownLabel = max(1, $hoursLeft) . ' hour' . (max(1, $hoursLeft) === 1 ? '' : 's');
+    }
+    $ecoPointExpiryCountdownSubtext = 'Estimated next points expiry: ' . date('M d, Y', $ecoPointNextExpiryTs);
 }
 
 // Fetch Activities (Reservations, Reports, Guest Forms)
@@ -883,6 +959,41 @@ body.account-blocked { overflow: hidden; }
 /* Moved to dashboard.css */
 .note-error{color:#b91c1c;font-weight:700;}
 .notif-error { color:#b91c1c; font-weight:700; }
+.ecopoint-panel-shell{display:flex;flex-direction:column;gap:18px}
+.ecopoint-header-card{background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:1px solid #86efac;border-radius:18px;padding:18px 20px;color:#14532d}
+.ecopoint-header-kicker{font-size:0.74rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em}
+.ecopoint-header-title{font-size:1.4rem;font-weight:800;margin-top:4px}
+.ecopoint-header-desc{font-size:0.9rem;line-height:1.5;margin-top:6px;color:#166534}
+.ecopoint-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+.ecopoint-kpi-card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:16px;box-shadow:0 4px 16px rgba(15,23,42,0.05)}
+.ecopoint-kpi-label{font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#6b7280}
+.ecopoint-kpi-value{font-size:1.6rem;font-weight:800;color:#111827;margin-top:6px}
+.ecopoint-kpi-subtext{font-size:0.82rem;color:#4b5563;line-height:1.45;margin-top:6px}
+.ecopoint-card{background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:18px;box-shadow:0 4px 16px rgba(15,23,42,0.05)}
+.ecopoint-card-title{font-size:1.02rem;font-weight:800;color:#111827;margin:0 0 6px}
+.ecopoint-card-note{font-size:0.85rem;color:#6b7280;line-height:1.45;margin-bottom:14px}
+.ecopoint-progress{width:100%;height:10px;border-radius:999px;background:#e5e7eb;overflow:hidden}
+.ecopoint-progress-bar{height:100%;border-radius:inherit;background:linear-gradient(90deg,#16a34a,#22c55e)}
+.ecopoint-material-list{display:flex;flex-direction:column;gap:12px}
+.ecopoint-material-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f1f5f9}
+.ecopoint-material-row:last-child{border-bottom:none;padding-bottom:0}
+.ecopoint-material-main{flex:1;min-width:0}
+.ecopoint-material-title{font-weight:700;color:#111827;font-size:0.92rem}
+.ecopoint-material-subtitle{font-size:0.8rem;color:#6b7280;margin-top:2px}
+.ecopoint-material-value{font-weight:800;color:#14532d;font-size:0.9rem;white-space:nowrap}
+.ecopoint-actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.ecopoint-action-btn{display:inline-flex;align-items:center;gap:8px;padding:11px 16px;border-radius:12px;background:#23412e;color:#fff;text-decoration:none;font-weight:700;border:none;cursor:pointer}
+.ecopoint-action-btn:hover{background:#1b3424}
+.ecopoint-action-note{font-size:0.82rem;color:#6b7280}
+.ecopoint-table-wrap{width:100%;overflow-x:auto}
+.ecopoint-table{width:100%;border-collapse:collapse;min-width:640px}
+.ecopoint-table th,.ecopoint-table td{padding:12px 10px;border-bottom:1px solid #e5e7eb;text-align:left;font-size:0.88rem;vertical-align:top}
+.ecopoint-table th{font-size:0.78rem;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;color:#6b7280;background:#f8fafc}
+.ecopoint-empty{padding:18px;border:1px dashed #d1d5db;border-radius:14px;background:#f9fafb;color:#6b7280;text-align:center}
+@media (max-width: 768px){
+  .ecopoint-kpi-grid{grid-template-columns:1fr}
+  .ecopoint-header-title{font-size:1.2rem}
+}
 </style>
 <style>
 .item-extra-link.item-extra-cancel{background:#ef4444;color:#ffffff;border:1px solid #ef4444;padding:8px 16px;border-radius:50px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;font-weight:500;text-decoration:none}
@@ -939,7 +1050,8 @@ body.account-blocked { overflow: hidden; }
         <i class="fa-solid fa-coins"></i>
         <span>
           Points History
-          <small style="display:block; font-size:0.7rem; color:#999; font-weight:400; margin-top:2px;">Smart Waste Segregation Station</small>
+          <small style="display:block; font-size:0.7rem; color:#3f8f5a; font-weight:700; margin-top:2px;">VictorianEcoPoint</small>
+          <small style="display:block; font-size:0.68rem; color:#999; font-weight:400; margin-top:1px;">Smart Waste Segregation Station</small>
         </span>
       </a>
       <a href="#" class="nav-item" data-section="panel-guest-form"><i class="fa-solid fa-user-plus"></i> <span>Guest Form</span></a>
@@ -1155,46 +1267,100 @@ body.account-blocked { overflow: hidden; }
         <div class="panel-section" id="panel-points-history" style="display:none;">
           <div class="activity-list-header">
             <div>
-              Points History
-              <div style="font-size:0.8rem; color:#999; margin-top:4px;"><i class="fa-solid fa-coins"></i> Current Balance: <strong style="color:#23412e;"><?php echo number_format($currentPoints); ?> pts</strong></div>
+              VictorianEcoPoint
+              <div style="font-size:0.8rem; color:#999; margin-top:4px;">Smart Waste Segregation Station dashboard for residents</div>
             </div>
           </div>
 
-          <div class="item-list" style="margin-top:20px;">
-            <?php if (empty($pointTransactions)): ?>
-              <div style="padding:20px; text-align:center; color:#777;">No point transactions yet.</div>
-            <?php else: ?>
-              <?php foreach ($pointTransactions as $tx): 
-                $isEarn = $tx['transaction_type'] === 'earn';
-                $txIcon = $isEarn ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down';
-                $txColor = $isEarn ? '#16a34a' : '#dc2626';
-                $txAmount = $isEarn ? '+' . $tx['amount'] : '-' . $tx['amount'];
-                $txDate = date('m/d/y g:i A', strtotime($tx['created_at']));
-              ?>
-                <div class="list-item">
-                  <div class="item-icon" style="background:<?php echo $txColor; ?>15; color:<?php echo $txColor; ?>;">
-                    <i class="fa-solid <?php echo $txIcon; ?>"></i>
-                  </div>
-                  <div class="item-content">
-                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                      <div class="item-left">
-                        <span class="status-badge" style="background:<?php echo $txColor; ?>15; color:<?php echo $txColor; ?>; border:1px solid <?php echo $txColor; ?>30; padding:4px 10px; border-radius:10px;">
-                          <?php echo $isEarn ? 'Earned' : 'Redeemed'; ?>
-                        </span>
-                        <span class="item-title" style="margin-left:8px;"><?php echo htmlspecialchars($tx['description']); ?></span>
+          <div class="ecopoint-panel-shell" style="margin-top:20px;">
+            <div class="ecopoint-header-card">
+              <div class="ecopoint-header-kicker">Resident EcoPoint</div>
+              <div class="ecopoint-header-title">VictorianEcoPoint</div>
+              <div class="ecopoint-header-desc">Track your current point balance, weekly recycling progress, daily session usage, expiry countdown, and station-ready QR access in one place.</div>
+            </div>
+
+            <div class="ecopoint-kpi-grid">
+              <div class="ecopoint-kpi-card">
+                <div class="ecopoint-kpi-label">Current Point Balance</div>
+                <div class="ecopoint-kpi-value"><?php echo number_format($currentPoints); ?> pts</div>
+                <div class="ecopoint-kpi-subtext">Updated from your live VictorianPass resident account balance.</div>
+              </div>
+              <div class="ecopoint-kpi-card">
+                <div class="ecopoint-kpi-label">Weekly Points Earned</div>
+                <div class="ecopoint-kpi-value"><?php echo number_format($ecoPointWeeklyPoints); ?> / <?php echo number_format($ecoPointWeeklyCap); ?> pts</div>
+                <div class="ecopoint-kpi-subtext"><?php echo number_format($ecoPointWeeklyRemaining); ?> pts remain before this week's program cap resets.</div>
+              </div>
+              <div class="ecopoint-kpi-card">
+                <div class="ecopoint-kpi-label">Daily Sessions Remaining</div>
+                <div class="ecopoint-kpi-value"><?php echo number_format($ecoPointSessionsRemaining); ?> / <?php echo number_format($ecoPointDailySessionsMax); ?></div>
+                <div class="ecopoint-kpi-subtext"><?php echo number_format($ecoPointTodaySessionsUsed); ?> station sessions logged today. Maximum of 3 per day.</div>
+              </div>
+              <div class="ecopoint-kpi-card">
+                <div class="ecopoint-kpi-label">Points Expiry Countdown</div>
+                <div class="ecopoint-kpi-value"><?php echo htmlspecialchars($ecoPointExpiryCountdownLabel); ?></div>
+                <div class="ecopoint-kpi-subtext"><?php echo htmlspecialchars($ecoPointExpiryCountdownSubtext); ?></div>
+              </div>
+            </div>
+
+            <div class="ecopoint-card">
+              <h3 class="ecopoint-card-title">Weekly Material Cap Tracker</h3>
+              <div class="ecopoint-card-note">Weekly contributions count toward the current 250-point program cap. Material rows show your contribution by recyclables logged this week.</div>
+              <div class="ecopoint-progress" style="margin-bottom:14px;">
+                <div class="ecopoint-progress-bar" style="width:<?php echo intval($ecoPointWeeklyProgress); ?>%;"></div>
+              </div>
+              <div class="ecopoint-actions" style="margin-bottom:12px;">
+                <button type="button" class="ecopoint-action-btn" onclick="downloadPersonalQR(); return false;">
+                  <i class="fa-solid fa-qrcode"></i> Download Station QR
+                </button>
+                <div class="ecopoint-action-note">Use this QR code at the VictorianEcoPoint station scanner.</div>
+              </div>
+              <div class="ecopoint-material-list">
+                <?php foreach ($ecoPointWeeklyStats as $materialLabel => $materialStat): ?>
+                  <?php $materialProgress = $ecoPointWeeklyCap > 0 ? min(100, round(($materialStat['points'] / $ecoPointWeeklyCap) * 100)) : 0; ?>
+                  <div class="ecopoint-material-row">
+                    <div class="ecopoint-material-main">
+                      <div class="ecopoint-material-title"><?php echo htmlspecialchars($materialLabel); ?></div>
+                      <div class="ecopoint-material-subtitle"><?php echo number_format($materialStat['weight'], 2); ?> kg recycled this week</div>
+                      <div class="ecopoint-progress" style="margin-top:8px;">
+                        <div class="ecopoint-progress-bar" style="width:<?php echo intval($materialProgress); ?>%;"></div>
                       </div>
-                      <div style="font-weight:800; color:<?php echo $txColor; ?>; font-size:1rem;"><?php echo $txAmount; ?> pts</div>
                     </div>
-                    <div style="font-size:0.8rem; color:#999; margin-left:48px;">
-                      <?php echo $txDate; ?>
-                      <?php if (!empty($tx['reservation_ref_code'])): ?>
-                        • Ref: <?php echo htmlspecialchars($tx['reservation_ref_code']); ?>
-                      <?php endif; ?>
-                    </div>
+                    <div class="ecopoint-material-value"><?php echo number_format($materialStat['points']); ?> pts</div>
                   </div>
+                <?php endforeach; ?>
+              </div>
+            </div>
+
+            <div class="ecopoint-card">
+              <h3 class="ecopoint-card-title">Recycling Activity History</h3>
+              <div class="ecopoint-card-note">Each deposit shows when you recycled, the detected material, recorded weight, and the points earned from that station activity.</div>
+              <?php if (empty($ecoPointRecyclingHistory)): ?>
+                <div class="ecopoint-empty">No VictorianEcoPoint recycling activity yet.</div>
+              <?php else: ?>
+                <div class="ecopoint-table-wrap">
+                  <table class="ecopoint-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Material</th>
+                        <th>Weight</th>
+                        <th>Points Earned</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <?php foreach ($ecoPointRecyclingHistory as $historyRow): ?>
+                        <tr>
+                          <td><?php echo htmlspecialchars($historyRow['date_label']); ?></td>
+                          <td><?php echo htmlspecialchars($historyRow['material_label']); ?></td>
+                          <td><?php echo number_format($historyRow['weight_kg'], 2); ?> kg</td>
+                          <td style="font-weight:800; color:#166534;">+<?php echo number_format($historyRow['points_earned']); ?> pts</td>
+                        </tr>
+                      <?php endforeach; ?>
+                    </tbody>
+                  </table>
                 </div>
-              <?php endforeach; ?>
-            <?php endif; ?>
+              <?php endif; ?>
+            </div>
           </div>
         </div>
 

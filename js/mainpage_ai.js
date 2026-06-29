@@ -1,5 +1,5 @@
 // VictorianPass AI Chatbot Logic
-document.addEventListener('DOMContentLoaded', function() {
+function initVictorianPassAIChatbot() {
     // DOM Elements
     const aiChatToggle = document.getElementById('aiChatToggle');
     const aiChatbotPanel = document.getElementById('aiChatbotPanel');
@@ -13,6 +13,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const chatbotTyping = document.getElementById('chatbotTyping');
     const aiSearchInput = document.getElementById('aiSearchInput');
     const suggestedBtns = document.querySelectorAll('.suggested-btn');
+
+    if (!aiChatToggle || !aiChatbotPanel || !chatbotMinimize || !chatbotClose ||
+        !chatbotInput || !chatbotSendBtn || !chatbotMessages || !chatbotClear ||
+        !chatbotWelcome || !chatbotTyping) {
+        return;
+    }
 
     let isMinimized = false;
 
@@ -57,25 +63,27 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // AI Search Bar Input - Open Chatbot and Send Query
-    aiSearchInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            const query = aiSearchInput.value.trim();
-            if (query) {
-                // Open chatbot
-                aiChatbotPanel.classList.add('active');
-                if (isMinimized) {
-                    aiChatbotPanel.classList.remove('minimized');
-                    isMinimized = false;
+    if (aiSearchInput) {
+        aiSearchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const query = aiSearchInput.value.trim();
+                if (query) {
+                    // Open chatbot
+                    aiChatbotPanel.classList.add('active');
+                    if (isMinimized) {
+                        aiChatbotPanel.classList.remove('minimized');
+                        isMinimized = false;
+                    }
+                    // Send the search query
+                    sendAIQuery(query);
+                    // Clear search bar
+                    aiSearchInput.value = '';
+                    chatbotInput.focus();
                 }
-                // Send the search query
-                sendAIQuery(query);
-                // Clear search bar
-                aiSearchInput.value = '';
-                chatbotInput.focus();
             }
-        }
-    });
+        });
+    }
 
     // Suggested Questions Click
     suggestedBtns.forEach(btn => {
@@ -134,7 +142,22 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             body: JSON.stringify({ query: query })
         })
-        .then(response => response.json())
+        .then(async response => {
+            const text = await response.text();
+            let data = null;
+
+            try {
+                data = JSON.parse(text);
+            } catch (error) {
+                throw new Error('Invalid JSON response');
+            }
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Request failed');
+            }
+
+            return data;
+        })
         .then(data => {
             chatbotTyping.style.display = 'none';
             
@@ -230,4 +253,10 @@ document.addEventListener('DOMContentLoaded', function() {
             aiChatToggle.click();
         }
     });
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initVictorianPassAIChatbot);
+} else {
+    initVictorianPassAIChatbot();
+}

@@ -159,6 +159,7 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
 .inline-amenity-details{display:flex;flex-direction:column;gap:12px;font-size:0.9rem;color:#23412e;margin-top:12px}
 .inline-amenity-details .inline-title{font-weight:700;font-size:1.15rem;color:#111827;letter-spacing:-0.01em;margin-bottom:4px}
 .inline-amenity-details .inline-meta{font-size:0.9rem;color:#23412e;line-height:1.6}
+.inline-amenity-details .inline-note{margin:0;font-size:0.88rem;font-weight:700;line-height:1.5;color:#166534;background:#ecfdf5;border:1px solid #bbf7d0;border-radius:12px;padding:10px 12px}
 .reservation-card{background:#fff;color:#111827;padding:24px;border-radius:16px;box-shadow:0 4px 16px rgba(15,23,42,0.08);border:1px solid #e5e7eb;display:flex;flex-direction:column;gap:20px;max-width:900px;margin:0 auto}
 .reservation-grid{display:flex;flex-direction:column;gap:16px;width:100%}
 .amenity-preview{background:#fff;color:#111827;padding:16px;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.06);border:1px solid #e5e7eb;display:flex;flex-direction:column;gap:10px}
@@ -166,6 +167,7 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
 .amenity-preview-header{font-weight:800;font-size:1rem;color:#111827}
 .amenity-preview-title{margin:0}
 .amenity-preview-meta{font-size:0.85rem;color:#23412e}
+.amenity-preview-mode{font-size:0.85rem;font-weight:700;line-height:1.5;color:#166534;background:#ecfdf5;border:1px solid #bbf7d0;border-radius:12px;padding:10px 12px}
 .amenity-preview .amenity-return{
   margin-top:12px;
   align-self:flex-start;
@@ -242,6 +244,10 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
 @media (min-width:1024px){
   .reservation-left .res-item{
     max-width:420px;
+  }
+  .reservation-left .price-row,
+  .reservation-left .booking-mode-row{
+    max-width:720px;
   }
 }
 /* Button Styles - Updated from signup.css */
@@ -736,21 +742,104 @@ input:focus-visible {
   background:#f9f9f9;
   border:1.5px solid #e5e7eb;
   border-radius:12px;
-  padding:12px 14px;
-  display:flex;
+  padding:14px 16px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
   align-items:center;
-  justify-content:space-between;
+  gap:8px 16px;
+}
+.booking-mode-shell{
+  display:flex;
+  flex-direction:column;
   gap:12px;
+  padding:16px;
+  border:1px solid #e5e7eb;
+  border-radius:14px;
+  background:#f9fafb;
+}
+.booking-mode-title{
+  font-size:0.95rem;
+  font-weight:800;
+  color:#111827;
+}
+.booking-mode-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:10px;
+}
+.booking-mode-card{
+  border:1.5px solid #d1d5db;
+  border-radius:14px;
+  padding:14px;
+  background:#fff;
+  text-align:left;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  cursor:pointer;
+  transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+.booking-mode-card:hover{
+  transform:translateY(-1px);
+  box-shadow:0 8px 18px rgba(15,23,42,0.08);
+}
+.booking-mode-card.is-active{
+  border-color:#166534;
+  box-shadow:0 0 0 3px rgba(22,101,52,0.12);
+  background:linear-gradient(135deg,#f0fdf4,#ffffff);
+}
+.booking-mode-label{
+  font-size:0.78rem;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  color:#6b7280;
+}
+.booking-mode-value{
+  font-size:1rem;
+  font-weight:800;
+  color:#111827;
+}
+.booking-mode-meta{
+  font-size:0.82rem;
+  color:#4b5563;
+  line-height:1.45;
+}
+.booking-mode-guide{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  padding:12px 14px;
+  border-radius:12px;
+  background:#ecfdf5;
+  border:1px solid #bbf7d0;
+  color:#166534;
+  font-size:0.9rem;
+  font-weight:600;
+  line-height:1.55;
+}
+.booking-mode-guide::before{
+  content:"\1F4A1";
+  flex-shrink:0;
+  font-size:1rem;
+  line-height:1.3;
 }
 .price-label{
   font-size:0.9rem;
   color:#4b5563;
   font-weight:600;
+  line-height:1.35;
 }
 .price-amount{
-  font-size:1.05rem;
-  font-weight:700;
-  color:#111827;
+  font-size:1.8rem;
+  font-weight:800;
+  color:#0f172a;
+  white-space:nowrap;
+  justify-self:end;
+}
+.price-box #priceBreakdown{
+  grid-column:1 / -1;
+  margin-top:0 !important;
 }
 .slot-btn {
   display: inline-flex;
@@ -986,7 +1075,14 @@ input:focus-visible {
   .amenity-card img{height:140px}
   .amenity-desc{padding:16px}
   .res-label{flex-wrap:wrap}
-  .price-box{flex-direction:column; align-items:flex-start}
+  .price-box{
+    grid-template-columns:1fr;
+    align-items:flex-start;
+  }
+  .price-amount{
+    justify-self:start;
+    font-size:1.45rem;
+  }
   .booking-step{min-width:0}
   .step-title{font-size:0.85rem}
 }

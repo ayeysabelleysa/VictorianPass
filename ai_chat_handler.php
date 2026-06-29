@@ -6,6 +6,8 @@ header('Content-Type: application/json');
 
 session_start();
 
+$isResident = isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident';
+
 $response = [
     'success' => false,
     'message' => '',
@@ -126,6 +128,34 @@ $knowledgeBase = [
     ],
 ];
 
+function isResidentOnlyAIQuery($query) {
+    $residentOnlyKeywords = [
+        'smart waste',
+        'waste segregation',
+        'segregation station',
+        'my points',
+        'points balance',
+        'current points',
+        'total points',
+        'earn points',
+        'redeem points',
+        'reward',
+        'rewards',
+        'free hour',
+        'amenity points',
+        'recycling activities'
+    ];
+
+    $queryLower = strtolower($query);
+    foreach ($residentOnlyKeywords as $keyword) {
+        if (strpos($queryLower, $keyword) !== false) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 // Function to find the best matching response
 function findResponse($query, $knowledgeBase) {
     $queryLower = strtolower($query);
@@ -154,8 +184,12 @@ function findResponse($query, $knowledgeBase) {
     return 'Thank you for your question! Our VictorianPass system is designed to help you with amenity reservations, visitor access management, and incident reporting. For specific concerns, please contact our administration team at admin@victorianpass.com or call +63 (2) 1234-5678.';
 }
 
-// Get the response
-$aiResponse = findResponse($query, $knowledgeBase);
+// Restrict resident-only perks from visitor and public sessions
+if (!$isResident && isResidentOnlyAIQuery($query)) {
+    $aiResponse = 'Smart Waste Station points, rewards, and booking perks are available only to resident users. Please log in with a resident account to view points balances, rewards, and redemption options.';
+} else {
+    $aiResponse = findResponse($query, $knowledgeBase);
+}
 
 $response['success'] = true;
 $response['response'] = $aiResponse;

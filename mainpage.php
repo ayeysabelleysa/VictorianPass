@@ -245,6 +245,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         <a href="#about-us">About Us</a>
         <a href="#facilities">Amenities</a>
         <a href="#about-system">About the System</a>
+        <?php if ($isResident): ?>
+        <a href="#ecopoint" class="nav-ecopoint"><span class="nav-ecopoint-icon" aria-hidden="true">&#9851;</span><span>VictorianEcoPoint</span></a>
+        <?php endif; ?>
       </nav>
       <div class="nav-actions">
         <?php if ($isLoggedIn): ?>
@@ -321,9 +324,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
           <button class="suggested-btn" data-question="Request a visitor pass">Request a visitor pass</button>
           <button class="suggested-btn" data-question="View subdivision amenities">View amenities</button>
           <button class="suggested-btn" data-question="Contact administration">Contact admin</button>
+          <?php if ($isResident): ?>
           <button class="suggested-btn suggested-btn-waste" data-question="How do I use the smart waste segregation station?">♻️ Use Station</button>
           <button class="suggested-btn suggested-btn-waste" data-question="How many points do I need for a free hour at the tennis court?">♻️ Amenity Points</button>
           <button class="suggested-btn suggested-btn-waste" data-question="What is my total points right now?">♻️ My Points</button>
+          <?php endif; ?>
         </div>
       </div>
 
@@ -402,7 +407,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <h2 class="section-title">About the System</h2>
     <div class="section-divider"></div>
     <div class="section-body">
-      <p>Victorian Pass is a modern subdivision management system that utilizes QR technology to provide fast, secure, and seamless access for residents and visitors. Designed to enhance security and streamline daily processes, the system handles amenity reservations, entry pass requests, incident reporting, and user verification, all in one platform. By replacing manual checks with QR scanning, Victorian Pass ensures quicker entry, and secure access, while improved monitoring subdivision welfare. the system strengthens community safety while offering a more convenient experience for everyone in the subdivision.</p>
+      <p>Victorian Pass is a modern subdivision management system that utilizes QR technology to provide fast, secure, and seamless access for residents and visitors. Designed to enhance security and streamline daily processes, the system handles amenity reservations, entry pass requests, incident reporting, and user verification, all in one platform. By replacing manual checks with QR scanning, Victorian Pass ensures quicker entry and secure access while improving subdivision monitoring and welfare. The system also connects with the VictorianEcoPoint Smart Waste Segregation Station so residents can earn recycling rewards without blending the station identity into the main platform brand.</p>
       <div class="about-intro"><h3>Experience peace of mind designed to safeguard your neighborhood.</h3></div>
       <div class="about-system-grid">
         <div class="about-card">
@@ -423,6 +428,91 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       </div>
     </div>
   </section>
+
+  <?php if ($isResident): ?>
+  <section id="ecopoint" class="section section-ecopoint reveal-on-scroll">
+    <div class="ecopoint-shell">
+      <div class="ecopoint-intro-card">
+        <h2 class="section-title ecopoint-title"><span class="ecopoint-title-icon" aria-hidden="true">&#9851;</span><span>VictorianEco Point — Recycle &amp; Earn Rewards</span></h2>
+        <div class="section-divider"></div>
+        <p class="section-subtitle ecopoint-description">For residents only: EcoPoint is Victorian Heights Subdivision's Smart Waste Segregation Station that rewards residents for properly disposing of recyclable materials. Simply scan your personal QR ID at the station, which also serves as your residency verification QR, deposit your recyclables, and earn points automatically credited to your VictorianPass account. Redeem your points for free amenity hours at the Basketball Court, Tennis Court, Clubhouse, and Multi-Purpose Building.</p>
+      </div>
+
+      <div class="ecopoint-grid">
+        <article class="ecopoint-card">
+          <h3 class="ecopoint-card-title">How It Works</h3>
+          <div class="ecopoint-step-list">
+            <div class="ecopoint-step-item">
+              <div class="ecopoint-step-icon" aria-hidden="true">🔍</div>
+              <div class="ecopoint-step-copy">
+                <h4>Scan</h4>
+                <p>Scan your personal QR ID at the EcoPoint station for residency verification.</p>
+              </div>
+            </div>
+            <div class="ecopoint-step-item">
+              <div class="ecopoint-step-icon" aria-hidden="true">♻️</div>
+              <div class="ecopoint-step-copy">
+                <h4>Deposit</h4>
+                <p>Drop your recyclables: Plastic, Aluminum Cans, Paper &amp; Cardboard.</p>
+              </div>
+            </div>
+            <div class="ecopoint-step-item">
+              <div class="ecopoint-step-icon" aria-hidden="true">🎁</div>
+              <div class="ecopoint-step-copy">
+                <h4>Earn &amp; Redeem</h4>
+                <p>Points are credited automatically and redeemable for free amenity bookings.</p>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="ecopoint-card">
+          <h3 class="ecopoint-card-title">Points Guide</h3>
+          <div class="ecopoint-info-list">
+            <div class="ecopoint-info-row">
+              <span class="ecopoint-info-label">Plastic (PET Bottles ≤1000ml)</span>
+              <span class="ecopoint-info-value">55 pts/kg</span>
+            </div>
+            <div class="ecopoint-info-row">
+              <span class="ecopoint-info-label">Aluminum Cans</span>
+              <span class="ecopoint-info-value">140 pts/kg</span>
+            </div>
+            <div class="ecopoint-info-row">
+              <span class="ecopoint-info-label">Paper &amp; Cardboard</span>
+              <span class="ecopoint-info-value">30 pts/kg</span>
+            </div>
+            <div class="ecopoint-info-row ecopoint-info-highlight">
+              <span class="ecopoint-info-label">1 point</span>
+              <span class="ecopoint-info-value">= ₱0.30 in amenity value</span>
+            </div>
+            <div class="ecopoint-footnote">Weekly cap: 250 points (resets every Monday)</div>
+          </div>
+        </article>
+
+        <article class="ecopoint-card">
+          <h3 class="ecopoint-card-title">Redemption Rates</h3>
+          <div class="ecopoint-info-list">
+            <div class="ecopoint-info-row">
+              <span class="ecopoint-info-value">300 points</span>
+              <span class="ecopoint-info-label">1 free hour — Basketball/Tennis Court</span>
+            </div>
+            <div class="ecopoint-info-row">
+              <span class="ecopoint-info-value">600 points</span>
+              <span class="ecopoint-info-label">1 free hour — Clubhouse</span>
+            </div>
+            <div class="ecopoint-info-row">
+              <span class="ecopoint-info-value">750 points</span>
+              <span class="ecopoint-info-label">1 free hour — Multi-Purpose Building</span>
+            </div>
+          </div>
+          <div class="ecopoint-action-wrap">
+            <a href="profileresident.php#panel-points-history" class="btn-change ecopoint-action-btn">View My EcoPoints</a>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+  <?php endif; ?>
 
 
 
@@ -577,6 +667,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <button class="chatbot-clear-btn" id="chatbotClear" title="Clear Chat">Clear Chat</button>
   </div>
 
+  <script src="js/mainpage_ai.js"></script>
 </body>
 </html>
-  <script src="js/mainpage_ai.js"></script>
