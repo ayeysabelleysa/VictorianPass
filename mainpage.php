@@ -242,12 +242,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <div class="nav-collapse" id="navCollapse">
       <nav class="page-nav" id="primaryNav">
         <a href="#home">Home</a>
+        <a href="#" class="nav-ecopoint" id="navEcoPointBtn" data-ecopoint-modal-open="true">
+          <span class="nav-ecopoint-icon" aria-hidden="true">&#9851;</span>
+          <span class="nav-ecopoint-label">VictorianEcoPoint</span>
+          <span class="nav-ecopoint-badge" aria-label="New feature">New!</span>
+          <span class="nav-ecopoint-tooltip" role="tooltip">Earn points by recycling and redeem them for free amenity hours!</span>
+        </a>
         <a href="#about-us">About Us</a>
         <a href="#facilities">Amenities</a>
         <a href="#about-system">About the System</a>
-        <?php if ($isResident): ?>
-        <a href="#ecopoint" class="nav-ecopoint"><span class="nav-ecopoint-icon" aria-hidden="true">&#9851;</span><span>VictorianEcoPoint</span></a>
-        <?php endif; ?>
       </nav>
       <div class="nav-actions">
         <?php if ($isLoggedIn): ?>
@@ -302,6 +305,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       </div>
 
       <p class="tagline">Every home has a story — start yours in a place worth remembering.</p>
+      <p class="hero-eco-subtitle">Now with VictorianEcoPoint Rewards — Recycle &amp; Earn Points</p>
 
       <!-- AI Search Bar Section -->
       <div class="ai-search-section">
@@ -322,13 +326,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
           <div class="suggested-label">Suggested:</div>
           <button class="suggested-btn" data-question="How do I register?">How do I register?</button>
           <button class="suggested-btn" data-question="Request a visitor pass">Request a visitor pass</button>
-          <button class="suggested-btn" data-question="View subdivision amenities">View amenities</button>
-          <button class="suggested-btn" data-question="Contact administration">Contact admin</button>
-          <?php if ($isResident): ?>
-          <button class="suggested-btn suggested-btn-waste" data-question="How do I use the smart waste segregation station?">♻️ Use Station</button>
-          <button class="suggested-btn suggested-btn-waste" data-question="How many points do I need for a free hour at the tennis court?">♻️ Amenity Points</button>
-          <button class="suggested-btn suggested-btn-waste" data-question="What is my total points right now?">♻️ My Points</button>
-          <?php endif; ?>
+          <button class="suggested-btn suggested-btn-waste" data-question="How do I earn EcoPoints?">How do I earn EcoPoints?</button>
+          <button class="suggested-btn suggested-btn-waste" data-question="How do I redeem my points?">How do I redeem my points?</button>
+          <button class="suggested-btn suggested-btn-waste" data-question="What can I recycle?">What can I recycle?</button>
+          <button class="suggested-btn suggested-btn-waste" data-question="Use Station">Use Station</button>
         </div>
       </div>
 
@@ -365,6 +366,97 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       </script>
     </div>
   </section>
+
+  <div id="ecopointModal" class="flash-overlay ecopoint-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="ecopointModalTitle">
+    <div class="flash-modal">
+      <button type="button" class="ecopoint-modal-close" id="ecopointModalClose" aria-label="Close">&times;</button>
+      <div class="ecopoint-shell">
+        <div class="ecopoint-intro-card" style="margin-bottom:18px;">
+          <h2 class="section-title ecopoint-title" id="ecopointModalTitle"><span class="ecopoint-title-icon" aria-hidden="true">&#9851;</span><span>Learn About VictorianEcoPoint</span></h2>
+          <div class="section-divider"></div>
+          <p class="section-subtitle ecopoint-description">VictorianEcoPoint is Victorian Heights Subdivision’s Smart Waste Segregation Station that automatically sorts recyclables and rewards you with points redeemable for free amenity bookings. Scan your VictorianPass QR code, deposit recyclables, and points are credited to your account instantly.</p>
+        </div>
+
+        <div class="ecopoint-grid">
+          <article class="ecopoint-card">
+            <h3 class="ecopoint-card-title">How It Works</h3>
+            <div class="ecopoint-step-list">
+              <div class="ecopoint-step-item">
+                <div class="ecopoint-step-icon" aria-hidden="true">🔍</div>
+                <div class="ecopoint-step-copy">
+                  <h4>Scan</h4>
+                  <p>Scan your VictorianPass QR code at the VictorianEcoPoint station.</p>
+                </div>
+              </div>
+              <div class="ecopoint-step-item">
+                <div class="ecopoint-step-icon" aria-hidden="true">♻️</div>
+                <div class="ecopoint-step-copy">
+                  <h4>Deposit</h4>
+                  <p>Drop your recyclables (Plastic, Aluminum Cans, Paper &amp; Cardboard).</p>
+                </div>
+              </div>
+              <div class="ecopoint-step-item">
+                <div class="ecopoint-step-icon" aria-hidden="true">🎁</div>
+                <div class="ecopoint-step-copy">
+                  <h4>Earn &amp; Redeem</h4>
+                  <p>Points are credited automatically and redeemable for free amenity bookings.</p>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="ecopoint-card">
+            <h3 class="ecopoint-card-title">Points Guide</h3>
+            <div class="ecopoint-info-list">
+              <div class="ecopoint-info-row">
+                <span class="ecopoint-info-label">Plastic (PET Bottles ≤1000ml)</span>
+                <span class="ecopoint-info-value">55 pts/kg</span>
+              </div>
+              <div class="ecopoint-info-row">
+                <span class="ecopoint-info-label">Aluminum Cans</span>
+                <span class="ecopoint-info-value">140 pts/kg</span>
+              </div>
+              <div class="ecopoint-info-row">
+                <span class="ecopoint-info-label">Paper &amp; Cardboard</span>
+                <span class="ecopoint-info-value">30 pts/kg</span>
+              </div>
+              <div class="ecopoint-info-row ecopoint-info-highlight">
+                <span class="ecopoint-info-label">1 point</span>
+                <span class="ecopoint-info-value">= ₱0.30 in amenity value</span>
+              </div>
+              <div class="ecopoint-footnote">Weekly cap: 250 points (resets every Monday)</div>
+              <div class="ecopoint-footnote">Daily limit: 3 sessions/day · Max balance: 3,000 points</div>
+            </div>
+          </article>
+
+          <article class="ecopoint-card">
+            <h3 class="ecopoint-card-title">Redeem</h3>
+            <div class="ecopoint-info-list">
+              <div class="ecopoint-info-row">
+                <span class="ecopoint-info-value">300 points</span>
+                <span class="ecopoint-info-label">1 free hour — Basketball/Tennis Court</span>
+              </div>
+              <div class="ecopoint-info-row">
+                <span class="ecopoint-info-value">600 points</span>
+                <span class="ecopoint-info-label">1 free hour — Clubhouse</span>
+              </div>
+              <div class="ecopoint-info-row">
+                <span class="ecopoint-info-value">750 points</span>
+                <span class="ecopoint-info-label">1 free hour — Multi-Purpose Building</span>
+              </div>
+            </div>
+            <div class="ecopoint-action-wrap">
+              <?php if ($isResident): ?>
+                <a href="profileresident.php?section=panel-points-history" class="btn-change ecopoint-action-btn">View My EcoPoints</a>
+              <?php else: ?>
+                <a href="login.php" class="btn-change ecopoint-action-btn">View My EcoPoints</a>
+              <?php endif; ?>
+            </div>
+          </article>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <section id="about-us" class="section reveal-on-scroll">
     <h2 class="section-title">About Us</h2>
@@ -429,91 +521,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     </div>
   </section>
 
-  <?php if ($isResident): ?>
-  <section id="ecopoint" class="section section-ecopoint reveal-on-scroll">
-    <div class="ecopoint-shell">
-      <div class="ecopoint-intro-card">
-        <h2 class="section-title ecopoint-title"><span class="ecopoint-title-icon" aria-hidden="true">&#9851;</span><span>VictorianEco Point — Recycle &amp; Earn Rewards</span></h2>
-        <div class="section-divider"></div>
-        <p class="section-subtitle ecopoint-description">For residents only: EcoPoint is Victorian Heights Subdivision's Smart Waste Segregation Station that rewards residents for properly disposing of recyclable materials. Simply scan your personal QR ID at the station, which also serves as your residency verification QR, deposit your recyclables, and earn points automatically credited to your VictorianPass account. Redeem your points for free amenity hours at the Basketball Court, Tennis Court, Clubhouse, and Multi-Purpose Building.</p>
-      </div>
-
-      <div class="ecopoint-grid">
-        <article class="ecopoint-card">
-          <h3 class="ecopoint-card-title">How It Works</h3>
-          <div class="ecopoint-step-list">
-            <div class="ecopoint-step-item">
-              <div class="ecopoint-step-icon" aria-hidden="true">🔍</div>
-              <div class="ecopoint-step-copy">
-                <h4>Scan</h4>
-                <p>Scan your personal QR ID at the EcoPoint station for residency verification.</p>
-              </div>
-            </div>
-            <div class="ecopoint-step-item">
-              <div class="ecopoint-step-icon" aria-hidden="true">♻️</div>
-              <div class="ecopoint-step-copy">
-                <h4>Deposit</h4>
-                <p>Drop your recyclables: Plastic, Aluminum Cans, Paper &amp; Cardboard.</p>
-              </div>
-            </div>
-            <div class="ecopoint-step-item">
-              <div class="ecopoint-step-icon" aria-hidden="true">🎁</div>
-              <div class="ecopoint-step-copy">
-                <h4>Earn &amp; Redeem</h4>
-                <p>Points are credited automatically and redeemable for free amenity bookings.</p>
-              </div>
-            </div>
-          </div>
-        </article>
-
-        <article class="ecopoint-card">
-          <h3 class="ecopoint-card-title">Points Guide</h3>
-          <div class="ecopoint-info-list">
-            <div class="ecopoint-info-row">
-              <span class="ecopoint-info-label">Plastic (PET Bottles ≤1000ml)</span>
-              <span class="ecopoint-info-value">55 pts/kg</span>
-            </div>
-            <div class="ecopoint-info-row">
-              <span class="ecopoint-info-label">Aluminum Cans</span>
-              <span class="ecopoint-info-value">140 pts/kg</span>
-            </div>
-            <div class="ecopoint-info-row">
-              <span class="ecopoint-info-label">Paper &amp; Cardboard</span>
-              <span class="ecopoint-info-value">30 pts/kg</span>
-            </div>
-            <div class="ecopoint-info-row ecopoint-info-highlight">
-              <span class="ecopoint-info-label">1 point</span>
-              <span class="ecopoint-info-value">= ₱0.30 in amenity value</span>
-            </div>
-            <div class="ecopoint-footnote">Weekly cap: 250 points (resets every Monday)</div>
-          </div>
-        </article>
-
-        <article class="ecopoint-card">
-          <h3 class="ecopoint-card-title">Redemption Rates</h3>
-          <div class="ecopoint-info-list">
-            <div class="ecopoint-info-row">
-              <span class="ecopoint-info-value">300 points</span>
-              <span class="ecopoint-info-label">1 free hour — Basketball/Tennis Court</span>
-            </div>
-            <div class="ecopoint-info-row">
-              <span class="ecopoint-info-value">600 points</span>
-              <span class="ecopoint-info-label">1 free hour — Clubhouse</span>
-            </div>
-            <div class="ecopoint-info-row">
-              <span class="ecopoint-info-value">750 points</span>
-              <span class="ecopoint-info-label">1 free hour — Multi-Purpose Building</span>
-            </div>
-          </div>
-          <div class="ecopoint-action-wrap">
-            <a href="profileresident.php#panel-points-history" class="btn-change ecopoint-action-btn">View My EcoPoints</a>
-          </div>
-        </article>
-      </div>
-    </div>
-  </section>
-  <?php endif; ?>
-
 
 
   <script src="js/logout-modal.js"></script>
@@ -541,6 +548,77 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       }, { threshold: 0.15 });
       for (var j = 0; j < items.length; j++) {
         observer.observe(items[j]);
+      }
+    });
+  </script>
+  <script>
+    (function(){
+      var openBtns = document.querySelectorAll('[data-ecopoint-modal-open]');
+      var modal = document.getElementById('ecopointModal');
+      var closeBtn = document.getElementById('ecopointModalClose');
+      var lastFocus = null;
+
+      function openModal(){
+        if(!modal) return;
+        lastFocus = document.activeElement;
+        modal.style.display = 'flex';
+        setTimeout(function(){
+          if(closeBtn) closeBtn.focus();
+        }, 0);
+      }
+
+      function closeModal(){
+        if(!modal) return;
+        modal.style.display = 'none';
+        if(lastFocus && typeof lastFocus.focus === 'function'){
+          lastFocus.focus();
+        }
+      }
+
+      if(openBtns && openBtns.length){
+        for(var i = 0; i < openBtns.length; i++){
+          openBtns[i].addEventListener('click', function(e){
+            e.preventDefault();
+            openModal();
+          });
+        }
+      }
+
+      if(closeBtn){
+        closeBtn.addEventListener('click', function(e){
+          e.preventDefault();
+          closeModal();
+        });
+      }
+
+      if(modal){
+        modal.addEventListener('click', function(e){
+          if(e.target === modal){
+            closeModal();
+          }
+        });
+      }
+
+      document.addEventListener('keydown', function(e){
+        if(!modal || modal.style.display === 'none') return;
+        if(e.key === 'Escape'){
+          closeModal();
+        }
+      });
+    })();
+  </script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function(){
+      var ecoLink = document.getElementById('navEcoPointBtn');
+      var toggle = document.getElementById('navToggle');
+      var collapse = document.getElementById('navCollapse');
+      if(ecoLink){
+        ecoLink.addEventListener('click', function(){
+          if(collapse && collapse.classList.contains('open')){
+            collapse.classList.remove('open');
+            if(toggle) toggle.setAttribute('aria-expanded','false');
+          }
+        });
       }
     });
   </script>

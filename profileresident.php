@@ -235,7 +235,12 @@ if (!$isAccountBlocked) {
     if ($img !== false) { @file_put_contents($qrAbsPath, $img); } else { $qrRelPath = $qrUrl; }
 }
 
-$activeSection = 'panel-requests';
+$allowedSections = ['panel-requests', 'panel-points-history', 'panel-guest-form', 'panel-my-guests', 'panel-history'];
+$activeSection = $_GET['section'] ?? 'panel-requests';
+$activeSection = is_string($activeSection) ? trim($activeSection) : 'panel-requests';
+if (!in_array($activeSection, $allowedSections, true)) {
+  $activeSection = 'panel-requests';
+}
 
 // Fetch point transactions
 $pointTransactions = [];
@@ -1046,7 +1051,7 @@ body.account-blocked { overflow: hidden; }
     <nav class="nav-menu">
       <a href="#" class="nav-item <?php echo $activeSection === 'panel-requests' ? 'active' : ''; ?>" data-section="panel-requests"><i class="fa-solid fa-list"></i> <span>My Requests</span></a>
       <a href="reserve.php" class="nav-item"><i class="fa-solid fa-ticket"></i> <span>Amenity Reservation</span></a>
-      <a href="#" class="nav-item" data-section="panel-points-history">
+      <a href="#" class="nav-item <?php echo $activeSection === 'panel-points-history' ? 'active' : ''; ?>" data-section="panel-points-history">
         <i class="fa-solid fa-coins"></i>
         <span>
           Points History
@@ -1054,10 +1059,10 @@ body.account-blocked { overflow: hidden; }
           <small style="display:block; font-size:0.68rem; color:#999; font-weight:400; margin-top:1px;">Smart Waste Segregation Station</small>
         </span>
       </a>
-      <a href="#" class="nav-item" data-section="panel-guest-form"><i class="fa-solid fa-user-plus"></i> <span>Guest Form</span></a>
-      <a href="#" class="nav-item" data-section="panel-my-guests"><i class="fa-solid fa-user-group"></i> <span>My Guests</span></a>
+      <a href="#" class="nav-item <?php echo $activeSection === 'panel-guest-form' ? 'active' : ''; ?>" data-section="panel-guest-form"><i class="fa-solid fa-user-plus"></i> <span>Guest Form</span></a>
+      <a href="#" class="nav-item <?php echo $activeSection === 'panel-my-guests' ? 'active' : ''; ?>" data-section="panel-my-guests"><i class="fa-solid fa-user-group"></i> <span>My Guests</span></a>
       <a href="report_incident.php" class="nav-item"><i class="fa-solid fa-triangle-exclamation"></i> <span>Report Incident</span></a>
-      <a href="#" class="nav-item" data-section="panel-history"><i class="fa-solid fa-clock-rotate-left"></i> <span>History</span></a>
+      <a href="#" class="nav-item <?php echo $activeSection === 'panel-history' ? 'active' : ''; ?>" data-section="panel-history"><i class="fa-solid fa-clock-rotate-left"></i> <span>History</span></a>
     </nav>
 
     <div class="sidebar-footer">
@@ -1170,7 +1175,7 @@ body.account-blocked { overflow: hidden; }
 
     <div class="content-wrapper">
       <div class="right-panel">
-        <div class="panel-section" id="panel-requests">
+        <div class="panel-section" id="panel-requests" style="<?php echo $activeSection === 'panel-requests' ? '' : 'display:none;'; ?>">
           <div class="activity-list-header">
             <div>My Requests</div>
             <div class="search-bar">
@@ -1264,7 +1269,7 @@ body.account-blocked { overflow: hidden; }
           </div>
         </div>
 
-        <div class="panel-section" id="panel-points-history" style="display:none;">
+        <div class="panel-section" id="panel-points-history" style="<?php echo $activeSection === 'panel-points-history' ? '' : 'display:none;'; ?>">
           <div class="activity-list-header">
             <div>
               VictorianEcoPoint
@@ -1364,7 +1369,7 @@ body.account-blocked { overflow: hidden; }
           </div>
         </div>
 
-        <div class="panel-section" id="panel-history" style="display:none;">
+        <div class="panel-section" id="panel-history" style="<?php echo $activeSection === 'panel-history' ? '' : 'display:none;'; ?>">
           <div class="activity-list-header">
             <div>History</div>
           </div>
@@ -1457,7 +1462,7 @@ body.account-blocked { overflow: hidden; }
           </div>
         </div>
 
-        <div class="panel-section" id="panel-guest-form" style="display:none;">
+        <div class="panel-section" id="panel-guest-form" style="<?php echo $activeSection === 'panel-guest-form' ? '' : 'display:none;'; ?>">
           <div class="activity-list-header">
             <div>Guest Form</div>
           </div>
@@ -1561,7 +1566,7 @@ body.account-blocked { overflow: hidden; }
           </div>
         </div>
 
-        <div class="panel-section" id="panel-my-guests" style="display:none;">
+        <div class="panel-section" id="panel-my-guests" style="<?php echo $activeSection === 'panel-my-guests' ? '' : 'display:none;'; ?>">
           <div class="activity-list-header">
             <div>My Guests</div>
           </div>

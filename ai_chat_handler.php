@@ -29,6 +29,8 @@ if (empty($query)) {
     exit;
 }
 
+$ecoPointProgramSummary = '<strong>VictorianEcoPoint</strong> is the Smart Waste Segregation Station of Victorian Heights Subdivision integrated into VictorianPass. Residents scan their VictorianPass QR code at the station to authenticate their session and deposit recyclables. Points are credited automatically per kilogram: Plastic (PET Bottles <=1000ml) at 55 pts/kg, Aluminum Cans at 140 pts/kg, and Paper &amp; Cardboard at 30 pts/kg. <strong>1 point = Php 0.30 in amenity value.</strong> The weekly cap is 250 points and resets every Monday at 12:00 AM. The daily limit is 3 sessions and 100 points per day. The maximum balance is 3,000 points, and points expire after 24 months. Redemption rates are 300 points for 1 free hour at the Basketball Court or Tennis Court, 600 points for 1 free hour at the Clubhouse, and 750 points for 1 free hour at the Multi-Purpose Building. Partial discounts are not available. Full point redemption only.';
+
 // Knowledge base of common questions and answers
 $knowledgeBase = [
     // Registration Questions
@@ -98,28 +100,28 @@ $knowledgeBase = [
     ],
     // Smart Waste Segregation - How to Use Station
     [
-        'keywords' => ['waste', 'segregation', 'how', 'smart waste station', 'segregation station', 'how to use'],
-        'response' => "<strong>The Smart Waste Segregation Station is easy to use!</strong> Here's how it works:<br><br><strong>Step 1 — Get your QR code.</strong><br>Log in to your VictorianPass account on the website and download your personal QR code. Each household can register up to two (2) resident representatives, each with their own unique QR code.<br><br><strong>Step 2 — Scan at the station.</strong><br>Bring your recyclable materials to the Smart Waste Segregation Station located within Victorian Heights Subdivision. Hold your QR code up to the GM65 scanner on the station. The LCD screen will display your name and current points balance to confirm your session has started.<br><br><strong>Step 3 — Deposit your recyclables.</strong><br>The station accepts three types of recyclable materials:<br><ul><li>Plastics (PET bottles 1,000ml and below only — e.g., 500ml, 600ml, 1L bottles)</li><li>Aluminum Cans (small to medium soda and canned goods)</li><li>Paper & Cardboard (old documents, newspapers, and small to medium cardboard boxes)</li></ul>Place your materials into the correct bin — the system's sensors automatically detect the material type and measure the weight.<br><br><strong>Step 4 — Earn points automatically.</strong><br>Once deposited, points are instantly credited to your VictorianPass account based on the weight of what you recycled:<br><ul><li>Plastic earns 55 pts/kg</li><li>Aluminum Cans earn 140 pts/kg</li><li>Paper & Cardboard earns 30 pts/kg</li></ul>You can earn up to 100 points per day and 250 points per week per representative, with a maximum of 3 deposit sessions per day.<br><br><strong>Step 5 — Redeem your points.</strong><br>Log back into VictorianPass to check your points balance and redeem rewards.<br><br><strong>Note:</strong> The station does not accept wet or contaminated materials, items larger than the bin openings, or plastic bottles larger than 1,000ml. Make sure your recyclables are clean and dry before depositing!"
+        'keywords' => ['ecopoint', 'waste', 'segregation', 'smart waste station', 'segregation station', 'how to use', 'use station', 'recycle', 'recycling'],
+        'response' => $ecoPointProgramSummary . "<br><br><strong>How to use the VictorianEcoPoint station:</strong><br><ol><li>Log in to VictorianPass and prepare your resident QR code.</li><li>Go to the VictorianEcoPoint Smart Waste Segregation Station in Victorian Heights Subdivision.</li><li>Scan your VictorianPass QR code to authenticate your session.</li><li>Deposit accepted recyclables: Plastic (PET Bottles <=1000ml), Aluminum Cans, and Paper &amp; Cardboard.</li><li>The station records the material weight and credits points automatically to your VictorianPass account.</li><li>Check your balance and redeem rewards inside VictorianPass once you have enough points for a full reward.</li></ol><strong>Recycling reminder:</strong> Deposit clean, dry, properly sorted recyclables only."
     ],
     // Smart Waste - Points Rates & Limits
     [
-        'keywords' => ['points', 'how many points', 'points per kg', 'earn points', 'waste points', 'rates'],
-        'response' => '<strong>Smart Waste Segregation Station — Points Rates:</strong><br><br>Earn points based on the weight of recyclable materials you deposit:<br><br><strong>♻️ Plastic (PET bottles 1,000ml and below):</strong> 55 points per kg<br><ul><li>Includes: 500ml, 600ml, 1L bottles</li><li>Tip: Rinse and flatten to save space</li></ul><strong>🥫 Aluminum Cans (small to medium):</strong> 140 points per kg<br><ul><li>Includes: Soda cans, canned goods containers</li><li>Tip: Most valuable! Flatten cans for easy transport</li></ul><strong>📄 Paper & Cardboard (clean and dry):</strong> 30 points per kg<br><ul><li>Includes: Old documents, newspapers, small to medium cardboard boxes</li><li>Tip: Remove plastic tape and keep dry</li></ul><strong>Daily & Weekly Limits:</strong><br><ul><li>Maximum 100 points per day per representative</li><li>Maximum 250 points per week per representative</li><li>Maximum 3 deposit sessions per day</li></ul>Contribution limits reset weekly. Track your progress in your dashboard!'
+        'keywords' => ['points', 'how many points', 'points per kg', 'earn points', 'waste points', 'rates', 'ecopoints', 'earn ecopoints', 'weekly cap', 'daily limit', 'maximum balance', 'point expiry', 'expire'],
+        'response' => '<strong>VictorianEcoPoint Rates and Limits:</strong><br><ul><li><strong>Plastic (PET Bottles <=1000ml):</strong> 55 pts/kg</li><li><strong>Aluminum Cans:</strong> 140 pts/kg</li><li><strong>Paper &amp; Cardboard:</strong> 30 pts/kg</li><li><strong>Point value:</strong> 1 point = Php 0.30 in amenity value</li><li><strong>Daily limit:</strong> 3 sessions and 100 points per day</li><li><strong>Weekly cap:</strong> 250 points, resetting every Monday at 12:00 AM</li><li><strong>Maximum balance:</strong> 3,000 points</li><li><strong>Expiry:</strong> Points expire after 24 months</li></ul>Points are credited automatically after a successful VictorianEcoPoint deposit in VictorianPass.'
     ],
     // Amenity Points - Free Hour Requirements
     [
-        'keywords' => ['free hour', 'points for amenity', 'free amenity', 'how many points', 'basketball', 'tennis', 'clubhouse', 'multi-purpose', 'one hour free'],
-        'response' => '<strong>Free Amenity Hours — Points Required:</strong><br><br>Redeem your Smart Waste points for complete free hours at our amenities. No partial discounts available — points are redeemed for complete free hours only. Leftover points stay in your account for future use.<br><br><strong>🏀 Basketball Court:</strong> 300 points for one free hour<br><strong>🎾 Tennis Court:</strong> 300 points for one free hour<br><strong>🏛️ Clubhouse:</strong> 600 points for one free hour<br><strong>🏢 Multi-Purpose Building:</strong> 750 points for one free hour<br><br><strong>How to Redeem:</strong><br><ol><li>Check your total points balance in your VictorianPass dashboard</li><li>Go to Amenity Reservations</li><li>Select your desired amenity and time slot</li><li>Apply points to your booking for a free hour</li><li>Confirm your reservation</li></ol><strong>Reminder:</strong> You can earn up to 100 points per day through waste deposits, so a free Basketball or Tennis Court hour is achievable in about 3 days!'
+        'keywords' => ['free hour', 'points for amenity', 'free amenity', 'how many points', 'basketball', 'tennis', 'clubhouse', 'multi-purpose', 'one hour free', 'redeem points', 'redeem my points', 'redemption', 'partial discounts'],
+        'response' => '<strong>VictorianEcoPoint Redemption Rates:</strong><br><ul><li><strong>300 points</strong> = 1 free hour at the Basketball Court or Tennis Court</li><li><strong>600 points</strong> = 1 free hour at the Clubhouse</li><li><strong>750 points</strong> = 1 free hour at the Multi-Purpose Building</li></ul><strong>Important:</strong> Partial discounts are not available. VictorianEcoPoint rewards use full point redemption only.<br><br><strong>How to redeem:</strong><br><ol><li>Log in to VictorianPass.</li><li>Check your EcoPoint balance.</li><li>Go to amenity reservation.</li><li>Select an eligible amenity and time slot.</li><li>Redeem the full required points for the free hour.</li></ol>'
     ],
     // Check Current Points Balance
     [
         'keywords' => ['my points', 'total points', 'current points', 'how many points do i have', 'points balance', 'check points'],
-        'response' => "<strong>Check Your Points Balance:</strong><br><br>To view your total Smart Waste Segregation points right now:<br><br><ol><li>Log in to your VictorianPass account</li><li>Go to your Dashboard</li><li>Look for the 'Smart Waste' or 'My Points' section</li><li>Your current points balance will be displayed prominently</li><li>You can also see:<br><ul><li>Points earned this week</li><li>Points earned this month</li><li>Your deposit history with dates and amounts</li><li>Available amenity bookings with your points</li><li>Remaining daily/weekly point limits</li></ul></li></ol>Your points are updated instantly after each deposit at the Smart Waste Segregation Station. The LCD screen at the station also shows your current balance when you scan your QR code.<br><br><strong>Need help?</strong> Contact administration at admin@victorianpass.com or call +63 (2) 1234-5678."
+        'response' => "<strong>Check Your Points Balance:</strong><br><br>To view your total VictorianEcoPoint points right now:<br><br><ol><li>Log in to your VictorianPass account</li><li>Go to your Dashboard</li><li>Look for the 'Smart Waste' or 'My Points' section</li><li>Your current points balance will be displayed prominently</li><li>You can also see:<br><ul><li>Points earned this week</li><li>Points earned this month</li><li>Your deposit history with dates and amounts</li><li>Available amenity bookings with your points</li><li>Remaining daily/weekly point limits</li></ul></li></ol>Your points are updated instantly after each deposit at the VictorianEcoPoint Smart Waste Segregation Station. The LCD screen at the station also shows your current balance when you scan your QR code.<br><br><strong>Need help?</strong> Contact administration at admin@victorianpass.com or call +63 (2) 1234-5678."
     ],
     // Smart Waste - How to Get Started
     [
-        'keywords' => ['get started', 'how to start', 'begin', 'join program', 'register qr', 'first time'],
-        'response' => '<strong>Get Started with Smart Waste Segregation!</strong><br><br><strong>Quick Start Guide:</strong><br><br><strong>1. Download Your QR Code:</strong><br><ul><li>Log in to VictorianPass</li><li>Go to Smart Waste program section</li><li>Download your personal QR code</li><li>Each household can have up to 2 representatives</li></ul><strong>2. Prepare Your Materials:</strong><br><ul><li>Collect PET plastic bottles (1,000ml and below only)</li><li>Gather aluminum cans (clean and dry)</li><li>Save paper and cardboard (clean and dry)</li><li>No wet or contaminated items accepted</li></ul><strong>3. Visit the Station:</strong><br><ul><li>Located within Victorian Heights Subdivision</li><li>Bring your QR code</li><li>Bring your sorted recyclables</li><li>Any day/time the station is open</li></ul><strong>4. Deposit and Earn:</strong><br><ul><li>Scan your QR code at the GM65 scanner</li><li>See your name and points balance on LCD screen</li><li>Place materials in correct bins</li><li>Points credit instantly</li></ul><strong>5. Track & Redeem:</strong><br><ul><li>Monitor points in your dashboard</li><li>Redeem for free amenity hours</li><li>Leftover points carry forward</li></ul>Earn up to 100 points daily! Start today!'
+        'keywords' => ['get started', 'how to start', 'begin', 'join program', 'register qr', 'first time', 'how do i earn ecopoints'],
+        'response' => '<strong>How to start earning EcoPoints:</strong><br><ol><li>Log in to your resident VictorianPass account.</li><li>Open your QR code and bring it to the VictorianEcoPoint station.</li><li>Prepare accepted recyclables: Plastic (PET Bottles <=1000ml), Aluminum Cans, and Paper &amp; Cardboard.</li><li>Scan your QR code to authenticate your session.</li><li>Deposit your recyclables and let the station record their weight.</li><li>Points are credited automatically to your VictorianPass account.</li></ol><strong>Program rules:</strong><br><ul><li>100 points maximum per day</li><li>3 sessions maximum per day</li><li>250 points maximum per week, reset every Monday at 12:00 AM</li><li>3,000 points maximum balance</li><li>Points expire after 24 months</li></ul>'
     ],
     // Smart Waste - Environmental Impact
     [
@@ -130,15 +132,20 @@ $knowledgeBase = [
 
 function isResidentOnlyAIQuery($query) {
     $residentOnlyKeywords = [
+        'ecopoint',
         'smart waste',
         'waste segregation',
         'segregation station',
+        'recycle',
+        'recycling',
         'my points',
         'points balance',
         'current points',
         'total points',
         'earn points',
+        'earn ecopoints',
         'redeem points',
+        'redeem my points',
         'reward',
         'rewards',
         'free hour',
@@ -181,12 +188,12 @@ function findResponse($query, $knowledgeBase) {
     }
 
     // Default response if no match found
-    return 'Thank you for your question! Our VictorianPass system is designed to help you with amenity reservations, visitor access management, and incident reporting. For specific concerns, please contact our administration team at admin@victorianpass.com or call +63 (2) 1234-5678.';
+    return 'Thank you for your question! VictorianPass can help with amenity reservations, visitor access, incident reporting, and EcoPoint recycling rewards for residents. For specific concerns, please contact our administration team at admin@victorianpass.com or call +63 (2) 1234-5678.';
 }
 
 // Restrict resident-only perks from visitor and public sessions
 if (!$isResident && isResidentOnlyAIQuery($query)) {
-    $aiResponse = 'Smart Waste Station points, rewards, and booking perks are available only to resident users. Please log in with a resident account to view points balances, rewards, and redemption options.';
+    $aiResponse = 'EcoPoint recycling points, rewards, and redemption perks are available only to resident users. Please log in with a resident account to view point balances, recycling history, and redemption options.';
 } else {
     $aiResponse = findResponse($query, $knowledgeBase);
 }
