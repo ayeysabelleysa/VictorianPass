@@ -8,16 +8,16 @@ git remote -v
 
 git remote set-url origin git@github.com:ayeysabelleysa/VictorianPass.git
 
-GIT PUSH
+THIS IS HOW TO GIT PUSH
 git add .'
 
 git commit -m "Updated project files"
 
-git push origin main
+git push origin main(name ng branch yung huli)
 
 DROP DATABASE victorianpass_db
 
-GIT BRANCH
+THIS IS HOW TO GIT BRANCH
 git branch organizedfiles
 git branch -a
 git checkout organizedfiles
