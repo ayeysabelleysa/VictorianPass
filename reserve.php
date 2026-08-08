@@ -681,7 +681,6 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
 $currentResident = null;
 $residentPoints = 0;
 $householdResidents = [];
-$aiRecommendations = [];
 if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && isset($_SESSION['user_id']) && ($con instanceof mysqli)) {
   $rid = intval($_SESSION['user_id']);
   
@@ -732,56 +731,6 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     }
     $stmtHistory2->close();
   }
-
-  // AI Recommendation Logic (even if points are 0, so user can see what's available)
-  $amenities = [
-    ['name' => 'Basketball Court', 'points' => 300, 'img' => 'images/basketballcourt.png'],
-    ['name' => 'Tennis Court', 'points' => 300, 'img' => 'images/tenniscourt.png'],
-    ['name' => 'Clubhouse', 'points' => 600, 'img' => 'images/clubhouse.png'],
-    ['name' => 'Multi-Purpose Building', 'points' => 750, 'img' => 'images/multipurposebuilding.jpg']
-  ];
-
-  // Score each amenity
-  foreach ($amenities as $amenity) {
-    $score = 0;
-    $explanationParts = [];
-
-    // 1. Points availability (higher score if user can afford)
-    if ($residentPoints >= $amenity['points']) {
-      $score += 100;
-      $explanationParts[] = "You have enough points to redeem this reward.";
-    } else {
-      $pointsNeeded = $amenity['points'] - $residentPoints;
-      $explanationParts[] = "You need " . number_format($pointsNeeded) . " more points. Earn more through recycling activities!";
-    }
-
-    // 2. Booking history preference (most booked gets highest score)
-    $count = $bookingCounts[$amenity['name']];
-    if ($count > 0) {
-      $score += $count * 30;
-      if ($count == 1) {
-        $explanationParts[] = "You've booked this once before.";
-      } else {
-        $explanationParts[] = "You've booked this " . $count . " times before - great choice!";
-      }
-    }
-
-    // 3. Value for points (lower points per hour gives better score)
-    $score += (1000 - $amenity['points']); // Reverse so lower points = higher score
-
-    $amenity['score'] = $score;
-    $amenity['explanation'] = implode(" ", $explanationParts);
-    $amenity['booking_count'] = $count;
-    $aiRecommendations[] = $amenity;
-  }
-
-  // Sort recommendations by score descending
-  usort($aiRecommendations, function($a, $b) {
-    return $b['score'] - $a['score'];
-  });
-
-  // Take top 2
-  $aiRecommendations = array_slice($aiRecommendations, 0, 2);
 
   if ($currentResident && !empty($currentResident['house_number'])) {
     $hn = $currentResident['house_number'];
@@ -847,7 +796,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                 <div style="width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; background:#166534; color:#fff; font-size:1.15rem; flex-shrink:0;">♻</div>
                 <div style="display:flex; flex-direction:column; gap:2px;">
                   <div style="font-size:0.78rem; font-weight:800; letter-spacing:0.08em; text-transform:uppercase;">Station Partner</div>
-                  <div style="font-size:1rem; font-weight:800;">VictorianEcoPoint</div>
+                  <div style="font-size:1rem; font-weight:800;">VHEcoPoint</div>
                   <div style="font-size:0.84rem; line-height:1.35;">Smart Waste Segregation Station</div>
                 </div>
               </div>
@@ -857,37 +806,6 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                 <div style="font-size:0.9rem; opacity:0.9; margin-bottom:4px;">Your Current Balance</div>
                 <div style="font-size:2.5rem; font-weight:800;"><?php echo number_format($residentPoints); ?> pts</div>
               </div>
-
-              <!-- Recommendations -->
-              <?php if (!empty($aiRecommendations)): ?>
-                <div style="margin-bottom:16px;">
-                  <div style="font-size:1rem; font-weight:800; color:#23412e; margin-bottom:12px; display:flex; align-items:center; gap:6px;">
-                    🤖 Recommendations
-                  </div>
-                  <div style="display:flex; flex-wrap:wrap; gap:10px;">
-                    <?php foreach ($aiRecommendations as $index => $rec): 
-                      $isEligible = $residentPoints >= $rec['points'];
-                      $remainingPoints = $residentPoints - $rec['points'];
-                    ?>
-                      <div class="amenity-reward-card" style="padding:12px 16px; border-radius:12px; border:2px solid #cfe6d4; background:#f0faf2; cursor:pointer; transition:all 0.2s; flex:1 1 calc(33.333% - 10px); min-width:180px;" data-amenity="<?php echo htmlspecialchars($rec['name']); ?>" data-points="<?php echo htmlspecialchars($rec['points']); ?>" data-eligible="<?php echo $isEligible ? 'true' : 'false'; ?>">
-                        <div style="display:flex; align-items:center; gap:10px;">
-                          <div style="width:40px; height:40px; border-radius:8px; overflow:hidden; flex-shrink:0;">
-                            <img src="<?php echo htmlspecialchars($rec['img']); ?>" alt="" style="width:100%; height:100%; object-fit:cover;">
-                          </div>
-                          <div style="flex:1;">
-                            <div style="font-weight:800; font-size:0.9rem; color:#111827;"><?php echo htmlspecialchars($rec['name']); ?></div>
-                            <div style="font-size:0.75rem; color:#23412e; font-weight:700;"><?php echo number_format($rec['points']); ?> pts / hour</div>
-                          </div>
-                          <div style="font-size:0.7rem; color:#23412e; font-weight:800; background:#fff; padding:2px 8px; border-radius:8px; border:1px solid #e5e7eb; flex-shrink:0;">#<?php echo $index + 1; ?></div>
-                        </div>
-                        <div style="font-size:0.75rem; color:#4b5563; margin-top:8px; line-height:1.3;">
-                          <?php echo htmlspecialchars($rec['explanation'] ?? 'Great choice for your next booking!'); ?>
-                        </div>
-                      </div>
-                    <?php endforeach; ?>
-                  </div>
-                </div>
-              <?php endif; ?>
 
               <!-- All Available Amenity Rewards -->
               <div style="margin-bottom:24px;">
@@ -956,7 +874,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                     <li>📄 Recycle Paper & Cardboard: <strong>+30 points per kg</strong></li>
                   </ul>
                   <p style="margin:12px 0 0 0; color:#78350f; font-size:0.95rem; line-height:1.5;">
-                    Visit VictorianEcoPoint Smart Waste Segregation Station and recycle eligible materials to earn points that can be redeemed for free amenity reservations.
+                    Visit VHEcoPoint Smart Waste Segregation Station and recycle eligible materials to earn points that can be redeemed for free amenity reservations.
                   </p>
                 </div>
               <?php endif; ?>
@@ -1065,7 +983,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
 
                 <?php if ($isResident): ?>
                 <div style="margin-top:16px; padding:12px 14px; background:linear-gradient(135deg,#f0faf2,#e8f6ec); border:1px solid #cfe6d4; border-radius:10px; font-size:0.85rem; color:#1f5a33; line-height:1.4;">
-                  💡 <strong>Pro Tip:</strong> You can use the points you have collected in VictorianEcoPoint Smart Waste Segregation Station when booking an amenity for a free 1 hour. Click on "View Rewards" to see your options.
+                  💡 <strong>Pro Tip:</strong> You can use the points you have collected in VHEcoPoint Smart Waste Segregation Station when booking an amenity for a free 1 hour. Click on "View Rewards" to see your options.
                 </div>
                 <?php endif; ?>
               </div>
@@ -1276,7 +1194,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                           <button type="button" class="booking-mode-card" id="bookingModePoints">
                             <span class="booking-mode-label">Redeem Points</span>
                             <span class="booking-mode-value" id="bookingModePointsRequired">Select an amenity first</span>
-                            <span class="booking-mode-meta">Free 1-hour booking when you have enough VictorianEcoPoint points.</span>
+                            <span class="booking-mode-meta">Free 1-hour booking when you have enough VHEcoPoint points.</span>
                           </button>
                         </div>
                         <input type="checkbox" id="use-points-toggle" style="display:none;">
@@ -3842,11 +3760,6 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
       flex-wrap: wrap;
       gap: 12px;
     }
-  }
-
-  /* AI Recommendations styling */
-  .ai-recommendation-card:hover {
-    background: #cfe6d4;
   }
 
 /* Points redemption sidebar (center modal) */

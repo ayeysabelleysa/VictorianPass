@@ -302,7 +302,7 @@ declare(strict_types=1);
       content:"";
       position:absolute;
       inset:-10px;
-      border-radius:46px;
+      border-radius:36px;
       background:radial-gradient(circle at 50% 50%, rgba(242,194,79,.55), transparent 64%);
       filter:blur(0px);
       opacity:.75;
@@ -386,10 +386,45 @@ declare(strict_types=1);
       backdrop-filter:blur(12px);
       box-shadow:0 12px 32px rgba(0,0,0,.38);
       min-height:118px;
+      position:relative;
+      overflow:hidden;
+    }
+    .stat::before{
+      content:"";
+      position:absolute;
+      inset:0 0 auto 0;
+      height:3px;
+      background:linear-gradient(90deg, rgba(242,194,79,.0), rgba(242,194,79,.55), rgba(34,197,94,.45), rgba(242,194,79,.0));
+      opacity:.85;
     }
     .stat .k{font-size:14px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin:0}
     .stat .v{font-size:clamp(26px, 4.2vw, 34px);font-weight:900;margin:10px 0 0}
     .stat .v small{font-size:18px;font-weight:800;color:var(--muted)}
+    .stat-top{
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .stat-ic{
+      width:40px;
+      height:40px;
+      border-radius:16px;
+      display:grid;
+      place-items:center;
+      background:linear-gradient(135deg, var(--gold), var(--gold-2));
+      color:#062113;
+      font-weight:900;
+      box-shadow:0 12px 26px rgba(0,0,0,.26);
+      flex-shrink:0;
+    }
+    .stat-material{
+      background:linear-gradient(180deg, rgba(242,194,79,.12), rgba(34,197,94,.06));
+      border-color:rgba(242,194,79,.22);
+    }
+    .stat-material .v{
+      font-size:clamp(28px, 4.2vw, 38px);
+      color:var(--text);
+    }
 
     .start-wrap{
       margin-top:22px;
@@ -501,53 +536,6 @@ declare(strict_types=1);
     .badge-time{
       background:linear-gradient(180deg, rgba(239,68,68,.10), rgba(0,0,0,.00));
       border-color:rgba(239,68,68,.22);
-    }
-
-    .stat{
-      position:relative;
-      overflow:hidden;
-    }
-    .stat::before{
-      content:"";
-      position:absolute;
-      inset:0 0 auto 0;
-      height:3px;
-      background:linear-gradient(90deg, rgba(242,194,79,.0), rgba(242,194,79,.55), rgba(34,197,94,.45), rgba(242,194,79,.0));
-      opacity:.85;
-    }
-    .stat-top{
-      display:flex;
-      align-items:center;
-      gap:10px;
-    }
-    .stat-ic{
-      width:40px;
-      height:40px;
-      border-radius:16px;
-      display:grid;
-      place-items:center;
-      background:linear-gradient(135deg, var(--gold), var(--gold-2));
-      color:#062113;
-      font-weight:900;
-      box-shadow:0 12px 26px rgba(0,0,0,.26);
-      flex-shrink:0;
-    }
-    .stat .k{
-      margin:0;
-      line-height:1.1;
-    }
-    .stat .v{
-      margin-top:12px;
-      line-height:1.05;
-      letter-spacing:.2px;
-    }
-    .stat-material{
-      background:linear-gradient(180deg, rgba(242,194,79,.12), rgba(34,197,94,.06));
-      border-color:rgba(242,194,79,.22);
-    }
-    .stat-material .v{
-      font-size:clamp(28px, 4.2vw, 38px);
-      color:var(--text);
     }
 
     .row-actions{
@@ -1370,6 +1358,7 @@ declare(strict_types=1);
       });
 
       var resident = {
+        id: null,
         name: 'Resident',
         balance: 0,
         weeklyRemaining: 250,
@@ -1437,7 +1426,6 @@ declare(strict_types=1);
         weightKg:0,
         points:0,
         secondsLeft:60,
-        weightTimer:null,
         countdownTimer:null,
         returnTimer:null
       };
@@ -1461,7 +1449,6 @@ declare(strict_types=1);
       }
 
       function stopSessionTimers(){
-        if(session.weightTimer) { clearInterval(session.weightTimer); session.weightTimer = null; }
         if(session.countdownTimer) { clearInterval(session.countdownTimer); session.countdownTimer = null; }
       }
 
@@ -1476,12 +1463,20 @@ declare(strict_types=1);
         session.weightKg = 0;
         session.points = 0;
         session.secondsLeft = 60;
+        resident.id = null;
         pickMaterial();
         renderSession();
         showScreen('idle');
+
+        // Notify bridge session ended
+        fetch('http://localhost:8080/session/stop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        }).catch(function(){});
       }
 
-      function beginSession(){
+      async function beginSession(){
         stopSessionTimers();
         stopReturnTimer();
         session.active = true;
@@ -1492,13 +1487,12 @@ declare(strict_types=1);
         renderSession();
         showScreen('active');
 
-        session.weightTimer = setInterval(function(){
-          if(!session.active) return;
-          if(Math.random() < 0.07) pickMaterial();
-          var inc = (Math.random() * 0.08);
-          session.weightKg = Math.min(9.99, session.weightKg + inc);
-          renderSession();
-        }, 250);
+        // Notify bridge session started
+        fetch('http://localhost:8080/session/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ resident: resident })
+        }).catch(function(){});
 
         session.countdownTimer = setInterval(function(){
           if(!session.active) return;
@@ -1510,13 +1504,39 @@ declare(strict_types=1);
         }, 1000);
       }
 
-      function completeSession(){
+      async function completeSession(){
         if(!session.active && screens.complete && screens.complete.classList.contains('is-active')) return;
         session.active = false;
         stopSessionTimers();
 
         var earned = Math.max(0, session.points);
-        var newBalance = Math.min(3000, (resident.balance ?? 0) + earned);
+
+        // Save session to database
+        var newBalance = resident.balance;
+        if (resident.id && earned > 0) {
+          try {
+            var res = await fetch('api/complete_session.php', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                resident_id: resident.id,
+                material: session.material.label,
+                weight_kg: session.weightKg,
+                points_earned: earned
+              })
+            });
+            var data = await res.json();
+            if (data.success) {
+              newBalance = data.data.new_balance;
+            }
+          } catch (e) {
+            console.error('Error saving session', e);
+            newBalance = Math.min(3000, resident.balance + earned);
+          }
+        } else {
+          newBalance = Math.min(3000, resident.balance + earned);
+        }
+
         resident.balance = newBalance;
         renderResident();
 
@@ -1526,6 +1546,13 @@ declare(strict_types=1);
         if(sumBalanceEl) sumBalanceEl.textContent = String(newBalance);
 
         showScreen('complete');
+
+        // Notify bridge session ended
+        fetch('http://localhost:8080/session/stop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        }).catch(function(){});
 
         var remaining = 5;
         if(returnCountdownEl) returnCountdownEl.textContent = String(remaining);
@@ -1540,6 +1567,7 @@ declare(strict_types=1);
       }
 
       function setResident(data){
+        resident.id = data && data.resident_id ? data.resident_id : null;
         resident.name = String(data && data.name ? data.name : resident.name);
         resident.balance = clampInt(data && data.balance != null ? data.balance : resident.balance, 0, 3000);
         resident.weeklyRemaining = clampInt(data && data.weeklyRemaining != null ? data.weeklyRemaining : resident.weeklyRemaining, 0, 250);
@@ -1547,10 +1575,36 @@ declare(strict_types=1);
         renderResident();
       }
 
-      function onScan(data){
+      async function onScan(data){
         stopReturnTimer();
         stopSessionTimers();
-        setResident(data || {});
+
+        var residentData = null;
+        if (data.qr_code) {
+          // Verify resident with backend API
+          try {
+            var res = await fetch('api/verify_resident.php', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ qr_code: data.qr_code })
+            });
+            var apiData = await res.json();
+            if (apiData.success) {
+              residentData = apiData.data;
+            } else {
+              alert(apiData.message || 'Resident not found');
+              return;
+            }
+          } catch (e) {
+            console.error('Error verifying resident', e);
+            alert('Error connecting to server. Please try again.');
+            return;
+          }
+        } else {
+          residentData = data;
+        }
+
+        setResident(residentData || {});
         showScreen('verified');
       }
 
@@ -1597,6 +1651,27 @@ declare(strict_types=1);
         if(!ev || !ev.detail) return;
         onScan(ev.detail);
       });
+
+      // --- Hardware Bridge Event Listener ---
+      async function pollBridgeEvents() {
+        while (true) {
+          try {
+            var response = await fetch('http://localhost:8080/events');
+            var event = await response.json();
+
+            if (event.type === 'qr_scan') {
+              onScan(event.data);
+            } else if (event.type === 'weight_update' && session.active) {
+              session.weightKg = event.data.weight_kg;
+              renderSession();
+            }
+          } catch (e) {
+            // Bridge not available, wait and retry
+            await new Promise(function(resolve){ setTimeout(resolve, 2000); });
+          }
+        }
+      }
+      pollBridgeEvents();
 
       resetToIdle();
     })();

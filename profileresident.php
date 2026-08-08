@@ -326,7 +326,7 @@ $ecoPointWeeklyRemaining = max(0, $ecoPointWeeklyCap - $ecoPointWeeklyPoints);
 $ecoPointWeeklyProgress = $ecoPointWeeklyCap > 0 ? min(100, round(($ecoPointWeeklyPoints / $ecoPointWeeklyCap) * 100)) : 0;
 $ecoPointSessionsRemaining = max(0, $ecoPointDailySessionsMax - $ecoPointTodaySessionsUsed);
 $ecoPointExpiryCountdownLabel = 'No active recycling points yet';
-$ecoPointExpiryCountdownSubtext = 'Start using VictorianEcoPoint to begin your points cycle.';
+$ecoPointExpiryCountdownSubtext = 'Start using VHEcoPoint to begin your points cycle.';
 if ($ecoPointNextExpiryTs !== null) {
     $secondsLeft = max(0, $ecoPointNextExpiryTs - time());
     $daysLeft = (int)floor($secondsLeft / 86400);
@@ -1055,7 +1055,7 @@ body.account-blocked { overflow: hidden; }
         <i class="fa-solid fa-coins"></i>
         <span>
           Points History
-          <small style="display:block; font-size:0.7rem; color:#3f8f5a; font-weight:700; margin-top:2px;">VictorianEcoPoint</small>
+          <small style="display:block; font-size:0.7rem; color:#3f8f5a; font-weight:700; margin-top:2px;">VHEcoPoint</small>
           <small style="display:block; font-size:0.68rem; color:#999; font-weight:400; margin-top:1px;">Smart Waste Segregation Station</small>
         </span>
       </a>
@@ -1272,7 +1272,7 @@ body.account-blocked { overflow: hidden; }
         <div class="panel-section" id="panel-points-history" style="<?php echo $activeSection === 'panel-points-history' ? '' : 'display:none;'; ?>">
           <div class="activity-list-header">
             <div>
-              VictorianEcoPoint
+              VHEcoPoint
               <div style="font-size:0.8rem; color:#999; margin-top:4px;">Smart Waste Segregation Station dashboard for residents</div>
             </div>
           </div>
@@ -1280,7 +1280,7 @@ body.account-blocked { overflow: hidden; }
           <div class="ecopoint-panel-shell" style="margin-top:20px;">
             <div class="ecopoint-header-card">
               <div class="ecopoint-header-kicker">Resident EcoPoint</div>
-              <div class="ecopoint-header-title">VictorianEcoPoint</div>
+              <div class="ecopoint-header-title">VHEcoPoint</div>
               <div class="ecopoint-header-desc">Track your current point balance, weekly recycling progress, daily session usage, expiry countdown, and station-ready QR access in one place.</div>
             </div>
 
@@ -1317,7 +1317,7 @@ body.account-blocked { overflow: hidden; }
                 <button type="button" class="ecopoint-action-btn" onclick="downloadPersonalQR(); return false;">
                   <i class="fa-solid fa-qrcode"></i> Download Station QR
                 </button>
-                <div class="ecopoint-action-note">Use this QR code at the VictorianEcoPoint station scanner.</div>
+                <div class="ecopoint-action-note">Use this QR code at the VHEcoPoint station scanner.</div>
               </div>
               <div class="ecopoint-material-list">
                 <?php foreach ($ecoPointWeeklyStats as $materialLabel => $materialStat): ?>
@@ -1340,7 +1340,7 @@ body.account-blocked { overflow: hidden; }
               <h3 class="ecopoint-card-title">Recycling Activity History</h3>
               <div class="ecopoint-card-note">Each deposit shows when you recycled, the detected material, recorded weight, and the points earned from that station activity.</div>
               <?php if (empty($ecoPointRecyclingHistory)): ?>
-                <div class="ecopoint-empty">No VictorianEcoPoint recycling activity yet.</div>
+                <div class="ecopoint-empty">No VHEcoPoint recycling activity yet.</div>
               <?php else: ?>
                 <div class="ecopoint-table-wrap">
                   <table class="ecopoint-table">

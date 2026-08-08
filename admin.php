@@ -4962,7 +4962,7 @@ body.modal-open { overflow: hidden; }
        <a href="?page=resident_guest_forms" class="nav-item <?php echo $currentPage == 'resident_guest_forms' ? 'active' : ''; ?>" data-page="resident_guest_forms"><i class="fa-solid fa-user-plus"></i><span>Resident's Guest Request</span></a>
        <a href="?page=visitor_requests" class="nav-item <?php echo $currentPage == 'visitor_requests' ? 'active' : ''; ?>" data-page="visitor_requests"><i class="fa-solid fa-clipboard-list"></i><span>Visitor Requests</span></a>
        <a href="?page=report" class="nav-item <?php echo $currentPage == 'report' ? 'active' : ''; ?>" data-page="report"><i class="fa-solid fa-triangle-exclamation"></i><span>View Reported Incidents</span></a>
-    <a href="?page=smart_waste" class="nav-item smart-waste-link <?php echo $currentPage == 'smart_waste' ? 'active' : ''; ?>" data-page="smart_waste"><i class="fa-solid fa-recycle"></i><span class="nav-copy"><strong>VictorianEcoPoint</strong><small>Smart Waste Segregation Station</small></span></a>
+    <a href="?page=smart_waste" class="nav-item smart-waste-link <?php echo $currentPage == 'smart_waste' ? 'active' : ''; ?>" data-page="smart_waste"><i class="fa-solid fa-recycle"></i><span class="nav-copy"><strong>VHEcoPoint</strong><small>Smart Waste Segregation Station</small></span></a>
     <a href="?page=security" class="nav-item <?php echo $currentPage == 'security' ? 'active' : ''; ?>" data-page="security"><i class="fa-solid fa-shield-halved"></i><span>Security Guards</span></a>
     <a href="?page=history" class="nav-item <?php echo $currentPage == 'history' ? 'active' : ''; ?>" data-page="history"><i class="fa-solid fa-box-archive"></i><span>Archived Requests</span></a>
     <a href="?page=summary" class="nav-item <?php echo $currentPage == 'summary' ? 'active' : ''; ?>" data-page="summary"><i class="fa-solid fa-chart-column"></i><span>Summary Report</span></a>
@@ -4983,7 +4983,7 @@ body.modal-open { overflow: hidden; }
       'visitor_requests' => 'Visitor Requests',
       'reservations' => 'Reservations',
       'report' => 'View Reported Incidents',
-      'smart_waste' => 'VictorianEcoPoint',
+      'smart_waste' => 'VHEcoPoint',
       'security' => 'Security Guards',
       'residents' => 'Residents',
       'cancelled' => 'Cancelled Requests',
@@ -5494,11 +5494,11 @@ body.modal-open { overflow: hidden; }
 ?>
 <section class="panel" id="smart-waste-panel">
   <div class="smart-waste-brand-banner">
-    <span class="station-name">VictorianEcoPoint</span>
+    <span class="station-name">VHEcoPoint</span>
     <span class="station-desc">Smart Waste Segregation Station</span>
   </div>
   <h3>EcoPoint Admin Panel</h3>
-  <div class="notice">View estimated live bin levels, total collected kilograms, resident participation rates, point redemption records, and station activity logs for VictorianEcoPoint inside the existing VictorianPass admin dashboard.</div>
+  <div class="notice">View estimated live bin levels, total collected kilograms, resident participation rates, point redemption records, and station activity logs for VHEcoPoint inside the existing VictorianPass admin dashboard.</div>
 
   <div class="dashboard-grid" style="padding:0; margin:0 0 20px;">
     <div class="dashboard-widget">
@@ -5527,7 +5527,7 @@ body.modal-open { overflow: hidden; }
     <div class="smart-waste-main">
       <div class="smart-waste-card">
         <h4>Real-Time Bin Fill Levels</h4>
-        <div class="smart-waste-note">Estimated live fill level per material using today's logged deposits and a 120L capacity for each VictorianEcoPoint bin.</div>
+        <div class="smart-waste-note">Estimated live fill level per material using today's logged deposits and a 120L capacity for each VHEcoPoint bin.</div>
         <div class="smart-waste-bin-grid">
           <?php foreach ($materialStats as $label => $materialRow): ?>
             <?php $materialConfig = $materialConfigs[$label] ?? ['icon' => 'fa-recycle', 'color' => '#2f7d32']; ?>
@@ -5556,7 +5556,7 @@ body.modal-open { overflow: hidden; }
 
       <div class="smart-waste-card">
         <h4>Station Activity Logs</h4>
-        <div class="smart-waste-note">Latest VictorianEcoPoint transactions with resident, material, weight, points, and reference tracking.</div>
+        <div class="smart-waste-note">Latest VHEcoPoint transactions with resident, material, weight, points, and reference tracking.</div>
         <div class="table-responsive-wrapper smart-waste-table-compact">
           <table>
             <thead>
@@ -5605,7 +5605,7 @@ body.modal-open { overflow: hidden; }
 
       <div class="smart-waste-card">
         <h4>Weekly Station Activity</h4>
-        <div class="smart-waste-note">Last 7 days of logged VictorianEcoPoint point activity.</div>
+        <div class="smart-waste-note">Last 7 days of logged VHEcoPoint point activity.</div>
         <div class="smart-waste-chart">
           <?php foreach ($weeklyActivity as $day): ?>
             <?php
@@ -5625,7 +5625,7 @@ body.modal-open { overflow: hidden; }
     <div class="smart-waste-side">
       <div class="smart-waste-card">
         <h4>Total Kg Collected Per Material Type</h4>
-        <div class="smart-waste-note">All-time collected weight and deposit volume for each VictorianEcoPoint material category.</div>
+        <div class="smart-waste-note">All-time collected weight and deposit volume for each VHEcoPoint material category.</div>
         <div class="smart-waste-list">
           <?php foreach ($materialStats as $label => $materialRow): ?>
             <?php $materialConfig = $materialConfigs[$label] ?? ['icon' => 'fa-recycle', 'color' => '#2f7d32']; ?>
@@ -5648,7 +5648,7 @@ body.modal-open { overflow: hidden; }
 
       <div class="smart-waste-card">
         <h4>Resident Participation Rates</h4>
-        <div class="smart-waste-note">Participation is based on unique residents who logged at least one earn transaction in VictorianEcoPoint.</div>
+        <div class="smart-waste-note">Participation is based on unique residents who logged at least one earn transaction in VHEcoPoint.</div>
         <div class="smart-waste-kpi-grid">
           <div class="smart-waste-kpi">
             <div class="smart-waste-kpi-label">All-Time Participation</div>

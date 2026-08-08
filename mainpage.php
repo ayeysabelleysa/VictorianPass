@@ -244,7 +244,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         <a href="#home">Home</a>
         <a href="#" class="nav-ecopoint" id="navEcoPointBtn" data-ecopoint-modal-open="true">
           <span class="nav-ecopoint-icon" aria-hidden="true">&#9851;</span>
-          <span class="nav-ecopoint-label">VictorianEcoPoint</span>
+          <span class="nav-ecopoint-label">VHEcoPoint</span>
           <span class="nav-ecopoint-badge" aria-label="New feature">New!</span>
           <span class="nav-ecopoint-tooltip" role="tooltip">Earn points by recycling and redeem them for free amenity hours!</span>
         </a>
@@ -305,33 +305,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       </div>
 
       <p class="tagline">Every home has a story — start yours in a place worth remembering.</p>
-      <p class="hero-eco-subtitle">Now with VictorianEcoPoint Rewards — Recycle &amp; Earn Points</p>
-
-      <!-- AI Search Bar Section -->
-      <div class="ai-search-section">
-        <div class="ai-search-wrapper">
-          <svg class="ai-search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
-          <input 
-            type="text" 
-            class="ai-search-input" 
-            id="aiSearchInput"
-            placeholder="Ask VictorianPass AI anything..." 
-            spellcheck="false"
-          />
-          <svg class="ai-sparkle-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"></path>
-          </svg>
-        </div>
-        <div class="ai-suggested-questions">
-          <div class="suggested-label">Suggested:</div>
-          <button class="suggested-btn" data-question="How do I register?">How do I register?</button>
-          <button class="suggested-btn" data-question="Request a visitor pass">Request a visitor pass</button>
-          <button class="suggested-btn suggested-btn-waste" data-question="How do I earn EcoPoints?">How do I earn EcoPoints?</button>
-          <button class="suggested-btn suggested-btn-waste" data-question="How do I redeem my points?">How do I redeem my points?</button>
-          <button class="suggested-btn suggested-btn-waste" data-question="What can I recycle?">What can I recycle?</button>
-          <button class="suggested-btn suggested-btn-waste" data-question="Use Station">Use Station</button>
-        </div>
-      </div>
+      <p class="hero-eco-subtitle">Now with VHEcoPoint Rewards — Recycle &amp; Earn Points</p>
+      <!-- Mobile-only: See description button for VHEcoPoint (short, close to subtitle) -->
+      <button class="mobile-ecopoint-btn" data-ecopoint-modal-open="true" aria-controls="ecopointModal" aria-expanded="false">See VHEcoPoint description</button>
 
       <div class="action-buttons" style="margin-top: 30px; gap:15px; flex-wrap:wrap;">
         <?php if (!$isLoggedIn): ?>
@@ -372,9 +348,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       <button type="button" class="ecopoint-modal-close" id="ecopointModalClose" aria-label="Close">&times;</button>
       <div class="ecopoint-shell">
         <div class="ecopoint-intro-card" style="margin-bottom:18px;">
-          <h2 class="section-title ecopoint-title" id="ecopointModalTitle"><span class="ecopoint-title-icon" aria-hidden="true">&#9851;</span><span>Learn About VictorianEcoPoint</span></h2>
+          <h2 class="section-title ecopoint-title" id="ecopointModalTitle"><span class="ecopoint-title-icon" aria-hidden="true">&#9851;</span><span>Learn About VHEcoPoint</span></h2>
           <div class="section-divider"></div>
-          <p class="section-subtitle ecopoint-description">VictorianEcoPoint is Victorian Heights Subdivision’s Smart Waste Segregation Station that automatically sorts recyclables and rewards you with points redeemable for free amenity bookings. Scan your VictorianPass QR code, deposit recyclables, and points are credited to your account instantly.</p>
+          <p class="section-subtitle ecopoint-description">VHEcoPoint is Victorian Heights Subdivision’s Smart Waste Segregation Station that automatically sorts recyclables and rewards you with points redeemable for free amenity bookings. Scan your VictorianPass QR code, deposit recyclables, and points are credited to your account instantly.</p>
         </div>
 
         <div class="ecopoint-grid">
@@ -385,7 +361,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <div class="ecopoint-step-icon" aria-hidden="true">🔍</div>
                 <div class="ecopoint-step-copy">
                   <h4>Scan</h4>
-                  <p>Scan your VictorianPass QR code at the VictorianEcoPoint station.</p>
+                  <p>Scan your VictorianPass QR code at the VHEcoPoint station.</p>
                 </div>
               </div>
               <div class="ecopoint-step-item">
@@ -499,7 +475,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <h2 class="section-title">About the System</h2>
     <div class="section-divider"></div>
     <div class="section-body">
-      <p>Victorian Pass is a modern subdivision management system that utilizes QR technology to provide fast, secure, and seamless access for residents and visitors. Designed to enhance security and streamline daily processes, the system handles amenity reservations, entry pass requests, incident reporting, and user verification, all in one platform. By replacing manual checks with QR scanning, Victorian Pass ensures quicker entry and secure access while improving subdivision monitoring and welfare. The system also connects with the VictorianEcoPoint Smart Waste Segregation Station so residents can earn recycling rewards without blending the station identity into the main platform brand.</p>
+      <p>Victorian Pass is a modern subdivision management system that utilizes QR technology to provide fast, secure, and seamless access for residents and visitors. Designed to enhance security and streamline daily processes, the system handles amenity reservations, entry pass requests, incident reporting, and user verification, all in one platform. By replacing manual checks with QR scanning, Victorian Pass ensures quicker entry and secure access while improving subdivision monitoring and welfare. The system also connects with the VHEcoPoint Smart Waste Segregation Station so residents can earn recycling rewards without blending the station identity into the main platform brand.</p>
       <div class="about-intro"><h3>Experience peace of mind designed to safeguard your neighborhood.</h3></div>
       <div class="about-system-grid">
         <div class="about-card">
@@ -680,71 +656,5 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     });
   </script>
 
-  <!-- Floating AI Chat Button -->
-  <button class="ai-chat-float" id="aiChatToggle" title="Open AI Assistant">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-    </svg>
-    <span class="ai-chat-badge">AI</span>
-  </button>
-
-  <!-- Chatbot Panel -->
-  <div class="ai-chatbot-panel" id="aiChatbotPanel">
-    <div class="chatbot-header">
-      <h3>VictorianPass AI Assistant</h3>
-      <div class="chatbot-controls">
-        <button class="chatbot-btn-minimize" id="chatbotMinimize" title="Minimize">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
-        </button>
-        <button class="chatbot-btn-close" id="chatbotClose" title="Close">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-    </div>
-
-    <div class="chatbot-welcome" id="chatbotWelcome">
-      <div class="welcome-icon">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"></path>
-        </svg>
-      </div>
-      <h4>Hello! I'm the VictorianPass AI Assistant</h4>
-      <p>How can I help you today?</p>
-    </div>
-
-    <div class="chatbot-messages" id="chatbotMessages"></div>
-
-    <div class="chatbot-typing" id="chatbotTyping" style="display:none;">
-      <div class="typing-indicator">
-        <span></span><span></span><span></span>
-      </div>
-      <span>AI is thinking...</span>
-    </div>
-
-    <div class="chatbot-input-area">
-      <input 
-        type="text" 
-        class="chatbot-input" 
-        id="chatbotInput" 
-        placeholder="Type your message..."
-        autocomplete="off"
-      />
-      <button class="chatbot-send-btn" id="chatbotSendBtn" title="Send">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="22" y1="2" x2="11" y2="13"></line>
-          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-        </svg>
-      </button>
-    </div>
-
-    <button class="chatbot-clear-btn" id="chatbotClear" title="Clear Chat">Clear Chat</button>
-  </div>
-
-  <script src="js/mainpage_ai.js"></script>
 </body>
 </html>
