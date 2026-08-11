@@ -19,3 +19,13 @@ CREATE TABLE IF NOT EXISTS ecopoint_sessions (
     
     FOREIGN KEY (resident_id) REFERENCES residents(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Optional table to log session lifecycle events for real-time UI
+CREATE TABLE IF NOT EXISTS ecopoint_session_events (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    resident_id INT NOT NULL,
+    event_type VARCHAR(20) NOT NULL COMMENT 'start|stop|weight_update',
+    meta JSON NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (resident_id) REFERENCES residents(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

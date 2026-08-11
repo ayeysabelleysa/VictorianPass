@@ -1487,11 +1487,11 @@ declare(strict_types=1);
         renderSession();
         showScreen('active');
 
-        // Notify bridge session started
+        // Notify bridge session started (include material)
         fetch('http://localhost:8080/session/start', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ resident: resident })
+          body: JSON.stringify({ resident: resident, material: session.material ? session.material.label : null })
         }).catch(function(){});
 
         session.countdownTimer = setInterval(function(){
@@ -1620,6 +1620,33 @@ declare(strict_types=1);
       function clickScan(){
         if(infoModal && infoModal.classList.contains('is-open')) return;
         mockScan();
+      }
+
+      // Poll bridge for hardware events (QR scan, weight updates)
+      var bridgePollInterval = null;
+      function startBridgePolling(){
+        if(bridgePollInterval) return;
+        bridgePollInterval = setInterval(async function(){
+          try{
+            var res = await fetch('http://localhost:8080/events');
+            var ev = await res.json();
+            if(ev.type === 'qr_scan'){
+              onScan({ qr_code: ev.data.qr_code });
+            } else if(ev.type === 'weight_update'){
+              // update session weight and live points
+              session.weightKg = ev.data.weight_kg;
+              var rate = parseInt(document.getElementById('rateText').textContent) || 50;
+              session.points = Math.max(0, Math.floor(session.weightKg * rate));
+              renderSession();
+            }
+          }catch(e){
+            // ignore bridge errors
+          }
+        }, 400);
+      }
+
+      function stopBridgePolling(){
+        if(bridgePollInterval){ clearInterval(bridgePollInterval); bridgePollInterval = null; }
       }
 
       if(scanIcon){

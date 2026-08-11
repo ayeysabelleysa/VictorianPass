@@ -771,6 +771,20 @@ body.account-blocked { overflow: hidden; }
 .toast-item.toast-success { border-left-color: #28a745; }
 .toast-item.toast-warning { border-left-color: #d97706; }
 .toast-item.toast-error { border-left-color: #c0392b; }
+.nav-item.ecopoint-link {
+  color: #14532d;
+  background-color: #dcfce7;
+  border-left: 4px solid #16a34a;
+}
+.nav-item.ecopoint-link:hover {
+  background-color: #bbf7d0;
+  color: #14532d;
+}
+.nav-item.ecopoint-link.active {
+  background-color: #bbf7d0;
+  color: #14532d;
+  font-weight: 700;
+}
 .field-warning {
   color: #333;
   font-size: 0.85rem;
@@ -1051,12 +1065,11 @@ body.account-blocked { overflow: hidden; }
     <nav class="nav-menu">
       <a href="#" class="nav-item <?php echo $activeSection === 'panel-requests' ? 'active' : ''; ?>" data-section="panel-requests"><i class="fa-solid fa-list"></i> <span>My Requests</span></a>
       <a href="reserve.php" class="nav-item"><i class="fa-solid fa-ticket"></i> <span>Amenity Reservation</span></a>
-      <a href="#" class="nav-item <?php echo $activeSection === 'panel-points-history' ? 'active' : ''; ?>" data-section="panel-points-history">
+      <a href="#" class="nav-item ecopoint-link <?php echo $activeSection === 'panel-points-history' ? 'active' : ''; ?>" data-section="panel-points-history">
         <i class="fa-solid fa-coins"></i>
         <span>
-          Points History
-          <small style="display:block; font-size:0.7rem; color:#3f8f5a; font-weight:700; margin-top:2px;">VHEcoPoint</small>
-          <small style="display:block; font-size:0.68rem; color:#999; font-weight:400; margin-top:1px;">Smart Waste Segregation Station</small>
+          VHEcoPoint
+          <small style="display:block; font-size:0.7rem; color:#166534; font-weight:700; margin-top:2px;">Smart Waste Segregation Station</small>
         </span>
       </a>
       <a href="#" class="nav-item <?php echo $activeSection === 'panel-guest-form' ? 'active' : ''; ?>" data-section="panel-guest-form"><i class="fa-solid fa-user-plus"></i> <span>Guest Form</span></a>
@@ -1304,6 +1317,25 @@ body.account-blocked { overflow: hidden; }
                 <div class="ecopoint-kpi-label">Points Expiry Countdown</div>
                 <div class="ecopoint-kpi-value"><?php echo htmlspecialchars($ecoPointExpiryCountdownLabel); ?></div>
                 <div class="ecopoint-kpi-subtext"><?php echo htmlspecialchars($ecoPointExpiryCountdownSubtext); ?></div>
+              </div>
+            </div>
+            <!-- Live session panel: shows real-time weight/points when using VHEcoPoint station -->
+            <div class="ecopoint-card" id="ecopoint-live-panel" style="display:block; margin-top:14px;">
+              <h3 class="ecopoint-card-title">Live Station Session</h3>
+              <div class="ecopoint-card-note">When you scan your VictorianPass at a VHEcoPoint station, your session will appear here in real time.</div>
+              <div style="display:flex;gap:18px;align-items:center;margin-top:12px;">
+                <div style="flex:1;">
+                  <div style="font-weight:700;color:#111827">Status</div>
+                  <div id="ecopoint-live-status" style="margin-top:6px;color:#6b7280">No active session</div>
+                </div>
+                <div style="width:160px;">
+                  <div style="font-weight:700;color:#111827">Live Weight</div>
+                  <div id="ecopoint-live-weight" style="margin-top:6px;color:#14532d">0.00 kg</div>
+                </div>
+                <div style="width:160px;">
+                  <div style="font-weight:700;color:#111827">Live Points</div>
+                  <div id="ecopoint-live-points" style="margin-top:6px;color:#14532d">0 pts</div>
+                </div>
               </div>
             </div>
 
@@ -4149,5 +4181,127 @@ function replaceProof(reportId, proofId){
   tmp.click();
 }
 </script>
+  <script>
+    (function(){
+      var sseUrl = '<?php echo rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/VictorianPass')), '/') . '/api_resident/ecopoint_sse.php'; ?>';
+      var statusEl = document.getElementById('ecopoint-live-status');
+      var weightEl = document.getElementById('ecopoint-live-weight');
+      var pointsEl = document.getElementById('ecopoint-live-points');
+      var lastSeenSessionId = null;
+      var lastSeenSessionFinalStatus = null;
+      var lastRenderedCap = null;
+
+      function fmtKg(w){
+        w = parseFloat(w || 0);
+        if(isNaN(w)) w = 0;
+        return w.toFixed(2) + ' kg';
+      }
+      function fmtPts(p){
+        p = parseInt(p || 0, 10);
+        if(isNaN(p)) p = 0;
+        return p + ' pts';
+      }
+      function statusLabel(s){
+        switch(String(s || '').toUpperCase()){
+          case 'WAITING':    return 'Waiting for deposit — station verified your QR';
+          case 'ACTIVE':     return 'Session active — station verified your QR';
+          case 'PROCESSING': return 'Recycling in progress — station is weighing your deposit';
+          case 'COMPLETED':  return 'Session complete — points credited ✅';
+          case 'CANCELLED':  return 'Session cancelled (station aborted)';
+          case 'ERROR':      return 'Session error — see station admin if needed';
+          default:           return 'No active session';
+        }
+      }
+      function render(snap){
+        if (!snap || !snap.success) return;
+
+        // Weekly cap live bar text (in KPI header, update card subtitle if element exists)
+        if (snap.cap_state) {
+          var usedW = parseInt(snap.cap_state.weekly_points_used  || 0, 10);
+          var maxW  = parseInt(<?php echo (int)(ECO_WEEKLY_POINT_CAP ?? 250); ?>, 10);
+          var noteEl = document.getElementById('ecopoint-weekly-cap-note');
+          if (noteEl) {
+            noteEl.textContent = 'Weekly: ' + usedW + ' / ' + maxW + ' pts — ' +
+              (snap.cap_state.weekly_reset_note || 'Resets every Monday 12:00 AM');
+          }
+          // Update any dashboard-level balance texts with snap.current_balance
+          var bal = parseInt(snap.current_balance || 0, 10);
+          var balEls = document.querySelectorAll('[data-ecopoint-balance]');
+          balEls.forEach(function(el){ el.textContent = String(bal); });
+          lastRenderedCap = snap.cap_state;
+        }
+
+        var s = snap.active_session;
+        if (!s) {
+          statusEl.textContent = 'No active session';
+          weightEl.textContent = '0.00 kg';
+          pointsEl.textContent = '0 pts';
+          return;
+        }
+        statusEl.textContent = statusLabel(s.status);
+        weightEl.textContent = fmtKg(s.total_weight_kg && parseFloat(s.total_weight_kg) > 0 ? s.total_weight_kg : s.weight_kg);
+        // For active/processing, show *calculated* points so user sees progress;
+        // for completed, show final awarded points.
+        var statusUp = String(s.status || '').toUpperCase();
+        if (statusUp === 'COMPLETED') {
+          pointsEl.textContent = fmtPts(s.points_awarded || s.total_points);
+        } else {
+          pointsEl.textContent = fmtPts(s.points_calculated);
+        }
+        // If a session just became final, reload the page once to refresh the
+        // history/KPI cards on the dashboard.
+        if (lastSeenSessionId !== null && String(s.id) === String(lastSeenSessionId)) {
+          var isFinal = (statusUp === 'COMPLETED' || statusUp === 'CANCELLED' || statusUp === 'ERROR');
+          if (isFinal && lastSeenSessionFinalStatus !== statusUp) {
+            lastSeenSessionFinalStatus = statusUp;
+            setTimeout(function(){ window.location.reload(); }, 1500);
+          }
+        }
+        if (lastSeenSessionId === null || String(s.id) !== String(lastSeenSessionId)) {
+          lastSeenSessionId = String(s.id);
+          var up = String(s.status || '').toUpperCase();
+          lastSeenSessionFinalStatus =
+            (up === 'COMPLETED' || up === 'CANCELLED' || up === 'ERROR') ? up : null;
+        }
+      }
+
+      // 1) First snapshot immediately over regular fetch (avoid waiting for SSE first frame)
+      var firstSnapUrl = '<?php echo rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/VictorianPass')), '/') . '/api_resident/ecopoint_session_status.php'; ?>';
+      try {
+        fetch(firstSnapUrl, { credentials: 'same-origin', cache: 'no-store' })
+          .then(function(r){ return r.json(); })
+          .then(render)
+          .catch(function(){});
+      } catch(e){}
+
+      // 2) Open persistent SSE (real-time push; reconnects automatically on drop)
+      if (typeof(EventSource) !== 'undefined') {
+        var es = new EventSource(sseUrl, { withCredentials: true });
+        es.addEventListener('snapshot', function(ev){
+          try {
+            var snap = JSON.parse(ev.data);
+            render(snap);
+          } catch(err) {}
+        });
+        es.addEventListener('error', function(){
+          // Browser's EventSource automatically reconnects per SSE spec; no work needed.
+          // As a safety net, fall back to polling once every 4s while waiting for reconnect.
+        });
+        es.addEventListener('end_of_stream', function(){
+          // PHP SSE ended (~4:40) — browser's EventSource will reconnect automatically
+        });
+      } else {
+        // Fallback (very old browsers): regular polling every 2.5s
+        setInterval(function(){
+          try {
+            fetch(firstSnapUrl, { credentials: 'same-origin', cache: 'no-store' })
+              .then(function(r){ return r.json(); })
+              .then(render)
+              .catch(function(){});
+          } catch(e){}
+        }, 2500);
+      }
+    })();
+  </script>
 </body>
 </html>

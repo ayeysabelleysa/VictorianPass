@@ -46,7 +46,20 @@ class MockWeightScale:
             if CURRENT_RESIDENT is not None:
                 weight += 0.02
                 weight = min(weight, 9.99)
-                WEIGHT_UPDATE_QUEUE.put(round(weight, 2))
+                    w = round(weight, 2)
+                    WEIGHT_UPDATE_QUEUE.put(w)
+                    # push update to backend for real-time points calculation
+                    try:
+                        resident = CURRENT_RESIDENT
+                        rid = resident.get('id') if isinstance(resident, dict) else None
+                        if rid:
+                            requests.post(f"{API_BASE_URL}/weight_update.php", json={
+                                'resident_id': rid,
+                                'weight_kg': w,
+                                'material': resident.get('material') if isinstance(resident, dict) else None
+                            }, timeout=1)
+                    except Exception:
+                        pass
 
 
 # --- HTTP Server for UI Communication ---
@@ -96,10 +109,29 @@ class StationBridgeHandler(BaseHTTPRequestHandler):
 
         if self.path == '/session/start':
             global CURRENT_RESIDENT
+            # Store resident info and notify backend that session started
             CURRENT_RESIDENT = data.get('resident')
+            material = data.get('material')
             self._set_headers()
             self.wfile.write(json.dumps({'status': 'ok'}).encode('utf-8'))
+            # Notify backend API that session started (optional endpoint)
+            try:
+                if CURRENT_RESIDENT and 'id' in CURRENT_RESIDENT:
+                    requests.post(f"{API_BASE_URL}/session_started.php", json={
+                        'resident_id': CURRENT_RESIDENT.get('id'),
+                        'material': material
+                    }, timeout=2)
+            except Exception:
+                pass
         elif self.path == '/session/stop':
+            # Notify backend of session stop if needed
+            try:
+                if CURRENT_RESIDENT and 'id' in CURRENT_RESIDENT:
+                    requests.post(f"{API_BASE_URL}/session_stopped.php", json={
+                        'resident_id': CURRENT_RESIDENT.get('id')
+                    }, timeout=2)
+            except Exception:
+                pass
             CURRENT_RESIDENT = None
             self._set_headers()
             self.wfile.write(json.dumps({'status': 'ok'}).encode('utf-8'))
@@ -132,6 +164,52 @@ if __name__ == "__main__":
     qr_thread.start()
     weight_thread.start()
     server_thread.start()
+
+    # Start scan processor to handle QR scans without station UI
+    def scan_processor_loop():
+        while True:
+            qr = SCAN_EVENT_QUEUE.get()
+            if not qr:
+                continue
+            print(f"[Bridge] QR scanned: {qr}")
+            # Verify resident via API
+            try:
+                r = requests.post(f"{API_BASE_URL}/verify_resident.php", json={'qr_code': qr}, timeout=3)
+                if r.status_code == 200:
+                    jr = r.json()
+                    if jr.get('success') and jr.get('data'):
+                        resident = jr['data']
+                        # Set CURRENT_RESIDENT for weight thread
+                        CURRENT_RESIDENT = resident
+                        # Notify backend session started
+                        try:
+                            requests.post(f"{API_BASE_URL}/session_started.php", json={'resident_id': resident.get('resident_id'), 'material': None}, timeout=2)
+                        except Exception:
+                            pass
+                        print(f"[Bridge] Resident verified: {resident.get('name')} (id={resident.get('resident_id')})")
+                        # Keep current resident until explicit stop command
+                        # For the mock, allow typing 'done' to end session
+                        print("Type 'done' to end this session.")
+                        # Wait until user types 'done' on stdin
+                        while True:
+                            try:
+                                cmd = input().strip()
+                                if cmd.lower() == 'done':
+                                    # Notify backend session stopped
+                                    try:
+                                        requests.post(f"{API_BASE_URL}/session_stopped.php", json={'resident_id': resident.get('resident_id')}, timeout=2)
+                                    except Exception:
+                                        pass
+                                    CURRENT_RESIDENT = None
+                                    print('[Bridge] Session stopped')
+                                    break
+                            except Exception:
+                                break
+            except Exception as e:
+                print(f"[Bridge] Error verifying QR: {e}")
+
+    scan_proc_thread = threading.Thread(target=scan_processor_loop, daemon=True)
+    scan_proc_thread.start()
 
     # Open station UI in browser
     time.sleep(1)

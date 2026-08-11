@@ -27,8 +27,6 @@ function ensureEntryPassesTable($con) {
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 }
 
-ensureEntryPassesTable($con);
-
 // Ensure users table schema supports visitors
 function ensureUserSchema($con){
   // Add 'visitor' to user_type enum if missing
@@ -53,7 +51,12 @@ function ensureUserSchema($con){
     }
   }
 }
-ensureUserSchema($con);
+
+if (!isset($_SESSION['mainpage_schema_checked'])) {
+  ensureEntryPassesTable($con);
+  ensureUserSchema($con);
+  $_SESSION['mainpage_schema_checked'] = true;
+}
 
 $error = '';
 
@@ -351,6 +354,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
           <h2 class="section-title ecopoint-title" id="ecopointModalTitle"><span class="ecopoint-title-icon" aria-hidden="true">&#9851;</span><span>Learn About VHEcoPoint</span></h2>
           <div class="section-divider"></div>
           <p class="section-subtitle ecopoint-description">VHEcoPoint is Victorian Heights Subdivision’s Smart Waste Segregation Station that automatically sorts recyclables and rewards you with points redeemable for free amenity bookings. Scan your VictorianPass QR code, deposit recyclables, and points are credited to your account instantly.</p>
+          <p class="ecopoint-note">You can view your personal VictorianPass QR code on the Resident Profile page.</p>
         </div>
 
         <div class="ecopoint-grid">
@@ -582,21 +586,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         }
       });
     })();
-  </script>
-  <script>
-    document.addEventListener('DOMContentLoaded', function(){
-      var ecoLink = document.getElementById('navEcoPointBtn');
-      var toggle = document.getElementById('navToggle');
-      var collapse = document.getElementById('navCollapse');
-      if(ecoLink){
-        ecoLink.addEventListener('click', function(){
-          if(collapse && collapse.classList.contains('open')){
-            collapse.classList.remove('open');
-            if(toggle) toggle.setAttribute('aria-expanded','false');
-          }
-        });
-      }
-    });
   </script>
   <script>
     document.addEventListener('DOMContentLoaded', function(){
