@@ -242,35 +242,49 @@ if (!in_array($activeSection, $allowedSections, true)) {
   $activeSection = 'panel-requests';
 }
 
-// Fetch point transactions
-$pointTransactions = [];
+// Fetch point transactions - ONLY those tied to VHEcoPoint sessions so dashboard numbers
+// (balance, weekly points, daily sessions, activity history, expiry) share ONE source of truth.
+$ecoPointTransactions = [];
 if ($con instanceof mysqli) {
-    $stmt = $con->prepare("SELECT id, transaction_type, amount, description, reservation_ref_code, material_type, weight_kg, created_at FROM point_transactions WHERE user_id = ? ORDER BY created_at DESC");
+    $colQ = $con->query("SHOW COLUMNS FROM point_transactions LIKE 'ecopoint_session_id'");
+    $hasFk = ($colQ && $colQ->num_rows > 0);
+    if ($hasFk) {
+        $stmt = $con->prepare("SELECT id, transaction_type, amount, description, reservation_ref_code, material_type, weight_kg, created_at, ecopoint_session_id FROM point_transactions WHERE user_id = ? ORDER BY created_at DESC");
+    } else {
+        $stmt = $con->prepare("SELECT id, transaction_type, amount, description, reservation_ref_code, material_type, weight_kg, created_at, NULL AS ecopoint_session_id FROM point_transactions WHERE user_id = ? ORDER BY created_at DESC");
+    }
     if ($stmt) {
         $stmt->bind_param("i", $userId);
         $stmt->execute();
         $res = $stmt->get_result();
         while ($row = $res->fetch_assoc()) {
-            $pointTransactions[] = $row;
+            $isEcoTx = (!empty($row['ecopoint_session_id']) && intval($row['ecopoint_session_id']) > 0)
+                     || (stripos((string)($row['description'] ?? ''), 'VHEcoPoint') !== false)
+                     || (stripos((string)($row['description'] ?? ''), 'recycling') !== false);
+            if ($isEcoTx) {
+                $ecoPointTransactions[] = $row;
+            }
         }
         $stmt->close();
     }
 }
 
-// Fetch current user points
+// VHEcoPoint Current Balance = net of ONLY VHEcoPoint-sourced earn/redeem/adjustment transactions.
+// This guarantees Current Point Balance stays in sync with Weekly/Daily/History widgets.
 $currentPoints = 0;
-if ($con instanceof mysqli) {
-    $stmt = $con->prepare("SELECT points FROM users WHERE id = ? LIMIT 1");
-    if ($stmt) {
-        $stmt->bind_param("i", $userId);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        if ($row = $res->fetch_assoc()) {
-            $currentPoints = $row['points'];
-        }
-        $stmt->close();
+foreach ($ecoPointTransactions as $tx) {
+    $txType = strtolower(trim((string)($tx['transaction_type'] ?? 'earn')));
+    $amt = intval($tx['amount'] ?? 0);
+    if ($txType === 'earn') {
+        $currentPoints += $amt;
+    } elseif ($txType === 'redeem') {
+        $currentPoints -= $amt;
+    } elseif ($txType === 'adjustment') {
+        $currentPoints += $amt;
     }
 }
+$currentPoints = max(0, $currentPoints);
+
 $ecoPointWeeklyCap = 250;
 $ecoPointDailySessionsMax = 3;
 $ecoPointExpiryDays = 365;
@@ -287,14 +301,21 @@ $ecoPointNextExpiryTs = null;
 $todayDateKey = date('Y-m-d');
 $weekStartDateKey = date('Y-m-d', strtotime('monday this week'));
 $weekEndDateKey = date('Y-m-d', strtotime('sunday this week'));
-foreach ($pointTransactions as $tx) {
+foreach ($ecoPointTransactions as $tx) {
     $txType = strtolower(trim((string)($tx['transaction_type'] ?? '')));
     if ($txType !== 'earn') {
         continue;
     }
     $createdAt = (string)($tx['created_at'] ?? '');
     $createdTs = $createdAt !== '' ? strtotime($createdAt) : false;
-    $createdDateKey = $createdTs ? date('Y-m-d', $createdTs) : '';
+    // Robustness: if created_at is unparsable (e.g. '0000-00-00 00:00:00' from a
+    // prior migration that inserted rows without explicit dates), fall back to the
+    // current PHP time so daily / weekly / expiry counters still reflect the fact that
+    // the points exist in the ledger.
+    if ($createdTs === false || $createdTs <= 0) {
+        $createdTs = time();
+    }
+    $createdDateKey = date('Y-m-d', $createdTs);
     $materialLabel = residentEcoPointMaterialLabel($tx['material_type'] ?? '', $tx['description'] ?? '');
     $weightKg = floatval($tx['weight_kg'] ?? 0);
     $pointsEarned = intval($tx['amount'] ?? 0);
@@ -983,6 +1004,7 @@ body.account-blocked { overflow: hidden; }
 .ecopoint-header-kicker{font-size:0.74rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em}
 .ecopoint-header-title{font-size:1.4rem;font-weight:800;margin-top:4px}
 .ecopoint-header-desc{font-size:0.9rem;line-height:1.5;margin-top:6px;color:#166534}
+.ecopoint-promo{display:inline-block;background:linear-gradient(90deg,#f0fdf4,#dcfce7);color:#14532d;padding:8px 12px;border-radius:12px;font-weight:800;margin-bottom:8px}
 .ecopoint-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
 .ecopoint-kpi-card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:16px;box-shadow:0 4px 16px rgba(15,23,42,0.05)}
 .ecopoint-kpi-label{font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#6b7280}
@@ -1080,10 +1102,39 @@ body.account-blocked { overflow: hidden; }
 
     <div class="sidebar-footer">
       <?php if (!$isAccountBlocked): ?>
-      <a href="#" onclick="downloadPersonalQR(); return false;" class="download-qr-btn" title="Download My QR Code">
+      <a href="#" onclick="openQRChoice(); return false;" class="download-qr-btn" title="My QR">
         <i class="fa-solid fa-qrcode"></i> <span>My QR</span>
       </a>
       <?php endif; ?>
+    <!-- QR Choice Modal -->
+    <div id="qrChoiceModal" class="modal" style="display:none;">
+      <div class="modal-content" style="max-width:420px;text-align:center;">
+        <button type="button" class="close" aria-label="Close" id="qrChoiceClose">&times;</button>
+        <h3 style="margin-top:6px;">My QR Code</h3>
+        <div style="margin:12px 0;">
+          <img id="qrChoiceImg" src="" alt="My QR" style="width:180px;height:180px;object-fit:contain;border-radius:8px;border:1px solid #e6ebe6;">
+        </div>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:8px;">
+          <button type="button" class="btn-confirm" id="qrViewBtn">View</button>
+          <button type="button" class="btn-confirm" id="qrDownloadBtn">Download</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- QR View Modal (larger preview) -->
+    <div id="qrViewModal" class="modal" style="display:none;">
+      <div class="modal-content" style="max-width:520px;text-align:center;">
+        <button type="button" class="close" aria-label="Close" id="qrViewClose">&times;</button>
+        <h3 style="margin-top:6px;">My Personal QR Code</h3>
+        <div style="margin:12px 0;">
+          <img id="qrViewImg" src="" alt="My QR Large" style="width:320px;max-width:92vw;height:320px;object-fit:contain;border-radius:8px;border:1px solid #e6ebe6;">
+        </div>
+        <div style="margin-top:8px;color:#6b7280;font-size:0.95rem;">You may download this QR for offline use.</div>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px;">
+          <button type="button" class="btn-confirm" id="qrViewDownloadBtn">Download</button>
+        </div>
+      </div>
+    </div>
       <a href="logout.php" class="logout-btn" title="Log Out"><i class="fa-solid fa-right-from-bracket"></i> <span>Log Out</span></a>
     </div>
 
@@ -1292,6 +1343,7 @@ body.account-blocked { overflow: hidden; }
 
           <div class="ecopoint-panel-shell" style="margin-top:20px;">
             <div class="ecopoint-header-card">
+              <div class="ecopoint-promo">Now with VHEcoPoint Rewards — Recycle &amp; Earn Points</div>
               <div class="ecopoint-header-kicker">Resident EcoPoint</div>
               <div class="ecopoint-header-title">VHEcoPoint</div>
               <div class="ecopoint-header-desc">Track your current point balance, weekly recycling progress, daily session usage, expiry countdown, and station-ready QR access in one place.</div>
@@ -1301,7 +1353,7 @@ body.account-blocked { overflow: hidden; }
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label">Current Point Balance</div>
                 <div class="ecopoint-kpi-value"><?php echo number_format($currentPoints); ?> pts</div>
-                <div class="ecopoint-kpi-subtext">Updated from your live VictorianPass resident account balance.</div>
+                <div class="ecopoint-kpi-subtext">Net balance from VHEcoPoint recycling ledger (earn − redeem ± adjustments).</div>
               </div>
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label">Weekly Points Earned</div>
@@ -1309,9 +1361,9 @@ body.account-blocked { overflow: hidden; }
                 <div class="ecopoint-kpi-subtext"><?php echo number_format($ecoPointWeeklyRemaining); ?> pts remain before this week's program cap resets.</div>
               </div>
               <div class="ecopoint-kpi-card">
-                <div class="ecopoint-kpi-label">Daily Sessions Remaining</div>
-                <div class="ecopoint-kpi-value"><?php echo number_format($ecoPointSessionsRemaining); ?> / <?php echo number_format($ecoPointDailySessionsMax); ?></div>
-                <div class="ecopoint-kpi-subtext"><?php echo number_format($ecoPointTodaySessionsUsed); ?> station sessions logged today. Maximum of 3 per day.</div>
+                <div class="ecopoint-kpi-label">Daily Sessions Used</div>
+                <div class="ecopoint-kpi-value"><?php echo number_format($ecoPointTodaySessionsUsed); ?> / <?php echo number_format($ecoPointDailySessionsMax); ?> Used Today</div>
+                <div class="ecopoint-kpi-subtext"><?php echo number_format($ecoPointSessionsRemaining); ?> session<?php echo $ecoPointSessionsRemaining === 1 ? '' : 's'; ?> remaining. Maximum of 3 VHEcoPoint station visits per day.</div>
               </div>
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label">Points Expiry Countdown</div>
@@ -1322,7 +1374,7 @@ body.account-blocked { overflow: hidden; }
             <!-- Live session panel: shows real-time weight/points when using VHEcoPoint station -->
             <div class="ecopoint-card" id="ecopoint-live-panel" style="display:block; margin-top:14px;">
               <h3 class="ecopoint-card-title">Live Station Session</h3>
-              <div class="ecopoint-card-note">When you scan your VictorianPass at a VHEcoPoint station, your session will appear here in real time.</div>
+              <div class="ecopoint-card-note">When you scan your Personal QR Code at a VHEcoPoint station, your session will appear here in real time.</div>
               <div style="display:flex;gap:18px;align-items:center;margin-top:12px;">
                 <div style="flex:1;">
                   <div style="font-weight:700;color:#111827">Status</div>
@@ -1342,15 +1394,14 @@ body.account-blocked { overflow: hidden; }
             <div class="ecopoint-card">
               <h3 class="ecopoint-card-title">Weekly Material Cap Tracker</h3>
               <div class="ecopoint-card-note">Weekly contributions count toward the current 250-point program cap. Material rows show your contribution by recyclables logged this week.</div>
+              <div style="display:flex;justify-content:space-between;align-items:flex-end;margin:10px 0 6px 0;">
+                <div style="font-weight:700;color:#0f172a;font-size:13px;">Total Weekly Progress</div>
+                <div style="font-weight:800;color:#166534;font-size:15px;"><?php echo number_format($ecoPointWeeklyPoints); ?> / <?php echo number_format($ecoPointWeeklyCap); ?> pts &middot; <?php echo intval($ecoPointWeeklyProgress); ?>%</div>
+              </div>
               <div class="ecopoint-progress" style="margin-bottom:14px;">
                 <div class="ecopoint-progress-bar" style="width:<?php echo intval($ecoPointWeeklyProgress); ?>%;"></div>
               </div>
-              <div class="ecopoint-actions" style="margin-bottom:12px;">
-                <button type="button" class="ecopoint-action-btn" onclick="downloadPersonalQR(); return false;">
-                  <i class="fa-solid fa-qrcode"></i> Download Station QR
-                </button>
-                <div class="ecopoint-action-note">Use this QR code at the VHEcoPoint station scanner.</div>
-              </div>
+              <!-- Download Station QR removed per request -->
               <div class="ecopoint-material-list">
                 <?php foreach ($ecoPointWeeklyStats as $materialLabel => $materialStat): ?>
                   <?php $materialProgress = $ecoPointWeeklyCap > 0 ? min(100, round(($materialStat['points'] / $ecoPointWeeklyCap) * 100)) : 0; ?>
@@ -1879,6 +1930,36 @@ body.account-blocked { overflow: hidden; }
       }
       guestPassModal.style.display = "block";
   }
+  // QR Choice / View handlers
+  function openQRChoice(){
+    var modal = document.getElementById('qrChoiceModal');
+    var img = document.getElementById('qrChoiceImg');
+    if(!modal || !img) return;
+    img.src = '<?php echo htmlspecialchars($qrRelPath); ?>';
+    modal.style.display = 'flex';
+  }
+  function closeQRChoice(){ var m=document.getElementById('qrChoiceModal'); if(m) m.style.display='none'; }
+  function openQRView(){
+    var view = document.getElementById('qrViewModal');
+    var vimg = document.getElementById('qrViewImg');
+    if(!view || !vimg) return;
+    vimg.src = '<?php echo htmlspecialchars($qrRelPath); ?>';
+    view.style.display = 'flex';
+  }
+  function closeQRView(){ var m=document.getElementById('qrViewModal'); if(m) m.style.display='none'; }
+  // Wire buttons
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.id === 'qrChoiceClose') closeQRChoice();
+    if(e.target && e.target.id === 'qrViewClose') closeQRView();
+    if(e.target && e.target.id === 'qrViewBtn'){ openQRView(); }
+    if(e.target && e.target.id === 'qrDownloadBtn'){ closeQRChoice(); downloadPersonalQR(); }
+    if(e.target && e.target.id === 'qrViewDownloadBtn'){ closeQRView(); downloadPersonalQR(); }
+  });
+  // Close modals when clicking outside
+  window.addEventListener('click', function(e){
+    var qc = document.getElementById('qrChoiceModal'); if(qc && e.target === qc) qc.style.display='none';
+    var qv = document.getElementById('qrViewModal'); if(qv && e.target === qv) qv.style.display='none';
+  });
   // Event Delegation for View Pass buttons
   document.addEventListener('click', function(e){
       if(e.target.classList.contains('btn-view-pass')){

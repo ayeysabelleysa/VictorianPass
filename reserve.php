@@ -116,6 +116,42 @@ function ensureReservationPointColumns($con){
 }
 ensureReservationPointColumns($con);
 
+/**
+ * Single source of truth for a resident's VHEcoPoint balance.
+ * Matches profileresident.php exactly: only transactions that are
+ * provably VHEcoPoint-sourced (ecopoint_session_id FK set, or
+ * description mentions "VHEcoPoint"/"recycling") are included.
+ * Net = earn − redeem + adjustment (adjustments are signed).
+ */
+function reserveCalcVHEcoBalance(mysqli $con, int $userId): int {
+    if ($userId <= 0) return 0;
+    $colQ = $con->query("SHOW COLUMNS FROM point_transactions LIKE 'ecopoint_session_id'");
+    $hasFk = ($colQ && $colQ->num_rows > 0);
+    if ($hasFk) {
+        $stmt = $con->prepare("SELECT id, transaction_type, amount, description, ecopoint_session_id FROM point_transactions WHERE user_id = ?");
+    } else {
+        $stmt = $con->prepare("SELECT id, transaction_type, amount, description, NULL AS ecopoint_session_id FROM point_transactions WHERE user_id = ?");
+    }
+    if (!$stmt) return 0;
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $balance = 0;
+    while ($row = $res->fetch_assoc()) {
+        $isEcoTx = (!empty($row['ecopoint_session_id']) && intval($row['ecopoint_session_id']) > 0)
+                 || (stripos((string)($row['description'] ?? ''), 'VHEcoPoint') !== false)
+                 || (stripos((string)($row['description'] ?? ''), 'recycling') !== false);
+        if (!$isEcoTx) continue;
+        $txType = strtolower(trim((string)($row['transaction_type'] ?? 'earn')));
+        $amt = intval($row['amount'] ?? 0);
+        if ($txType === 'earn')              $balance += $amt;
+        elseif ($txType === 'redeem')        $balance -= $amt;
+        elseif ($txType === 'adjustment')    $balance += $amt;
+    }
+    $stmt->close();
+    return max(0, $balance);
+}
+
 // Downpayment moved on-page: do not force redirect; users can pay via GCash from the form
 
 function generateUniqueRefCode($con){
@@ -458,19 +494,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $errorMsg = "Invalid amenity for point redemption.";
                 }
                 if (!$errorMsg) {
-                  // Get current points
-                  $current_points = 0;
-                  $stmt = $con->prepare("SELECT points FROM users WHERE id = ? LIMIT 1");
-                  $stmt->bind_param('i', $_SESSION['user_id']);
-                  $stmt->execute();
-                  $result = $stmt->get_result();
-                  if ($row = $result->fetch_assoc()) {
-                    $current_points = $row['points'];
-                  }
-                  $stmt->close();
+                  // Get current VHEcoPoint balance from the single source of truth
+                  // (point_transactions VHEcoPoint ledger), NOT raw users.points,
+                  // so the resident sees exactly the same number as in their dashboard.
+                  $current_points = reserveCalcVHEcoBalance($con, intval($_SESSION['user_id']));
                   // Validate sufficient points
                   if ($current_points < $points_required) {
-                    $errorMsg = "Insufficient Points: You need " . $points_required . " points to redeem this amenity, but you only have " . $current_points . " points. Please earn more points by participating in recycling activities.";
+                    $errorMsg = "Insufficient VHEcoPoint Balance: You need " . $points_required . " pts to redeem this 1-hour amenity booking, but your current VHEcoPoint ledger balance is " . $current_points . " pts. Earn more points by recycling eligible materials at the VHEcoPoint Smart Waste Segregation Station.";
                   }
                 }
                 if (!$errorMsg) {
@@ -684,7 +714,7 @@ $householdResidents = [];
 if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && isset($_SESSION['user_id']) && ($con instanceof mysqli)) {
   $rid = intval($_SESSION['user_id']);
   
-  // Get resident info including points
+  // Get resident info including points (VHEcoPoint-ONLY ledger — matches profileresident.php)
   $stmtU = $con->prepare("SELECT id, first_name, middle_name, last_name, house_number, points FROM users WHERE id = ? LIMIT 1");
   if ($stmtU) {
     $stmtU->bind_param('i', $rid);
@@ -692,7 +722,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     $resU = $stmtU->get_result();
     if ($resU && $resU->num_rows) { 
       $currentResident = $resU->fetch_assoc();
-      $residentPoints = $currentResident['points'] ?? 0;
+      $residentPoints = reserveCalcVHEcoBalance($con, $rid);
     }
     $stmtU->close();
   }
@@ -1363,71 +1393,46 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
 
   // Function to show a popup error
   function showPointsErrorPopup(message) {
-    // Create popup if it doesn't exist
+    // Create popup and overlay using CSS classes so they are responsive on mobile
     let popup = document.getElementById('points-error-popup');
-    if (!popup) {
-      popup = document.createElement('div');
-      popup.id = 'points-error-popup';
-      popup.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: white;
-        padding: 24px;
-        border-radius: 16px;
-        box-shadow: 0 4px 24px rgba(0,0,0,0.2);
-        z-index: 10001;
-        max-width: 90%;
-        width: 400px;
-      `;
-      document.body.appendChild(popup);
-
-      // Close button
-      const closeBtn = document.createElement('button');
-      closeBtn.textContent = 'Close';
-      closeBtn.style.cssText = `
-        background: linear-gradient(135deg, #23412e, #1f5a33);
-        color: white;
-        border: none;
-        padding: 10px 24px;
-        border-radius: 10px;
-        font-weight: bold;
-        cursor: pointer;
-        width: 100%;
-        margin-top: 16px;
-      `;
-      closeBtn.addEventListener('click', () => {
-        popup.style.display = 'none';
-      });
-
-      // Overlay
-      const overlay = document.createElement('div');
+    let overlay = document.getElementById('points-error-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
       overlay.id = 'points-error-overlay';
-      overlay.style.cssText = `
-        position: fixed;
-        inset: 0;
-        background: rgba(0,0,0,0.4);
-        z-index: 10000;
-      `;
+      overlay.className = 'points-error-overlay';
       overlay.addEventListener('click', () => {
-        popup.style.display = 'none';
-        overlay.style.display = 'none';
+        const p = document.getElementById('points-error-popup');
+        if (p) p.classList.remove('open');
+        overlay.classList.remove('open');
       });
       document.body.appendChild(overlay);
     }
+    if (!popup) {
+      popup = document.createElement('div');
+      popup.id = 'points-error-popup';
+      popup.className = 'points-error-popup';
+      document.body.appendChild(popup);
+    }
 
-    // Update content
     popup.innerHTML = `
-      <h3 style="margin:0 0 12px 0;color:#dc2626;">⚠️ Points Redemption Error</h3>
-      <p style="margin:0;color:#374151;line-height:1.5;">${message}</p>
-      <button onclick="document.getElementById('points-error-popup').style.display='none';document.getElementById('points-error-overlay').style.display='none';" style="margin-top:16px;width:100%;padding:10px 24px;background:linear-gradient(135deg,#23412e,#1f5a33);color:white;border:none;border-radius:10px;font-weight:bold;cursor:pointer;">Close</button>
+      <div class="points-error-inner">
+        <h3 class="points-error-title">⚠️ Points Redemption Error</h3>
+        <p class="points-error-message">${message}</p>
+        <button class="points-error-close">Close</button>
+      </div>
     `;
 
+    const closeBtn = popup.querySelector('.points-error-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        popup.classList.remove('open');
+        overlay.classList.remove('open');
+      });
+    }
+
     // Show popup and overlay
-    popup.style.display = 'block';
-    const overlay = document.getElementById('points-error-overlay');
-    if (overlay) overlay.style.display = 'block';
+    overlay.classList.add('open');
+    popup.classList.add('open');
   }
 
   function lockHoursControls(lock) {
@@ -3762,6 +3767,23 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     }
   }
 
+/* Move points tracker to bottom on small screens to avoid covering header/back button */
+@media (max-width: 900px) {
+  .points-tracker {
+    top: auto !important;
+    bottom: 16px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: calc(100% - 32px) !important;
+    padding: 10px 16px !important;
+    box-shadow: 0 8px 26px rgba(0,0,0,0.24) !important;
+  }
+  .points-tracker.is-collapsed {
+    padding: 8px 12px !important;
+    bottom: 20px !important;
+  }
+}
+
 /* Points redemption sidebar (center modal) */
 .points-redemption-sidebar {
   position: fixed;
@@ -3846,6 +3868,58 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
 }
 .sidebar-overlay.open {
   display: block;
+}
+/* Points error popup (responsive) */
+.points-error-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 10000;
+  display: none;
+}
+.points-error-overlay.open {
+  display: block;
+}
+.points-error-popup {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.95);
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+  z-index: 10001;
+  max-width: 92vw;
+  width: 420px;
+  padding: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.18s ease;
+  overflow: hidden;
+}
+.points-error-popup.open {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+  visibility: visible;
+}
+.points-error-inner { padding: 18px; }
+.points-error-title { margin: 0 0 10px 0; color: #dc2626; font-size: 1.05rem; }
+.points-error-message { margin: 0; color: #374151; line-height: 1.45; }
+.points-error-close {
+  margin-top: 14px;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg,#23412e,#1f5a33);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+@media (max-width: 480px) {
+  .points-error-popup { width: 94vw; padding: 0; border-radius: 12px; }
+  .points-error-inner { padding: 14px; }
+  .points-error-title { font-size: 1rem; }
 }
 </style>
 
