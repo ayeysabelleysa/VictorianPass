@@ -114,6 +114,11 @@ body {
     flex-direction: column;
     gap: 10px;
 }
+.sidebar-footer .download-qr-btn {
+    position: relative;
+    z-index: 110;
+    pointer-events: auto;
+}
 
 .logout-btn {
     color: #fff;

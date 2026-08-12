@@ -98,7 +98,40 @@ if ($con instanceof mysqli) {
   cursor: pointer; color: #888; line-height: 1;
 }
 .field-warning .close-warn:hover { color: #555; }
-</style>
+
+  .center-modal {
+      display: none;
+      position: fixed;
+      z-index: 9999;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+      align-items: center;
+      justify-content: center;
+  }
+  .center-modal-content {
+      background-color: #fff;
+      padding: 30px;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 500px;
+      text-align: center;
+      position: relative;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+      animation: fadeIn 0.3s;
+  }
+  .center-modal-content h3 { margin-top: 0; color: #23412e; }
+  .close-center {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      font-size: 24px;
+      cursor: pointer;
+      color: #888;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
 </head>
 <body>
 
@@ -116,7 +149,7 @@ if ($con instanceof mysqli) {
 </header>
 
 <section class="hero" id="addGuestSection">
-  <form class="entry-form" id="entryForm">
+  <form class="entry-form" id="entryForm" method="post" enctype="multipart/form-data">
     <div class="booking-steps" aria-label="Guest form steps">
       <div class="booking-steps-header">
         <div class="booking-steps-label">Guest form steps</div>
@@ -443,47 +476,12 @@ if (birthdateEl) {
   birthdateEl.setAttribute('max', d.toISOString().split('T')[0]);
 }
 
-  /* Modal Styles */
-  .center-modal {
-      display: none;
-      position: fixed;
-      z-index: 9999;
-      left: 0;
-      top: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(0,0,0,0.5);
-      align-items: center;
-      justify-content: center;
-  }
-  .center-modal-content {
-      background-color: #fff;
-      padding: 30px;
-      border-radius: 12px;
-      width: 90%;
-      max-width: 500px;
-      text-align: center;
-      position: relative;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-      animation: fadeIn 0.3s;
-  }
-  .center-modal-content h3 { margin-top: 0; color: #23412e; }
-  .close-center {
-      position: absolute;
-      top: 10px;
-      right: 15px;
-      font-size: 24px;
-      cursor: pointer;
-      color: #888;
-  }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+function openTerms(){ document.getElementById('termsModal').style.display='flex'; }
+function closeTerms(){ document.getElementById('termsModal').style.display='none'; }
+function openPrivacy(){ document.getElementById('privacyModal').style.display='flex'; }
+function closePrivacy(){ document.getElementById('privacyModal').style.display='none'; }
 
-  function openTerms(){ document.getElementById('termsModal').style.display='flex'; }
-  function closeTerms(){ document.getElementById('termsModal').style.display='none'; }
-  function openPrivacy(){ document.getElementById('privacyModal').style.display='flex'; }
-  function closePrivacy(){ document.getElementById('privacyModal').style.display='none'; }
-
-  function validateForm(){
+function validateForm(){
   let valid = true;
   const reqIds = ['resident_full_name','resident_house','resident_email','resident_contact','visitor_first_name','visitor_last_name','visitor_email','visitor_address','birthdate','visitor_contact','visit_date','visit_time'];
   reqIds.forEach(function(id){

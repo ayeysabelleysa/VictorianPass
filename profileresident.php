@@ -83,6 +83,29 @@ function residentEcoPointMaterialLabel($materialType = '', $description = ''){
   if (strpos($haystack, 'paper') !== false) return 'Paper';
   return 'Other';
 }
+
+function formatReservationTime($timeValue) {
+  if ($timeValue === null) {
+    return '';
+  }
+  $raw = trim((string)$timeValue);
+  if ($raw === '') {
+    return '';
+  }
+  $formats = ['H:i:s', 'H:i', 'g:i A', 'g:i a', 'h:i A', 'h:i a'];
+  foreach ($formats as $fmt) {
+    $dt = DateTime::createFromFormat($fmt, $raw);
+    if ($dt !== false) {
+      return $dt->format('g:i A');
+    }
+  }
+  $ts = strtotime($raw);
+  if ($ts !== false) {
+    return date('g:i A', $ts);
+  }
+  return '';
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
   $current = $_POST['current_password'] ?? '';
   $newPass = $_POST['new_password'] ?? '';
@@ -404,8 +427,8 @@ if ($stmt) {
     while ($row = $res->fetch_assoc()) {
         $start = $row['start_date'];
         $end = $row['end_date'] ?? null;
-        $sTime = strtotime($row['start_time'] ?? '');
-        $eTime = strtotime($row['end_time'] ?? '');
+        $startTimeText = formatReservationTime($row['start_time'] ?? '');
+        $endTimeText = formatReservationTime($row['end_time'] ?? '');
         $dateText = '';
         if (!empty($start)) {
             $startText = date('m/d/y', strtotime($start));
@@ -414,13 +437,18 @@ if ($stmt) {
         } else {
             $dateText = 'Date not set';
         }
-        if ($sTime || $eTime) {
-            $startTimeText = $sTime ? date('g:i A', $sTime) : '';
-            $endTimeText = $eTime ? date('g:i A', $eTime) : '';
-            $timeStr = ($startTimeText !== '' && $endTimeText !== '') ? ($startTimeText . ' - ' . $endTimeText) : ($startTimeText !== '' ? $startTimeText : $endTimeText);
+        if ($startTimeText !== '' || $endTimeText !== '') {
+            $timeStr = trim(($startTimeText !== '' ? $startTimeText : '') . ($endTimeText !== '' ? ' - ' . $endTimeText : ''));
             if ($timeStr !== '') {
                 $dateText = trim($dateText . ' ' . $timeStr);
             }
+        }
+        $eTime = null;
+        if (!empty($row['start_date'])) {
+            $eTime = strtotime(trim($row['start_date'] . ' ' . ($row['start_time'] ?? '00:00:00')));
+        }
+        if ($eTime === false || $eTime === null) {
+            $eTime = strtotime($row['created_at'] ?? 'now');
         }
         $statusVal = $row['approval_status'] ?? '';
         if ($statusVal === '' || $statusVal === null) {
@@ -495,7 +523,11 @@ if ($stmt) {
             'reserved_by' => $reservedBy,
             'payment_status' => $row['payment_status'] ?? null,
             'attempts' => intval($row['receipt_attempts'] ?? 0),
-            'scanned_at' => $row['scanned_at'] ?? null
+            'scanned_at' => $row['scanned_at'] ?? null,
+            'start_date_raw' => $row['start_date'] ?? '',
+            'end_date_raw' => $row['end_date'] ?? '',
+            'start_time_raw' => $row['start_time'] ?? '',
+            'end_time_raw' => $row['end_time'] ?? ''
         ];
     }
     $stmt->close();
@@ -529,11 +561,11 @@ if ($stmt) {
         } else {
             $dateText = '';
         }
-        $sTime = strtotime($row['start_time'] ?? '');
-        $eTime = strtotime($row['end_time'] ?? '');
+        $startTimeText = formatReservationTime($row['start_time'] ?? '');
+        $endTimeText = formatReservationTime($row['end_time'] ?? '');
         $timeStr = '';
-        if ($sTime || $eTime) {
-            $timeStr = trim(($sTime ? date('g:i A', $sTime) : '') . ($eTime ? ' - ' . date('g:i A', $eTime) : ''));
+        if ($startTimeText !== '' || $endTimeText !== '') {
+            $timeStr = trim(($startTimeText !== '' ? $startTimeText : '') . ($endTimeText !== '' ? ' - ' . $endTimeText : ''));
         }
         $details = trim($dateText . ($timeStr ? ' ' . $timeStr : ''));
         $statusVal = $row['approval_status'] ?? 'pending';
@@ -573,7 +605,11 @@ if ($stmt) {
             'ref_code' => $refCodeVal,
             'reserved_by' => $reservedBy,
             'payment_status' => null,
-            'scanned_at' => $row['scanned_at'] ?? null
+            'scanned_at' => $row['scanned_at'] ?? null,
+            'start_date_raw' => $row['start_date'] ?? '',
+            'end_date_raw' => $row['end_date'] ?? '',
+            'start_time_raw' => $row['start_time'] ?? '',
+            'end_time_raw' => $row['end_time'] ?? ''
         ];
     }
     $stmt->close();
@@ -944,6 +980,8 @@ body.account-blocked { overflow: hidden; }
     /* Modal Tweaks for Profile Page context */
     .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; z-index: 2000; }
     .modal-content { background: #fff; padding: 25px; border-radius: 12px; width: 90%; max-width: 600px; position: relative; max-height:80vh; overflow-y:auto; }
+    .modal .close { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border-radius: 50%; background: #e5e7eb; color: #111827; border: 0; display: flex; align-items: center; justify-content: center; line-height: 1; cursor: pointer; font-size: 18px; }
+    .modal .close:hover { filter: brightness(0.95); }
     .close-btn { position: absolute; top: 15px; right: 15px; font-size: 20px; cursor: pointer; color: #555; }
 #guestPassModal .modal-content { width: 92%; max-width: 420px; padding: 24px; text-align: center; max-height: calc(100vh - 120px); }
 #guestPassModal h3 { margin: 0 0 12px; color: #23412e; font-size: 1.05rem; font-weight: 700; }
@@ -1108,28 +1146,26 @@ body.account-blocked { overflow: hidden; }
       <?php endif; ?>
     <!-- QR Choice Modal -->
     <div id="qrChoiceModal" class="modal" style="display:none;">
-      <div class="modal-content" style="max-width:420px;text-align:center;">
+      <div class="modal-content" style="max-width:420px;text-align:center;position:relative;">
         <button type="button" class="close" aria-label="Close" id="qrChoiceClose">&times;</button>
         <h3 style="margin-top:6px;">My QR Code</h3>
-        <div style="margin:12px 0;">
-          <img id="qrChoiceImg" src="" alt="My QR" style="width:180px;height:180px;object-fit:contain;border-radius:8px;border:1px solid #e6ebe6;">
+        <div style="margin:18px 0 4px;color:#475569;line-height:1.6;">
+          Choose one of the options below to continue with your resident QR ID.
         </div>
-        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:8px;">
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:18px;">
           <button type="button" class="btn-confirm" id="qrViewBtn">View</button>
           <button type="button" class="btn-confirm" id="qrDownloadBtn">Download</button>
         </div>
       </div>
     </div>
 
-    <!-- QR View Modal (larger preview) -->
+    <!-- QR View Modal (full ID card preview) -->
     <div id="qrViewModal" class="modal" style="display:none;">
-      <div class="modal-content" style="max-width:520px;text-align:center;">
+      <div class="modal-content" style="max-width:560px;text-align:center;">
         <button type="button" class="close" aria-label="Close" id="qrViewClose">&times;</button>
-        <h3 style="margin-top:6px;">My Personal QR Code</h3>
-        <div style="margin:12px 0;">
-          <img id="qrViewImg" src="" alt="My QR Large" style="width:320px;max-width:92vw;height:320px;object-fit:contain;border-radius:8px;border:1px solid #e6ebe6;">
-        </div>
-        <div style="margin-top:8px;color:#6b7280;font-size:0.95rem;">You may download this QR for offline use.</div>
+        <h3 style="margin-top:6px;">My Personal QR ID</h3>
+        <div id="qrViewCardContainer" style="margin:12px 0; display:flex; justify-content:center;"></div>
+        <div style="margin-top:8px;color:#6b7280;font-size:0.95rem;">This is your resident QR ID card, including your personal details and scan-ready code.</div>
         <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px;">
           <button type="button" class="btn-confirm" id="qrViewDownloadBtn">Download</button>
         </div>
@@ -1173,41 +1209,52 @@ body.account-blocked { overflow: hidden; }
     <?php endif; ?>
 
     <script>
+    var personalQRSrc = <?php echo json_encode($qrRelPath); ?>;
+    var personalQRDownloadName = 'My_Personal_QR_ID.png';
+
     function downloadPersonalQR(){
-      var cardWrap = document.getElementById('residentCardWrap');
-      var card = document.getElementById('residentCard');
-      if(!cardWrap || !card) return;
-      function doDownload(){
-        var prevLeft = cardWrap.style.left;
-        var prevOpacity = cardWrap.style.opacity;
-        var prevTop = cardWrap.style.top;
-        cardWrap.style.left = '0';
-        cardWrap.style.top = '0';
-        cardWrap.style.opacity = '0';
-        setTimeout(function(){
-          html2canvas(card, { backgroundColor: null, scale: 2 }).then(function(canvas){
-            var link = document.createElement('a');
-            link.download = 'My_Personal_QR_ID.png';
-            link.href = canvas.toDataURL('image/png');
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-          }).finally(function(){
-            cardWrap.style.left = prevLeft;
-            cardWrap.style.top = prevTop;
-            cardWrap.style.opacity = prevOpacity;
-          });
-        }, 80);
+      var src = personalQRSrc || '';
+      if(!src) return;
+
+      function doDownload(downloadUrl){
+        var link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = personalQRDownloadName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       }
+
+      function downloadFromBlob(url){
+        fetch(url)
+          .then(function(response){ return response.blob(); })
+          .then(function(blob){
+            var blobUrl = URL.createObjectURL(blob);
+            doDownload(blobUrl);
+            setTimeout(function(){ URL.revokeObjectURL(blobUrl); }, 1000);
+          })
+          .catch(function(){
+            doDownload(src);
+          });
+      }
+
+      function startDownload(){
+        if(src.indexOf('http://') === 0 || src.indexOf('https://') === 0){
+          downloadFromBlob(src);
+        } else {
+          doDownload(src);
+        }
+      }
+
       if(typeof window.openQRWarning === 'function'){
-        window.openQRWarning(doDownload, {
+        window.openQRWarning(startDownload, {
           title: 'My QR Code',
-          message: 'This is your personal QR code used for identification and as an entry pass within the residence.',
+          message: 'Choose Download to save your personal QR code for offline use.',
           cancelText: 'Close',
           proceedText: 'Download'
         });
       } else {
-        doDownload();
+        startDownload();
       }
     }
     </script>
@@ -1292,7 +1339,7 @@ body.account-blocked { overflow: hidden; }
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
-              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>"<?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; } ?>>
+              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>"<?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; } ?>>
                  <div class="item-icon"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
@@ -1343,7 +1390,6 @@ body.account-blocked { overflow: hidden; }
 
           <div class="ecopoint-panel-shell" style="margin-top:20px;">
             <div class="ecopoint-header-card">
-              <div class="ecopoint-promo">Now with VHEcoPoint Rewards — Recycle &amp; Earn Points</div>
               <div class="ecopoint-header-kicker">Resident EcoPoint</div>
               <div class="ecopoint-header-title">VHEcoPoint</div>
               <div class="ecopoint-header-desc">Track your current point balance, weekly recycling progress, daily session usage, expiry countdown, and station-ready QR access in one place.</div>
@@ -1504,7 +1550,7 @@ body.account-blocked { overflow: hidden; }
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
-              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>"<?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; } ?>>
+              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>"<?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; } ?>>
                  <div class="item-icon"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
@@ -1932,21 +1978,40 @@ body.account-blocked { overflow: hidden; }
   }
   // QR Choice / View handlers
   function openQRChoice(){
+    closeQRView();
     var modal = document.getElementById('qrChoiceModal');
-    var img = document.getElementById('qrChoiceImg');
-    if(!modal || !img) return;
-    img.src = '<?php echo htmlspecialchars($qrRelPath); ?>';
+    if(!modal) return;
     modal.style.display = 'flex';
   }
   function closeQRChoice(){ var m=document.getElementById('qrChoiceModal'); if(m) m.style.display='none'; }
   function openQRView(){
+    closeQRChoice();
     var view = document.getElementById('qrViewModal');
-    var vimg = document.getElementById('qrViewImg');
-    if(!view || !vimg) return;
-    vimg.src = '<?php echo htmlspecialchars($qrRelPath); ?>';
+    var container = document.getElementById('qrViewCardContainer');
+    if(!view || !container) return;
+    container.innerHTML = '';
+    var card = document.getElementById('residentCard');
+    if(card){
+      var clone = card.cloneNode(true);
+      clone.removeAttribute('id');
+      clone.style.width = '100%';
+      clone.style.maxWidth = '360px';
+      clone.style.display = 'block';
+      clone.style.margin = '0 auto';
+      container.appendChild(clone);
+    }
     view.style.display = 'flex';
   }
   function closeQRView(){ var m=document.getElementById('qrViewModal'); if(m) m.style.display='none'; }
+  document.addEventListener('DOMContentLoaded', function() {
+    var qrButton = document.querySelector('.sidebar-footer .download-qr-btn[title="My QR"]');
+    if(qrButton) {
+      qrButton.addEventListener('click', function(e) {
+        e.preventDefault();
+        openQRChoice();
+      });
+    }
+  });
   // Wire buttons
   document.addEventListener('click', function(e){
     if(e.target && e.target.id === 'qrChoiceClose') closeQRChoice();
@@ -2660,6 +2725,10 @@ body.account-blocked { overflow: hidden; }
     var paymentStatus=(li.getAttribute('data-payment-status')||'').toLowerCase();
     var attempts = parseInt(li.getAttribute('data-attempts')||'0',10);
     var scheduleText=li.getAttribute('data-schedule')||'';
+    var startDateRaw=li.getAttribute('data-start-date')||'';
+    var endDateRaw=li.getAttribute('data-end-date')||'';
+    var startTimeRaw=li.getAttribute('data-start-time')||'';
+    var endTimeRaw=li.getAttribute('data-end-time')||'';
     var reasonText=li.getAttribute('data-reason')||'';
     var statusNote='';
     var s=String(effectiveStatus||'').toLowerCase();
@@ -2697,6 +2766,72 @@ body.account-blocked { overflow: hidden; }
     function esc(t){
       return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
+    function formatRawDate(value){
+      var raw = String(value||'').trim();
+      if(!raw) return '';
+      var m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if(m){
+        return m[2] + '/' + m[3] + '/' + m[1].slice(-2);
+      }
+      var d = new Date(raw);
+      if(isNaN(d.getTime())) return '';
+      var mm = String(d.getMonth()+1).padStart(2,'0');
+      var dd = String(d.getDate()).padStart(2,'0');
+      var yy = String(d.getFullYear()).slice(-2);
+      return mm+'/'+dd+'/'+yy;
+    }
+    function formatRawTime(value){
+      var t = String(value||'').trim();
+      var m = t.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+      if(m){
+        var hh = parseInt(m[1],10);
+        var minute = m[2];
+        var ampm = hh >= 12 ? 'PM' : 'AM';
+        var displayHour = hh % 12;
+        if(displayHour === 0) displayHour = 12;
+        return displayHour + ':' + minute + ' ' + ampm;
+      }
+      return t;
+    }
+    function parseTimeToMinutes(rawValue){
+      var value = String(rawValue || '').trim();
+      if(!value) return null;
+      var m = value.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+      if(m){
+        var hh = parseInt(m[1], 10);
+        var mm = parseInt(m[2], 10);
+        if(Number.isNaN(hh) || Number.isNaN(mm)) return null;
+        return hh * 60 + mm;
+      }
+      var m12 = value.match(/^(\d{1,2}):(\d{2})\s*([AP]M)$/i);
+      if(m12){
+        var hh12 = parseInt(m12[1], 10);
+        var mm12 = parseInt(m12[2], 10);
+        var suffix = String(m12[3]).toUpperCase();
+        if(Number.isNaN(hh12) || Number.isNaN(mm12)) return null;
+        if(suffix === 'AM' && hh12 === 12) hh12 = 0;
+        if(suffix === 'PM' && hh12 < 12) hh12 += 12;
+        return hh12 * 60 + mm12;
+      }
+      return null;
+    }
+    function computeReservationDurationHours(startTimeRaw, endTimeRaw){
+      var startMinutes = parseTimeToMinutes(startTimeRaw);
+      var endMinutes = parseTimeToMinutes(endTimeRaw);
+      if(startMinutes === null || endMinutes === null) return '';
+      var diffMinutes = endMinutes - startMinutes;
+      if(diffMinutes <= 0){
+        if(startMinutes > endMinutes){
+          diffMinutes = (24 * 60) - startMinutes + endMinutes;
+        } else {
+          return '';
+        }
+      }
+      var hours = diffMinutes / 60;
+      if(hours <= 0) return '';
+      var formatted = Number.isInteger(hours) ? String(parseInt(hours, 10)) : hours.toFixed(1).replace(/\.0$/, '');
+      return formatted + ' ' + (parseFloat(formatted) === 1 ? 'hr' : 'hrs');
+    }
     function scheduleParts(text){
       var t=String(text||'').trim();
       if(!t) return { date:'', time:'' };
@@ -2707,6 +2842,29 @@ body.account-blocked { overflow: hidden; }
         return { date:datePart, time:timePart };
       }
       return { date:t, time:'' };
+    }
+    function schedulePartsFromRaw(){
+      var dateLabel = '';
+      if(startDateRaw || endDateRaw){
+        var startDateLabel = formatRawDate(startDateRaw);
+        var endDateLabel = formatRawDate(endDateRaw) || startDateLabel;
+        if(startDateLabel && endDateLabel){
+          dateLabel = startDateLabel === endDateLabel ? startDateLabel : startDateLabel + ' - ' + endDateLabel;
+        } else {
+          dateLabel = startDateLabel || endDateLabel;
+        }
+      }
+      var timeLabel = '';
+      if(startTimeRaw || endTimeRaw){
+        var startLabel = formatRawTime(startTimeRaw);
+        var endLabel = formatRawTime(endTimeRaw);
+        if(startLabel && endLabel){
+          timeLabel = startLabel + ' - ' + endLabel;
+        } else {
+          timeLabel = startLabel || endLabel;
+        }
+      }
+      return { date: dateLabel, time: timeLabel };
     }
     var summaryParts=[];
     if(titleEl){ summaryParts.push(titleEl.textContent.trim()); }
@@ -2798,20 +2956,27 @@ body.account-blocked { overflow: hidden; }
       if(reasonText){
         html+='<div class="item-reason'+(highlightReason?' is-rejected':'')+'">'+esc(reasonText)+'</div>';
       }
-      if(type==='reservation' && scheduleText){
-        var parts=scheduleParts(scheduleText);
+      if(type==='reservation'){
+        var rawParts=schedulePartsFromRaw();
+        var parts = (rawParts.date || rawParts.time) ? rawParts : (scheduleText ? scheduleParts(scheduleText) : {date:'', time:''});
         var rows='';
         if(parts.date){
           rows+='<div class="schedule-row"><div class="schedule-key">Date:</div><div class="schedule-val">'+esc(parts.date)+'</div></div>';
         }
         if(parts.time){
           rows+='<div class="schedule-row"><div class="schedule-key">Time:</div><div class="schedule-val">'+esc(parts.time)+'</div></div>';
+          var hoursLabel = computeReservationDurationHours(startTimeRaw, endTimeRaw);
+          if(hoursLabel){
+            rows+='<div class="schedule-row"><div class="schedule-key">Duration:</div><div class="schedule-val">'+esc(hoursLabel)+'</div></div>';
+          }
         }
-        if(!rows){
+        if(!rows && scheduleText){
           rows='<div class="schedule-row"><div class="schedule-key">Schedule:</div><div class="schedule-val">'+esc(scheduleText)+'</div></div>';
         }
-        var scheduleClass = (isHistoryPanel || s.indexOf('denied')!==-1 || (paymentStatus==='rejected' && (isNaN(attempts)?0:attempts)>=3)) ? 'status-neutral' : statusClassFor(effectiveStatus);
-        html+='<div class="item-extra-schedule '+scheduleClass+'"><div class="schedule-title">Reservation Schedule</div>'+rows+'</div>';
+        if(rows){
+          var scheduleClass = (isHistoryPanel || s.indexOf('denied')!==-1 || (paymentStatus==='rejected' && (isNaN(attempts)?0:attempts)>=3)) ? 'status-neutral' : statusClassFor(effectiveStatus);
+          html+='<div class="item-extra-schedule '+scheduleClass+'"><div class="schedule-title">Reservation Schedule</div>'+rows+'</div>';
+        }
       }
       if(summaryText) html+='<div class="item-extra-summary">'+esc(summaryText)+'</div>';
       

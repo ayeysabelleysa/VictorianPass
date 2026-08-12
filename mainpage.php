@@ -354,11 +354,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
           <h2 class="section-title ecopoint-title" id="ecopointModalTitle"><span class="ecopoint-title-icon" aria-hidden="true">&#9851;</span><span>Learn About VHEcoPoint</span></h2>
           <div class="section-divider"></div>
           <p class="section-subtitle ecopoint-description">VHEcoPoint is Victorian Heights Subdivision’s Smart Waste Segregation Station that automatically sorts recyclables and rewards you with points redeemable for free amenity bookings. Scan your VictorianPass QR code, deposit recyclables, and points are credited to your account instantly.</p>
-          <p class="ecopoint-note">You can view your personal VictorianPass QR code on the Resident Profile page.</p>
-        </div>
-
-        <div class="ecopoint-grid">
-          <article class="ecopoint-card">
+            <p class="ecopoint-note">You can view your personal QR on your profile dashboard page.</p>
             <h3 class="ecopoint-card-title">How It Works</h3>
             <div class="ecopoint-step-list">
               <div class="ecopoint-step-item">

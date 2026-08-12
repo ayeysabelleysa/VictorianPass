@@ -92,6 +92,22 @@ if ($resGF && $resGF->num_rows > 0) {
                 else if ($rPayStatus === 'rejected' && $rAttempts !== null && $rAttempts >= 3) { $statusVal = 'denied'; }
                 else if ($rPayStatus === 'rejected') { $statusVal = 'rejected'; }
             }
+            if (!$hasReservation) {
+                $rAmenity = $row['amenity'] ?? '';
+                $rStartDate = $row['start_date'] ?? '';
+                $rEndDate = $row['end_date'] ?? '';
+                $rStartTime = $row['start_time'] ?? null;
+                $rEndTime = $row['end_time'] ?? null;
+                $rPersons = isset($row['persons']) ? intval($row['persons']) : null;
+                $rPrice = isset($row['price']) ? floatval($row['price']) : null;
+                $rDownpayment = isset($row['downpayment']) ? floatval($row['downpayment']) : null;
+                $hasReservation = !empty($rAmenity);
+                if ($hasReservation) {
+                    $publishDate = !empty($rStartDate) ? date('m/d/y', strtotime($rStartDate)) : $publishDate;
+                    $expireDate = !empty($rEndDate) ? date('m/d/y', strtotime($rEndDate)) : '';
+                    $validWindow = ($publishDate ?: '-') . ($expireDate ? (' → ' . $expireDate) : '');
+                }
+            }
         }
         $stmtR->close();
     }
@@ -521,18 +537,46 @@ if (!$data) {
         </div>
         <?php endif; ?>
 
-        <?php 
+        <?php
             $timeStr = '';
-            if(!empty($data['start_time'])) {
-                $timeStr .= date('h:i A', strtotime($data['start_time']));
-                if(!empty($data['end_time'])) {
-                    $timeStr .= ' - ' . date('h:i A', strtotime($data['end_time']));
-                    // Calculate hours
-                    $t1 = strtotime($data['start_time']);
-                    $t2 = strtotime($data['end_time']);
-                    if($t2 > $t1) {
-                        $hrs = round(($t2 - $t1) / 3600, 1);
-                        $timeStr .= " ({$hrs} hrs)";
+            if (!empty($data['start_time'])) {
+                $startTimeRaw = trim((string)$data['start_time']);
+                $endTimeRaw = trim((string)($data['end_time'] ?? ''));
+
+                $startTimeFormats = ['H:i:s', 'H:i', 'g:i A', 'g:i a', 'h:i A', 'h:i a'];
+                $startDateTime = null;
+                foreach ($startTimeFormats as $fmt) {
+                    $parsed = DateTime::createFromFormat($fmt, $startTimeRaw);
+                    if ($parsed !== false) {
+                        $startDateTime = $parsed;
+                        break;
+                    }
+                }
+
+                if ($startDateTime) {
+                    $timeStr .= $startDateTime->format('h:i A');
+
+                    if ($endTimeRaw !== '') {
+                        $endDateTime = null;
+                        foreach ($startTimeFormats as $fmt) {
+                            $parsed = DateTime::createFromFormat($fmt, $endTimeRaw);
+                            if ($parsed !== false) {
+                                $endDateTime = $parsed;
+                                break;
+                            }
+                        }
+
+                        if ($endDateTime) {
+                            $baseDate = new DateTime('today');
+                            $startDateTime->setDate((int)$baseDate->format('Y'), (int)$baseDate->format('m'), (int)$baseDate->format('d'));
+                            $endDateTime->setDate((int)$baseDate->format('Y'), (int)$baseDate->format('m'), (int)$baseDate->format('d'));
+
+                            if ($endDateTime->getTimestamp() < $startDateTime->getTimestamp()) {
+                                $endDateTime->modify('+1 day');
+                            }
+
+                            $timeStr .= ' - ' . $endDateTime->format('h:i A');
+                        }
                     }
                 }
             }

@@ -283,7 +283,11 @@ if ($stmt) {
             'ref_code' => $row['ref_code'] ?? 'RES',
             'payment_status' => $row['payment_status'] ?? null,
             'attempts' => intval($row['receipt_attempts'] ?? 0),
-            'scanned_at' => $row['scanned_at'] ?? null
+            'scanned_at' => $row['scanned_at'] ?? null,
+            'start_date_raw' => $row['start_date'] ?? '',
+            'end_date_raw' => $row['end_date'] ?? '',
+            'start_time_raw' => $row['start_time'] ?? '',
+            'end_time_raw' => $row['end_time'] ?? ''
         ];
     }
     $stmt->close();
@@ -530,7 +534,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
-              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>">
+              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>">
                  <div class="item-icon"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
@@ -617,7 +621,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
-              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>">
+              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>">
                  <div class="item-icon"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
@@ -1953,6 +1957,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
     var label=fmtLabel(effectiveStatus);
     var scheduleText=li.getAttribute('data-schedule')||'';
     var reasonText=li.getAttribute('data-reason')||'';
+    var startTimeRaw=li.getAttribute('data-start-time')||'';
+    var endTimeRaw=li.getAttribute('data-end-time')||'';
     var statusNote='';
     var s=String(effectiveStatus||'').toLowerCase();
     var paymentStatus=(li.getAttribute('data-payment-status')||'').toLowerCase();
@@ -1992,6 +1998,45 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
     var refSpan=li.querySelector('.item-ref span');
     function esc(t){
       return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+    function parseTimeToMinutes(rawValue){
+      var value = String(rawValue || '').trim();
+      if(!value) return null;
+      var m = value.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+      if(m){
+        var hh = parseInt(m[1], 10);
+        var mm = parseInt(m[2], 10);
+        if(Number.isNaN(hh) || Number.isNaN(mm)) return null;
+        return hh * 60 + mm;
+      }
+      var m12 = value.match(/^(\d{1,2}):(\d{2})\s*([AP]M)$/i);
+      if(m12){
+        var hh12 = parseInt(m12[1], 10);
+        var mm12 = parseInt(m12[2], 10);
+        var suffix = String(m12[3]).toUpperCase();
+        if(Number.isNaN(hh12) || Number.isNaN(mm12)) return null;
+        if(suffix === 'AM' && hh12 === 12) hh12 = 0;
+        if(suffix === 'PM' && hh12 < 12) hh12 += 12;
+        return hh12 * 60 + mm12;
+      }
+      return null;
+    }
+    function computeReservationDurationHours(startTimeRaw, endTimeRaw){
+      var startMinutes = parseTimeToMinutes(startTimeRaw);
+      var endMinutes = parseTimeToMinutes(endTimeRaw);
+      if(startMinutes === null || endMinutes === null) return '';
+      var diffMinutes = endMinutes - startMinutes;
+      if(diffMinutes <= 0){
+        if(startMinutes > endMinutes){
+          diffMinutes = (24 * 60) - startMinutes + endMinutes;
+        } else {
+          return '';
+        }
+      }
+      var hours = diffMinutes / 60;
+      if(hours <= 0) return '';
+      var formatted = Number.isInteger(hours) ? String(parseInt(hours, 10)) : hours.toFixed(1).replace(/\.0$/, '');
+      return formatted + ' ' + (parseFloat(formatted) === 1 ? 'hr' : 'hrs');
     }
     function scheduleParts(text){
       var t=String(text||'').trim();
@@ -2100,6 +2145,10 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
       }
       if(parts.time){
         rows+='<div class="schedule-row"><div class="schedule-key">Time:</div><div class="schedule-val">'+esc(parts.time)+'</div></div>';
+        var hoursLabel = computeReservationDurationHours(startTimeRaw, endTimeRaw);
+        if(hoursLabel){
+          rows+='<div class="schedule-row"><div class="schedule-key">Duration:</div><div class="schedule-val">'+esc(hoursLabel)+'</div></div>';
+        }
       }
       if(!rows){
         rows='<div class="schedule-row"><div class="schedule-key">Schedule:</div><div class="schedule-val">'+esc(scheduleText)+'</div></div>';

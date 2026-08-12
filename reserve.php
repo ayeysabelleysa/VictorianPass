@@ -1355,7 +1355,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
   }
 
   function getAmenitySavingsValue(amenity) {
-    return amenity ? getHourlyRate(amenity) : 0;
+    return amenity ? getHourlyRate(amenity, isResidentSelfBooking()) : 0;
   }
 
   function updateBookingModeCards() {
@@ -1592,6 +1592,16 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     const parts = dateStr.split('-');
     if (parts.length !== 3) return dateStr;
     return `${parts[1]}/${parts[2]}/${String(parts[0]).slice(-2)}`;
+  }
+  function formatTimeLabel(t){
+    if(!t) return '';
+    const parts=String(t).split(':');
+    let h=parseInt(parts[0]||'0',10);
+    const m=(parts[1]||'00').padStart(2,'0');
+    const ampm=h>=12?'PM':'AM';
+    if(h===0){ h=12; }
+    else if(h>12){ h-=12; }
+    return `${h}:${m} ${ampm}`;
   }
   function countWeekdaysInclusive(startStr,endStr){
     if(!startStr || !endStr) return 0;
@@ -2146,6 +2156,8 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
       const tsl=document.getElementById('timeSectionLabel'); if(tsl){ tsl.style.display='none'; }
       const tCont=document.getElementById('timeSlotContainer'); if(tCont){ tCont.innerHTML=''; tCont.style.display='none'; }
       const avail=document.getElementById('availabilityNotice'); if(avail){ avail.style.display='none'; avail.textContent=''; }
+      const toggle = document.getElementById('use-points-toggle'); if(toggle){ toggle.checked = false; }
+      usePoints = false;
       showStartDateError(''); showDateError(''); setFieldWarning('startTimeInput',''); setFieldWarning('endTimeInput',''); setFieldWarning('personsInput',''); setFieldWarning('hoursInput','');
       updateDisplayedPrice(); updateDownpaymentSuggestion();
       updateActionStates();
@@ -2396,18 +2408,24 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     const field=document.getElementById('bookingForField');
     return field && field.value === 'resident';
   }
-  function getHourlyRate(amen){
-    if(amen==='Basketball Court' || amen==='Tennis Court'){ return isResidentSelfBooking() ? 100 : 150; }
-    if(amen==='Multi-Purpose Building'){ return isResidentSelfBooking() ? 200 : 300; }
-    if(amen==='Clubhouse'){ return isResidentSelfBooking() ? 300 : 450; }
+  function getHourlyRate(amen, residentBooking){
+    const useResidentRate = typeof residentBooking === 'boolean' ? residentBooking : isResidentSelfBooking();
+    if(amen==='Basketball Court' || amen==='Tennis Court'){ return useResidentRate ? 100 : 150; }
+    if(amen==='Multi-Purpose Building'){ return useResidentRate ? 200 : 300; }
+    if(amen==='Clubhouse'){ return useResidentRate ? 300 : 450; }
     return 0;
   }
   function computeDynamicPrice(amen, residentsCount, guestsCount, hours){
-    const h = Math.max(1, parseInt(hours||'1',10));
-    if(isHourBasedAmenity(amen)){
-      return h * getHourlyRate(amen);
+    const h = parseInt(hours||'0',10);
+    const hoursCount = Number.isFinite(h) && h > 0 ? h : 1;
+    if(!isHourBasedAmenity(amen)){
+      return 0;
     }
-    return 0;
+    const residentCount = Math.max(0, parseInt(residentsCount||'0',10) || 0);
+    const guestCount = Math.max(0, parseInt(guestsCount||'0',10) || 0);
+    const residentRate = getHourlyRate(amen, true);
+    const guestRate = getHourlyRate(amen, false);
+    return hoursCount * ((residentCount * residentRate) + (guestCount * guestRate));
   }
   function formatPesoAmount(val){
     const rounded=Math.round(val*100)/100;
@@ -2628,31 +2646,51 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
   }
 
   function updateBookingSummary(){
+    const amenity=document.getElementById('amenityField')?.value||'';
     const start=document.getElementById('startDateInput')?.value||'';
     const end=document.getElementById('endDateInput')?.value||'';
     const hours=document.getElementById('hoursInput')?.value||'';
     const startTime=document.getElementById('startTimeInput')?.value||'';
+    const endTime=document.getElementById('endTimeInput')?.value||'';
     const persons=document.getElementById('personsInput')?.value||'';
     const priceText=document.getElementById('price')?.textContent||'';
     const dpInput=document.getElementById('downpaymentInput');
     const dpRaw=dpInput && dpInput.value ? dpInput.value : '';
+    const summaryWrapper=document.getElementById('reservationSummary');
+    if(summaryWrapper){ summaryWrapper.style.display = amenity ? 'block' : 'none'; }
+    const amEl=document.getElementById('summaryAmenity');
+    if(amEl){ amEl.textContent = amenity || '--'; }
     const sdEl=document.getElementById('summaryStartDate');
-    if(sdEl){ sdEl.textContent=formatDateToMMDDYYYY(start)||'--'; }
+    if(sdEl){ sdEl.textContent = formatDateToMMDDYYYY(start) || '--'; }
     const edEl=document.getElementById('summaryEndDate');
-    if(edEl){ edEl.textContent=formatDateToMMDDYYYY(end)||'--'; }
+    if(edEl){ edEl.textContent = formatDateToMMDDYYYY(end) || '--'; }
     const hrsEl=document.getElementById('summaryHours');
-    if(hrsEl){ hrsEl.textContent=hours||'--'; }
+    if(hrsEl){ hrsEl.textContent = hours ? `${hours} hr${parseInt(hours,10)===1 ? '' : 's'}` : '--'; }
     const stEl=document.getElementById('summaryStartTime');
-    if(stEl){ stEl.textContent=startTime||'--'; }
+    if(stEl){ stEl.textContent = startTime ? `${formatTimeLabel(startTime)}${endTime ? ' – ' + formatTimeLabel(endTime) : ''}` : '--'; }
+    const modeEl=document.getElementById('summaryBookingMode');
+    const usePointsActive=document.getElementById('use-points-toggle')?.checked || false;
+    if(modeEl){ modeEl.textContent = usePointsActive ? 'Redeem points' : 'Cash'; }
     const pEl=document.getElementById('summaryPersons');
-    if(pEl){ pEl.textContent=persons||'--'; }
+    if(pEl){ pEl.textContent = persons || '--'; }
     const priceEl=document.getElementById('summaryPrice');
-    if(priceEl){ priceEl.textContent=priceText || '₱0.00'; }
+    if(priceEl){ priceEl.textContent = priceText || '₱0.00'; }
     const dpEl=document.getElementById('summaryDownpayment');
     if(dpEl){
       const n=parseFloat(dpRaw||'0');
       const val=isNaN(n)?0:n;
       dpEl.textContent='₱'+val.toFixed(2);
+    }
+    const pointsEl=document.getElementById('summaryPointsUsed');
+    if(pointsEl){
+      if(usePointsActive){
+        const pointsNeeded = getPointsRequired(amenity);
+        pointsEl.textContent = pointsNeeded > 0 ? pointsNeeded.toLocaleString() + ' pts' : '—';
+        pointsEl.parentElement.style.display = 'flex';
+      } else {
+        pointsEl.textContent = '—';
+        if(pointsEl.parentElement){ pointsEl.parentElement.style.display = 'none'; }
+      }
     }
   }
 
@@ -3109,13 +3147,16 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
         }
         let durationDisplay='-';
         if(s && eD){
-          let days=0;
           const sDate=new Date(s);
-            const eDate=new Date(eD);
-            const diff=Math.floor((eDate - sDate)/(1000*60*60*24));
-            days = isNaN(diff) ? 0 : (diff + 1);
+          const eDate=new Date(eD);
+          const diffDays = Math.floor((eDate - sDate)/(1000*60*60*24));
+          const days = isNaN(diffDays) ? 0 : (diffDays + 1);
           if(days > 0){
-            durationDisplay = days + ' day' + (days>1?'s':'');
+            if(days === 1 && hoursVal){
+              durationDisplay = hoursVal + ' hour' + (hoursVal > 1 ? 's' : '');
+            } else {
+              durationDisplay = days + ' day' + (days > 1 ? 's' : '');
+            }
           }
         }
         const displayPrice = usePoints ? '₱0.00' : priceTxt;
@@ -3123,19 +3164,20 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
         
         let summaryParts = [
           ['Amenity', amenVal||'-'],
+          ['Mode', usePoints ? 'Redeem points' : 'Cash'],
           ['Start Date', formatDateToMMDDYYYY(s) || '-'],
           ['End Date', formatDateToMMDDYYYY(eD) || '-'],
           ['Duration', durationDisplay],
           ['Time', timeDisplay || '-'],
           ['Persons', String(personsVal)],
-          ['Total Price', displayPrice],
-          ['Downpayment', displayDownpayment]
+          ['Total Price', displayPrice]
         ];
         
         if (usePoints) {
           const pointsNeeded = getPointsRequired(amenVal);
           summaryParts.splice(7, 0, ['Points Used', pointsNeeded.toLocaleString() + ' pts']);
         }
+        summaryParts.push(['Downpayment', displayDownpayment]);
         
         let summaryHTML = summaryParts.map(function(x){ return '<div style="display:flex;justify-content:space-between;margin:4px 0"><span style="font-weight:600">'+x[0]+'</span><span>'+x[1]+'</span></div>'; }).join('');
         
@@ -3467,7 +3509,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
       refreshAvailabilityFromServer();
     }catch(_){}
   }
-  ['amenityField','startDateInput','endDateInput','startTimeInput','endTimeInput','personsInput','hoursInput','downpaymentInput'].forEach(id=>{const el=document.getElementById(id); if(el){ el.addEventListener('input',function(){ markDirty(id); persistForm(); updateActionStates(); showIncompleteWarnings(false); }); }});
+  ['amenityField','startDateInput','endDateInput','startTimeInput','endTimeInput','personsInput','hoursInput','downpaymentInput'].forEach(id=>{const el=document.getElementById(id); if(el){ el.addEventListener('input',function(){ markDirty(id); persistForm(); updateActionStates(); showIncompleteWarnings(false); if(typeof updateBookingSummary === 'function'){ updateBookingSummary(); } }); }});
   async function refreshAvailabilityFromServer(){
     selectedAmenity = document.getElementById('amenityField').value || '';
     availabilityCache.clear();
@@ -3670,46 +3712,52 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
 </script>
 
 <style>
-/* Top horizontal green floating points tracker */
+/* Top right floating points tracker */
 .points-tracker {
   position: fixed;
-  top: 100px; /* Below navbar */
-  left: 50%;
-  transform: translateX(-50%);
+  top: 120px; /* Below navbar */
+  right: 24px;
+  left: auto;
+  transform: none;
+  max-width: 280px;
+  width: min(100%, 280px);
   background: #23412e;
   color: white;
-  padding: 12px 32px;
-  border-radius: 10px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  padding: 12px 16px;
+  border-radius: 14px;
+  box-shadow: 0 8px 22px rgba(0,0,0,0.18);
   z-index: 1000;
   font-family: 'Poppins', sans-serif;
-  display: flex;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px 12px;
   align-items: center;
-  gap: 20px;
-  transition: all 0.3s ease;
+  transition: all 0.25s ease;
 }
 
 .points-tracker.is-collapsed {
-  padding: 10px 24px;
+  padding: 10px 14px;
 }
 
 .points-tracker-header {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
 
 .points-tracker-label {
-  font-size: .9rem;
-  font-weight: 500;
-  opacity: 0.9;
+  font-size: .75rem;
+  font-weight: 600;
+  opacity: 0.85;
+  letter-spacing: .06em;
+  text-transform: uppercase;
 }
 
 .points-tracker-body {
   display: flex;
-  align-items: center;
-  gap: 16px;
+  justify-content: flex-end;
+  width: 100%;
 }
 
 .points-tracker.is-collapsed .points-tracker-body {
@@ -3717,24 +3765,26 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
 }
 
 .points-balance-amount {
-  font-weight: 700;
-  font-size: 1.2rem;
+  font-weight: 800;
+  font-size: 1.35rem;
+  line-height: 1.1;
 }
 
 .view-rewards-btn {
-  padding: 8px 20px;
-  border-radius: 8px;
+  padding: 8px 14px;
+  border-radius: 10px;
   background: rgba(255,255,255,0.15);
-  border: none;
+  border: 1px solid rgba(255,255,255,0.22);
   color: white;
-  font-size: .85rem;
-  font-weight: 600;
+  font-size: .82rem;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.2s;
+  white-space: nowrap;
 }
 
 .view-rewards-btn:hover {
-  background: rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.22);
 }
 
 .points-tracker-toggle {
@@ -3742,7 +3792,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
   height: 28px;
   border-radius: 50%;
   border: none;
-  background: rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.16);
   color: white;
   font-size: 1rem;
   display: flex;
@@ -3755,7 +3805,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
 }
 
 .points-tracker-toggle:hover {
-  background: rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.28);
 }
 
 @media (max-width: 768px) {
@@ -3925,7 +3975,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
 
 <?php if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident'): ?>
 
-<!-- Bottom floating bar -->
+<!-- Top-right fixed points tracker -->
 <div class="points-tracker" id="pointsTracker">
   <div class="points-tracker-header">
     <span class="points-tracker-label">Your Points:</span>
@@ -3944,6 +3994,14 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
 // Tracker toggle functionality
 const tracker = document.getElementById('pointsTracker');
 const trackerToggleBtn = document.getElementById('trackerToggleBtn');
+const bookingStepsPanel = document.querySelector('.booking-steps');
+
+function updateBookingStepsOffset() {
+  if (!tracker || !bookingStepsPanel) return;
+  const trackerRect = tracker.getBoundingClientRect();
+  const offset = trackerRect.bottom + 16;
+  bookingStepsPanel.style.top = `${Math.max(offset, 150)}px`;
+}
 
 if (trackerToggleBtn) {
   trackerToggleBtn.addEventListener('click', () => {
@@ -3954,8 +4012,12 @@ if (trackerToggleBtn) {
       tracker.classList.add('is-collapsed');
       trackerToggleBtn.textContent = '+';
     }
+    updateBookingStepsOffset();
   });
 }
+
+window.addEventListener('resize', updateBookingStepsOffset);
+window.addEventListener('load', updateBookingStepsOffset);
 
 
 // View Rewards Modal and Amenity Clicks

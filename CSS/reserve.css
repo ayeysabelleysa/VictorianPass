@@ -44,7 +44,7 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
   .booking-steps{
     position:fixed;
     right:32px;
-    top:110px;
+    top:190px; /* Positioned below the points panel */
     z-index:900;
     max-width:320px;
   }
