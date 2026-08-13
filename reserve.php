@@ -2421,11 +2421,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     if(!isHourBasedAmenity(amen)){
       return 0;
     }
-    const residentCount = Math.max(0, parseInt(residentsCount||'0',10) || 0);
-    const guestCount = Math.max(0, parseInt(guestsCount||'0',10) || 0);
-    const residentRate = getHourlyRate(amen, true);
-    const guestRate = getHourlyRate(amen, false);
-    return hoursCount * ((residentCount * residentRate) + (guestCount * guestRate));
+    return hoursCount * getHourlyRate(amen, isResidentSelfBooking());
   }
   function formatPesoAmount(val){
     const rounded=Math.round(val*100)/100;

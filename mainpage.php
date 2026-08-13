@@ -245,12 +245,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <div class="nav-collapse" id="navCollapse">
       <nav class="page-nav" id="primaryNav">
         <a href="#home">Home</a>
+        <?php if (!$isVisitor): ?>
         <a href="#" class="nav-ecopoint" id="navEcoPointBtn" data-ecopoint-modal-open="true">
           <span class="nav-ecopoint-icon" aria-hidden="true">&#9851;</span>
           <span class="nav-ecopoint-label">VHEcoPoint</span>
           <span class="nav-ecopoint-badge" aria-label="New feature">New!</span>
           <span class="nav-ecopoint-tooltip" role="tooltip">Earn points by recycling and redeem them for free amenity hours!</span>
         </a>
+        <?php endif; ?>
         <a href="#about-us">About Us</a>
         <a href="#facilities">Amenities</a>
         <a href="#about-system">About the System</a>
@@ -308,21 +310,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       </div>
 
       <p class="tagline">Every home has a story — start yours in a place worth remembering.</p>
+      <?php if (($isResident || !$isLoggedIn) && !$isVisitor): ?>
       <p class="hero-eco-subtitle">Now with VHEcoPoint Rewards — Recycle &amp; Earn Points</p>
       <!-- Mobile-only: See description button for VHEcoPoint (short, close to subtitle) -->
       <button class="mobile-ecopoint-btn" data-ecopoint-modal-open="true" aria-controls="ecopointModal" aria-expanded="false">See VHEcoPoint description</button>
+      <?php endif; ?>
 
       <div class="action-buttons" style="margin-top: 30px; gap:15px; flex-wrap:wrap;">
         <?php if (!$isLoggedIn): ?>
           <button class="btn-change btn-start" onclick="window.location.href='login.php'">Let’s Start</button>
-          <!-- Check Status button removed per UX update -->
+        <?php elseif ($isVisitor): ?>
+          <button class="btn-change btn-reserve" onclick="window.location.href='reserve.php'">Reserve an Amenity</button>
         <?php else: ?>
-          <?php if ($isVisitor): ?>
-             <button class="btn-change btn-reserve" onclick="window.location.href='reserve.php'">Reserve an Amenity</button>
-             <!-- Check Status removed for visitors on landing page -->
-          <?php else: ?>
-             <button class="btn-change btn-dashboard" onclick="window.location.href='profileresident.php'">My Dashboard</button>
-          <?php endif; ?>
+          <button class="btn-change btn-eco" onclick="window.location.href='profileresident.php?section=panel-points-history'">View VH My EcoPoints</button>
+          <button class="btn-change btn-dashboard" onclick="window.location.href='profileresident.php'">My Dashboard</button>
         <?php endif; ?>
       </div>
       
@@ -346,15 +347,22 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     </div>
   </section>
 
+  <?php if (!$isVisitor && ($isResident || !$isLoggedIn)): ?>
   <div id="ecopointModal" class="flash-overlay ecopoint-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="ecopointModalTitle">
     <div class="flash-modal">
       <button type="button" class="ecopoint-modal-close" id="ecopointModalClose" aria-label="Close">&times;</button>
       <div class="ecopoint-shell">
         <div class="ecopoint-intro-card" style="margin-bottom:18px;">
           <h2 class="section-title ecopoint-title" id="ecopointModalTitle"><span class="ecopoint-title-icon" aria-hidden="true">&#9851;</span><span>Learn About VHEcoPoint</span></h2>
-          <div class="section-divider"></div>
-          <p class="section-subtitle ecopoint-description">VHEcoPoint is Victorian Heights Subdivision’s Smart Waste Segregation Station that automatically sorts recyclables and rewards you with points redeemable for free amenity bookings. Scan your VictorianPass QR code, deposit recyclables, and points are credited to your account instantly.</p>
-            <p class="ecopoint-note">You can view your personal QR on your profile dashboard page.</p>
+          <div class="section-divider"></div>          <?php if (!$isLoggedIn): ?>
+          <div style="background:#fef3c7; border:1px solid #fcd34d; border-radius:8px; padding:12px 14px; margin-bottom:16px; color:#92400e;">
+            <strong style="display:block; margin-bottom:4px;">For Residents Exclusively</strong>
+            <small>This feature is available to Victorian Heights Subdivision residents only. Please register as a resident to participate.</small>
+          </div>
+          <?php endif; ?>          <p class="section-subtitle ecopoint-description">VHEcoPoint is Victorian Heights Subdivision’s Smart Waste Segregation Station that automatically sorts recyclables and rewards you with points redeemable for free amenity bookings. Scan your VictorianPass QR code, deposit recyclables, and points are credited to your account instantly.</p>
+            <?php if ($isResident): ?>
+            <p style="background:#dbeafe; border:1px solid #7dd3fc; border-radius:8px; padding:10px 12px; color:#0c4a6e; font-weight:600;"><strong>💡 Tip:</strong> You can view your personal QR code on your <a href="profileresident.php" style="color:#0369a1; text-decoration:underline;">profile dashboard</a> page.</p>
+            <?php endif; ?>
             <h3 class="ecopoint-card-title">How It Works</h3>
             <div class="ecopoint-step-list">
               <div class="ecopoint-step-item">
@@ -381,58 +389,62 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             </div>
           </article>
 
+          <?php if ($isResident): ?>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
           <article class="ecopoint-card">
-            <h3 class="ecopoint-card-title">Points Guide</h3>
-            <div class="ecopoint-info-list">
-              <div class="ecopoint-info-row">
-                <span class="ecopoint-info-label">Plastic (PET Bottles ≤1000ml)</span>
-                <span class="ecopoint-info-value">55 pts/kg</span>
+            <h3 class="ecopoint-card-title" style="font-size:0.95rem;">Points Guide</h3>
+            <div class="ecopoint-info-list" style="gap:8px;">
+              <div class="ecopoint-info-row" style="padding:6px 0;">
+                <span class="ecopoint-info-label" style="font-size:0.85rem;">Plastic (≤1000ml)</span>
+                <span class="ecopoint-info-value" style="font-size:0.9rem;">55 pts/kg</span>
               </div>
-              <div class="ecopoint-info-row">
-                <span class="ecopoint-info-label">Aluminum Cans</span>
-                <span class="ecopoint-info-value">140 pts/kg</span>
+              <div class="ecopoint-info-row" style="padding:6px 0;">
+                <span class="ecopoint-info-label" style="font-size:0.85rem;">Aluminum Cans</span>
+                <span class="ecopoint-info-value" style="font-size:0.9rem;">140 pts/kg</span>
               </div>
-              <div class="ecopoint-info-row">
-                <span class="ecopoint-info-label">Paper &amp; Cardboard</span>
-                <span class="ecopoint-info-value">30 pts/kg</span>
+              <div class="ecopoint-info-row" style="padding:6px 0;">
+                <span class="ecopoint-info-label" style="font-size:0.85rem;">Paper &amp; Cardboard</span>
+                <span class="ecopoint-info-value" style="font-size:0.9rem;">30 pts/kg</span>
               </div>
-              <div class="ecopoint-info-row ecopoint-info-highlight">
-                <span class="ecopoint-info-label">1 point</span>
-                <span class="ecopoint-info-value">= ₱0.30 in amenity value</span>
+              <div class="ecopoint-info-row ecopoint-info-highlight" style="padding:8px 0; margin-top:4px;">
+                <span class="ecopoint-info-label" style="font-size:0.85rem;">1 point value</span>
+                <span class="ecopoint-info-value" style="font-size:0.9rem;">₱0.30</span>
               </div>
-              <div class="ecopoint-footnote">Weekly cap: 250 points (resets every Monday)</div>
-              <div class="ecopoint-footnote">Daily limit: 3 sessions/day · Max balance: 3,000 points</div>
+              <div class="ecopoint-footnote" style="font-size:0.75rem; margin-top:8px;">Weekly cap: 250 pts</div>
+              <div class="ecopoint-footnote" style="font-size:0.75rem;">3 sessions/day · Max: 3,000 pts</div>
             </div>
           </article>
 
           <article class="ecopoint-card">
-            <h3 class="ecopoint-card-title">Redeem</h3>
-            <div class="ecopoint-info-list">
-              <div class="ecopoint-info-row">
-                <span class="ecopoint-info-value">300 points</span>
-                <span class="ecopoint-info-label">1 free hour — Basketball/Tennis Court</span>
+            <h3 class="ecopoint-card-title" style="font-size:0.95rem;">Redeem Your Points</h3>
+            <div class="ecopoint-info-list" style="gap:8px;">
+              <div class="ecopoint-info-row" style="padding:6px 0;">
+                <span class="ecopoint-info-value" style="font-size:0.9rem; font-weight:700;">300 pts</span>
+                <span class="ecopoint-info-label" style="font-size:0.85rem;">1 hr Basketball/Tennis</span>
               </div>
-              <div class="ecopoint-info-row">
-                <span class="ecopoint-info-value">600 points</span>
-                <span class="ecopoint-info-label">1 free hour — Clubhouse</span>
+              <div class="ecopoint-info-row" style="padding:6px 0;">
+                <span class="ecopoint-info-value" style="font-size:0.9rem; font-weight:700;">600 pts</span>
+                <span class="ecopoint-info-label" style="font-size:0.85rem;">1 hr Clubhouse</span>
               </div>
-              <div class="ecopoint-info-row">
-                <span class="ecopoint-info-value">750 points</span>
-                <span class="ecopoint-info-label">1 free hour — Multi-Purpose Building</span>
+              <div class="ecopoint-info-row" style="padding:6px 0;">
+                <span class="ecopoint-info-value" style="font-size:0.9rem; font-weight:700;">750 pts</span>
+                <span class="ecopoint-info-label" style="font-size:0.85rem;">1 hr Multi-Purpose</span>
               </div>
-            </div>
-            <div class="ecopoint-action-wrap">
-              <?php if ($isResident): ?>
-                <a href="profileresident.php?section=panel-points-history" class="btn-change ecopoint-action-btn">View My EcoPoints</a>
-              <?php else: ?>
-                <a href="login.php" class="btn-change ecopoint-action-btn">View My EcoPoints</a>
-              <?php endif; ?>
             </div>
           </article>
+          </div>
+          
+          <article class="ecopoint-card">
+            <div class="ecopoint-action-wrap" style="text-align:center;">
+              <a href="profileresident.php?section=panel-points-history" class="btn-change ecopoint-action-btn">View VH My EcoPoints</a>
+            </div>
+          </article>
+          <?php endif; ?>
         </div>
       </div>
     </div>
   </div>
+  <?php endif; ?>
 
   <section id="about-us" class="section reveal-on-scroll">
     <h2 class="section-title">About Us</h2>

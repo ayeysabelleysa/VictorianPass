@@ -3278,6 +3278,11 @@ if ($currentPage === 'verify') {
   $currentPage = 'requests';
 }
 $verifyContext = isset($_GET['verify_context']) ? $_GET['verify_context'] : '';
+
+// Determine active system: VictorianPass or VHEcoPoint
+$victorianPassPages = ['dashboard', 'residents', 'visitors', 'requests', 'resident_guest_forms', 'visitor_requests', 'report', 'security', 'history', 'summary'];
+$vhEcoPointPages = ['smart_waste'];
+$currentSystem = in_array($currentPage, $vhEcoPointPages) ? 'ecopoint' : 'victorianpass';
 ?>
 
 <!DOCTYPE html>
@@ -3371,21 +3376,45 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-main); }
     z-index: 100;
     flex-shrink: 0;
     transition: width 0.25s ease;
+    padding-top: 10px;
 }
 
-.brand {
-    padding: 22px 20px;
+.sidebar-topbar {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px 14px 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.sidebar-header-row {
     display: flex;
     align-items: center;
     gap: 12px;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-    justify-content: center;
+    min-width: 0;
 }
 
-.brand img { width: 36px; height: 36px; }
-.brand .title { display: flex; flex-direction: column; }
-.brand h1 { font-size: 1rem; color: var(--primary); line-height: 1.2; }
-.brand p { font-size: 0.75rem; color: var(--text-secondary); margin: 0; }
+.sidebar-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.sidebar-title {
+    font-size: 1.15rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: #fff;
+    white-space: normal;
+}
+
+.sidebar-subtitle {
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.76);
+    font-weight: 600;
+    white-space: nowrap;
+}
 
 .nav-list {
     padding: 18px 12px;
@@ -3481,6 +3510,87 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-main); }
     transition: var(--transition);
 }
 
+/* System Switcher */
+.system-switcher-header {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+    margin-left: 0;
+}
+
+.system-switch-header-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 38px;
+    padding: 0 12px;
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 10px;
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.8);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.system-switch-header-btn:hover {
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    border-color: rgba(255,255,255,0.28);
+}
+
+.system-switch-header-btn.active {
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.18), rgba(255,255,255,0.08));
+    border-color: rgba(212, 175, 55, 0.75);
+    color: #fff;
+    box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.2), 0 6px 16px rgba(0,0,0,0.12);
+}
+
+.system-switch-header-btn.ecopoint-switch {
+    background: rgba(34, 197, 94, 0.1) !important;
+    border-color: rgba(134, 239, 172, 0.3) !important;
+}
+
+.system-switch-header-btn.ecopoint-switch.active {
+    background: linear-gradient(135deg, rgba(21, 128, 61, 0.45), rgba(22, 163, 74, 0.22)) !important;
+    border-color: rgba(134, 239, 172, 0.8) !important;
+    color: #fff !important;
+}
+
+.system-switch-header-btn i {
+    font-size: 0.95rem;
+}
+
+/* Old sidebar switcher - hide it */
+.system-switcher {
+    display: none;
+}
+
+/* Navigation grouping */
+.nav-section {
+    margin-bottom: 8px;
+}
+
+.nav-section-title {
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(255,255,255,0.4);
+    padding: 12px 20px 6px;
+    margin: 8px 0 0 0;
+}
+
+.nav-section:first-child .nav-section-title {
+    margin-top: 0;
+}
+
 .sidebar-footer {
     margin-top: auto;
     padding: 18px 20px 22px;
@@ -3531,19 +3641,30 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-main); }
 .header-brand, .header-actions {
     display: flex;
     align-items: center;
-    gap: 15px;
+    gap: 14px;
 }
 .header-brand {
     gap: 12px;
     min-width: 0;
+    flex: 1;
+    justify-content: flex-start;
+    padding-left: 0;
+}
+.header-title-group {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+    flex-wrap: nowrap;
 }
 .header-brand .sidebar-toggle {
-    margin-right: 2px;
+    margin-right: 0;
 }
 .header-brand-text {
     display: flex;
     flex-direction: column;
     line-height: 1.1;
+    justify-content: center;
 }
 .header-title {
     font-size: 1.2rem;
@@ -3573,15 +3694,62 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-main); }
 }
 .sidebar-toggle:hover { background: rgba(255,255,255,0.2); }
 
-body.sidebar-collapsed .sidebar { width: 72px; }
-body.sidebar-collapsed .brand { justify-content: center; padding: 16px 12px; }
-body.sidebar-collapsed .brand .title { display: none; }
-body.sidebar-collapsed .nav-list { padding: 16px 8px; }
-body.sidebar-collapsed .nav-item { justify-content: center; padding: 10px; gap: 0; }
-body.sidebar-collapsed .nav-item span { display: none; }
-body.sidebar-collapsed .sidebar-footer { padding: 16px 10px; }
-body.sidebar-collapsed .sidebar-footer .text-muted-link span { display: none; }
-body.sidebar-collapsed .sidebar-footer .text-muted-link { padding: 10px; width: 100%; }
+body.sidebar-collapsed .sidebar {
+    width: 80px;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+body.sidebar-collapsed .sidebar-topbar {
+    padding: 12px 10px 8px;
+    overflow: hidden;
+}
+body.sidebar-collapsed .sidebar-header-row {
+    justify-content: center;
+    margin-bottom: 8px;
+}
+body.sidebar-collapsed .sidebar-title-group,
+body.sidebar-collapsed .sidebar-subtitle,
+body.sidebar-collapsed .nav-section-title,
+body.sidebar-collapsed .nav-item span,
+body.sidebar-collapsed .sidebar-footer .text-muted-link span,
+body.sidebar-collapsed .system-switch-header-btn span {
+    display: none !important;
+}
+body.sidebar-collapsed .system-switcher-header {
+    align-items: center;
+    gap: 8px;
+    padding: 0 2px;
+}
+body.sidebar-collapsed .system-switch-header-btn {
+    width: 42px;
+    min-width: 42px;
+    padding: 0;
+    justify-content: center;
+}
+body.sidebar-collapsed .nav-list {
+    padding: 16px 10px;
+}
+body.sidebar-collapsed .nav-item {
+    justify-content: center;
+    padding: 10px 8px;
+    gap: 0;
+    width: 100%;
+}
+body.sidebar-collapsed .nav-item i {
+    width: auto;
+    font-size: 1.1rem;
+}
+body.sidebar-collapsed .sidebar-footer {
+    padding: 16px 10px;
+}
+body.sidebar-collapsed .sidebar-footer .text-muted-link {
+    padding: 10px;
+    width: 100%;
+    justify-content: center;
+}
+body.sidebar-collapsed .sidebar-toggle {
+    margin: 0 auto;
+}
 
 .avatar {
     width: 36px;
@@ -3610,18 +3778,25 @@ body.sidebar-collapsed .sidebar-footer .text-muted-link { padding: 10px; width: 
     display: flex;
     justify-content: center;
     min-width: 0;
+    padding: 0 8px;
 }
 .search {
     background: rgba(255,255,255,0.12);
     border: 1px solid rgba(255,255,255,0.2);
     border-radius: 999px;
-    padding: 8px 16px;
-    width: min(520px, 100%);
+    padding: 10px 18px;
+    width: min(760px, 100%);
     display: flex;
     align-items: center;
+    gap: 10px;
     transition: var(--transition);
 }
 .search:focus-within { border-color: rgba(255,255,255,0.45); box-shadow: 0 0 0 3px rgba(255,255,255,0.12); }
+.search-icon {
+    color: rgba(255,255,255,0.72);
+    font-size: 0.95rem;
+    flex-shrink: 0;
+}
 .search input { border: none; width: 100%; font-size: 0.9rem; background: transparent; outline: none; color: #fff; }
 .search input::placeholder { color: rgba(255,255,255,0.6); }
 
@@ -4950,22 +5125,64 @@ body.modal-open { overflow: hidden; }
 <div class="app">
   <!-- SIDEBAR -->
   <aside class="sidebar">
-    <div class="brand">
-      <img src="images/logo.svg" alt="VictorianPass logo">
+    <div class="sidebar-topbar">
+      <div class="sidebar-header-row">
+        <button type="button" id="sidebarToggle" class="sidebar-toggle" aria-label="Toggle sidebar" title="Toggle sidebar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z"/></svg>
+        </button>
+
+        <div class="sidebar-title-group">
+          <div class="sidebar-title">Admin Dashboard</div>
+          <div class="sidebar-subtitle">Victorian Heights</div>
+        </div>
+      </div>
+
+      <div class="system-switcher-header">
+        <a href="?page=dashboard" class="system-switch-header-btn <?php echo $currentSystem == 'victorianpass' ? 'active' : ''; ?>" title="VictorianPass Admin">
+          <i class="fa-solid fa-building"></i>
+          <span>Victorian Pass</span>
+        </a>
+        <a href="?page=smart_waste" class="system-switch-header-btn ecopoint-switch <?php echo $currentSystem == 'ecopoint' ? 'active' : ''; ?>" title="VHEcoPoint Admin">
+          <i class="fa-solid fa-recycle"></i>
+          <span>VHEcoPoint</span>
+        </a>
+      </div>
     </div>
 
     <nav class="nav-list">
-       <a href="?page=dashboard" class="nav-item <?php echo $currentPage == 'dashboard' ? 'active' : ''; ?>" data-page="dashboard"><i class="fa-solid fa-gauge"></i><span>Dashboard</span></a>
-       <a href="?page=residents" class="nav-item <?php echo $currentPage == 'residents' ? 'active' : ''; ?>" data-page="residents"><i class="fa-solid fa-house-user"></i><span>Residents</span></a>
-       <a href="?page=visitors" class="nav-item <?php echo $currentPage == 'visitors' ? 'active' : ''; ?>" data-page="visitors"><i class="fa-solid fa-user"></i><span>Visitors</span></a>
-       <a href="?page=requests" class="nav-item <?php echo $currentPage == 'requests' ? 'active' : ''; ?>" data-page="requests"><i class="fa-solid fa-clipboard-list"></i><span>Resident Requests</span></a>
-       <a href="?page=resident_guest_forms" class="nav-item <?php echo $currentPage == 'resident_guest_forms' ? 'active' : ''; ?>" data-page="resident_guest_forms"><i class="fa-solid fa-user-plus"></i><span>Resident's Guest Request</span></a>
-       <a href="?page=visitor_requests" class="nav-item <?php echo $currentPage == 'visitor_requests' ? 'active' : ''; ?>" data-page="visitor_requests"><i class="fa-solid fa-clipboard-list"></i><span>Visitor Requests</span></a>
-       <a href="?page=report" class="nav-item <?php echo $currentPage == 'report' ? 'active' : ''; ?>" data-page="report"><i class="fa-solid fa-triangle-exclamation"></i><span>View Reported Incidents</span></a>
-    <a href="?page=smart_waste" class="nav-item smart-waste-link <?php echo $currentPage == 'smart_waste' ? 'active' : ''; ?>" data-page="smart_waste"><i class="fa-solid fa-recycle"></i><span class="nav-copy"><strong>VHEcoPoint</strong><small>Smart Waste Segregation Station</small></span></a>
-    <a href="?page=security" class="nav-item <?php echo $currentPage == 'security' ? 'active' : ''; ?>" data-page="security"><i class="fa-solid fa-shield-halved"></i><span>Security Guards</span></a>
-    <a href="?page=history" class="nav-item <?php echo $currentPage == 'history' ? 'active' : ''; ?>" data-page="history"><i class="fa-solid fa-box-archive"></i><span>Archived Requests</span></a>
-    <a href="?page=summary" class="nav-item <?php echo $currentPage == 'summary' ? 'active' : ''; ?>" data-page="summary"><i class="fa-solid fa-chart-column"></i><span>Summary Report</span></a>
+       <!-- VictorianPass Navigation -->
+       <?php if ($currentSystem == 'victorianpass'): ?>
+       <div class="nav-section">
+         <div class="nav-section-title">Overview</div>
+         <a href="?page=dashboard" class="nav-item <?php echo $currentPage == 'dashboard' ? 'active' : ''; ?>" data-page="dashboard"><i class="fa-solid fa-gauge"></i><span>Dashboard</span></a>
+         <a href="?page=summary" class="nav-item <?php echo $currentPage == 'summary' ? 'active' : ''; ?>" data-page="summary"><i class="fa-solid fa-chart-column"></i><span>Summary Report</span></a>
+       </div>
+       <div class="nav-section">
+         <div class="nav-section-title">People</div>
+         <a href="?page=residents" class="nav-item <?php echo $currentPage == 'residents' ? 'active' : ''; ?>" data-page="residents"><i class="fa-solid fa-house-user"></i><span>Residents</span></a>
+         <a href="?page=visitors" class="nav-item <?php echo $currentPage == 'visitors' ? 'active' : ''; ?>" data-page="visitors"><i class="fa-solid fa-user"></i><span>Visitors</span></a>
+         <a href="?page=security" class="nav-item <?php echo $currentPage == 'security' ? 'active' : ''; ?>" data-page="security"><i class="fa-solid fa-shield-halved"></i><span>Security Guards</span></a>
+       </div>
+       <div class="nav-section">
+         <div class="nav-section-title">Requests</div>
+         <a href="?page=requests" class="nav-item <?php echo $currentPage == 'requests' ? 'active' : ''; ?>" data-page="requests"><i class="fa-solid fa-clipboard-list"></i><span>Resident Requests</span></a>
+         <a href="?page=resident_guest_forms" class="nav-item <?php echo $currentPage == 'resident_guest_forms' ? 'active' : ''; ?>" data-page="resident_guest_forms"><i class="fa-solid fa-user-plus"></i><span>Guest Request</span></a>
+         <a href="?page=visitor_requests" class="nav-item <?php echo $currentPage == 'visitor_requests' ? 'active' : ''; ?>" data-page="visitor_requests"><i class="fa-solid fa-clipboard-list"></i><span>Visitor Requests</span></a>
+       </div>
+       <div class="nav-section">
+         <div class="nav-section-title">Management</div>
+         <a href="?page=report" class="nav-item <?php echo $currentPage == 'report' ? 'active' : ''; ?>" data-page="report"><i class="fa-solid fa-triangle-exclamation"></i><span>Reported Incidents</span></a>
+         <a href="?page=history" class="nav-item <?php echo $currentPage == 'history' ? 'active' : ''; ?>" data-page="history"><i class="fa-solid fa-box-archive"></i><span>Archived Requests</span></a>
+       </div>
+       <?php endif; ?>
+
+       <!-- VHEcoPoint Navigation -->
+       <?php if ($currentSystem == 'ecopoint'): ?>
+       <div class="nav-section">
+         <div class="nav-section-title">Smart Waste Station</div>
+         <a href="?page=smart_waste" class="nav-item <?php echo $currentPage == 'smart_waste' ? 'active' : ''; ?>" data-page="smart_waste"><i class="fa-solid fa-recycle"></i><span>Dashboard</span></a>
+       </div>
+       <?php endif; ?>
      </nav>
     <div class="sidebar-footer">
       <a href="?logout=1" class="text-muted-link">
@@ -4992,17 +5209,12 @@ body.modal-open { overflow: hidden; }
     ];
     $pageTitle = $pageTitles[$currentPage] ?? ucfirst($currentPage); ?>
     <header class="top-header">
-      <div class="header-brand">
-        <button type="button" id="sidebarToggle" class="sidebar-toggle" aria-label="Toggle sidebar" title="Toggle sidebar">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z"/></svg>
-        </button>
-        <div class="header-brand-text">
-          <div class="header-title">Admin Dashboard</div>
-          <div class="header-subtitle">Victorian Heights</div>
-        </div>
-      </div>
+      <div class="header-brand" aria-hidden="true"></div>
       <div class="header-search">
-        <div class="search"><input id="search-input" placeholder="Search <?php echo htmlspecialchars($pageTitle); ?>..."></div>
+        <div class="search">
+          <i class="fa-solid fa-magnifying-glass search-icon"></i>
+          <input id="search-input" placeholder="Search <?php echo htmlspecialchars($pageTitle); ?>...">
+        </div>
       </div>
       <?php 
         $notifPayments = getPendingPaymentCount($con); 

@@ -1418,21 +1418,32 @@ body.account-blocked { overflow: hidden; }
               </div>
             </div>
             <!-- Live session panel: shows real-time weight/points when using VHEcoPoint station -->
-            <div class="ecopoint-card" id="ecopoint-live-panel" style="display:block; margin-top:14px;">
-              <h3 class="ecopoint-card-title">Live Station Session</h3>
-              <div class="ecopoint-card-note">When you scan your Personal QR Code at a VHEcoPoint station, your session will appear here in real time.</div>
-              <div style="display:flex;gap:18px;align-items:center;margin-top:12px;">
-                <div style="flex:1;">
-                  <div style="font-weight:700;color:#111827">Status</div>
-                  <div id="ecopoint-live-status" style="margin-top:6px;color:#6b7280">No active session</div>
+            <div class="ecopoint-card ecopoint-live-panel" id="ecopoint-live-panel" style="display:block; margin-top:14px;">
+              <div class="ecopoint-live-card-title">Live Station Session</div>
+              <div class="ecopoint-live-header">
+                <div class="ecopoint-live-header-text">
+                  <div class="ecopoint-live-status-badge" id="ecopoint-live-status">No Active Session</div>
+                  <div class="ecopoint-live-station-name" id="ecopoint-live-station-name">VHEcoPoint Station</div>
                 </div>
-                <div style="width:160px;">
-                  <div style="font-weight:700;color:#111827">Live Weight</div>
-                  <div id="ecopoint-live-weight" style="margin-top:6px;color:#14532d">0.00 kg</div>
+                <div class="ecopoint-live-indicator" aria-hidden="true"></div>
+              </div>
+              <div class="ecopoint-live-message" id="ecopoint-live-message">Scan your VictorianPass QR at the VHEcoPoint Station to begin.</div>
+              <div class="ecopoint-live-meta" id="ecopoint-live-meta">
+                <div class="ecopoint-live-metric">
+                  <span class="ecopoint-live-metric-label">Session start time</span>
+                  <strong id="ecopoint-live-start-time">—</strong>
                 </div>
-                <div style="width:160px;">
-                  <div style="font-weight:700;color:#111827">Live Points</div>
-                  <div id="ecopoint-live-points" style="margin-top:6px;color:#14532d">0 pts</div>
+                <div class="ecopoint-live-metric">
+                  <span class="ecopoint-live-metric-label">Current material</span>
+                  <strong id="ecopoint-live-material">—</strong>
+                </div>
+                <div class="ecopoint-live-metric">
+                  <span class="ecopoint-live-metric-label">Current weight</span>
+                  <strong id="ecopoint-live-weight">0.00 kg</strong>
+                </div>
+                <div class="ecopoint-live-metric">
+                  <span class="ecopoint-live-metric-label">Current points</span>
+                  <strong id="ecopoint-live-points">0 pts</strong>
                 </div>
               </div>
             </div>
@@ -4549,5 +4560,6 @@ function replaceProof(reportId, proofId){
       }
     })();
   </script>
+<script src="js/ecopoint_dashboard.js"></script>
 </body>
 </html>

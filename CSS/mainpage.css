@@ -742,6 +742,171 @@ html { scroll-behavior: smooth; }
   flex-direction: column;
 }
 
+/* EcoPoint Live Station Session — matches LED screen color scheme */
+.ecopoint-live-panel{
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+  border: 2px solid #c8e6c9;
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(34, 197, 94, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 24px 26px 22px;
+  position: relative;
+  overflow: hidden;
+}
+
+.ecopoint-live-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%);
+  opacity: 0.3;
+}
+
+.ecopoint-live-panel.is-active {
+  background: linear-gradient(135deg, #f0fdf4 0%, #e0f7e8 100%);
+  border-color: #86efac;
+  box-shadow: 0 12px 32px rgba(34, 197, 94, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.ecopoint-live-panel.is-active::before {
+  opacity: 1;
+}
+
+.ecopoint-live-card-title {
+  margin: 0 0 16px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #16a34a;
+}
+
+.ecopoint-live-header{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.ecopoint-live-header-text{
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.ecopoint-live-status-badge{
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 0;
+  background: transparent;
+  color: #6b7280;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.ecopoint-live-panel.is-active .ecopoint-live-status-badge{
+  color: #22c55e;
+  font-weight: 700;
+}
+
+.ecopoint-live-station-name{
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: #0f4c23;
+}
+
+.ecopoint-live-panel.is-active .ecopoint-live-station-name {
+  color: #14532d;
+}
+
+.ecopoint-live-indicator{
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #d1d5db;
+  box-shadow: 0 0 0 6px rgba(209, 213, 219, 0.22);
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.ecopoint-live-panel.is-active .ecopoint-live-indicator{
+  background: #22c55e;
+  box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.28);
+}
+
+.ecopoint-live-message{
+  margin: 0 0 18px;
+  color: #6b7280;
+  line-height: 1.6;
+  font-weight: 500;
+  font-size: 1.0rem;
+}
+
+.ecopoint-live-panel.is-active .ecopoint-live-message{
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.ecopoint-live-meta{
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.ecopoint-live-metric{
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 14px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  min-height: 0;
+}
+
+.ecopoint-live-metric-label{
+  color: #737373;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  line-height: 1.4;
+  min-width: auto;
+}
+
+.ecopoint-live-metric strong{
+  color: #111827;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.ecopoint-live-panel.is-active .ecopoint-live-metric strong {
+  color: #0f4c23;
+}
+
+@media (max-width: 720px) {
+  .ecopoint-live-station-name {
+    font-size: 1.25rem;
+  }
+
+  .ecopoint-live-message,
+  .ecopoint-live-metric-label,
+  .ecopoint-live-metric strong {
+    font-size: 0.98rem;
+  }
+}
+
 .ecopoint-card-title{
   margin: 0 0 16px;
   font-size: 1.2rem;
