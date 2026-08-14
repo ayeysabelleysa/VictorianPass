@@ -118,6 +118,12 @@ body {
     position: relative;
     z-index: 110;
     pointer-events: auto;
+    background-image: linear-gradient(135deg, #fcd34d 0%, #eab308 50%, #d97706 100%);
+    box-shadow: 0 6px 14px rgba(234, 179, 8, 0.28);
+}
+
+.sidebar-footer .download-qr-btn:hover {
+    background-image: linear-gradient(135deg, #fbbf24 0%, #d97706 50%, #b45309 100%);
 }
 
 .logout-btn {

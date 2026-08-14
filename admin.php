@@ -115,8 +115,7 @@ function smartWasteMaterialLabel($materialType = '', $description = ''){
   $haystack = trim($value . ' ' . $desc);
   if (strpos($haystack, 'plastic') !== false || strpos($haystack, 'pet') !== false) return 'Plastic (PET)';
   if (strpos($haystack, 'aluminum') !== false || strpos($haystack, 'aluminium') !== false || strpos($haystack, 'can') !== false) return 'Aluminum Cans';
-  if (strpos($haystack, 'cardboard') !== false) return 'Cardboard';
-  if (strpos($haystack, 'paper') !== false) return 'Paper';
+  if (strpos($haystack, 'cardboard') !== false || strpos($haystack, 'paper') !== false) return 'Paper & Cardboard';
   return 'Other';
 }
 function ensureHouseRange($con){
@@ -5532,9 +5531,8 @@ body.modal-open { overflow: hidden; }
   $stationCapacityLiters = 120;
   $materialConfigs = [
     'Plastic (PET)' => ['icon' => 'fa-bottle-water', 'color' => '#22c55e', 'liters_per_kg' => 24],
-    'Paper' => ['icon' => 'fa-file-lines', 'color' => '#60a5fa', 'liters_per_kg' => 8],
-    'Aluminum Cans' => ['icon' => 'fa-prescription-bottle', 'color' => '#f59e0b', 'liters_per_kg' => 16],
-    'Cardboard' => ['icon' => 'fa-box-open', 'color' => '#c084fc', 'liters_per_kg' => 14]
+    'Paper & Cardboard' => ['icon' => 'fa-box-open', 'color' => '#60a5fa', 'liters_per_kg' => 11],
+    'Aluminum Cans' => ['icon' => 'fa-prescription-bottle', 'color' => '#f59e0b', 'liters_per_kg' => 16]
   ];
   $materialStats = [];
   foreach ($materialConfigs as $label => $config) {
@@ -5548,8 +5546,8 @@ body.modal-open { overflow: hidden; }
       'fill_class' => 'is-empty'
     ];
   }
-  $redemptionRecords = [];
-  $stationActivityLogs = [];
+  $recyclingLogs = [];
+  $amenityRedemptionLogs = [];
   $participationStats = [
     'all_time_count' => 0,
     'last30_count' => 0,
@@ -5641,25 +5639,26 @@ body.modal-open { overflow: hidden; }
         $participationStats['last7_count'] = intval($row['c'] ?? 0);
       }
     }
+    if ($res = $con->query("SELECT pt.transaction_type, pt.amount, pt.description, pt.material_type, pt.weight_kg, pt.created_at, pt.reservation_ref_code,
+      u.id, u.first_name, u.last_name, u.house_number, u.email
+      FROM point_transactions pt
+      LEFT JOIN users u ON u.id = pt.user_id
+      WHERE pt.transaction_type='earn'
+      ORDER BY pt.created_at DESC
+      LIMIT 20")) {
+      while ($row = $res->fetch_assoc()) {
+        $recyclingLogs[] = $row;
+      }
+    }
     if ($res = $con->query("SELECT pt.amount, pt.description, pt.reservation_ref_code, pt.created_at,
-      u.first_name, u.last_name
+      u.id, u.first_name, u.last_name, u.house_number, u.email
       FROM point_transactions pt
       LEFT JOIN users u ON u.id = pt.user_id
       WHERE pt.transaction_type='redeem'
       ORDER BY pt.created_at DESC
-      LIMIT 8")) {
+      LIMIT 10")) {
       while ($row = $res->fetch_assoc()) {
-        $redemptionRecords[] = $row;
-      }
-    }
-    if ($res = $con->query("SELECT pt.transaction_type, pt.amount, pt.description, pt.material_type, pt.weight_kg, pt.created_at, pt.reservation_ref_code,
-      u.first_name, u.last_name
-      FROM point_transactions pt
-      LEFT JOIN users u ON u.id = pt.user_id
-      ORDER BY pt.created_at DESC
-      LIMIT 15")) {
-      while ($row = $res->fetch_assoc()) {
-        $stationActivityLogs[] = $row;
+        $amenityRedemptionLogs[] = $row;
       }
     }
   }
@@ -5767,45 +5766,88 @@ body.modal-open { overflow: hidden; }
       </div>
 
       <div class="smart-waste-card">
-        <h4>Station Activity Logs</h4>
-        <div class="smart-waste-note">Latest VHEcoPoint transactions with resident, material, weight, points, and reference tracking.</div>
+        <h4>Recycling Activity / Logs</h4>
+        <div class="smart-waste-note">Latest resident recycling transactions with account information, material type, weight, and points earned.</div>
         <div class="table-responsive-wrapper smart-waste-table-compact">
           <table>
             <thead>
               <tr>
                 <th>Time</th>
-                <th>Resident</th>
-                <th>Activity</th>
+                <th>Resident Account</th>
+                <th>House</th>
                 <th>Material</th>
                 <th>Weight</th>
-                <th>Points</th>
-                <th>Reference</th>
+                <th>Points Earned</th>
               </tr>
             </thead>
             <tbody>
-              <?php if (empty($stationActivityLogs)): ?>
-                <tr><td colspan="7" style="text-align:center;">No station activity logs found.</td></tr>
+              <?php if (empty($recyclingLogs)): ?>
+                <tr><td colspan="6" style="text-align:center;">No recycling transactions found.</td></tr>
               <?php else: ?>
-                <?php foreach ($stationActivityLogs as $log): ?>
+                <?php foreach ($recyclingLogs as $log): ?>
                   <?php
-                    $logName = trim(($log['first_name'] ?? '') . ' ' . ($log['last_name'] ?? ''));
-                    if ($logName === '') { $logName = 'Resident'; }
-                    $txType = strtolower(trim((string)($log['transaction_type'] ?? 'adjustment')));
-                    $activityLabel = $txType === 'earn' ? 'Earn' : ($txType === 'redeem' ? 'Redeem' : 'Adjustment');
-                    $materialLabel = $txType === 'earn' ? smartWasteMaterialLabel($log['material_type'] ?? '', $log['description'] ?? '') : '-';
-                    $weightLabel = ($txType === 'earn' && floatval($log['weight_kg'] ?? 0) > 0) ? number_format(floatval($log['weight_kg'] ?? 0), 2) . ' kg' : '-';
+                    $residentName = trim(($log['first_name'] ?? '') . ' ' . ($log['last_name'] ?? ''));
+                    if ($residentName === '') { $residentName = 'Unknown Resident'; }
+                    $houseNumber = trim((string)($log['house_number'] ?? 'N/A'));
+                    $materialLabel = smartWasteMaterialLabel($log['material_type'] ?? '', $log['description'] ?? '');
+                    $weightValue = floatval($log['weight_kg'] ?? 0);
+                    $weightLabel = $weightValue > 0 ? number_format($weightValue, 2) . ' kg' : 'N/A';
                     $pointsValue = intval($log['amount'] ?? 0);
-                    $pointsLabel = ($txType === 'redeem' ? '-' : '+') . number_format($pointsValue) . ' pts';
-                    $eventTime = !empty($log['created_at']) ? date('M d, Y g:i A', strtotime($log['created_at'])) : '-';
+                    $pointsLabel = '+' . number_format($pointsValue) . ' pts';
+                    $eventTime = !empty($log['created_at']) ? date('M d, Y g:i A', strtotime($log['created_at'])) : 'N/A';
+                  ?>
+                  <tr>
+                    <td><?php echo htmlspecialchars($eventTime); ?></td>
+                    <td><strong><?php echo htmlspecialchars($residentName); ?></strong><br><small style="color:#6b7280;"><?php echo htmlspecialchars($log['email'] ?? ''); ?></small></td>
+                    <td><?php echo htmlspecialchars($houseNumber); ?></td>
+                    <td><?php echo htmlspecialchars($materialLabel); ?></td>
+                    <td><?php echo htmlspecialchars($weightLabel); ?></td>
+                    <td style="font-weight:800; color:#166534;"><?php echo htmlspecialchars($pointsLabel); ?></td>
+                  </tr>
+                <?php endforeach; ?>
+              <?php endif; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="smart-waste-card">
+        <h4>Amenity Redemption / Usage Logs</h4>
+        <div class="smart-waste-note">Separate log showing which resident redeemed points for which amenity or facility booking. Keep this distinct from recycling transactions.</div>
+        <div class="table-responsive-wrapper smart-waste-table-compact">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Resident Account</th>
+                <th>House</th>
+                <th>Amenity Redeemed</th>
+                <th>Points Spent</th>
+                <th>Booking Reference</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php if (empty($amenityRedemptionLogs)): ?>
+                <tr><td colspan="6" style="text-align:center;">No amenity redemption records found.</td></tr>
+              <?php else: ?>
+                <?php foreach ($amenityRedemptionLogs as $log): ?>
+                  <?php
+                    $residentName = trim(($log['first_name'] ?? '') . ' ' . ($log['last_name'] ?? ''));
+                    if ($residentName === '') { $residentName = 'Unknown Resident'; }
+                    $houseNumber = trim((string)($log['house_number'] ?? 'N/A'));
+                    $amenityDesc = trim((string)($log['description'] ?? 'Amenity Booking'));
+                    if ($amenityDesc === '') { $amenityDesc = 'Amenity Booking'; }
+                    $pointsValue = intval($log['amount'] ?? 0);
+                    $pointsLabel = '-' . number_format($pointsValue) . ' pts';
+                    $eventTime = !empty($log['created_at']) ? date('M d, Y g:i A', strtotime($log['created_at'])) : 'N/A';
                     $referenceCode = trim((string)($log['reservation_ref_code'] ?? ''));
                   ?>
                   <tr>
                     <td><?php echo htmlspecialchars($eventTime); ?></td>
-                    <td><?php echo htmlspecialchars($logName); ?></td>
-                    <td><span class="smart-waste-status-pill"><?php echo htmlspecialchars(strtoupper($activityLabel)); ?></span></td>
-                    <td><?php echo htmlspecialchars($materialLabel); ?></td>
-                    <td><?php echo htmlspecialchars($weightLabel); ?></td>
-                    <td style="font-weight:800; color:<?php echo $txType === 'redeem' ? '#b91c1c' : '#166534'; ?>;"><?php echo htmlspecialchars($pointsLabel); ?></td>
+                    <td><strong><?php echo htmlspecialchars($residentName); ?></strong><br><small style="color:#6b7280;"><?php echo htmlspecialchars($log['email'] ?? ''); ?></small></td>
+                    <td><?php echo htmlspecialchars($houseNumber); ?></td>
+                    <td><?php echo htmlspecialchars($amenityDesc); ?></td>
+                    <td style="font-weight:800; color:#b91c1c;"><?php echo htmlspecialchars($pointsLabel); ?></td>
                     <td class="wrap"><?php echo htmlspecialchars($referenceCode !== '' ? $referenceCode : 'N/A'); ?></td>
                   </tr>
                 <?php endforeach; ?>
@@ -5881,19 +5923,20 @@ body.modal-open { overflow: hidden; }
       </div>
 
       <div class="smart-waste-card">
-        <h4>Point Redemption Records</h4>
-        <div class="smart-waste-note">Most recent point redemption transactions linked to resident rewards and booking references.</div>
-        <?php if (empty($redemptionRecords)): ?>
-          <div class="smart-waste-empty">No point redemption records found yet.</div>
+        <h4>Recent Amenity Redemptions</h4>
+        <div class="smart-waste-note">Quick view of recent point redemptions for amenities and facility bookings.</div>
+        <?php if (empty($amenityRedemptionLogs)): ?>
+          <div class="smart-waste-empty">No redemption records found yet.</div>
         <?php else: ?>
           <div class="smart-waste-list">
-            <?php foreach ($redemptionRecords as $record): ?>
+            <?php foreach ($amenityRedemptionLogs as $record): ?>
               <?php
                 $recordName = trim(($record['first_name'] ?? '') . ' ' . ($record['last_name'] ?? ''));
                 if ($recordName === '') { $recordName = 'Resident'; }
+                $houseNum = trim((string)($record['house_number'] ?? ''));
                 $recordDate = !empty($record['created_at']) ? date('M d, Y g:i A', strtotime($record['created_at'])) : '-';
                 $recordDesc = trim((string)($record['description'] ?? ''));
-                if ($recordDesc === '') { $recordDesc = 'Amenity reward redemption'; }
+                if ($recordDesc === '') { $recordDesc = 'Amenity Booking'; }
                 $recordRef = trim((string)($record['reservation_ref_code'] ?? ''));
               ?>
               <div class="smart-waste-list-item">
@@ -5904,10 +5947,13 @@ body.modal-open { overflow: hidden; }
                   <div class="smart-waste-list-title"><?php echo htmlspecialchars($recordName); ?></div>
                   <div class="smart-waste-list-subtitle">
                     <?php echo htmlspecialchars($recordDesc); ?>
-                    <?php if ($recordRef !== ''): ?>
-                      • Ref: <?php echo htmlspecialchars($recordRef); ?>
+                    <?php if ($houseNum !== ''): ?>
+                      • <?php echo htmlspecialchars($houseNum); ?>
                     <?php endif; ?>
-                    <br><?php echo htmlspecialchars($recordDate); ?>
+                    <?php if ($recordRef !== ''): ?>
+                      • <?php echo htmlspecialchars($recordRef); ?>
+                    <?php endif; ?>
+                    <br><small><?php echo htmlspecialchars($recordDate); ?></small>
                   </div>
                 </div>
                 <div class="smart-waste-list-value" style="color:#b91c1c;">-<?php echo number_format(intval($record['amount'] ?? 0)); ?> pts</div>
@@ -7127,18 +7173,20 @@ function closeIncidentDetailsModal(){
 
 function calcAgeFromBirthdate(birthdateStr){
   if(!birthdateStr) return '';
-  const d = new Date(birthdateStr);
-  if(isNaN(d)) return '';
+  const pr = String(birthdateStr).split('-');
+  if(pr.length !== 3) return '';
+  const y = parseInt(pr[0],10), mo = parseInt(pr[1],10), da = parseInt(pr[2],10);
+  if(isNaN(y)||isNaN(mo)||isNaN(da)) return '';
   const today = new Date();
-  let age = today.getFullYear() - d.getFullYear();
-  const m = today.getMonth() - d.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age--;
+  let age = today.getFullYear() - y;
+  const m = (today.getMonth()+1) - mo;
+  if (m < 0 || (m === 0 && today.getDate() < da)) age--;
   if (age < 0) age = 0;
   return age;
 }
 function formatBirthdateWithAge(birthdateStr){
   if(!birthdateStr) return '';
-  const dateLabel = new Date(birthdateStr).toLocaleDateString();
+  const dateLabel = fmtDate(birthdateStr);
   const age = calcAgeFromBirthdate(birthdateStr);
   return (age !== '' && age !== null && age !== undefined) ? `${dateLabel} (Age ${age})` : dateLabel;
 }
@@ -7237,7 +7285,7 @@ function showVisitorDetails(id, source) {
             <div>
               <div class="section-title">${sectionTitle}</div>
               <div class="info-grid">
-                ${visitDateVal ? `<div class="info-row"><span class="info-label">Date</span><span class="info-value">${new Date(visitDateVal).toLocaleDateString()}${visitEndDateVal ? ' - ' + new Date(visitEndDateVal).toLocaleDateString() : ''}</span></div>` : ''}
+                ${visitDateVal ? `<div class="info-row"><span class="info-label">Date</span><span class="info-value">${fmtDate(visitDateVal)}${visitEndDateVal ? ' - ' + fmtDate(visitEndDateVal) : ''}</span></div>` : ''}
                 ${(visitStartTimeVal || visitEndTimeVal) ? `<div class="info-row"><span class="info-label">Time</span><span class="info-value">${fmtTime(visitStartTimeVal)}${visitEndTimeVal ? ' - ' + fmtTime(visitEndTimeVal) : ''}</span></div>` : ''}
                 ${details.amenity && details.amenity !== 'Guest Entry' ? `<div class="info-row"><span class="info-label">Amenity</span><span class="info-value">${details.amenity}</span></div>` : ''}
                 ${priceBlock}
@@ -7275,7 +7323,7 @@ function showVisitorDetails(id, source) {
               <div class="info-grid">
                 ${details.ref_code ? `<div class="info-row"><span class="info-label">Reference Code</span><span class="info-value">${details.ref_code}</span></div>` : ''}
                 ${details.amenity && details.amenity !== 'Guest Entry' ? `<div class="info-row"><span class="info-label">Amenity</span><span class="info-value">${details.amenity}</span></div>` : ''}
-                ${visitDateVal ? `<div class="info-row"><span class="info-label">Date</span><span class="info-value">${new Date(visitDateVal).toLocaleDateString()}${visitEndDateVal ? ' - ' + new Date(visitEndDateVal).toLocaleDateString() : ''}</span></div>` : ''}
+                ${visitDateVal ? `<div class="info-row"><span class="info-label">Date</span><span class="info-value">${fmtDate(visitDateVal)}${visitEndDateVal ? ' - ' + fmtDate(visitEndDateVal) : ''}</span></div>` : ''}
                 ${(visitStartTimeVal || visitEndTimeVal) ? `<div class="info-row"><span class="info-label">Time</span><span class="info-value">${fmtTime(visitStartTimeVal)}${visitEndTimeVal ? ' - ' + fmtTime(visitEndTimeVal) : ''}</span></div>` : ''}
                 ${details.persons ? `<div class="info-row"><span class="info-label">No. of Persons</span><span class="info-value">${details.persons}</span></div>` : ''}
                 ${details.purpose ? `<div class="info-row"><span class="info-label">Purpose of Visit</span><span class="info-value">${details.purpose}</span></div>` : ''}
@@ -7412,9 +7460,11 @@ function showReservationDetails(reservationId, expectedType){
             ${d.ref_code?`<div class="info-row"><span class="info-label">Reference Code</span><span class="info-value">${d.ref_code}</span></div>`:''}
             ${d.amenity?`<div class="info-row"><span class="info-label">Amenity</span><span class="info-value">${d.amenity}</span></div>`:''}
             ${reservedBy?`<div class="info-row"><span class="info-label">Reserved By</span><span class="info-value">${reservedBy}</span></div>`:''}
-            ${d.start_date?`<div class="info-row"><span class="info-label">Start Date</span><span class="info-value">${new Date(d.start_date).toLocaleDateString()}</span></div>`:''}
-            ${d.end_date?`<div class="info-row"><span class="info-label">End Date</span><span class="info-value">${new Date(d.end_date).toLocaleDateString()}</span></div>`:''}
-            ${(d.start_time||d.end_time)?`<div class="info-row"><span class="info-label">Time</span><span class="info-value">${fmtTime(d.start_time)}${d.end_time?' - '+fmtTime(d.end_time):''}</span></div>`:''}
+            ${d.start_date?`<div class="info-row"><span class="info-label">Start Date</span><span class="info-value">${fmtDate(d.start_date)}</span></div>`:''}
+            ${d.end_date?`<div class="info-row"><span class="info-label">End Date</span><span class="info-value">${fmtDate(d.end_date)}</span></div>`:''}
+            ${d.start_time?`<div class="info-row"><span class="info-label">Start Time</span><span class="info-value">${fmtTime(d.start_time)}</span></div>`:''}
+            ${d.end_time?`<div class="info-row"><span class="info-label">End Time</span><span class="info-value">${fmtTime(d.end_time)}</span></div>`:''}
+            ${fmtDuration(d.start_time,d.end_time)?`<div class="info-row"><span class="info-label">Duration</span><span class="info-value">${fmtDuration(d.start_time,d.end_time)}</span></div>`:''}
             ${d.persons?`<div class="info-row"><span class="info-label">Persons</span><span class="info-value">${d.persons}</span></div>`:''}
             ${priceBlock}
           </div>
@@ -7458,6 +7508,8 @@ window.addEventListener('click', function(event){
 
 <script>
 function fmtTime(t){ if(!t) return ''; var p=String(t).split(':'), hh=parseInt(p[0]||'0',10), m=(p[1]||'00'); var ap=hh>=12?'PM':'AM'; var h=hh%12; if(h===0) h=12; return (String(h)+":"+String(m).padStart(2,'0')+" "+ap); }
+function fmtDate(d){ if(!d) return ''; var p=String(d).split('-'); if(p.length!==3) return d; var m=(p[1]||'').padStart(2,'0'); var dd=(p[2]||'').padStart(2,'0'); var y=String(p[0]).slice(-2); return m+'/'+dd+'/'+y; }
+function fmtDuration(st, et){ if(!st || !et) return ''; var m1=String(st).match(/^(\d{1,2}):(\d{2})/); var m2=String(et).match(/^(\d{1,2}):(\d{2})/); if(!m1 || !m2) return ''; var sm=parseInt(m1[1],10)*60+parseInt(m1[2],10); var em=parseInt(m2[1],10)*60+parseInt(m2[2],10); var diff=em-sm; if(diff===0) return ''; if(diff<0) diff=(24*60)-sm+em; if(diff<=0) return ''; var h=Math.floor(diff/60); var mins=diff%60; var out=[]; if(h>0) out.push(h+(h===1?' hr':' hrs')); if(mins>0) out.push(mins+' min'); return out.join(' ')||''; }
 function fmtDateTime(dt){ try{ var d=new Date(dt); var mm=String(d.getMonth()+1).padStart(2,'0'); var dd=String(d.getDate()).padStart(2,'0'); var yy=String(d.getFullYear()).slice(-2); var hh=d.getHours(); var m=String(d.getMinutes()).padStart(2,'0'); var ap=hh>=12?'PM':'AM'; var h=hh%12; if(h===0) h=12; return (mm+"."+dd+"."+yy+" "+h+":"+m+" "+ap); }catch(e){ return String(dt); } }
 function fmtDateTimeSec(dt){ try{ var d=new Date(dt); var mm=String(d.getMonth()+1).padStart(2,'0'); var dd=String(d.getDate()).padStart(2,'0'); var yy=String(d.getFullYear()).slice(-2); var hh=d.getHours(); var m=String(d.getMinutes()).padStart(2,'0'); var s=String(d.getSeconds()).padStart(2,'0'); var ap=hh>=12?'PM':'AM'; var h=hh%12; if(h===0) h=12; return (mm+"."+dd+"."+yy+" "+h+":"+m+":"+s+" "+ap); }catch(e){ return String(dt); } }
 function showResidentReservationDetails(rrId){
@@ -7557,9 +7609,11 @@ function showResidentReservationDetails(rrId){
               ${d.ref_code?`<div class="info-row"><span class="info-label">Reference Code</span><span class="info-value">${d.ref_code}</span></div>`:''}
               ${d.amenity?`<div class="info-row"><span class="info-label">Amenity</span><span class="info-value">${d.amenity}</span></div>`:''}
               ${reservedBy?`<div class="info-row"><span class="info-label">Reserved By</span><span class="info-value">${reservedBy}</span></div>`:''}
-              ${d.start_date?`<div class="info-row"><span class="info-label">Start Date</span><span class="info-value">${new Date(d.start_date).toLocaleDateString()}</span></div>`:''}
-              ${d.end_date?`<div class="info-row"><span class="info-label">End Date</span><span class="info-value">${new Date(d.end_date).toLocaleDateString()}</span></div>`:''}
-              ${(d.start_time||d.end_time)?`<div class="info-row"><span class="info-label">Time</span><span class="info-value">${fmtTime(d.start_time)}${d.end_time?' - '+fmtTime(d.end_time):''}</span></div>`:''}
+              ${d.start_date?`<div class="info-row"><span class="info-label">Start Date</span><span class="info-value">${fmtDate(d.start_date)}</span></div>`:''}
+              ${d.end_date?`<div class="info-row"><span class="info-label">End Date</span><span class="info-value">${fmtDate(d.end_date)}</span></div>`:''}
+              ${d.start_time?`<div class="info-row"><span class="info-label">Start Time</span><span class="info-value">${fmtTime(d.start_time)}</span></div>`:''}
+              ${d.end_time?`<div class="info-row"><span class="info-label">End Time</span><span class="info-value">${fmtTime(d.end_time)}</span></div>`:''}
+              ${fmtDuration(d.start_time,d.end_time)?`<div class="info-row"><span class="info-label">Duration</span><span class="info-value">${fmtDuration(d.start_time,d.end_time)}</span></div>`:''}
               ${d.persons?`<div class="info-row"><span class="info-label">Persons</span><span class="info-value">${d.persons}</span></div>`:''}
               ${priceBlock}
               <div class="info-row"><span class="info-label">Downpayment</span><span class="info-value"><span class="badge ${psClass}">${ps.charAt(0).toUpperCase()+ps.slice(1)}</span></span></div>

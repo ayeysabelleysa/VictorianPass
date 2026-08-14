@@ -19,6 +19,16 @@
  */
 require_once __DIR__ . '/../ecopoint_core.php';
 
+// Display label for a stored material_type. The station combines
+// Paper and Cardboard into one category, so both map to the same label.
+function eco_material_display_label(string $raw): string {
+    $hay = strtolower(trim($raw));
+    if (strpos($hay, 'plastic') !== false || strpos($hay, 'pet') !== false) return 'Plastic (PET)';
+    if (strpos($hay, 'aluminum') !== false || strpos($hay, 'aluminium') !== false || strpos($hay, 'can') !== false) return 'Aluminum Cans';
+    if (strpos($hay, 'cardboard') !== false || strpos($hay, 'paper') !== false) return 'Paper & Cardboard';
+    return ($raw !== '' && $raw !== '-') ? $raw : '-';
+}
+
 // SSE headers (required for browser to keep connection alive)
 header('Content-Type: text/event-stream; charset=UTF-8');
 header('Cache-Control: no-cache, no-store, must-revalidate, max-age=0');
@@ -79,7 +89,7 @@ function eco_build_snapshot(mysqli $con, int $userId): array {
             'id'                 => (int)$active['id'],
             'session_token_safe' => substr((string)($active['session_token'] ?? ''), 0, 8) . '…',
             'status'             => (string)($active['status'] ?? ''),
-            'material'           => (string)($active['material_type'] ?? ''),
+            'material'           => eco_material_display_label((string)($active['material_type'] ?? '')),
             'weight_kg'          => (float)($active['weight_kg'] ?? 0),
             'points_calculated'  => (int)($active['points_calculated'] ?? 0),
             'points_awarded'     => (int)($active['points_awarded'] ?? 0),
@@ -120,7 +130,7 @@ function eco_build_snapshot(mysqli $con, int $userId): array {
             $history[] = [
                 'id'              => (int)$r['id'],
                 'status'          => (string)$r['status'],
-                'material'        => (string)($r['material_type'] ?? '-'),
+                'material'        => eco_material_display_label((string)($r['material_type'] ?? '-')),
                 'weight_kg'       => (float)($r['weight_kg'] ?? 0),
                 'points_awarded'  => (int)($r['points_awarded'] ?? 0),
                 'created_at'      => (string)$r['created_at'],

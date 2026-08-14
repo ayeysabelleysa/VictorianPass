@@ -588,6 +588,37 @@ if (!$data) {
         </div>
         <?php endif; ?>
 
+        <?php
+            $durationText = '';
+            if (!empty($data['start_time']) && !empty($data['end_time'])) {
+                $stRaw = trim((string)$data['start_time']);
+                $etRaw = trim((string)$data['end_time']);
+                if (preg_match('/^(\d{1,2}):(\d{2})/', $stRaw, $m1) && preg_match('/^(\d{1,2}):(\d{2})/', $etRaw, $m2)) {
+                    $sm = intval($m1[1]) * 60 + intval($m1[2]);
+                    $em = intval($m2[1]) * 60 + intval($m2[2]);
+                    $diff = $em - $sm;
+                    if ($diff === 0) { $durationText = ''; }
+                    else {
+                        if ($diff < 0) { $diff = (24 * 60) - $sm + $em; }
+                        if ($diff > 0) {
+                            $h = floor($diff / 60);
+                            $mins = $diff % 60;
+                            $dParts = [];
+                            if ($h > 0) { $dParts[] = $h . ($h === 1 ? ' hr' : ' hrs'); }
+                            if ($mins > 0) { $dParts[] = $mins . ' min'; }
+                            $durationText = implode(' ', $dParts);
+                        }
+                    }
+                }
+            }
+        ?>
+        <?php if($durationText): ?>
+        <div class="info-row">
+            <span class="info-label">Duration</span>
+            <span class="info-value"><?php echo htmlspecialchars($durationText); ?></span>
+        </div>
+        <?php endif; ?>
+
         <?php if(!empty($data['persons'])): ?>
         <div class="info-row">
             <span class="info-label">No. of Persons</span>

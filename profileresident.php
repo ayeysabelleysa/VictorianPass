@@ -79,8 +79,7 @@ function residentEcoPointMaterialLabel($materialType = '', $description = ''){
   $haystack = trim($value . ' ' . $desc);
   if (strpos($haystack, 'plastic') !== false || strpos($haystack, 'pet') !== false) return 'Plastic (PET)';
   if (strpos($haystack, 'aluminum') !== false || strpos($haystack, 'aluminium') !== false || strpos($haystack, 'can') !== false) return 'Aluminum Cans';
-  if (strpos($haystack, 'cardboard') !== false) return 'Cardboard';
-  if (strpos($haystack, 'paper') !== false) return 'Paper';
+  if (strpos($haystack, 'cardboard') !== false || strpos($haystack, 'paper') !== false) return 'Paper & Cardboard';
   return 'Other';
 }
 
@@ -314,8 +313,7 @@ $ecoPointExpiryDays = 365;
 $ecoPointWeeklyStats = [
     'Plastic (PET)' => ['points' => 0, 'weight' => 0.0],
     'Aluminum Cans' => ['points' => 0, 'weight' => 0.0],
-    'Paper' => ['points' => 0, 'weight' => 0.0],
-    'Cardboard' => ['points' => 0, 'weight' => 0.0]
+    'Paper & Cardboard' => ['points' => 0, 'weight' => 0.0]
 ];
 $ecoPointWeeklyPoints = 0;
 $ecoPointTodaySessionsUsed = 0;
@@ -1106,8 +1104,12 @@ body.account-blocked { overflow: hidden; }
 }
 .sidebar-footer .download-qr-btn {
   position: relative;
-  box-shadow: 0 6px 14px rgba(234, 179, 8, 0.16);
+  background-image: linear-gradient(135deg, #fcd34d 0%, #eab308 50%, #d97706 100%);
+  box-shadow: 0 6px 14px rgba(234, 179, 8, 0.28);
   transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+.sidebar-footer .download-qr-btn:hover {
+  background-image: linear-gradient(135deg, #fbbf24 0%, #d97706 50%, #b45309 100%);
 }
 .sidebar-footer .download-qr-btn.qr-highlight {
   background: linear-gradient(135deg, #f8d76a, #eab308);
@@ -2339,8 +2341,8 @@ body.account-blocked { overflow: hidden; }
   function closeQRView(){ var m=document.getElementById('qrViewModal'); if(m) m.style.display='none'; }
   document.addEventListener('DOMContentLoaded', function() {
     var qrButton = document.querySelector('.sidebar-footer .download-qr-btn[title="My QR"]');
-    var qrMessage = document.getElementById('ecopoint-live-message');
     var qrTooltip = document.getElementById('qrHelpTooltip');
+    var ecopointNav = document.querySelector('.nav-menu .nav-item[data-section="panel-points-history"]');
 
     function setQRHighlight(active) {
       if (!qrButton) return;
@@ -2352,9 +2354,10 @@ body.account-blocked { overflow: hidden; }
       }
     }
 
-    function positionTooltip() {
+    function positionTooltip(anchor) {
       if (!qrButton || !qrTooltip || !qrTooltip.classList.contains('visible')) return;
-      var rect = qrButton.getBoundingClientRect();
+      var el = anchor || qrButton;
+      var rect = el.getBoundingClientRect();
       var tooltipWidth = qrTooltip.offsetWidth || 220;
       var left = rect.right + 16;
       var top = rect.top + (rect.height / 2);
@@ -2364,42 +2367,43 @@ body.account-blocked { overflow: hidden; }
       qrTooltip.style.top = top + 'px';
     }
 
+    function showQRHelp(anchor) {
+      setQRHighlight(true);
+      positionTooltip(anchor);
+    }
+
     if (qrButton) {
       qrButton.addEventListener('click', function(e) {
         e.preventDefault();
         openQRChoice();
       });
       qrButton.addEventListener('mouseenter', function() {
-        if (qrMessage && qrMessage.matches(':hover')) {
-          setQRHighlight(true);
-        }
+        showQRHelp(qrButton);
       });
       qrButton.addEventListener('mouseleave', function() {
         setQRHighlight(false);
       });
       qrButton.addEventListener('focus', function() {
-        setQRHighlight(true);
+        showQRHelp(qrButton);
       });
       qrButton.addEventListener('blur', function() {
         setQRHighlight(false);
       });
     }
 
-    if (qrMessage) {
-      qrMessage.addEventListener('mouseenter', function() {
-        setQRHighlight(true);
-        positionTooltip();
+    if (ecopointNav) {
+      ecopointNav.addEventListener('click', function() {
+        showQRHelp(qrButton);
       });
-      qrMessage.addEventListener('mouseleave', function() {
-        setQRHighlight(false);
+      document.querySelectorAll('.nav-menu .nav-item[data-section]').forEach(function(item) {
+        if (item !== ecopointNav) {
+          item.addEventListener('click', function() { setQRHighlight(false); });
+        }
       });
-      qrMessage.addEventListener('focus', function() {
-        setQRHighlight(true);
-        positionTooltip();
-      });
-      qrMessage.addEventListener('focusout', function() {
-        setQRHighlight(false);
-      });
+    }
+
+    if (ecopointNav && ecopointNav.classList.contains('active')) {
+      showQRHelp(qrButton);
     }
 
     window.addEventListener('resize', function() {

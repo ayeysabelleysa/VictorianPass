@@ -113,8 +113,7 @@ function residentEcoPointMaterialLabelTest($materialType = '', $description = ''
     $haystack = trim($value . ' ' . $desc);
     if (strpos($haystack, 'plastic') !== false || strpos($haystack, 'pet') !== false) return 'Plastic (PET)';
     if (strpos($haystack, 'aluminum') !== false || strpos($haystack, 'can') !== false) return 'Aluminum Cans';
-    if (strpos($haystack, 'cardboard') !== false) return 'Cardboard';
-    if (strpos($haystack, 'paper') !== false) return 'Paper';
+    if (strpos($haystack, 'cardboard') !== false || strpos($haystack, 'paper') !== false) return 'Paper & Cardboard';
     return 'Other';
 }
 

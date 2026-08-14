@@ -243,6 +243,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $edObj = $end ? DateTime::createFromFormat('Y-m-d', $end) : false;
     $stObj = $startTime ? DateTime::createFromFormat('H:i', $startTime) : false;
     $etObj = $endTime ? DateTime::createFromFormat('H:i', $endTime) : false;
+    // If the client sent a malformed end time (e.g. a stale/cached page that posts a
+    // bare hour number or HH:MM:SS which MySQL would mangle into 00:00:NN), derive the
+    // end time from the validated start time + selected hours instead of rejecting.
+    if (!$etObj && $stObj && $hours > 0) {
+      $maxH = ($amenity === 'Clubhouse' || $amenity === 'Multi-Purpose Building') ? 21 : 18;
+      $endH = (int)$stObj->format('H') + $hours;
+      $endM = (int)$stObj->format('i');
+      if ($endH > $maxH) { $endH = $maxH; $endM = 0; }
+      $endTime = sprintf('%02d:%02d', $endH, $endM);
+      $etObj = DateTime::createFromFormat('H:i', $endTime);
+    }
     if (!$sdObj || !$edObj) {
       $errorMsg = 'Please select a start and end date.';
     } else if (!$stObj || !$etObj) {
@@ -510,6 +521,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               }
             }
 
+            // Authoritative end time = start time + selected hours (server-side).
+            // The browser-submitted endTime is never trusted here, so a stale/cached
+            // client can no longer store a corrupt time (e.g. bare hour number -> 00:00:NN).
+            if ($startTime !== '' && $hours > 0 && preg_match('/^(\d{1,2}):(\d{2})/', $startTime, $m)) {
+              $maxH = ($amenity === 'Clubhouse' || $amenity === 'Multi-Purpose Building') ? 21 : 18;
+              $endH = (int)$m[1] + $hours;
+              $endM = (int)$m[2];
+              if ($endH > $maxH) { $endH = $maxH; $endM = 0; }
+              $endTime = sprintf('%02d:%02d', $endH, $endM);
+              $etObj = DateTime::createFromFormat('H:i', $endTime);
+            }
+
             // Store reservation info in session for confirmation/debugging if needed
             $_SESSION['pending_reservation'] = [
               'amenity' => $amenity,
@@ -517,6 +540,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               'end_date' => $end,
               'start_time' => $startTime,
               'end_time' => $endTime,
+              'hours' => $hours,
               'persons' => $persons,
               'price' => $use_points_post ? 0 : $price,
               'downpayment' => $use_points_post ? 0 : $downpayment,

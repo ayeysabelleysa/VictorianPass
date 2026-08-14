@@ -103,6 +103,27 @@ function format_time_ap($t){
     return $hh . ':' . str_pad((string)$m, 2, '0', STR_PAD_LEFT) . ' ' . $ap;
 }
 
+function deriveReservationHours($amenity, $bookingFor, $price){
+    if (!$amenity || $price <= 0) return 0;
+    $rate = 0;
+    if ($amenity === 'Basketball Court' || $amenity === 'Tennis Court') { $rate = ($bookingFor === 'resident') ? 100 : 150; }
+    else if ($amenity === 'Clubhouse') { $rate = ($bookingFor === 'resident') ? 300 : 450; }
+    else if ($amenity === 'Multi-Purpose Building') { $rate = ($bookingFor === 'resident') ? 200 : 300; }
+    if ($rate <= 0) return 0;
+    $h = (int)round($price / $rate);
+    return $h > 0 ? $h : 0;
+}
+
+function normalizeEndTimeFromHours($startTime, $hours, $amenity){
+    $start = trim((string)$startTime);
+    if ($start === '' || $hours <= 0 || !preg_match('/^(\d{1,2}):(\d{2})/', $start, $m)) return $startTime;
+    $maxH = ($amenity === 'Clubhouse' || $amenity === 'Multi-Purpose Building') ? 21 : 18;
+    $endH = (int)$m[1] + $hours;
+    $endM = (int)$m[2];
+    if ($endH > $maxH) { $endH = $maxH; $endM = 0; }
+    return sprintf('%02d:%02d', $endH, $endM);
+}
+
 // HANDLE FORM SUBMISSION
 if($_SERVER['REQUEST_METHOD'] === 'POST'){
     $tokenPosted = isset($_POST['csrf_token']) ? $_POST['csrf_token'] : '';
@@ -202,6 +223,11 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
         $booked_by_role = 'co_owner';
       }
       $uid = ($user_id && $user_id>0) ? $user_id : null;
+      // Authoritative end time = start time + hours (server-side), so a stale/legacy
+      // pending session can never write a corrupt end time into the database.
+      $hoursPending = isset($pending['hours']) ? intval($pending['hours']) : 0;
+      if ($hoursPending <= 0) { $hoursPending = deriveReservationHours($amenity, $booking_for, $price); }
+      if ($hoursPending > 0) { $endTime = normalizeEndTimeFromHours($startTime, $hoursPending, $amenity); }
       if(empty($msg)){
         $acct = ($continue_post === 'reserve_resident') ? 'resident' : 'visitor';
         $hadLegacy = false;
