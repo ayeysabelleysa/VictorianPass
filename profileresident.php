@@ -822,6 +822,268 @@ body.account-blocked { overflow: hidden; }
 .account-blocked-content .btn-logout-only { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 18px; border-radius: 8px; background: #c0392b; color: #fff; text-decoration: none; font-weight: 600; border: 0; cursor: pointer; }
 .account-blocked-content .btn-logout-only:hover { filter: brightness(0.95); }
 .toast-stack { position: fixed; top: 16px; right: 16px; z-index: 2500; display: flex; flex-direction: column; gap: 8px; }
+.main-content.ecopoint-active .top-header {
+  background: linear-gradient(135deg, #0d2018 0%, #163e2f 35%, #0b1c15 100%);
+  border-bottom: 1px solid rgba(212, 175, 55, 0.45);
+  box-shadow: inset 0 -1px 0 rgba(212, 175, 55, 0.25);
+}
+.main-content.ecopoint-active .top-header .brand-main {
+  color: #fde886;
+}
+.main-content.ecopoint-active .top-header .brand-sub {
+  color: rgba(255,255,255,0.82);
+}
+.main-content.ecopoint-active .top-header .icon-btn,
+.main-content.ecopoint-active .top-header .user-profile,
+.main-content.ecopoint-active .top-header .menu-toggle {
+  border-color: rgba(212, 175, 55, 0.5);
+}
+.main-content.ecopoint-active .top-header .icon-btn i,
+.main-content.ecopoint-active .top-header .user-profile,
+.main-content.ecopoint-active .top-header .menu-toggle i {
+  color: #fde886;
+}
+.main-content.ecopoint-active .top-header .notif-count {
+  background: #d4af37;
+  color: #10251b;
+}
+.main-content.ecopoint-active #panel-points-history {
+  background: linear-gradient(180deg, #0d1f1a 0%, #123126 100%);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  border-radius: 18px;
+  box-shadow: 0 18px 45px rgba(6, 13, 11, 0.28);
+  padding: 20px;
+}
+.main-content.ecopoint-active #panel-points-history .activity-list-header {
+  background: rgba(15, 42, 32, 0.9);
+  border: 1px solid rgba(212, 175, 55, 0.28);
+  color: #f0ebe2;
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.main-content.ecopoint-active #panel-points-history .activity-list-header div:first-child {
+  color: #f0ebe2;
+}
+.main-content.ecopoint-active #panel-points-history .activity-list-header div:first-child div {
+  color: #cfc6a3;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-panel-shell {
+  position: relative;
+  z-index: 1;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-header-card {
+  background: linear-gradient(135deg, rgba(12, 30, 22, 0.96), rgba(28, 62, 48, 0.96));
+  border: 1px solid rgba(212, 175, 55, 0.45);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+  color: #f0ebe2;
+}
+.main-content.ecopoint-active #panel-points-history {
+  background: linear-gradient(180deg, #173c33 0%, #1d463d 100%);
+  border: 1px solid rgba(212, 175, 55, 0.28);
+  border-radius: 18px;
+  box-shadow: 0 14px 32px rgba(9, 18, 14, 0.14);
+  padding: 20px;
+}
+.main-content.ecopoint-active #panel-points-history .activity-list-header {
+  background: rgba(17, 48, 40, 0.82);
+  border: 1px solid rgba(212, 175, 55, 0.22);
+  color: #f0ebe2;
+  border-radius: 14px;
+}
+.main-content.ecopoint-active #panel-points-history .activity-list-header div:first-child {
+  color: #f0ebe2;
+}
+.main-content.ecopoint-active #panel-points-history .activity-list-header div:first-child div {
+  color: #cfc6a3;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-header-card {
+  background: linear-gradient(135deg, #0f2f27 0%, #174a3c 100%);
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  box-shadow: 0 12px 28px rgba(8, 22, 18, 0.12);
+  color: #f7f4ea;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-header-kicker,
+.main-content.ecopoint-active #panel-points-history .ecopoint-header-title,
+.main-content.ecopoint-active #panel-points-history .ecopoint-header-desc,
+.main-content.ecopoint-active #panel-points-history .ecopoint-kpi-label,
+.main-content.ecopoint-active #panel-points-history .ecopoint-kpi-subtext,
+.main-content.ecopoint-active #panel-points-history .ecopoint-card-title,
+.main-content.ecopoint-active #panel-points-history .ecopoint-card-note,
+.main-content.ecopoint-active #panel-points-history .ecopoint-material-title,
+.main-content.ecopoint-active #panel-points-history .ecopoint-material-subtitle,
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-card-title,
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-message,
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-station-name,
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-metric-label,
+.main-content.ecopoint-active #panel-points-history .ecopoint-table th {
+  color: #f7f4ea;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-header-kicker {
+  color: #fde886;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-header-title {
+  color: #fce67c;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-header-desc,
+.main-content.ecopoint-active #panel-points-history .ecopoint-kpi-subtext,
+.main-content.ecopoint-active #panel-points-history .ecopoint-card-note,
+.main-content.ecopoint-active #panel-points-history .ecopoint-material-subtitle,
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-message,
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-metric-label,
+.main-content.ecopoint-active #panel-points-history .ecopoint-table td {
+  color: #f0ebe2;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-kpi-card,
+.main-content.ecopoint-active #panel-points-history .ecopoint-card,
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-panel {
+  background: #1d433b;
+  border: 1px solid rgba(212, 175, 55, 0.24);
+  box-shadow: 0 10px 24px rgba(8, 18, 14, 0.1);
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-kpi-value,
+.main-content.ecopoint-active #panel-points-history .ecopoint-material-value,
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-metric strong,
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-status-badge {
+  color: #fde886;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-metric strong {
+  font-size: 1.08rem;
+  line-height: 1.3;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-progress {
+  background: rgba(255,255,255,0.08);
+  border-radius: 999px;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-progress-bar {
+  background: linear-gradient(90deg, #d4af37, #f2d884);
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-material-row {
+  border-bottom-color: rgba(212, 175, 55, 0.18);
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-table {
+  background: transparent;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-table th,
+.main-content.ecopoint-active #panel-points-history .ecopoint-table td {
+  border-bottom-color: rgba(212, 175, 55, 0.18);
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-empty {
+  background: rgba(15, 39, 31, 0.34);
+  border-color: rgba(212, 175, 55, 0.2);
+  color: #f7f4ea;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-panel {
+  padding: 18px 18px 16px;
+  border-radius: 18px;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-card-title {
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fde886;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-header-text {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: rgba(253, 232, 134, 0.12);
+  border: 1px solid rgba(253, 232, 134, 0.35);
+  color: #fde886;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-station-name {
+  font-size: 1rem;
+  font-weight: 700;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fde886;
+  box-shadow: 0 0 0 6px rgba(253, 232, 134, 0.2);
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-message {
+  background: rgba(255,255,255,0.03);
+  border-left: 3px solid rgba(253, 232, 134, 0.6);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin: 10px 0 14px;
+  line-height: 1.55;
+  font-size: 0.94rem;
+  color: #f0ebe2;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 12px;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-metric {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(212, 175, 55, 0.18);
+  border-radius: 12px;
+  padding: 12px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 82px;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-metric-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #cfc6a3;
+  margin-bottom: 10px;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-metric strong {
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: #fde886;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-action-btn {
+  background: linear-gradient(135deg, #d4af37, #f1d77d);
+  color: #0d2018;
+  box-shadow: 0 10px 18px rgba(212, 175, 55, 0.18);
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-action-btn:hover {
+  filter: brightness(1.04);
+}
+@media (max-width: 768px) {
+  .main-content.ecopoint-active #panel-points-history {
+    padding: 14px;
+  }
+  .main-content.ecopoint-active #panel-points-history .ecopoint-live-meta {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 480px) {
+  .main-content.ecopoint-active #panel-points-history .ecopoint-live-meta {
+    grid-template-columns: 1fr;
+  }
+  .main-content.ecopoint-active #panel-points-history .ecopoint-live-header {
+    align-items: flex-start;
+  }
+}
 .toast-item { background: #fff; border-left: 4px solid #23412e; box-shadow: 0 4px 12px rgba(0,0,0,0.18); border-radius: 10px; padding: 10px 12px; min-width: 260px; display: flex; align-items: flex-start; gap: 8px; color: #333; }
 .toast-item .toast-message { flex: 1; font-size: 0.85rem; }
 .toast-item .toast-close { background: transparent; border: 0; color: #888; font-size: 1rem; cursor: pointer; line-height: 1; }
@@ -841,6 +1103,62 @@ body.account-blocked { overflow: hidden; }
   background-color: #bbf7d0;
   color: #14532d;
   font-weight: 700;
+}
+.sidebar-footer .download-qr-btn {
+  position: relative;
+  box-shadow: 0 6px 14px rgba(234, 179, 8, 0.16);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+.sidebar-footer .download-qr-btn.qr-highlight {
+  background: linear-gradient(135deg, #f8d76a, #eab308);
+  color: #153426;
+  box-shadow: 0 0 0 3px rgba(248, 215, 106, 0.18), 0 12px 22px rgba(234, 179, 8, 0.35);
+  transform: translateY(-1px) scale(1.01);
+  filter: saturate(1.08);
+}
+.qr-help-tooltip {
+  position: fixed;
+  z-index: 2400;
+  width: min(260px, calc(100vw - 24px));
+  background: rgba(11, 29, 23, 0.95);
+  color: #f7f1d8;
+  border: 1px solid rgba(241, 215, 130, 0.45);
+  border-radius: 12px;
+  box-shadow: 0 18px 28px rgba(6, 20, 17, 0.18);
+  padding: 12px 14px;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(10px, -50%);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.qr-help-tooltip.visible {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+.qr-help-tooltip::after {
+  content: "";
+  position: absolute;
+  left: -7px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  background: rgba(11, 29, 23, 0.95);
+  border-left: 1px solid rgba(241, 215, 130, 0.45);
+  border-bottom: 1px solid rgba(241, 215, 130, 0.45);
+  transform: translateY(-50%) rotate(45deg);
+}
+.qr-help-tooltip strong {
+  display: block;
+  font-size: 0.84rem;
+  color: #fde886;
+  margin-bottom: 6px;
+  letter-spacing: 0.02em;
+}
+.qr-help-tooltip span {
+  display: block;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #f0ebe2;
 }
 .field-warning {
   color: #333;
@@ -1140,10 +1458,14 @@ body.account-blocked { overflow: hidden; }
 
     <div class="sidebar-footer">
       <?php if (!$isAccountBlocked): ?>
-      <a href="#" onclick="openQRChoice(); return false;" class="download-qr-btn" title="My QR">
+      <a href="#" onclick="openQRChoice(); return false;" class="download-qr-btn" title="My QR" aria-label="My QR Code">
         <i class="fa-solid fa-qrcode"></i> <span>My QR</span>
       </a>
       <?php endif; ?>
+      <div id="qrHelpTooltip" class="qr-help-tooltip" role="tooltip" aria-hidden="true">
+        <strong>This is your QR Code</strong>
+        <span>Use this QR code at the VHEcoPoint Station to start your recycling session.</span>
+      </div>
     <!-- QR Choice Modal -->
     <div id="qrChoiceModal" class="modal" style="display:none;">
       <div class="modal-content" style="max-width:420px;text-align:center;position:relative;">
@@ -1261,16 +1583,17 @@ body.account-blocked { overflow: hidden; }
   </aside>
 
   <!-- MAIN CONTENT -->
-  <main class="main-content">
+  <?php $isEcoPointThemeActive = ($activeSection === 'panel-points-history'); ?>
+  <main class="main-content<?php echo $isEcoPointThemeActive ? ' ecopoint-active' : ''; ?>">
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
     <!-- Top Header -->
-    <header class="top-header">
+    <header class="top-header<?php echo $isEcoPointThemeActive ? ' ecopoint-theme-header' : ''; ?>">
       <div class="header-brand">
         <button class="menu-toggle" id="menuToggle"><i class="fa-solid fa-bars"></i></button>
         <a href="mainpage.php" aria-label="Go to Main Page"><img src="images/logo.svg" alt="Logo"></a>
         <div class="brand-text">
-          <span class="brand-main">VictorianPass</span>
-          <span class="brand-sub">Victorian Heights Subdivision</span>
+          <span class="brand-main"><?php echo $isEcoPointThemeActive ? 'VHEcoPoint' : 'VictorianPass'; ?></span>
+          <span class="brand-sub"><?php echo $isEcoPointThemeActive ? 'Smart Waste Segregation Station' : 'Victorian Heights Subdivision'; ?></span>
         </div>
       </div>
       <div class="header-actions">
@@ -1427,7 +1750,7 @@ body.account-blocked { overflow: hidden; }
                 </div>
                 <div class="ecopoint-live-indicator" aria-hidden="true"></div>
               </div>
-              <div class="ecopoint-live-message" id="ecopoint-live-message">Scan your VictorianPass QR at the VHEcoPoint Station to begin.</div>
+              <div class="ecopoint-live-message" id="ecopoint-live-message" tabindex="0" aria-describedby="qrHelpTooltip">Scan your VictorianPass QR at the VHEcoPoint Station to begin.</div>
               <div class="ecopoint-live-meta" id="ecopoint-live-meta">
                 <div class="ecopoint-live-metric">
                   <span class="ecopoint-live-metric-label">Session start time</span>
@@ -1452,8 +1775,8 @@ body.account-blocked { overflow: hidden; }
               <h3 class="ecopoint-card-title">Weekly Material Cap Tracker</h3>
               <div class="ecopoint-card-note">Weekly contributions count toward the current 250-point program cap. Material rows show your contribution by recyclables logged this week.</div>
               <div style="display:flex;justify-content:space-between;align-items:flex-end;margin:10px 0 6px 0;">
-                <div style="font-weight:700;color:#0f172a;font-size:13px;">Total Weekly Progress</div>
-                <div style="font-weight:800;color:#166534;font-size:15px;"><?php echo number_format($ecoPointWeeklyPoints); ?> / <?php echo number_format($ecoPointWeeklyCap); ?> pts &middot; <?php echo intval($ecoPointWeeklyProgress); ?>%</div>
+                <div style="font-weight:700;color:#f0ebe2;font-size:13px;">Total Weekly Progress</div>
+                <div style="font-weight:800;color:#fde886;font-size:15px;"><?php echo number_format($ecoPointWeeklyPoints); ?> / <?php echo number_format($ecoPointWeeklyCap); ?> pts &middot; <?php echo intval($ecoPointWeeklyProgress); ?>%</div>
               </div>
               <div class="ecopoint-progress" style="margin-bottom:14px;">
                 <div class="ecopoint-progress-bar" style="width:<?php echo intval($ecoPointWeeklyProgress); ?>%;"></div>
@@ -2016,12 +2339,74 @@ body.account-blocked { overflow: hidden; }
   function closeQRView(){ var m=document.getElementById('qrViewModal'); if(m) m.style.display='none'; }
   document.addEventListener('DOMContentLoaded', function() {
     var qrButton = document.querySelector('.sidebar-footer .download-qr-btn[title="My QR"]');
-    if(qrButton) {
+    var qrMessage = document.getElementById('ecopoint-live-message');
+    var qrTooltip = document.getElementById('qrHelpTooltip');
+
+    function setQRHighlight(active) {
+      if (!qrButton) return;
+      qrButton.classList.toggle('qr-highlight', !!active);
+      qrButton.setAttribute('aria-pressed', active ? 'true' : 'false');
+      if (qrTooltip) {
+        qrTooltip.classList.toggle('visible', !!active);
+        qrTooltip.setAttribute('aria-hidden', active ? 'false' : 'true');
+      }
+    }
+
+    function positionTooltip() {
+      if (!qrButton || !qrTooltip || !qrTooltip.classList.contains('visible')) return;
+      var rect = qrButton.getBoundingClientRect();
+      var tooltipWidth = qrTooltip.offsetWidth || 220;
+      var left = rect.right + 16;
+      var top = rect.top + (rect.height / 2);
+      var maxLeft = window.innerWidth - tooltipWidth - 12;
+      left = Math.min(Math.max(left, 12), maxLeft);
+      qrTooltip.style.left = left + 'px';
+      qrTooltip.style.top = top + 'px';
+    }
+
+    if (qrButton) {
       qrButton.addEventListener('click', function(e) {
         e.preventDefault();
         openQRChoice();
       });
+      qrButton.addEventListener('mouseenter', function() {
+        if (qrMessage && qrMessage.matches(':hover')) {
+          setQRHighlight(true);
+        }
+      });
+      qrButton.addEventListener('mouseleave', function() {
+        setQRHighlight(false);
+      });
+      qrButton.addEventListener('focus', function() {
+        setQRHighlight(true);
+      });
+      qrButton.addEventListener('blur', function() {
+        setQRHighlight(false);
+      });
     }
+
+    if (qrMessage) {
+      qrMessage.addEventListener('mouseenter', function() {
+        setQRHighlight(true);
+        positionTooltip();
+      });
+      qrMessage.addEventListener('mouseleave', function() {
+        setQRHighlight(false);
+      });
+      qrMessage.addEventListener('focus', function() {
+        setQRHighlight(true);
+        positionTooltip();
+      });
+      qrMessage.addEventListener('focusout', function() {
+        setQRHighlight(false);
+      });
+    }
+
+    window.addEventListener('resize', function() {
+      if (qrTooltip && qrTooltip.classList.contains('visible')) {
+        positionTooltip();
+      }
+    });
   });
   // Wire buttons
   document.addEventListener('click', function(e){
@@ -3401,11 +3786,28 @@ body.account-blocked { overflow: hidden; }
   });
 
   var sections=document.querySelectorAll('.right-panel .panel-section');
+  function applyResidentThemeBySection(id){
+    var mainContent = document.querySelector('.main-content');
+    var brandMain = document.querySelector('.top-header .brand-main');
+    var brandSub = document.querySelector('.top-header .brand-sub');
+    var isEcoPoint = id === 'panel-points-history';
+
+    if (mainContent) {
+      mainContent.classList.toggle('ecopoint-active', isEcoPoint);
+    }
+    if (brandMain) {
+      brandMain.textContent = isEcoPoint ? 'VHEcoPoint' : 'VictorianPass';
+    }
+    if (brandSub) {
+      brandSub.textContent = isEcoPoint ? 'Smart Waste Segregation Station' : 'Victorian Heights Subdivision';
+    }
+  }
   function showPanel(id){
     sections.forEach(function(sec){
       if(!sec) return;
       sec.style.display=sec.id===id?'':'none';
     });
+    applyResidentThemeBySection(id);
   }
   document.querySelectorAll('.nav-menu .nav-item[data-section]').forEach(function(item){
     item.addEventListener('click',function(e){
@@ -3423,6 +3825,11 @@ body.account-blocked { overflow: hidden; }
       }
     });
   });
+  if (document.querySelector('.nav-menu .nav-item[data-section="panel-points-history"].active')) {
+    applyResidentThemeBySection('panel-points-history');
+  } else {
+    applyResidentThemeBySection('panel-requests');
+  }
   var guestFormBackBtn=document.getElementById('guestFormBackBtn');
   if(guestFormBackBtn){
     guestFormBackBtn.addEventListener('click',function(e){

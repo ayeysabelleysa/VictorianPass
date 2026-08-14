@@ -322,7 +322,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         <?php elseif ($isVisitor): ?>
           <button class="btn-change btn-reserve" onclick="window.location.href='reserve.php'">Reserve an Amenity</button>
         <?php else: ?>
-          <button class="btn-change btn-eco" onclick="window.location.href='profileresident.php?section=panel-points-history'">View VH My EcoPoints</button>
+          <button class="btn-change btn-eco" onclick="window.location.href='profileresident.php?section=panel-points-history'">View VHEcoPoint</button>
           <button class="btn-change btn-dashboard" onclick="window.location.href='profileresident.php'">My Dashboard</button>
         <?php endif; ?>
       </div>
@@ -436,7 +436,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
           
           <article class="ecopoint-card">
             <div class="ecopoint-action-wrap" style="text-align:center;">
-              <a href="profileresident.php?section=panel-points-history" class="btn-change ecopoint-action-btn">View VH My EcoPoints</a>
+              <a href="profileresident.php?section=panel-points-history" class="btn-change ecopoint-action-btn">View VHEcoPoint</a>
             </div>
           </article>
           <?php endif; ?>
