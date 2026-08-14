@@ -125,17 +125,23 @@ ensureReservationPointColumns($con);
  */
 function reserveCalcVHEcoBalance(mysqli $con, int $userId): int {
     if ($userId <= 0) return 0;
-    $colQ = $con->query("SHOW COLUMNS FROM point_transactions LIKE 'ecopoint_session_id'");
-    $hasFk = ($colQ && $colQ->num_rows > 0);
-    if ($hasFk) {
-        $stmt = $con->prepare("SELECT id, transaction_type, amount, description, ecopoint_session_id FROM point_transactions WHERE user_id = ?");
-    } else {
-        $stmt = $con->prepare("SELECT id, transaction_type, amount, description, NULL AS ecopoint_session_id FROM point_transactions WHERE user_id = ?");
+    try {
+        $tblChk = $con->query("SHOW TABLES LIKE 'point_transactions'");
+        if (!$tblChk || $tblChk->num_rows === 0) return 0;
+        $colQ = $con->query("SHOW COLUMNS FROM point_transactions LIKE 'ecopoint_session_id'");
+        $hasFk = ($colQ && $colQ->num_rows > 0);
+        if ($hasFk) {
+            $stmt = $con->prepare("SELECT id, transaction_type, amount, description, ecopoint_session_id FROM point_transactions WHERE user_id = ?");
+        } else {
+            $stmt = $con->prepare("SELECT id, transaction_type, amount, description, NULL AS ecopoint_session_id FROM point_transactions WHERE user_id = ?");
+        }
+        if (!$stmt) return 0;
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+    } catch (Throwable $e) {
+        return 0;
     }
-    if (!$stmt) return 0;
-    $stmt->bind_param('i', $userId);
-    $stmt->execute();
-    $res = $stmt->get_result();
     $balance = 0;
     while ($row = $res->fetch_assoc()) {
         $isEcoTx = (!empty($row['ecopoint_session_id']) && intval($row['ecopoint_session_id']) > 0)

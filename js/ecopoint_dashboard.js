@@ -34,6 +34,7 @@
   let lastSnapshot = null;
   let previousSession = null;
   let hasRenderedInitialState = false;
+  let notifiedEndedSessionId = null;
   let pollInterval = null;
   let uiUpdateTimeout = null;
   let isConnecting = false;
@@ -474,7 +475,7 @@
     // with an existing active session already in the database.
     if (!hasRenderedInitialState) {
       hasRenderedInitialState = true;
-      previousSession = JSON.parse(JSON.stringify(newSession || {}));
+      previousSession = newSession ? JSON.parse(JSON.stringify(newSession)) : null;
       return;
     }
 
@@ -489,8 +490,13 @@
       );
       log('Session verified', newSession);
     }
-    // Had session → session completed
+    // Had a real session that ended → notify exactly once per session id
     else if (prevSession && !newSession) {
+      if (notifiedEndedSessionId === String(prevSession.id || '')) {
+        previousSession = null;
+        return;
+      }
+      notifiedEndedSessionId = String(prevSession.id || '');
       const pointsAwarded = Math.max(0, parseInt((prevSession && prevSession.total_points) || (prevSession && prevSession.points_awarded) || 0));
       showSessionPopup(
         'success',
@@ -528,7 +534,7 @@
       }
     }
 
-    previousSession = JSON.parse(JSON.stringify(newSession || {}));
+    previousSession = newSession ? JSON.parse(JSON.stringify(newSession)) : null;
   }
 
   // =====================================================================

@@ -269,27 +269,32 @@ if (!in_array($activeSection, $allowedSections, true)) {
 // (balance, weekly points, daily sessions, activity history, expiry) share ONE source of truth.
 $ecoPointTransactions = [];
 if ($con instanceof mysqli) {
-    $colQ = $con->query("SHOW COLUMNS FROM point_transactions LIKE 'ecopoint_session_id'");
-    $hasFk = ($colQ && $colQ->num_rows > 0);
-    if ($hasFk) {
+  try {
+    $tblChk = $con->query("SHOW TABLES LIKE 'point_transactions'");
+    if ($tblChk && $tblChk->num_rows > 0) {
+      $colQ = $con->query("SHOW COLUMNS FROM point_transactions LIKE 'ecopoint_session_id'");
+      $hasFk = ($colQ && $colQ->num_rows > 0);
+      if ($hasFk) {
         $stmt = $con->prepare("SELECT id, transaction_type, amount, description, reservation_ref_code, material_type, weight_kg, created_at, ecopoint_session_id FROM point_transactions WHERE user_id = ? ORDER BY created_at DESC");
-    } else {
+      } else {
         $stmt = $con->prepare("SELECT id, transaction_type, amount, description, reservation_ref_code, material_type, weight_kg, created_at, NULL AS ecopoint_session_id FROM point_transactions WHERE user_id = ? ORDER BY created_at DESC");
-    }
-    if ($stmt) {
+      }
+      if ($stmt) {
         $stmt->bind_param("i", $userId);
         $stmt->execute();
         $res = $stmt->get_result();
         while ($row = $res->fetch_assoc()) {
-            $isEcoTx = (!empty($row['ecopoint_session_id']) && intval($row['ecopoint_session_id']) > 0)
-                     || (stripos((string)($row['description'] ?? ''), 'VHEcoPoint') !== false)
-                     || (stripos((string)($row['description'] ?? ''), 'recycling') !== false);
-            if ($isEcoTx) {
-                $ecoPointTransactions[] = $row;
-            }
+          $isEcoTx = (!empty($row['ecopoint_session_id']) && intval($row['ecopoint_session_id']) > 0)
+                   || (stripos((string)($row['description'] ?? ''), 'VHEcoPoint') !== false)
+                   || (stripos((string)($row['description'] ?? ''), 'recycling') !== false);
+          if ($isEcoTx) {
+            $ecoPointTransactions[] = $row;
+          }
         }
         $stmt->close();
+      }
     }
+  } catch (Throwable $e) { /* point_transactions may be missing; skip VHEcoPoint history */ }
 }
 
 // VHEcoPoint Current Balance = net of ONLY VHEcoPoint-sourced earn/redeem/adjustment transactions.
