@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once 'connect.php';
+if (!defined('ECO_WEEKLY_POINT_CAP')) { define('ECO_WEEKLY_POINT_CAP', 250); }
 
 // Redirect to login if not authenticated
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'resident') {

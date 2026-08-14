@@ -582,7 +582,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   
                   // Insert reservation
                   $stmt = $con->prepare("INSERT INTO reservations (ref_code, amenity, start_date, end_date, start_time, end_time, persons, price, downpayment, user_id, entry_pass_id, booking_for, account_type, payment_status, approval_status, status, use_points, points_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'verified', 'pending', 'pending', ?, ?)");
-                  $stmt->bind_param('ssssssidissssii', $newRef, $amenity, $start, $end, $startTime, $endTime, $persons, $_SESSION['pending_reservation']['price'], $_SESSION['pending_reservation']['downpayment'], $user_id, $entry_pass_id, $booking_for, $acct, $use_points_post, $points_required);
+                  $stmt->bind_param('ssssssiddiissii', $newRef, $amenity, $start, $end, $startTime, $endTime, $persons, $_SESSION['pending_reservation']['price'], $_SESSION['pending_reservation']['downpayment'], $user_id, $entry_pass_id, $booking_for, $acct, $use_points_post, $points_required);
                   $stmt->execute();
                   $stmt->close();
                   
