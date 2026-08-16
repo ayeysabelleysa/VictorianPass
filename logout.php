@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/session_bootstrap.php';
 $confirmed = isset($_GET['confirm']) && $_GET['confirm'] === 'yes';
 if ($confirmed) {
   require_once 'connect.php';

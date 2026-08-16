@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/session_bootstrap.php';
 header('Content-Type: application/json');
 require_once 'connect.php';
 
@@ -168,11 +168,25 @@ if ($columnCheck && $columnCheck->num_rows === 0) {
 $ref_code = 'VP-' . strtoupper(bin2hex(random_bytes(4)));
 
 // Attempt to link to a resident account
-$resident_user_id = isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : null;
+$resident_user_id = null;
+if (isset($_SESSION['user_id']) && intval($_SESSION['user_id']) > 0) {
+  $sid = intval($_SESSION['user_id']);
+  $stmtV = $con->prepare("SELECT id FROM users WHERE id = ? AND user_type = 'resident' LIMIT 1");
+  if ($stmtV) {
+    $stmtV->bind_param('i', $sid);
+    $stmtV->execute();
+    $resV = $stmtV->get_result();
+    if ($resV && $resV->num_rows > 0) {
+      $resident_user_id = $sid;
+    }
+    $stmtV->close();
+  }
+}
 if ($resident_user_id === null) {
-  $stmtU = $con->prepare("SELECT id FROM users WHERE email = ? OR house_number = ? LIMIT 1");
+  // Fallback: match the resident by email first, then by house number
+  $stmtU = $con->prepare("SELECT id FROM users WHERE user_type = 'resident' AND (email = ? OR house_number = ?) ORDER BY (email = ?) DESC, id LIMIT 1");
   if ($stmtU) {
-    $stmtU->bind_param('ss', $resident_email, $resident_house);
+    $stmtU->bind_param('sss', $resident_email, $resident_house, $resident_email);
     if ($stmtU->execute()) {
       $resU = $stmtU->get_result();
       if ($resU) {

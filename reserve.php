@@ -1,6 +1,6 @@
 <?php
 ob_start(); // Prevents header issues on redirect
-session_start();
+require_once __DIR__ . '/session_bootstrap.php';
 include 'connect.php';
 $generatedCode = '';
 $errorMsg = '';

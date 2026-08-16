@@ -1,6 +1,6 @@
 <?php
 include("connect.php");
-session_start();
+require_once __DIR__ . '/session_bootstrap.php';
 
 // Initialize error message for inline display
 $error = '';

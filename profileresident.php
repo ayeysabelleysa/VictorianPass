@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/session_bootstrap.php';
 require_once 'connect.php';
 if (!defined('ECO_WEEKLY_POINT_CAP')) { define('ECO_WEEKLY_POINT_CAP', 250); }
 

@@ -1,6 +1,6 @@
 <?php
 // Start session if needed for any future functionality
-session_start();
+require_once __DIR__ . '/session_bootstrap.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">

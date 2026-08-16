@@ -1,7 +1,7 @@
 <?php
 $staffInactivityLimit = 2700;
 ini_set('session.gc_maxlifetime', (string)$staffInactivityLimit);
-session_start();
+require_once __DIR__ . '/session_bootstrap.php';
 include 'connect.php';
 
 $now = time();
@@ -227,7 +227,16 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_visitor_details' && isset(
                                     r.receipt_path AS r_receipt_path, r.receipt_attempts AS receipt_attempts,
                                     r.persons AS r_persons, r.ref_code AS r_ref_code
                              FROM guest_forms gf
-                             LEFT JOIN users u ON gf.resident_user_id = u.id
+                             LEFT JOIN users u ON u.id = (
+                                 SELECT id FROM users
+                                 WHERE (gf.resident_user_id IS NOT NULL AND users.id = gf.resident_user_id)
+                                    OR (gf.resident_user_id IS NULL AND gf.resident_email <> '' AND users.email = gf.resident_email)
+                                    OR (gf.resident_user_id IS NULL AND (gf.resident_email IS NULL OR gf.resident_email = '') AND gf.resident_house <> '' AND users.house_number = gf.resident_house)
+                                 ORDER BY (gf.resident_user_id IS NOT NULL) DESC,
+                                          (gf.resident_email <> '' AND users.email = gf.resident_email) DESC,
+                                          users.id
+                                 LIMIT 1
+                             )
                              LEFT JOIN reservations r ON r.ref_code = gf.ref_code
                              WHERE gf.id = ?");
     $stmtGF->bind_param('i', $id);
@@ -1608,19 +1617,53 @@ function getVisitorRequests($con) {
 
 // Split visitor-related requests by source
 function getResidentVisitorRequests($con) {
-    // Link guest forms to reservations via ref_code; amenity only when a reservation exists
+    // Link guest forms to reservations via ref_code; amenity only when a reservation exists.
+    // Match the resident by user id, or by the stored email/house number (covers older rows that
+    // were saved without a resident_user_id when the session link could not be resolved).
     $query = "SELECT gf.*, 
                      gf.visitor_first_name AS full_name, gf.visitor_middle_name AS middle_name, gf.visitor_last_name AS last_name,
                      r.amenity AS amenity, COALESCE(r.persons, gf.persons) AS persons, 
                      u.house_number AS res_house_number, u.first_name AS res_first_name, u.last_name AS res_last_name
               FROM guest_forms gf
+              LEFT JOIN users u ON u.id = (
+                  SELECT id FROM users
+                  WHERE (gf.resident_user_id IS NOT NULL AND users.id = gf.resident_user_id)
+                     OR (gf.resident_user_id IS NULL AND gf.resident_email <> '' AND users.email = gf.resident_email)
+                     OR (gf.resident_user_id IS NULL AND (gf.resident_email IS NULL OR gf.resident_email = '') AND gf.resident_house <> '' AND users.house_number = gf.resident_house)
+                  ORDER BY (gf.resident_user_id IS NOT NULL) DESC,
+                           (gf.resident_email <> '' AND users.email = gf.resident_email) DESC,
+                           users.id
+                  LIMIT 1
+              )
               LEFT JOIN reservations r ON r.ref_code = gf.ref_code
-              LEFT JOIN users u ON gf.resident_user_id = u.id
-              WHERE gf.resident_user_id IS NOT NULL
+              WHERE u.id IS NOT NULL
               AND (gf.approval_status IS NULL OR (gf.approval_status NOT IN ('cancelled','completed','deleted','moved_to_history','permission_granted')))
               ORDER BY gf.created_at DESC";
-    $res = $con->query($query);
-    return ($res && $res->num_rows > 0) ? $res : false;
+    try {
+        $res = $con->query($query);
+    } catch (Throwable $e) {
+        $res = false;
+    }
+    if ($res) {
+        return ($res->num_rows > 0) ? $res : false;
+    }
+    // Fallback for older guest_forms schemas: match by user id only
+    $q2 = "SELECT gf.id, gf.resident_user_id, gf.resident_house, gf.resident_email,
+                  gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name,
+                  gf.ref_code, gf.approval_status, gf.approved_by, gf.created_at,
+                  gf.visitor_first_name AS full_name, gf.visitor_middle_name AS middle_name, gf.visitor_last_name AS last_name,
+                  u.house_number AS res_house_number, u.first_name AS res_first_name, u.last_name AS res_last_name
+           FROM guest_forms gf
+           LEFT JOIN users u ON gf.resident_user_id = u.id
+           WHERE gf.resident_user_id IS NOT NULL
+             AND (gf.approval_status IS NULL OR (gf.approval_status NOT IN ('cancelled','completed','deleted','moved_to_history','permission_granted')))
+           ORDER BY gf.created_at DESC";
+    try {
+        $res2 = $con->query($q2);
+    } catch (Throwable $e) {
+        $res2 = false;
+    }
+    return ($res2 && $res2->num_rows > 0) ? $res2 : false;
 }
 
 function getResidentGuestAmenityReservations($con) {
@@ -5517,190 +5560,209 @@ body.modal-open { overflow: hidden; }
 
 <?php if ($currentPage == 'smart_waste'): ?>
 <?php
-  $smartWasteStats = [
-    'resident_count' => 0,
-    'total_points_balance' => 0,
-    'earned_points' => 0,
+  // ---------------------------------------------------------------------
+  // VHEcoPoint panel - REAL data from ecopoint_waste_sessions / stations
+  // (defensive: never fatals if ecopoint tables or point_transactions are
+  //  missing - the page still renders with empty states).
+  // ---------------------------------------------------------------------
+  if (!defined('ECO_SESSION_STATUSES_OPEN')) { define('ECO_SESSION_STATUSES_OPEN', ['WAITING', 'ACTIVE', 'PROCESSING']); }
+  function swDuration($created, $end = null) {
+    $c = is_string($created) && $created !== '' ? strtotime($created) : 0;
+    if (!$c) return '-';
+    $s = ($end && $end !== '' && $end !== '-') ? strtotime($end) : time();
+    $d = max(0, $s - $c);
+    $h = floor($d / 3600); $m = floor(($d % 3600) / 60);
+    if ($h > 0) return $h . 'h ' . $m . 'm';
+    if ($m > 0) return $m . 'm';
+    return '< 1m';
+  }
+
+  $swStats = [
+    'resident_count'  => 0,
+    'active_now'      => 0,
+    'completed_today' => 0,
+    'total_sessions'  => 0,
+    'total_kg'        => 0.0,
+    'total_pts'       => 0,
+    'total_kg_today'  => 0.0,
+    'total_pts_today' => 0,
+    'earned_points'   => 0,
     'redeemed_points' => 0,
-    'log_count' => 0,
-    'conversion_count' => 0,
-    'redemption_count' => 0,
-    'total_kg_collected' => 0
+    'redemption_count'=> 0,
   ];
-  $weeklyActivity = [];
-  $stationCapacityLiters = 120;
   $materialConfigs = [
-    'Plastic (PET)' => ['icon' => 'fa-bottle-water', 'color' => '#22c55e', 'liters_per_kg' => 24],
-    'Paper & Cardboard' => ['icon' => 'fa-box-open', 'color' => '#60a5fa', 'liters_per_kg' => 11],
-    'Aluminum Cans' => ['icon' => 'fa-prescription-bottle', 'color' => '#f59e0b', 'liters_per_kg' => 16]
+    'Plastic (PET)'       => ['icon' => 'fa-bottle-water',        'color' => '#22c55e'],
+    'Paper & Cardboard'   => ['icon' => 'fa-box-open',            'color' => '#60a5fa'],
+    'Aluminum Cans'       => ['icon' => 'fa-prescription-bottle', 'color' => '#f59e0b'],
   ];
   $materialStats = [];
   foreach ($materialConfigs as $label => $config) {
-    $materialStats[$label] = [
-      'kg_total' => 0.0,
-      'kg_today' => 0.0,
-      'txn_count' => 0,
-      'fill_liters' => 0.0,
-      'fill_percent' => 0,
-      'fill_status' => 'Empty',
-      'fill_class' => 'is-empty'
-    ];
+    $materialStats[$label] = ['kg_total' => 0.0, 'kg_today' => 0.0, 'txn_count' => 0];
   }
-  $recyclingLogs = [];
-  $amenityRedemptionLogs = [];
-  $participationStats = [
-    'all_time_count' => 0,
-    'last30_count' => 0,
-    'last7_count' => 0,
-    'all_time_rate' => 0,
-    'last30_rate' => 0,
-    'last7_rate' => 0
-  ];
-  $todayKey = date('Y-m-d');
+  $weeklyActivity = [];
   $dateCursor = new DateTimeImmutable('today -6 days');
   for ($i = 0; $i < 7; $i++) {
-    $key = $dateCursor->format('Y-m-d');
-    $weeklyActivity[$key] = [
-      'label' => $dateCursor->format('D'),
-      'count' => 0
-    ];
+    $k = $dateCursor->format('Y-m-d');
+    $weeklyActivity[$k] = ['label' => $dateCursor->format('D'), 'count' => 0];
     $dateCursor = $dateCursor->modify('+1 day');
   }
+  $activeSessions = [];
+  $historySessions = [];
+  $amenityRedemptionLogs = [];
+  $participationStats = [
+    'all_time_count' => 0, 'last30_count' => 0, 'last7_count' => 0,
+    'all_time_rate' => 0,  'last30_rate' => 0,  'last7_rate' => 0,
+  ];
+  $swStatusStyle = [
+    'WAITING' => ['#b45309', '#fffbeb'], 'ACTIVE' => ['#1d4ed8', '#eff6ff'],
+    'PROCESSING' => ['#0e7490', '#ecfeff'], 'COMPLETED' => ['#15803d', '#ecfdf3'],
+    'CANCELLED' => ['#991b1b', '#fef2f2'], 'ERROR' => ['#7f1d1d', '#fee2e2'],
+  ];
+  $todayKey = date('Y-m-d');
+  $swSearch = trim((string)($_GET['q'] ?? ''));
+  $swStatus = trim((string)($_GET['status'] ?? ''));
+  $swValidStatuses = ['WAITING', 'ACTIVE', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'ERROR'];
+
+  $swHas = ['sessions' => false, 'stations' => false, 'pts' => false, 'users' => false];
   if ($con instanceof mysqli) {
-    if ($res = $con->query("SELECT COUNT(*) AS c, COALESCE(SUM(points),0) AS total_points FROM users WHERE user_type='resident' AND COALESCE(status,'active') <> 'denied'")) {
-      if ($row = $res->fetch_assoc()) {
-        $smartWasteStats['resident_count'] = intval($row['c'] ?? 0);
-        $smartWasteStats['total_points_balance'] = intval($row['total_points'] ?? 0);
-      }
-    }
-    if ($res = $con->query("SELECT
-      COUNT(*) AS log_count,
-      SUM(CASE WHEN transaction_type='earn' THEN 1 ELSE 0 END) AS conversion_count,
-      SUM(CASE WHEN transaction_type='redeem' THEN 1 ELSE 0 END) AS redemption_count,
-      COALESCE(SUM(CASE WHEN transaction_type='earn' THEN amount ELSE 0 END),0) AS earned_points,
-      COALESCE(SUM(CASE WHEN transaction_type='redeem' THEN amount ELSE 0 END),0) AS redeemed_points,
-      COALESCE(SUM(CASE WHEN transaction_type='earn' THEN weight_kg ELSE 0 END),0) AS total_kg_collected
-      FROM point_transactions")) {
-      if ($row = $res->fetch_assoc()) {
-        $smartWasteStats['log_count'] = intval($row['log_count'] ?? 0);
-        $smartWasteStats['conversion_count'] = intval($row['conversion_count'] ?? 0);
-        $smartWasteStats['redemption_count'] = intval($row['redemption_count'] ?? 0);
-        $smartWasteStats['earned_points'] = intval($row['earned_points'] ?? 0);
-        $smartWasteStats['redeemed_points'] = intval($row['redeemed_points'] ?? 0);
-        $smartWasteStats['total_kg_collected'] = floatval($row['total_kg_collected'] ?? 0);
-      }
-    }
-    if ($res = $con->query("SELECT DATE(created_at) AS activity_date, COUNT(*) AS activity_count
-      FROM point_transactions
-      WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
-      GROUP BY DATE(created_at)")) {
-      while ($row = $res->fetch_assoc()) {
-        $key = $row['activity_date'] ?? '';
-        if ($key !== '' && isset($weeklyActivity[$key])) {
-          $weeklyActivity[$key]['count'] = intval($row['activity_count'] ?? 0);
+    try {
+      $res = $con->query('SHOW TABLES');
+      if ($res) { while ($row = $res->fetch_row()) { $t = strtolower((string)$row[0]); if ($t === 'ecopoint_waste_sessions') { $swHas['sessions'] = true; } elseif ($t === 'ecopoint_stations') { $swHas['stations'] = true; } elseif ($t === 'point_transactions') { $swHas['pts'] = true; } elseif ($t === 'users') { $swHas['users'] = true; } } }
+    } catch (Throwable $e) {}
+
+    try {
+      $r = $con->query("SELECT COUNT(*) AS c FROM users WHERE user_type='resident' AND COALESCE(status,'active') <> 'denied'");
+      if ($r && $row = $r->fetch_assoc()) $swStats['resident_count'] = intval($row['c'] ?? 0);
+    } catch (Throwable $e) {}
+
+    if ($swHas['pts']) {
+      try {
+        $r = $con->query("SELECT COUNT(*) AS c,
+                 SUM(CASE WHEN transaction_type='earn'   THEN 1 ELSE 0 END) AS e,
+                 SUM(CASE WHEN transaction_type='redeem' THEN 1 ELSE 0 END) AS d,
+                 COALESCE(SUM(CASE WHEN transaction_type='earn'   THEN amount ELSE 0 END),0) AS ep,
+                 COALESCE(SUM(CASE WHEN transaction_type='redeem' THEN amount ELSE 0 END),0) AS rp
+               FROM point_transactions");
+        if ($r && $row = $r->fetch_assoc()) {
+          $swStats['redemption_count'] = intval($row['d'] ?? 0);
+          $swStats['earned_points']    = intval($row['ep'] ?? 0);
+          $swStats['redeemed_points']  = intval($row['rp'] ?? 0);
         }
-      }
+        $r = $con->query("SELECT pt.amount, pt.description, pt.reservation_ref_code, pt.created_at,
+                 u.first_name, u.last_name, u.house_number, u.email
+               FROM point_transactions pt
+               LEFT JOIN users u ON u.id = pt.user_id
+               WHERE pt.transaction_type='redeem'
+               ORDER BY pt.created_at DESC LIMIT 10");
+        if ($r) { while ($row = $r->fetch_assoc()) $amenityRedemptionLogs[] = $row; }
+      } catch (Throwable $e) {}
     }
-    if ($res = $con->query("SELECT material_type, description, COALESCE(weight_kg,0) AS weight_kg, created_at
-      FROM point_transactions
-      WHERE transaction_type='earn'")) {
-      while ($row = $res->fetch_assoc()) {
-        $label = smartWasteMaterialLabel($row['material_type'] ?? '', $row['description'] ?? '');
-        if (!isset($materialStats[$label])) {
-          continue;
+
+    if ($swHas['sessions']) {
+      $inListOpen = implode("','", ECO_SESSION_STATUSES_OPEN);
+      try {
+        // KPIs from real sessions
+        $r = $con->query("SELECT COUNT(*) AS c FROM ecopoint_waste_sessions WHERE status IN ('$inListOpen')");
+        if ($r && $row = $r->fetch_assoc()) $swStats['active_now'] = intval($row['c'] ?? 0);
+
+        $r = $con->query("SELECT COUNT(*) AS c, COALESCE(SUM(weight_kg),0) AS kg, COALESCE(SUM(points_awarded),0) AS pts
+               FROM ecopoint_waste_sessions WHERE status='COMPLETED' AND DATE(completed_at) = CURDATE()");
+        if ($r && $row = $r->fetch_assoc()) {
+          $swStats['completed_today'] = intval($row['c'] ?? 0);
+          $swStats['total_kg_today']  = floatval($row['kg'] ?? 0);
+          $swStats['total_pts_today'] = intval($row['pts'] ?? 0);
         }
-        $weightValue = floatval($row['weight_kg'] ?? 0);
-        $materialStats[$label]['kg_total'] += $weightValue;
-        $materialStats[$label]['txn_count']++;
-        $createdDate = !empty($row['created_at']) ? date('Y-m-d', strtotime((string)$row['created_at'])) : '';
-        if ($createdDate === $todayKey) {
-          $materialStats[$label]['kg_today'] += $weightValue;
+
+        $r = $con->query("SELECT COUNT(*) AS c, COALESCE(SUM(weight_kg),0) AS kg, COALESCE(SUM(points_awarded),0) AS pts
+               FROM ecopoint_waste_sessions WHERE status='COMPLETED'");
+        if ($r && $row = $r->fetch_assoc()) {
+          $swStats['total_sessions'] = intval($row['c'] ?? 0);
+          $swStats['total_kg']       = floatval($row['kg'] ?? 0);
+          $swStats['total_pts']      = intval($row['pts'] ?? 0);
         }
-      }
-    }
-    if ($res = $con->query("SELECT COUNT(DISTINCT user_id) AS c
-      FROM point_transactions
-      WHERE transaction_type='earn'")) {
-      if ($row = $res->fetch_assoc()) {
-        $participationStats['all_time_count'] = intval($row['c'] ?? 0);
-      }
-    }
-    if ($res = $con->query("SELECT COUNT(DISTINCT user_id) AS c
-      FROM point_transactions
-      WHERE transaction_type='earn' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")) {
-      if ($row = $res->fetch_assoc()) {
-        $participationStats['last30_count'] = intval($row['c'] ?? 0);
-      }
-    }
-    if ($res = $con->query("SELECT COUNT(DISTINCT user_id) AS c
-      FROM point_transactions
-      WHERE transaction_type='earn' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)")) {
-      if ($row = $res->fetch_assoc()) {
-        $participationStats['last7_count'] = intval($row['c'] ?? 0);
-      }
-    }
-    if ($res = $con->query("SELECT pt.transaction_type, pt.amount, pt.description, pt.material_type, pt.weight_kg, pt.created_at, pt.reservation_ref_code,
-      u.id, u.first_name, u.last_name, u.house_number, u.email
-      FROM point_transactions pt
-      LEFT JOIN users u ON u.id = pt.user_id
-      WHERE pt.transaction_type='earn'
-      ORDER BY pt.created_at DESC
-      LIMIT 20")) {
-      while ($row = $res->fetch_assoc()) {
-        $recyclingLogs[] = $row;
-      }
-    }
-    if ($res = $con->query("SELECT pt.amount, pt.description, pt.reservation_ref_code, pt.created_at,
-      u.id, u.first_name, u.last_name, u.house_number, u.email
-      FROM point_transactions pt
-      LEFT JOIN users u ON u.id = pt.user_id
-      WHERE pt.transaction_type='redeem'
-      ORDER BY pt.created_at DESC
-      LIMIT 10")) {
-      while ($row = $res->fetch_assoc()) {
-        $amenityRedemptionLogs[] = $row;
-      }
+
+        // Weekly activity - real sessions created per day (last 7 days)
+        $r = $con->query("SELECT DATE(created_at) AS d, COUNT(*) AS c FROM ecopoint_waste_sessions
+               WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) GROUP BY DATE(created_at)");
+        if ($r) { while ($row = $r->fetch_assoc()) { $k = (string)($row['d'] ?? ''); if ($k !== '' && isset($weeklyActivity[$k])) $weeklyActivity[$k]['count'] = intval($row['c'] ?? 0); } }
+
+        // Material stats + participation (distinct residents) from COMPLETED sessions
+        $r = $con->query("SELECT ws.material_type, ws.weight_kg, ws.created_at, ws.user_id FROM ecopoint_waste_sessions ws WHERE ws.status='COMPLETED'");
+        if ($r) {
+          $seenU = [];
+          while ($row = $r->fetch_assoc()) {
+            $label = smartWasteMaterialLabel((string)($row['material_type'] ?? ''), '');
+            if (!isset($materialConfigs[$label])) continue; // only the 3 allowed recyclables
+            $w = floatval($row['weight_kg'] ?? 0);
+            $materialStats[$label]['kg_total'] += $w;
+            $materialStats[$label]['txn_count']++;
+            if (date('Y-m-d', strtotime((string)$row['created_at'])) === $todayKey) $materialStats[$label]['kg_today'] += $w;
+            $u = intval($row['user_id'] ?? 0);
+            if ($u > 0) $seenU[$u] = true;
+          }
+          $participationStats['all_time_count'] = count($seenU);
+        }
+
+        // Participation windows (COMPLETED sessions)
+        $r = $con->query("SELECT COUNT(DISTINCT user_id) AS c FROM ecopoint_waste_sessions WHERE status='COMPLETED' AND completed_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)");
+        if ($r && $row = $r->fetch_assoc()) $participationStats['last30_count'] = intval($row['c'] ?? 0);
+        $r = $con->query("SELECT COUNT(DISTINCT user_id) AS c FROM ecopoint_waste_sessions WHERE status='COMPLETED' AND completed_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)");
+        if ($r && $row = $r->fetch_assoc()) $participationStats['last7_count'] = intval($row['c'] ?? 0);
+
+        // Live active sessions
+        $r = $con->query("SELECT ws.*, st.station_code,
+                 u.first_name, u.last_name, u.house_number, u.email
+               FROM ecopoint_waste_sessions ws
+               LEFT JOIN ecopoint_stations st ON st.id = ws.station_id
+               LEFT JOIN users u              ON u.id  = ws.user_id
+               WHERE ws.status IN ('$inListOpen')
+               ORDER BY ws.id DESC LIMIT 25");
+        if ($r) { while ($row = $r->fetch_assoc()) $activeSessions[] = $row; }
+
+        // Session history - search + status filter
+        $where = ''; $params = []; $types = '';
+        if ($swSearch !== '') {
+          $where .= " AND (u.first_name LIKE ? OR u.last_name LIKE ? OR u.house_number LIKE ? OR st.station_code LIKE ? OR ws.qr_ref_code LIKE ? OR ws.material_type LIKE ? OR CAST(ws.id AS CHAR) LIKE ?) ";
+          $like = '%' . $swSearch . '%';
+          $params = array_merge($params, [$like, $like, $like, $like, $like, $like, $like]);
+          $types .= 'sssssss';
+        }
+        if ($swStatus !== '' && in_array($swStatus, $swValidStatuses, true)) {
+          $where .= " AND ws.status = ? ";
+          $params[] = $swStatus; $types .= 's';
+        }
+        $stmt = $con->prepare("
+          SELECT ws.*, st.station_code,
+                 u.first_name, u.last_name, u.house_number, u.email
+          FROM   ecopoint_waste_sessions ws
+          LEFT JOIN ecopoint_stations st ON st.id = ws.station_id
+          LEFT JOIN users u              ON u.id  = ws.user_id
+          WHERE  1=1 $where
+          ORDER BY ws.id DESC
+          LIMIT  100
+        ");
+        if ($stmt) {
+          if ($types !== '') $stmt->bind_param($types, ...$params);
+          $stmt->execute();
+          $res = $stmt->get_result();
+          while ($row = $res->fetch_assoc()) $historySessions[] = $row;
+          $stmt->close();
+        }
+      } catch (Throwable $e) {}
     }
   }
-  foreach ($materialStats as $label => &$materialRow) {
-    $litersPerKg = floatval($materialConfigs[$label]['liters_per_kg'] ?? 0);
-    $estimatedLiters = min($stationCapacityLiters, $materialRow['kg_today'] * $litersPerKg);
-    $fillPercent = $stationCapacityLiters > 0 ? intval(round(($estimatedLiters / $stationCapacityLiters) * 100)) : 0;
-    $materialRow['fill_liters'] = $estimatedLiters;
-    $materialRow['fill_percent'] = $fillPercent;
-    if ($fillPercent >= 95) {
-      $materialRow['fill_status'] = 'Full';
-      $materialRow['fill_class'] = 'is-full';
-    } elseif ($fillPercent >= 75) {
-      $materialRow['fill_status'] = 'Near Full';
-      $materialRow['fill_class'] = 'is-high';
-    } elseif ($fillPercent >= 40) {
-      $materialRow['fill_status'] = 'Moderate';
-      $materialRow['fill_class'] = 'is-medium';
-    } elseif ($fillPercent > 0) {
-      $materialRow['fill_status'] = 'Low';
-      $materialRow['fill_class'] = 'is-low';
-    } else {
-      $materialRow['fill_status'] = 'Empty';
-      $materialRow['fill_class'] = 'is-empty';
-    }
-  }
-  unset($materialRow);
-  $residentBase = max(1, intval($smartWasteStats['resident_count']));
+
+  $residentBase = max(1, intval($swStats['resident_count']));
   $participationStats['all_time_rate'] = round(($participationStats['all_time_count'] / $residentBase) * 100, 1);
-  $participationStats['last30_rate'] = round(($participationStats['last30_count'] / $residentBase) * 100, 1);
-  $participationStats['last7_rate'] = round(($participationStats['last7_count'] / $residentBase) * 100, 1);
+  $participationStats['last30_rate']   = round(($participationStats['last30_count']   / $residentBase) * 100, 1);
+  $participationStats['last7_rate']    = round(($participationStats['last7_count']    / $residentBase) * 100, 1);
+
   $maxWeeklyCount = 1;
-  foreach ($weeklyActivity as $day) {
-    if (($day['count'] ?? 0) > $maxWeeklyCount) {
-      $maxWeeklyCount = intval($day['count']);
-    }
-  }
-  $maxMaterialKg = 1;
-  foreach ($materialStats as $materialRow) {
-    if (($materialRow['kg_total'] ?? 0) > $maxMaterialKg) {
-      $maxMaterialKg = floatval($materialRow['kg_total']);
-    }
+  foreach ($weeklyActivity as $day) { if (($day['count'] ?? 0) > $maxWeeklyCount) $maxWeeklyCount = intval($day['count']); }
+  $maxMaterialKg = 1; $maxKgToday = 1;
+  foreach ($materialStats as $mr) {
+    if (($mr['kg_total'] ?? 0) > $maxMaterialKg) $maxMaterialKg = floatval($mr['kg_total']);
+    if (($mr['kg_today'] ?? 0) > $maxKgToday)    $maxKgToday    = floatval($mr['kg_today']);
   }
 ?>
 <section class="panel" id="smart-waste-panel">
@@ -5709,103 +5771,124 @@ body.modal-open { overflow: hidden; }
     <span class="station-desc">Smart Waste Segregation Station</span>
   </div>
   <h3>EcoPoint Admin Panel</h3>
-  <div class="notice">View estimated live bin levels, total collected kilograms, resident participation rates, point redemption records, and station activity logs for VHEcoPoint inside the existing VictorianPass admin dashboard.</div>
+  <div class="notice">Live data from the actual VHEcoPoint recycling sessions database. Updates automatically every 15 seconds.</div>
 
   <div class="dashboard-grid" style="padding:0; margin:0 0 20px;">
     <div class="dashboard-widget">
-      <div class="dashboard-widget-label">Bin Capacity</div>
-      <div class="dashboard-widget-value"><?php echo number_format($stationCapacityLiters); ?>L</div>
-      <div class="dashboard-widget-subtext">Per material bin capacity</div>
+      <div class="dashboard-widget-label">Active Sessions Now</div>
+      <div class="dashboard-widget-value"><?php echo number_format($swStats['active_now']); ?></div>
+      <div class="dashboard-widget-subtext">WAITING / ACTIVE / PROCESSING sessions</div>
+    </div>
+    <div class="dashboard-widget">
+      <div class="dashboard-widget-label">Completed Today</div>
+      <div class="dashboard-widget-value"><?php echo number_format($swStats['completed_today']); ?></div>
+      <div class="dashboard-widget-subtext"><?php echo number_format($swStats['total_kg_today'], 2); ?> kg - <?php echo number_format($swStats['total_pts_today']); ?> pts today</div>
     </div>
     <div class="dashboard-widget">
       <div class="dashboard-widget-label">Total Kg Collected</div>
-      <div class="dashboard-widget-value"><?php echo number_format($smartWasteStats['total_kg_collected'], 2); ?></div>
-      <div class="dashboard-widget-subtext">Logged recyclable weight across all materials</div>
+      <div class="dashboard-widget-value"><?php echo number_format($swStats['total_kg'], 2); ?></div>
+      <div class="dashboard-widget-subtext"><?php echo number_format($swStats['total_sessions']); ?> completed sessions all-time</div>
     </div>
     <div class="dashboard-widget">
-      <div class="dashboard-widget-label">Participation Rate</div>
-      <div class="dashboard-widget-value"><?php echo number_format($participationStats['all_time_rate'], 1); ?>%</div>
-      <div class="dashboard-widget-subtext"><?php echo number_format($participationStats['all_time_count']); ?> of <?php echo number_format($smartWasteStats['resident_count']); ?> residents have deposited</div>
-    </div>
-    <div class="dashboard-widget">
-      <div class="dashboard-widget-label">Redemption Records</div>
-      <div class="dashboard-widget-value"><?php echo number_format($smartWasteStats['redemption_count']); ?></div>
-      <div class="dashboard-widget-subtext"><?php echo number_format($smartWasteStats['redeemed_points']); ?> total points redeemed</div>
+      <div class="dashboard-widget-label">EcoPoints Awarded</div>
+      <div class="dashboard-widget-value"><?php echo number_format($swStats['total_pts']); ?></div>
+      <div class="dashboard-widget-subtext"><?php echo number_format($swStats['total_pts_today']); ?> earned today - <?php echo number_format($swStats['redeemed_points']); ?> redeemed</div>
     </div>
   </div>
 
   <div class="smart-waste-layout">
     <div class="smart-waste-main">
       <div class="smart-waste-card">
-        <h4>Real-Time Bin Fill Levels</h4>
-        <div class="smart-waste-note">Estimated live fill level per material using today's logged deposits and a 120L capacity for each VHEcoPoint bin.</div>
-        <div class="smart-waste-bin-grid">
-          <?php foreach ($materialStats as $label => $materialRow): ?>
-            <?php $materialConfig = $materialConfigs[$label] ?? ['icon' => 'fa-recycle', 'color' => '#2f7d32']; ?>
-            <div class="smart-waste-bin-card">
-              <div class="smart-waste-bin-head">
-                <div>
-                  <div class="smart-waste-bin-label">
-                    <i class="fa-solid <?php echo htmlspecialchars($materialConfig['icon']); ?>" style="color:<?php echo htmlspecialchars($materialConfig['color']); ?>; margin-right:6px;"></i>
-                    <?php echo htmlspecialchars($label); ?>
-                  </div>
-                  <div class="smart-waste-bin-subtitle"><?php echo number_format($materialRow['kg_today'], 2); ?> kg logged today</div>
-                </div>
-                <div class="smart-waste-bin-percent"><?php echo number_format($materialRow['fill_percent']); ?>%</div>
-              </div>
-              <div class="smart-waste-meter">
-                <div class="smart-waste-meter-bar" style="width:<?php echo max(0, min(100, intval($materialRow['fill_percent']))); ?>%; background:<?php echo htmlspecialchars($materialConfig['color']); ?>;"></div>
-              </div>
-              <div class="smart-waste-bin-meta">
-                <span><?php echo number_format($materialRow['fill_liters'], 1); ?> / <?php echo number_format($stationCapacityLiters); ?> L</span>
-                <span class="smart-waste-bin-pill <?php echo htmlspecialchars($materialRow['fill_class']); ?>"><?php echo htmlspecialchars($materialRow['fill_status']); ?></span>
-              </div>
-            </div>
-          <?php endforeach; ?>
+        <h4>Real-Time Active Sessions</h4>
+        <div class="smart-waste-note">Sessions currently in progress at VHEcoPoint stations. Refreshes automatically.</div>
+        <div class="table-responsive-wrapper smart-waste-table-compact">
+          <table>
+            <thead><tr>
+              <th>ID</th><th>Station</th><th>Resident</th><th>House</th><th>Status</th><th>Material</th><th>Weight</th><th>Points (calc / award)</th><th>Started</th><th>Elapsed</th>
+            </tr></thead>
+            <tbody>
+              <?php if (empty($activeSessions)): ?>
+                <tr><td colspan="10" style="text-align:center;">No active sessions right now.</td></tr>
+              <?php else: foreach ($activeSessions as $s): ?>
+                <?php
+                  $stStyle = $swStatusStyle[$s['status']] ?? ['#374151', '#f3f4f6'];
+                  $resident = trim(($s['first_name'] ?? '') . ' ' . ($s['last_name'] ?? ''));
+                  if ($resident === '') $resident = 'Unknown Resident';
+                ?>
+                <tr>
+                  <td><b>#<?php echo (int)$s['id']; ?></b></td>
+                  <td><?php echo htmlspecialchars($s['station_code'] ?? '-'); ?></td>
+                  <td><strong><?php echo htmlspecialchars($resident); ?></strong><br><small style="color:#6b7280;"><?php echo htmlspecialchars($s['email'] ?? ''); ?></small></td>
+                  <td><?php echo htmlspecialchars($s['house_number'] ?? '-'); ?></td>
+                  <td><span class="smart-waste-status-pill" style="background:<?php echo $stStyle[1]; ?>;color:<?php echo $stStyle[0]; ?>;"><?php echo htmlspecialchars($s['status']); ?></span></td>
+                  <td><?php echo htmlspecialchars(smartWasteMaterialLabel($s['material_type'] ?? '', '')); ?></td>
+                  <td><?php echo number_format((float)($s['weight_kg'] ?? 0), 2); ?> kg</td>
+                  <td><?php echo (int)($s['points_calculated'] ?? 0); ?> / <?php echo (int)($s['points_awarded'] ?? 0); ?></td>
+                  <td><?php echo $s['created_at'] ? date('M j, g:i A', strtotime($s['created_at'])) : '-'; ?></td>
+                  <td><?php echo swDuration($s['created_at'] ?? '', $s['completed_at'] ?? ''); ?></td>
+                </tr>
+              <?php endforeach; endif; ?>
+            </tbody>
+          </table>
         </div>
       </div>
 
       <div class="smart-waste-card">
-        <h4>Recycling Activity / Logs</h4>
-        <div class="smart-waste-note">Latest resident recycling transactions with account information, material type, weight, and points earned.</div>
+        <h4>Recycling Session History</h4>
+        <div class="smart-waste-note">All VHEcoPoint recycling sessions with resident details, timing, materials, weight, and points awarded.</div>
+        <form class="smart-waste-form-grid" method="GET" action="">
+          <input type="hidden" name="page" value="smart_waste">
+          <div>
+            <label>Search</label>
+            <input type="text" name="q" placeholder="Name, house #, station, QR ref, or session ID..." value="<?php echo htmlspecialchars($swSearch); ?>">
+          </div>
+          <div>
+            <label>Status</label>
+            <select name="status">
+              <option value="">All statuses</option>
+              <?php foreach ($swValidStatuses as $st): ?>
+                <option value="<?php echo $st; ?>" <?php echo $swStatus === $st ? 'selected' : ''; ?>><?php echo $st; ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div style="display:flex;align-items:flex-end;gap:8px;">
+            <button type="submit" style="padding:10px 16px;background:var(--accent,#23412e);color:#fff;border:0;border-radius:10px;font-weight:600;cursor:pointer;"><i class="fa-solid fa-magnifying-glass"></i> Filter</button>
+            <?php if ($swSearch !== '' || $swStatus !== ''): ?>
+              <a href="admin.php?page=smart_waste" style="padding:10px 14px;border:1px solid var(--border,#e5e7eb);border-radius:10px;color:#374151;text-decoration:none;font-weight:600;">Clear</a>
+            <?php endif; ?>
+          </div>
+        </form>
+        <div style="height:10px;"></div>
         <div class="table-responsive-wrapper smart-waste-table-compact">
           <table>
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Resident Account</th>
-                <th>House</th>
-                <th>Material</th>
-                <th>Weight</th>
-                <th>Points Earned</th>
-              </tr>
-            </thead>
+            <thead><tr>
+              <th>ID</th><th>Started</th><th>Ended</th><th>Duration</th><th>Station</th><th>Resident</th><th>House</th><th>Status</th><th>Material</th><th>Weight</th><th>Pts Awarded</th>
+            </tr></thead>
             <tbody>
-              <?php if (empty($recyclingLogs)): ?>
-                <tr><td colspan="6" style="text-align:center;">No recycling transactions found.</td></tr>
-              <?php else: ?>
-                <?php foreach ($recyclingLogs as $log): ?>
-                  <?php
-                    $residentName = trim(($log['first_name'] ?? '') . ' ' . ($log['last_name'] ?? ''));
-                    if ($residentName === '') { $residentName = 'Unknown Resident'; }
-                    $houseNumber = trim((string)($log['house_number'] ?? 'N/A'));
-                    $materialLabel = smartWasteMaterialLabel($log['material_type'] ?? '', $log['description'] ?? '');
-                    $weightValue = floatval($log['weight_kg'] ?? 0);
-                    $weightLabel = $weightValue > 0 ? number_format($weightValue, 2) . ' kg' : 'N/A';
-                    $pointsValue = intval($log['amount'] ?? 0);
-                    $pointsLabel = '+' . number_format($pointsValue) . ' pts';
-                    $eventTime = !empty($log['created_at']) ? date('M d, Y g:i A', strtotime($log['created_at'])) : 'N/A';
-                  ?>
-                  <tr>
-                    <td><?php echo htmlspecialchars($eventTime); ?></td>
-                    <td><strong><?php echo htmlspecialchars($residentName); ?></strong><br><small style="color:#6b7280;"><?php echo htmlspecialchars($log['email'] ?? ''); ?></small></td>
-                    <td><?php echo htmlspecialchars($houseNumber); ?></td>
-                    <td><?php echo htmlspecialchars($materialLabel); ?></td>
-                    <td><?php echo htmlspecialchars($weightLabel); ?></td>
-                    <td style="font-weight:800; color:#166534;"><?php echo htmlspecialchars($pointsLabel); ?></td>
-                  </tr>
-                <?php endforeach; ?>
-              <?php endif; ?>
+              <?php if (empty($historySessions)): ?>
+                <tr><td colspan="11" style="text-align:center;">No sessions found<?php echo ($swSearch !== '' || $swStatus !== '') ? ' for the current search/filter' : ''; ?>.</td></tr>
+              <?php else: foreach ($historySessions as $s): ?>
+                <?php
+                  $stStyle = $swStatusStyle[$s['status']] ?? ['#374151', '#f3f4f6'];
+                  $resident = trim(($s['first_name'] ?? '') . ' ' . ($s['last_name'] ?? ''));
+                  if ($resident === '') $resident = 'Unknown Resident';
+                  $ended = $s['completed_at'] ? date('M j, g:i A', strtotime($s['completed_at'])) : '-';
+                  $isFinal = in_array($s['status'], ['COMPLETED', 'CANCELLED', 'ERROR'], true);
+                ?>
+                <tr>
+                  <td><b>#<?php echo (int)$s['id']; ?></b></td>
+                  <td><?php echo $s['created_at'] ? date('M j, g:i A', strtotime($s['created_at'])) : '-'; ?></td>
+                  <td><?php echo htmlspecialchars($ended); ?></td>
+                  <td><?php echo swDuration($s['created_at'] ?? '', $isFinal ? ($s['completed_at'] ?? '') : ''); ?></td>
+                  <td><?php echo htmlspecialchars($s['station_code'] ?? '-'); ?></td>
+                  <td><strong><?php echo htmlspecialchars($resident); ?></strong><br><small style="color:#6b7280;"><?php echo htmlspecialchars($s['email'] ?? ''); ?></small></td>
+                  <td><?php echo htmlspecialchars($s['house_number'] ?? '-'); ?></td>
+                  <td><span class="smart-waste-status-pill" style="background:<?php echo $stStyle[1]; ?>;color:<?php echo $stStyle[0]; ?>;"><?php echo htmlspecialchars($s['status']); ?></span></td>
+                  <td><?php echo htmlspecialchars(smartWasteMaterialLabel($s['material_type'] ?? '', '')); ?></td>
+                  <td><?php echo number_format((float)($s['weight_kg'] ?? 0), 2); ?> kg</td>
+                  <td style="font-weight:800;color:#166534;"><?php echo (int)($s['points_awarded'] ?? 0); ?></td>
+                </tr>
+              <?php endforeach; endif; ?>
             </tbody>
           </table>
         </div>
@@ -5813,45 +5896,33 @@ body.modal-open { overflow: hidden; }
 
       <div class="smart-waste-card">
         <h4>Amenity Redemption / Usage Logs</h4>
-        <div class="smart-waste-note">Separate log showing which resident redeemed points for which amenity or facility booking. Keep this distinct from recycling transactions.</div>
+        <div class="smart-waste-note">Separate log showing which resident redeemed points for which amenity or facility booking.</div>
         <div class="table-responsive-wrapper smart-waste-table-compact">
           <table>
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Resident Account</th>
-                <th>House</th>
-                <th>Amenity Redeemed</th>
-                <th>Points Spent</th>
-                <th>Booking Reference</th>
-              </tr>
-            </thead>
+            <thead><tr>
+              <th>Time</th><th>Resident Account</th><th>House</th><th>Amenity Redeemed</th><th>Points Spent</th><th>Booking Reference</th>
+            </tr></thead>
             <tbody>
               <?php if (empty($amenityRedemptionLogs)): ?>
                 <tr><td colspan="6" style="text-align:center;">No amenity redemption records found.</td></tr>
-              <?php else: ?>
-                <?php foreach ($amenityRedemptionLogs as $log): ?>
-                  <?php
-                    $residentName = trim(($log['first_name'] ?? '') . ' ' . ($log['last_name'] ?? ''));
-                    if ($residentName === '') { $residentName = 'Unknown Resident'; }
-                    $houseNumber = trim((string)($log['house_number'] ?? 'N/A'));
-                    $amenityDesc = trim((string)($log['description'] ?? 'Amenity Booking'));
-                    if ($amenityDesc === '') { $amenityDesc = 'Amenity Booking'; }
-                    $pointsValue = intval($log['amount'] ?? 0);
-                    $pointsLabel = '-' . number_format($pointsValue) . ' pts';
-                    $eventTime = !empty($log['created_at']) ? date('M d, Y g:i A', strtotime($log['created_at'])) : 'N/A';
-                    $referenceCode = trim((string)($log['reservation_ref_code'] ?? ''));
-                  ?>
-                  <tr>
-                    <td><?php echo htmlspecialchars($eventTime); ?></td>
-                    <td><strong><?php echo htmlspecialchars($residentName); ?></strong><br><small style="color:#6b7280;"><?php echo htmlspecialchars($log['email'] ?? ''); ?></small></td>
-                    <td><?php echo htmlspecialchars($houseNumber); ?></td>
-                    <td><?php echo htmlspecialchars($amenityDesc); ?></td>
-                    <td style="font-weight:800; color:#b91c1c;"><?php echo htmlspecialchars($pointsLabel); ?></td>
-                    <td class="wrap"><?php echo htmlspecialchars($referenceCode !== '' ? $referenceCode : 'N/A'); ?></td>
-                  </tr>
-                <?php endforeach; ?>
-              <?php endif; ?>
+              <?php else: foreach ($amenityRedemptionLogs as $log): ?>
+                <?php
+                  $residentName = trim(($log['first_name'] ?? '') . ' ' . ($log['last_name'] ?? ''));
+                  if ($residentName === '') { $residentName = 'Unknown Resident'; }
+                  $amenityDesc = trim((string)($log['description'] ?? ''));
+                  if ($amenityDesc === '') { $amenityDesc = 'Amenity Booking'; }
+                  $eventTime = !empty($log['created_at']) ? date('M d, Y g:i A', strtotime($log['created_at'])) : 'N/A';
+                  $referenceCode = trim((string)($log['reservation_ref_code'] ?? ''));
+                ?>
+                <tr>
+                  <td><?php echo htmlspecialchars($eventTime); ?></td>
+                  <td><strong><?php echo htmlspecialchars($residentName); ?></strong><br><small style="color:#6b7280;"><?php echo htmlspecialchars($log['email'] ?? ''); ?></small></td>
+                  <td><?php echo htmlspecialchars(trim((string)($log['house_number'] ?? 'N/A'))); ?></td>
+                  <td><?php echo htmlspecialchars($amenityDesc); ?></td>
+                  <td style="font-weight:800;color:#b91c1c;">-<?php echo number_format(intval($log['amount'] ?? 0)); ?> pts</td>
+                  <td class="wrap"><?php echo htmlspecialchars($referenceCode !== '' ? $referenceCode : 'N/A'); ?></td>
+                </tr>
+              <?php endforeach; endif; ?>
             </tbody>
           </table>
         </div>
@@ -5859,7 +5930,7 @@ body.modal-open { overflow: hidden; }
 
       <div class="smart-waste-card">
         <h4>Weekly Station Activity</h4>
-        <div class="smart-waste-note">Last 7 days of logged VHEcoPoint point activity.</div>
+        <div class="smart-waste-note">VHEcoPoint sessions logged per day over the last 7 days.</div>
         <div class="smart-waste-chart">
           <?php foreach ($weeklyActivity as $day): ?>
             <?php
@@ -5879,7 +5950,7 @@ body.modal-open { overflow: hidden; }
     <div class="smart-waste-side">
       <div class="smart-waste-card">
         <h4>Total Kg Collected Per Material Type</h4>
-        <div class="smart-waste-note">All-time collected weight and deposit volume for each VHEcoPoint material category.</div>
+        <div class="smart-waste-note">All-time collected weight per VHEcoPoint material category from completed sessions.</div>
         <div class="smart-waste-list">
           <?php foreach ($materialStats as $label => $materialRow): ?>
             <?php $materialConfig = $materialConfigs[$label] ?? ['icon' => 'fa-recycle', 'color' => '#2f7d32']; ?>
@@ -5889,7 +5960,7 @@ body.modal-open { overflow: hidden; }
               </span>
               <div class="smart-waste-list-main">
                 <div class="smart-waste-list-title"><?php echo htmlspecialchars($label); ?></div>
-                <div class="smart-waste-list-subtitle"><?php echo number_format($materialRow['txn_count']); ?> deposit logs</div>
+                <div class="smart-waste-list-subtitle"><?php echo number_format($materialRow['txn_count']); ?> deposit<?php echo $materialRow['txn_count'] == 1 ? '' : 's'; ?> - <?php echo number_format($materialRow['kg_today'], 2); ?> kg today</div>
                 <div class="smart-waste-progress">
                   <div class="smart-waste-progress-bar" style="width:<?php echo intval(($materialRow['kg_total'] / $maxMaterialKg) * 100); ?>%; background:<?php echo htmlspecialchars($materialConfig['color']); ?>;"></div>
                 </div>
@@ -5902,12 +5973,12 @@ body.modal-open { overflow: hidden; }
 
       <div class="smart-waste-card">
         <h4>Resident Participation Rates</h4>
-        <div class="smart-waste-note">Participation is based on unique residents who logged at least one earn transaction in VHEcoPoint.</div>
+        <div class="smart-waste-note">Participation is based on unique residents with at least one completed VHEcoPoint session.</div>
         <div class="smart-waste-kpi-grid">
           <div class="smart-waste-kpi">
             <div class="smart-waste-kpi-label">All-Time Participation</div>
             <div class="smart-waste-kpi-value"><?php echo number_format($participationStats['all_time_rate'], 1); ?>%</div>
-            <div class="smart-waste-kpi-subtext"><?php echo number_format($participationStats['all_time_count']); ?> residents of <?php echo number_format($smartWasteStats['resident_count']); ?></div>
+            <div class="smart-waste-kpi-subtext"><?php echo number_format($participationStats['all_time_count']); ?> of <?php echo number_format($swStats['resident_count']); ?> residents</div>
           </div>
           <div class="smart-waste-kpi">
             <div class="smart-waste-kpi-label">Active in Last 30 Days</div>
@@ -5947,12 +6018,8 @@ body.modal-open { overflow: hidden; }
                   <div class="smart-waste-list-title"><?php echo htmlspecialchars($recordName); ?></div>
                   <div class="smart-waste-list-subtitle">
                     <?php echo htmlspecialchars($recordDesc); ?>
-                    <?php if ($houseNum !== ''): ?>
-                      • <?php echo htmlspecialchars($houseNum); ?>
-                    <?php endif; ?>
-                    <?php if ($recordRef !== ''): ?>
-                      • <?php echo htmlspecialchars($recordRef); ?>
-                    <?php endif; ?>
+                    <?php if ($houseNum !== ''): ?> - <?php echo htmlspecialchars($houseNum); ?><?php endif; ?>
+                    <?php if ($recordRef !== ''): ?> - <?php echo htmlspecialchars($recordRef); ?><?php endif; ?>
                     <br><small><?php echo htmlspecialchars($recordDate); ?></small>
                   </div>
                 </div>
@@ -5966,6 +6033,7 @@ body.modal-open { overflow: hidden; }
   </div>
 </section>
 <?php endif; ?>
+
 
 
 

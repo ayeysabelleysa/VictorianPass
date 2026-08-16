@@ -1,6 +1,6 @@
 <?php 
 include("connect.php");
-session_start();
+require_once __DIR__ . '/session_bootstrap.php';
 $registration_success = false;
 
 $verified_house = isset($_GET['house_number']) ? trim($_GET['house_number']) : '';

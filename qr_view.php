@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/session_bootstrap.php';
 include 'connect.php';
 
 // Ensure scanned_at columns exist in relevant tables (Self-healing schema)

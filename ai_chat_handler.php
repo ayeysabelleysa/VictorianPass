@@ -4,7 +4,7 @@ header('Content-Type: application/json');
 // Simple AI Response Handler for VictorianPass
 // In a production environment, you would integrate with a real AI API like OpenAI, Cohere, or Hugging Face
 
-session_start();
+require_once __DIR__ . '/session_bootstrap.php';
 
 $isResident = isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident';
 

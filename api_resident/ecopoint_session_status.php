@@ -15,7 +15,7 @@ require_once __DIR__ . '/../ecopoint_core.php';
 header('Content-Type: application/json');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
 
 // Use the same user-id variable the rest of the site uses.
 // Fallbacks are common — check multiple likely keys.

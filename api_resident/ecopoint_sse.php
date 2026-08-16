@@ -40,7 +40,7 @@ if (function_exists('apache_setenv')) @apache_setenv('no-gzip', '1');
 while (ob_get_level() > 0) @ob_end_flush();
 flush();
 
-session_start();
+require_once __DIR__ . '/../session_bootstrap.php';
 
 // Authenticate resident (exactly like the poll API — multiple $_SESSION key fallbacks
 // since the rest of VictorianPass may use different names across routes.)

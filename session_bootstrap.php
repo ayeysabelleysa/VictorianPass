@@ -16,6 +16,13 @@ if (!is_dir($sessionDir)) {
 if (is_dir($sessionDir) && is_writable($sessionDir)) {
     @session_save_path($sessionDir);
     @ini_set('session.save_path', $sessionDir);
+} else {
+    // Fall back to the system temp dir if the app sessions/ folder is unusable
+    $sysTmp = sys_get_temp_dir();
+    if ($sysTmp !== '' && is_dir($sysTmp) && is_writable($sysTmp)) {
+        @session_save_path($sysTmp);
+        @ini_set('session.save_path', $sysTmp);
+    }
 }
 
 @ini_set('session.use_strict_mode', '1');
