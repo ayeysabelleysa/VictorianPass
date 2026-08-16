@@ -3926,13 +3926,13 @@ body.account-blocked { overflow: hidden; }
   }
   function isValidPhone(el){
     var val=(el.value||'').replace(/[\s\-]/g, '');
+    if(/^(\+63|63)(9\d{9})$/.test(val)) val = '0' + val.replace(/^(\+63|63)/, '');
+    else if(/^9\d{9}$/.test(val)) val = '0' + val;
     return /^09\d{9}$/.test(val);
   }
   function getEmailError(el) {
     var val=(el.value||'').trim();
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) return 'Please enter a valid email.';
-    var parts = val.split('@');
-    if(/^\d+$/.test(parts[0])) return 'Email Invalid';
+    if(!/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/.test(val)) return 'Please enter a valid email.';
     return '';
   }
   ['resident_full_name','visitor_first_name','visitor_last_name'].forEach(function(id){

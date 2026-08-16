@@ -37,11 +37,11 @@ $phone = $user['phone'] ?? '';
 $phoneNormalized = $phone;
 $pClean = preg_replace('/\D/', '', $phoneNormalized);
 if (strlen($pClean) === 11 && strpos($pClean, '09') === 0) {
-    $phoneNormalized = '+63' . substr($pClean, 1);
+    $phoneNormalized = $pClean;
 } elseif (strlen($pClean) === 12 && strpos($pClean, '639') === 0) {
-    $phoneNormalized = '+' . $pClean;
+    $phoneNormalized = '0' . substr($pClean, 2);
 } elseif (strlen($pClean) === 10 && strpos($pClean, '9') === 0) {
-    $phoneNormalized = '+63' . $pClean;
+    $phoneNormalized = '0' . $pClean;
 }
 
 $guestRows = [];
@@ -409,20 +409,19 @@ function sanitizeNameInput(e){
   } 
 }
 function isValidPhone(el){ 
-  // Strict 11 digits starting with 09
-  const val=el.value.replace(/[\s\-]/g, '');
+  let val=el.value.replace(/[\s\-]/g, '');
+  if(/^(\+63|63)(9\d{9})$/.test(val)) val = '0' + val.replace(/^(\+63|63)/, '');
+  else if(/^9\d{9}$/.test(val)) val = '0' + val;
   return /^09\d{9}$/.test(val);
 }
 function getEmailError(el) {
   const val=el.value.trim(); 
-  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) return 'Please enter a valid email.';
-  const parts = val.split('@');
-  if(/^\d+$/.test(parts[0])) return 'Email Invalid';
+  if(!/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/.test(val)) return 'Please enter a valid email.';
   return '';
 }
 ['resident_full_name','visitor_first_name','visitor_last_name'].forEach(function(id){ const el=document.getElementById(id); if(!el) return; el.addEventListener('keydown',blockInvalidNameChars); el.addEventListener('input',sanitizeNameInput); });
 
-['resident_email','visitor_email'].forEach(function(id){ const el=document.getElementById(id); if(!el) return; el.addEventListener('input', function(e){ setWarning(id, getEmailError(el) === 'Please enter a valid email.' && el.value.trim() === '' ? '' : (getEmailError(el) === 'Please enter a valid email.' ? '' : getEmailError(el))); }); });
+['resident_email','visitor_email'].forEach(function(id){ const el=document.getElementById(id); if(!el) return; el.addEventListener('input', function(e){ setWarning(id, el.value.trim() ? getEmailError(el) : ''); }); });
 ['resident_contact','visitor_contact'].forEach(function(id){ 
   const el=document.getElementById(id); 
   if(!el) return; 

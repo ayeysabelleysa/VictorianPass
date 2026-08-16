@@ -34,13 +34,15 @@ $visitor_email      = trim($_POST['visitor_email'] ?? '');
 
 $visit_date    = trim($_POST['visit_date'] ?? '');
 $visit_time    = trim($_POST['visit_time'] ?? '');
+if ($visit_date === '') { $visit_date = null; }
+if ($visit_time === '') { $visit_time = null; }
 $visit_purpose = null;
 $visit_persons = 1;
 $wants_amenity = 0;
 
 if ($resident_full_name === '' || $resident_house === '' || $resident_email === '' || $resident_contact === '' ||
     $visitor_first_name === '' || $visitor_last_name === '' || $visitor_sex === '' || $visitor_birthdate === '' ||
-    $visitor_contact === '' || $visitor_address === '' || $visit_date === '' || $visit_time === '') {
+    $visitor_contact === '' || $visitor_address === '') {
   echo json_encode(['success' => false, 'message' => 'Please fill in all required fields.']);
   exit;
 }
@@ -78,24 +80,14 @@ if (!preg_match('/^09\d{9}$/', $visitor_contact)) {
   echo json_encode(['success' => false, 'message' => 'Guest phone must be 11 digits starting with 09 (e.g. 09XX...).']);
   exit;
 }
-if (!filter_var($resident_email, FILTER_VALIDATE_EMAIL)) {
+if (!preg_match('/^[a-zA-Z0-9.!#$%&\'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/', $resident_email)) {
   echo json_encode(['success' => false, 'message' => 'Please provide a valid resident email address.']);
-  exit;
-}
-$rParts = explode('@', $resident_email);
-if (ctype_digit($rParts[0])) {
-  echo json_encode(['success' => false, 'message' => 'Resident Email Invalid']);
   exit;
 }
 
 if ($visitor_email !== '') {
-  if (!filter_var($visitor_email, FILTER_VALIDATE_EMAIL)) {
+  if (!preg_match('/^[a-zA-Z0-9.!#$%&\'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/', $visitor_email)) {
     echo json_encode(['success' => false, 'message' => 'Please provide a valid guest email address.']);
-    exit;
-  }
-  $vParts = explode('@', $visitor_email);
-  if (ctype_digit($vParts[0])) {
-    echo json_encode(['success' => false, 'message' => 'Guest Email Invalid']);
     exit;
   }
 }
