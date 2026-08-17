@@ -1731,8 +1731,9 @@ function ensureReservationBookerColumns($con){
     }
 }
 function autoExpireReservations($con) {
-    // Mark reservations expired when past end_date, but do not touch cancelled ones
-    $con->query("UPDATE reservations SET status='expired' WHERE end_date < CURDATE() AND status NOT IN ('expired', 'cancelled')");
+    // Reservations stay visible for 7 days past their end date, then move to archive.
+    // Set both status and approval_status so they are excluded from ALL active queries.
+    $con->query("UPDATE reservations SET status='expired', approval_status='expired' WHERE end_date + INTERVAL 7 DAY < CURDATE() AND status NOT IN ('expired', 'cancelled') AND (approval_status IS NULL OR approval_status NOT IN ('expired', 'cancelled'))");
 }
 
 // Ensure incident-related tables exist to prevent runtime errors

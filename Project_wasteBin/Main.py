@@ -139,7 +139,7 @@ def show_scan():
     )
 
 
-def show_user(vp_number):
+def show_user(vp_number, sessions_left):
 
     lcd_display(
         vp_number,
@@ -147,12 +147,12 @@ def show_user(vp_number):
     )
 
     lcd_display(
-        "Points:",
+        "Sessions left:" + str(sessions_left),
         LCD_LINE_2
     )
 
 
-def show_points(vp_number, points):
+def show_points(vp_number, points, sessions_left):
 
     lcd_display(
         vp_number,
@@ -182,6 +182,7 @@ def wait_for_metal_stable():
         if metal_detected():
 
             if stable_start is None:
+
                 stable_start = time.time()
 
             elapsed = (
@@ -200,7 +201,11 @@ def wait_for_metal_stable():
         time.sleep(0.05)
 
 
-def process_item(vp_number, material, current_points):
+def process_item(
+    vp_number,
+    material,
+    current_points
+):
 
     print()
     print("Metal stable for 3 seconds.")
@@ -216,7 +221,11 @@ def process_item(vp_number, material, current_points):
     )
 
     if points > remaining:
-        points = max(0, remaining)
+
+        points = max(
+            0,
+            remaining
+        )
 
     current_points += points
 
@@ -227,14 +236,13 @@ def process_item(vp_number, material, current_points):
     print("Material:", material)
     print("Weight:", round(weight, 2), "g")
     print("Incentive:", round(points, 2), "points")
-    print("Daily total:", round(current_points, 2), "points")
+    print(
+        "Daily total:",
+        round(current_points, 2),
+        "points"
+    )
     print("--------------------------------")
     print()
-
-    show_points(
-        vp_number,
-        current_points
-    )
 
     return current_points
 
@@ -292,6 +300,7 @@ try:
 
             continue
 
+
         vp_number = qr_data
 
         sessions = 0
@@ -304,16 +313,30 @@ try:
         print("USER SESSION STARTED")
         print("--------------------------------")
         print("User:", vp_number)
-        print("Sessions: 0 / 3")
+        print("Sessions left:", MAX_SESSIONS)
         print("Points: 0 / 250")
         print("--------------------------------")
         print()
 
-        show_user(vp_number)
+        show_user(
+            vp_number,
+            MAX_SESSIONS
+        )
+
+        time.sleep(2)
+
 
         while True:
 
-            if time.time() - last_activity >= IDLE_TIMEOUT:
+            # ---------------------------------------------
+            # IDLE TIMEOUT
+            # ---------------------------------------------
+
+            if (
+                time.time() -
+                last_activity
+                >= IDLE_TIMEOUT
+            ):
 
                 print()
                 print("2-minute idle timeout.")
@@ -324,6 +347,11 @@ try:
 
                 break
 
+
+            # ---------------------------------------------
+            # SESSION LIMIT
+            # ---------------------------------------------
+
             if sessions >= MAX_SESSIONS:
 
                 print()
@@ -331,13 +359,22 @@ try:
                 print("DAILY SESSION LIMIT REACHED")
                 print("--------------------------------")
                 print("User:", vp_number)
-                print("Sessions:", sessions, "/ 3")
-                print("Points:", round(current_points, 2), "/ 250")
+                print(
+                    "Sessions:",
+                    sessions,
+                    "/",
+                    MAX_SESSIONS
+                )
+                print(
+                    "Points:",
+                    round(current_points, 2),
+                    "/ 250"
+                )
                 print("--------------------------------")
                 print()
 
                 lcd_display(
-                    "3 Sessions Used",
+                    "0 Sessions Left",
                     LCD_LINE_1
                 )
 
@@ -352,6 +389,11 @@ try:
 
                 break
 
+
+            # ---------------------------------------------
+            # POINT CAP
+            # ---------------------------------------------
+
             if current_points >= DAILY_POINT_CAP:
 
                 print()
@@ -359,7 +401,10 @@ try:
                 print("DAILY POINT CAP REACHED")
                 print("--------------------------------")
                 print("User:", vp_number)
-                print("Points:", round(current_points, 2))
+                print(
+                    "Points:",
+                    round(current_points, 2)
+                )
                 print("--------------------------------")
                 print()
 
@@ -379,6 +424,11 @@ try:
 
                 break
 
+
+            # ---------------------------------------------
+            # METAL DETECTION
+            # ---------------------------------------------
+
             if metal_detected():
 
                 last_activity = time.time()
@@ -397,21 +447,84 @@ try:
                         current_points
                     )
 
+                    # Count the completed session
                     sessions += 1
 
-                    print("Session:", sessions, "/", MAX_SESSIONS)
-                    print("Daily points:",
-                          round(current_points, 2),
-                          "/",
-                          DAILY_POINT_CAP)
-                    print()
-
-                    show_points(
-                        vp_number,
-                        current_points
+                    sessions_left = (
+                        MAX_SESSIONS -
+                        sessions
                     )
 
-                    time.sleep(1)
+                    print(
+                        "Session:",
+                        sessions,
+                        "/",
+                        MAX_SESSIONS
+                    )
+
+                    print(
+                        "Sessions left:",
+                        sessions_left
+                    )
+
+                    print(
+                        "Daily points:",
+                        round(current_points, 2),
+                        "/",
+                        DAILY_POINT_CAP
+                    )
+
+                    print()
+
+
+                    # -------------------------------------
+                    # DISPLAY RESULT
+                    # -------------------------------------
+
+                    lcd_display(
+                        vp_number,
+                        LCD_LINE_1
+                    )
+
+                    lcd_display(
+                        "Points:" +
+                        str(round(current_points, 1)),
+                        LCD_LINE_2
+                    )
+
+                    time.sleep(2)
+
+
+                    # -------------------------------------
+                    # SHOW REMAINING SESSIONS
+                    # -------------------------------------
+
+                    if sessions_left > 0:
+
+                        show_user(
+                            vp_number,
+                            sessions_left
+                        )
+
+                        time.sleep(2)
+
+                    else:
+
+                        lcd_display(
+                            "0 Sessions Left",
+                            LCD_LINE_1
+                        )
+
+                        lcd_display(
+                            "Scan Next Day",
+                            LCD_LINE_2
+                        )
+
+                        time.sleep(3)
+
+                        show_scan()
+
+                        break
 
             else:
 
@@ -427,26 +540,43 @@ except KeyboardInterrupt:
 finally:
 
     try:
+
         close_scanner(scanner)
+
     except:
+
         pass
 
+
     try:
+
         close_weight()
+
     except:
+
         pass
+
 
     try:
 
         if sensor is not None:
-            lgpio.gpiochip_close(sensor)
+
+            lgpio.gpiochip_close(
+                sensor
+            )
 
     except:
+
         pass
+
 
     try:
+
         bus.close()
+
     except:
+
         pass
+
 
     print("System released.")

@@ -759,7 +759,7 @@ foreach ($activities as $act) {
     $s = strtolower($act['status']);
     $isHistory = false;
 
-    if (strpos($s, 'deleted') !== false || strpos($s, 'cancel') !== false || strpos($s, 'complete') !== false || strpos($s, 'finish') !== false || strpos($s, 'moved_to_history') !== false) {
+    if (strpos($s, 'deleted') !== false || strpos($s, 'cancel') !== false || strpos($s, 'complete') !== false || strpos($s, 'finish') !== false || strpos($s, 'moved_to_history') !== false || strpos($s, 'permission_granted') !== false) {
         $isHistory = true;
     }
 
@@ -4359,7 +4359,7 @@ body.account-blocked { overflow: hidden; }
                     
                     li.setAttribute('data-status', newStatus);
                     
-                    var shouldMoveHistory = newStatusLower.indexOf('cancel') !== -1 || newStatusLower.indexOf('expired') !== -1 || newStatusLower.indexOf('moved_to_history') !== -1;
+                    var shouldMoveHistory = newStatusLower.indexOf('cancel') !== -1 || newStatusLower.indexOf('expired') !== -1 || newStatusLower.indexOf('moved_to_history') !== -1 || newStatusLower.indexOf('permission_granted') !== -1;
                     if(panelId === 'panel-requests' && shouldMoveHistory && historyList){
                         var safeCode=String(code||'').replace(/"/g,'&quot;');
                         var existing=historyList.querySelector('.list-item[data-ref-code="'+safeCode+'"]');
