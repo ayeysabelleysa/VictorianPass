@@ -15,39 +15,47 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
 .logo img { width: 42px; height: 42px; }
 .brand-text h1 { margin: 0; font-size: 1.3rem; font-weight: 700; color: #f4f4f4; }
 .brand-text p { margin: 0; font-size: .85rem; color: #aaa; }
+.ecopoint-badge{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;background:linear-gradient(135deg,#23412e,#1f5a33);color:#fff;font-size:.82rem;font-weight:700;letter-spacing:.03em;white-space:nowrap}
+.ecopoint-icon{font-size:1rem}
 
 /* Main Layout */
-.hero { display: flex; justify-content: center; align-items: flex-start; padding: 24px 4%; width: 100%; background: linear-gradient(135deg, #fafbfc 0%, #f5f5f5 100%); }
-.layout { display: grid; gap: 28px; align-items: flex-start; width: 100%; max-width: 1100px; grid-template-columns: minmax(0,1fr); margin: 0 auto; }
-.left-panel { display: flex; flex-direction: column; gap: 24px; min-width: 0; position: relative; }
+.hero { display: flex; justify-content: center; align-items: flex-start; padding: 16px 4%; width: 100%; background: linear-gradient(135deg, #fafbfc 0%, #f5f5f5 100%); }
+.layout { display: grid; gap: 14px; align-items: flex-start; width: 100%; max-width: 1100px; grid-template-columns: minmax(0,1fr); margin: 0 auto; }
+.left-panel { display: flex; flex-direction: column; gap: 14px; min-width: 0; position: relative; }
 .right-panel { min-width: 0; position: sticky; top: 140px; }
 .hero,.layout,.left-panel,.right-panel,.amenities-wrapper,.amenities-right,.amenities-list,.reservation-card,.reservation-grid,.reservation-left,.reservation-right{height:auto;max-height:none;overflow:visible}
 
 /* Booking shell + steps */
-.booking-shell{display:flex;flex-direction:column;gap:14px;margin-top:0}
-.booking-steps{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:10px;background:#fff;color:#222;box-shadow:0 1px 6px rgba(0,0,0,0.08);border:1px solid #e5e7eb;max-width:260px}
+.booking-shell{display:flex;flex-direction:column;gap:10px;margin-top:0}
+/* Reservation steps: centered card, 3 steps + pro tip in one row */
+.booking-steps{display:flex;flex-direction:column;gap:8px;padding:12px 16px;border-radius:14px;background:#fff;color:#222;box-shadow:0 1px 6px rgba(0,0,0,0.08);border:1px solid #e5e7eb;width:100%;max-width:860px;margin:0 auto;box-sizing:border-box;overflow:hidden}
 .booking-steps-header{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.booking-steps-label{font-size:.78rem;font-weight:600;color:#111827}
+.booking-steps-label{font-size:.8rem;font-weight:700;color:#111827;text-transform:uppercase;letter-spacing:.04em}
 .booking-steps-toggle{width:22px;height:22px;border-radius:50%;border:none;background:#23412e;color:#fff;font-size:.9rem;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1;flex-shrink:0;box-shadow:0 1px 4px rgba(35,65,46,0.35)}
 .booking-steps-toggle:hover{background:#1a2f23}
-.booking-steps-body{display:flex;flex-direction:column;gap:8px}
+.booking-steps-toggle-wrap{display:flex;align-items:center}
+.booking-steps-protip-float{position:relative;display:flex;align-items:flex-start;gap:10px;max-width:860px;margin:-6px auto 12px;padding:12px 14px;background:linear-gradient(135deg,#f0faf2,#e8f6ec);border:1px solid #cfe6d4;border-radius:10px;font-size:.82rem;color:#1f5a33;line-height:1.4;z-index:200;box-shadow:0 4px 14px rgba(0,0,0,0.08);animation:protipSlideIn .3s ease}
+.booking-steps-protip-float .protip-icon{font-size:1rem;flex-shrink:0;margin-top:1px}
+.booking-steps-protip-float .protip-text{flex:1}
+.booking-steps-protip-float .protip-dismiss{background:transparent;border:0;color:#6b9e7a;font-size:1.1rem;cursor:pointer;line-height:1;flex-shrink:0;padding:0 2px;margin-top:-2px}
+.booking-steps-protip-float .protip-dismiss:hover{color:#1f5a33}
+@keyframes protipSlideIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.booking-steps-body{display:flex;flex-direction:row;gap:10px;align-items:stretch}
 .booking-steps.is-collapsed .booking-steps-body{display:none}
 .booking-steps.is-collapsed .booking-steps-toggle{transform:rotate(0deg)}
-.booking-step{display:flex;align-items:flex-start;gap:8px}
+.booking-step{display:flex;align-items:flex-start;gap:8px;flex:1;min-width:0}
 .step-index{width:22px;height:22px;border-radius:50%;border:none;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.75rem;color:#fff;background:#23412e;flex-shrink:0;box-shadow:0 1px 4px rgba(35,65,46,0.25)}
 .booking-step.is-active .step-index{background:linear-gradient(135deg, #23412e 0%, #2d5a3a 100%);box-shadow:0 2px 6px rgba(35,65,46,0.35)}
 .step-content{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
 .step-title{font-weight:700;font-size:.85rem;color:#111827;white-space:normal;line-height:1.25}
 .step-subtitle{font-size:.75rem;color:#6b7280;line-height:1.25}
+.booking-steps-body > div:not(.booking-step){flex:0 0 auto;width:200px;max-width:200px;min-width:160px;margin-top:0!important}
 
-@media (min-width:1024px){
-  .booking-steps{
-    position:fixed;
-    right:32px;
-    top:190px; /* Positioned below the points panel */
-    z-index:900;
-    max-width:320px;
-  }
+@media (max-width:768px){
+  .booking-steps-body{flex-direction:column;gap:10px}
+  .booking-steps-body > div:not(.booking-step){width:100%;max-width:100%;min-width:0}
+  .booking-step{flex:1 1 auto}
+  .booking-steps-protip-float{margin:-2px 0 10px;font-size:.8rem}
 }
 
 /* Calendar */
@@ -71,12 +79,12 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
 .calendar td.fully-booked { background: #fee2e2; color: #b30000; border: 1px solid #fecaca; font-weight: 600; }
 .calendar td.partly { background: #ffedd5; color: #c2410c; border: 1px solid #fdba74; font-weight: 600; }
 .calendar td.partly:hover { background: #fed7aa; }
-.section-header{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin:0 0 20px}
+.section-header{display:flex;flex-direction:column;align-items:center;gap:4px;margin:0 0 12px;text-align:center}
 .section-header h2{font-size:1.9rem;font-weight:900;color:#111827;letter-spacing:-0.5px}
 .section-header p{color:#4b5563;font-size:1.05rem;font-weight:600}
 .section-actions{display:flex;justify-content:flex-end;gap:12px;align-items:center;margin-bottom:12px}
 
-.top-actions{display:flex;justify-content:flex-start;align-items:center;margin-bottom:16px;position:relative;z-index:10}
+.top-actions{display:flex;justify-content:flex-start;align-items:center;margin-bottom:8px;position:relative;z-index:10}
 .back-account-btn{display:inline-flex;align-items:center;gap:6px}
 
 /* Amenity Description */
@@ -88,20 +96,20 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
 .amenity-desc .avail{display:block; font-weight:700; color:#23412e; font-size:1rem; margin-bottom:6px}
 
 /* Amenities Wrapper */
-.amenities-wrapper { display: flex; flex-direction: column; gap: 20px; align-items: stretch; }
+.amenities-wrapper { display: flex; flex-direction: column; gap: 12px; align-items: stretch; }
 .amenities-left { display: none; }
 .amenities-right { display: flex; flex-direction: column; gap: 0; }
 
 /* Amenities List */
-.amenities-list{display:flex; flex-direction:column; gap:16px; margin-bottom:0; align-items:center}
-.amenity-card{display:flex; gap:14px; align-items:flex-start; background:#fff; color:#222; padding:18px 22px; border-radius:18px; box-shadow:0 6px 18px rgba(15,23,42,0.08); border:1.5px solid #e5e7eb; cursor:pointer; transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease, background .2s ease, max-height .25s ease; min-height:160px; position:relative; pointer-events:auto; width:100%; max-width:760px}
+.amenities-list{display:flex; flex-direction:column; gap:12px; margin-bottom:0; align-items:center}
+.amenity-card{display:flex; gap:14px; align-items:flex-start; background:#fff; color:#222; padding:14px 18px; border-radius:16px; box-shadow:0 4px 14px rgba(15,23,42,0.07); border:1.5px solid #e5e7eb; cursor:pointer; transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease, background .2s ease, max-height .25s ease; min-height:140px; position:relative; pointer-events:auto; width:100%; max-width:760px}
 .amenity-card:hover{transform:translateY(-4px); box-shadow:0 8px 20px rgba(0,0,0,0.1); border-color:#23412e}
 .amenity-card.selected{border:1.5px solid #e5e7eb; background:#fff; box-shadow:0 4px 16px rgba(0,0,0,0.08)}
-.amenity-card img{width:100%; height:190px; object-fit:cover; border-radius:14px; box-shadow:0 2px 8px rgba(0,0,0,0.1); flex-shrink:0; transition:height .25s ease}
-.amenity-card .info{flex:1; color:#222; display:flex; flex-direction:column; gap:8px; min-width:0}
+.amenity-card img{width:100%; height:160px; object-fit:cover; border-radius:14px; box-shadow:0 2px 8px rgba(0,0,0,0.1); flex-shrink:0; transition:height .25s ease}
+.amenity-card .info{flex:1; color:#222; display:flex; flex-direction:column; gap:6px; min-width:0}
 .amenity-card .title-block{display:flex;flex-direction:column;gap:4px}
 .amenity-card .price{color:#23412e;font-weight:700; font-size:0.95rem}
-.amenity-card .info .name{font-weight:800; font-size:1.3rem; margin:4px 0 0; line-height:1.2; color:#111827; transition:display .2s ease}
+.amenity-card .info .name{font-weight:800; font-size:1.2rem; margin:0; line-height:1.2; color:#111827; transition:display .2s ease}
 .amenity-card .amenity-short{font-size:0.9rem;color:#4b5563;margin-top:2px}
 .amenity-card[data-details-visible="true"] .amenity-short{display:none}
 .amenity-card[data-details-visible="true"] .info .name{display:none}
@@ -998,8 +1006,8 @@ input:focus-visible {
 
 /* Responsive */
 @media (max-width:1366px){
-  .hero{padding:20px 3%;}
-  .layout{max-width:960px; gap:28px;}
+  .hero{padding:14px 3%;}
+  .layout{max-width:960px; gap:14px;}
   .reservation-card{padding:20px; gap:16px;}
   .reservation-right{padding:20px;}
   .calendar{padding:16px;}
@@ -1018,18 +1026,18 @@ input:focus-visible {
   .reservation-grid .amenity-preview{order:-2}
   .reservation-grid .calendar{order:-1}
   .reservation-grid .reservation-left{order:0}
-  .hero{padding:20px 4%}
+  .hero{padding:14px 4%}
   .amenities-list{display:flex; flex-direction:column; align-items:center}
   .amenity-card {min-height:auto; flex-direction:column; align-items:flex-start; max-width:720px; width:100%; flex:0 0 auto}
-  .amenity-card img{width:100%;height:160px;border-radius:10px}
-  .amenity-card .info{width:100%; flex-direction:column; align-items:flex-start; gap:8px}
+  .amenity-card img{width:100%;height:150px;border-radius:10px}
+  .amenity-card .info{width:100%; flex-direction:column; align-items:flex-start; gap:6px}
   .amenity-card .info .meta{width:100%; justify-content:flex-start}
   .amenity-card .info .meta{padding-right:0; gap:10px}
   .amenity-card .info .meta button[data-action="view-desc"]{position:static; margin-top:6px}
   .amenity-card button[data-action="book-now"]{position:static; margin-top:10px; align-self:flex-start}
   .amenity-card:hover{transform:none}
-  .booking-steps{padding:14px 12px; gap:10px}
-  .booking-step{min-width:140px; flex:0 1 auto}
+  .booking-steps{padding:10px 12px; gap:8px}
+  .booking-step{min-width:0; flex:1 1 0}
   .step-title{font-size:.9rem}
   .step-subtitle{font-size:.8rem}
   .reservation-right{position:static; top:auto}
@@ -1055,6 +1063,8 @@ input:focus-visible {
   .logo img{width:32px;height:32px}
   .brand-text h1{font-size:1.05rem}
   .brand-text p{font-size:0.7rem}
+  .ecopoint-badge{padding:4px 10px;font-size:.72rem;gap:4px}
+  .ecopoint-icon{font-size:.85rem}
   .page-title{font-size:1.3rem}
   .section-header h2{font-size:1.4rem}
   .section-header p{font-size:0.95rem}

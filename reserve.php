@@ -812,7 +812,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
   <title>VictorianPass - Reserve</title>
   <link rel="icon" type="image/png" href="images/logo.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="CSS/reserve.css?v=5">
+  <link rel="stylesheet" href="CSS/reserve.css?v=12">
 </head>
 <body>
   <div id="notifyLayer" class="toast"></div>
@@ -826,6 +826,10 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
         <p>Victorian Heights Subdivision</p>
       </div>
     </div>
+  </div>
+  <div class="ecopoint-badge">
+    <span class="ecopoint-icon">♻</span>
+    <span class="ecopoint-text">VH EcoPoint</span>
   </div>
 </header>
 
@@ -852,14 +856,6 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
             
             <!-- Modal Content -->
             <div style="padding:24px;">
-              <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-radius:14px; background:linear-gradient(135deg,#ecfdf5,#d1fae5); border:1px solid #86efac; margin-bottom:20px; color:#14532d;">
-                <div style="width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; background:#166534; color:#fff; font-size:1.15rem; flex-shrink:0;">♻</div>
-                <div style="display:flex; flex-direction:column; gap:2px;">
-                  <div style="font-size:0.78rem; font-weight:800; letter-spacing:0.08em; text-transform:uppercase;">Station Partner</div>
-                  <div style="font-size:1rem; font-weight:800;">VHEcoPoint</div>
-                  <div style="font-size:0.84rem; line-height:1.35;">Smart Waste Segregation Station</div>
-                </div>
-              </div>
 
               <!-- Current Points -->
               <div style="background:linear-gradient(135deg,#23412e,#1f3528); color:#fff; padding:20px; border-radius:16px; margin-bottom:24px;">
@@ -943,7 +939,62 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
         </div>
       <?php endif; ?>
 
-      <div class="section-header" id="amenitiesHeader"><h2>Amenities</h2><p>Select an amenity</p></div>
+      <?php if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident'): ?>
+      <div class="points-tracker" id="pointsTracker">
+        <div class="points-tracker-header">
+          <span class="points-tracker-label">Your Points:</span>
+          <span class="points-balance-amount" id="current-points-display"><?php echo number_format($residentPoints); ?> pts</span>
+        </div>
+        <div class="points-tracker-note">These are your VHEcoPoint rewards - earn points by recycling at the Smart Waste Segregation Station.</div>
+        <div class="points-tracker-body">
+          <button class="view-rewards-btn" id="viewRewardsBtn">View Rewards</button>
+        </div>
+        <button class="points-tracker-toggle" id="trackerToggleBtn" aria-label="Toggle points tracker">−</button>
+      </div>
+      <?php endif; ?>
+
+      <div class="section-header" id="amenitiesHeader"><h2>Amenities</h2><p>Choose a facility below to view availability and reserve your preferred schedule.</p></div>
+
+      <div class="booking-steps" aria-label="Booking steps">
+        <div class="booking-steps-header">
+          <div class="booking-steps-label">Reservation steps</div>
+          <div class="booking-steps-toggle-wrap">
+            <button type="button" class="booking-steps-toggle" id="bookingStepsToggle" aria-label="Minimize instructions" aria-expanded="true">−</button>
+          </div>
+        </div>
+        <div class="booking-steps-body">
+          <div class="booking-step is-active" id="step-amenity">
+            <div class="step-index">1</div>
+            <div class="step-content">
+              <div class="step-title">Select amenity</div>
+              <div class="step-subtitle">Choose the VictorianPass facility you want to reserve</div>
+            </div>
+          </div>
+          <div class="booking-step" id="step-schedule">
+            <div class="step-index">2</div>
+            <div class="step-content">
+              <div class="step-title">Set schedule</div>
+              <div class="step-subtitle">Pick an available date and time from the calendar</div>
+            </div>
+          </div>
+          <div class="booking-step" id="step-review">
+            <div class="step-index">3</div>
+            <div class="step-content">
+              <div class="step-title">Review &amp; pay</div>
+              <div class="step-subtitle">Check your reservation details, cash payment, or point redemption guide</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <?php if ($isResident): ?>
+      <div class="booking-steps-protip-float" id="proTipFloat">
+        <span class="protip-icon">💡</span>
+        <span class="protip-text"><strong>Pro Tip:</strong> You can use the points you have collected in VHEcoPoint Smart Waste Segregation Station when booking an amenity for a free 1 hour. Click on an amenity above to see if you're eligible!</span>
+        <button type="button" class="protip-dismiss" id="proTipDismiss" aria-label="Dismiss pro tip">&times;</button>
+      </div>
+      <?php endif; ?>
+
       <div class="amenities-wrapper">
         <div class="amenities-right">
           <div class="amenities-list" id="amenitiesList">
@@ -1013,41 +1064,6 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
             </div>
           </div>
             <div class="booking-shell">
-            <div class="booking-steps" aria-label="Booking steps">
-              <div class="booking-steps-header">
-                <div class="booking-steps-label">Reservation steps</div>
-                <button type="button" class="booking-steps-toggle" id="bookingStepsToggle" aria-label="Minimize instructions" aria-expanded="true">−</button>
-              </div>
-              <div class="booking-steps-body">
-                <div class="booking-step is-active" id="step-amenity">
-                  <div class="step-index">1</div>
-                  <div class="step-content">
-                    <div class="step-title">Select amenity</div>
-                    <div class="step-subtitle">Choose the VictorianPass facility you want to reserve</div>
-                  </div>
-                </div>
-                <div class="booking-step" id="step-schedule">
-                  <div class="step-index">2</div>
-                  <div class="step-content">
-                    <div class="step-title">Set schedule</div>
-                    <div class="step-subtitle">Pick an available date and time from the calendar</div>
-                  </div>
-                </div>
-                <div class="booking-step" id="step-review">
-                  <div class="step-index">3</div>
-                  <div class="step-content">
-                    <div class="step-title">Review &amp; pay</div>
-                    <div class="step-subtitle">Check your reservation details, cash payment, or point redemption guide</div>
-                  </div>
-                </div>
-
-                <?php if ($isResident): ?>
-                <div style="margin-top:16px; padding:12px 14px; background:linear-gradient(135deg,#f0faf2,#e8f6ec); border:1px solid #cfe6d4; border-radius:10px; font-size:0.85rem; color:#1f5a33; line-height:1.4;">
-                  💡 <strong>Pro Tip:</strong> You can use the points you have collected in VHEcoPoint Smart Waste Segregation Station when booking an amenity for a free 1 hour. Click on "View Rewards" to see your options.
-                </div>
-                <?php endif; ?>
-              </div>
-            </div>
             <?php if (!empty($errorMsg)) { ?><div class="alert-error"><?php echo htmlspecialchars($errorMsg); ?></div><?php } ?>
             <form method="POST">
           <input type="hidden" name="purpose" value="Amenity Reservation">
@@ -3593,6 +3609,16 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
         toggle.setAttribute('aria-expanded',collapsed?'false':'true');
       });
     }
+    var proTip=document.getElementById('proTipFloat');
+    var proTipDismiss=document.getElementById('proTipDismiss');
+    if(proTip&&proTipDismiss){
+      proTipDismiss.addEventListener('click',function(){
+        proTip.style.transition='opacity .2s,transform .2s';
+        proTip.style.opacity='0';
+        proTip.style.transform='translateY(-6px)';
+        setTimeout(function(){ proTip.remove(); },200);
+      });
+    }
   });
   function goBack(){ persistForm(); if(document.referrer){ window.history.back(); } else { window.location.href = 'mainpage.php'; } }
   function closeModal(){document.getElementById('refModal').style.display='none'}
@@ -3738,38 +3764,30 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
 </script>
 
 <style>
-/* Top right floating points tracker */
+/* Your Points card: wide horizontal rectangle, centered above the amenities section */
 .points-tracker {
-  position: fixed;
-  top: 120px; /* Below navbar */
-  right: 24px;
-  left: auto;
-  transform: none;
-  max-width: 280px;
-  width: min(100%, 280px);
-  background: #23412e;
-  color: white;
-  padding: 12px 16px;
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  background: linear-gradient(135deg, #23412e 0%, #1f5a33 100%);
+  color: #fff;
+  padding: 10px 16px;
   border-radius: 14px;
-  box-shadow: 0 8px 22px rgba(0,0,0,0.18);
-  z-index: 1000;
-  font-family: 'Poppins', sans-serif;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px 12px;
+  grid-template-columns: auto 1fr auto auto;
   align-items: center;
-  transition: all 0.25s ease;
-}
-
-.points-tracker.is-collapsed {
-  padding: 10px 14px;
+  gap: 6px 18px;
+  font-family: 'Poppins', sans-serif;
 }
 
 .points-tracker-header {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .points-tracker-label {
@@ -3780,47 +3798,35 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
   text-transform: uppercase;
 }
 
-.points-tracker-body {
-  display: flex;
-  justify-content: flex-end;
-  width: 100%;
-}
-
-.points-tracker.is-collapsed .points-tracker-body {
-  display: none;
-}
-
 .points-balance-amount {
   font-weight: 800;
-  font-size: 1.35rem;
+  font-size: 1.3rem;
   line-height: 1.1;
 }
 
-.view-rewards-btn {
-  padding: 8px 14px;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.15);
-  border: 1px solid rgba(255,255,255,0.22);
-  color: white;
-  font-size: .82rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s;
-  white-space: nowrap;
+.points-tracker-note {
+  font-size: 0.75rem;
+  line-height: 1.35;
+  font-weight: 500;
+  opacity: 0.95;
+  background: rgba(255,255,255,0.12);
+  padding: 4px 8px;
+  border-radius: 8px;
+  min-width: 0;
 }
 
-.view-rewards-btn:hover {
-  background: rgba(255,255,255,0.22);
+.points-tracker-body {
+  min-width: 0;
 }
 
 .points-tracker-toggle {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   border: none;
   background: rgba(255,255,255,0.16);
   color: white;
-  font-size: 1rem;
+  font-size: .95rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3834,30 +3840,39 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
   background: rgba(255,255,255,0.28);
 }
 
-@media (max-width: 768px) {
-    .points-tracker {
-      width: 90%;
-      padding: 12px 20px;
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-  }
+.points-tracker.is-collapsed .points-tracker-body,
+.points-tracker.is-collapsed .points-tracker-note {
+  display: none;
+}
 
-/* Move points tracker to bottom on small screens to avoid covering header/back button */
-@media (max-width: 900px) {
+.view-rewards-btn {
+  padding: 9px 16px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.22);
+  color: white;
+  font-size: .8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.view-rewards-btn:hover {
+  background: rgba(255,255,255,0.22);
+}
+
+@media (max-width: 1023px) {
   .points-tracker {
-    top: auto !important;
-    bottom: 16px !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    width: calc(100% - 32px) !important;
-    padding: 10px 16px !important;
-    box-shadow: 0 8px 26px rgba(0,0,0,0.24) !important;
+    grid-template-columns: 1fr auto;
+    gap: 10px 12px;
+    max-width: 720px;
   }
-  .points-tracker.is-collapsed {
-    padding: 8px 12px !important;
-    bottom: 20px !important;
-  }
+  .points-tracker-header { grid-column: 1; grid-row: 1; }
+  .points-tracker-toggle { grid-column: 2; grid-row: 1; }
+  .points-tracker-note { grid-column: 1 / -1; grid-row: 2; width: 100%; }
+  .points-tracker-body { grid-column: 1 / -1; grid-row: 3; width: 100%; }
+  .view-rewards-btn { width: 100%; }
 }
 
 /* Points redemption sidebar (center modal) */
@@ -3999,22 +4014,6 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
 }
 </style>
 
-<?php if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident'): ?>
-
-<!-- Top-right fixed points tracker -->
-<div class="points-tracker" id="pointsTracker">
-  <div class="points-tracker-header">
-    <span class="points-tracker-label">Your Points:</span>
-    <span class="points-balance-amount" id="current-points-display"><?php echo number_format($residentPoints); ?> pts</span>
-  </div>
-  <div class="points-tracker-body">
-    <button class="view-rewards-btn" id="viewRewardsBtn">View Rewards</button>
-  </div>
-  <button class="points-tracker-toggle" id="trackerToggleBtn" aria-label="Toggle points tracker">−</button>
-</div>
-
-
-<?php endif; ?>
 
 <script>
 // Tracker toggle functionality

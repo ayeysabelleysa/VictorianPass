@@ -59,8 +59,9 @@ if ($resGF && $resGF->num_rows > 0) {
     $rPersons = null;
     $rPrice = null;
     $rDownpayment = null;
+    $rPoolType = '';
 
-    $stmtR = $con->prepare("SELECT amenity, start_date, end_date, start_time, end_time, persons, price, downpayment, qr_path, payment_status, receipt_path, denial_reason, approval_status, receipt_attempts FROM reservations WHERE ref_code = ? LIMIT 1");
+    $stmtR = $con->prepare("SELECT amenity, start_date, end_date, start_time, end_time, persons, price, downpayment, qr_path, payment_status, receipt_path, denial_reason, approval_status, receipt_attempts, pool_booking_type FROM reservations WHERE ref_code = ? LIMIT 1");
     if ($stmtR) {
         $stmtR->bind_param('s', $row['ref_code']);
         if ($stmtR->execute()) {
@@ -75,6 +76,7 @@ if ($resGF && $resGF->num_rows > 0) {
                 $rPersons = isset($r['persons']) ? intval($r['persons']) : null;
                 $rPrice = isset($r['price']) ? floatval($r['price']) : null;
                 $rDownpayment = isset($r['downpayment']) ? floatval($r['downpayment']) : null;
+                $rPoolType = $r['pool_booking_type'] ?? '';
 
                 $rPayStatus = strtolower(trim($r['payment_status'] ?? ''));
                 $rReceipt = $r['receipt_path'] ?? '';
@@ -101,6 +103,7 @@ if ($resGF && $resGF->num_rows > 0) {
                 $rPersons = isset($row['persons']) ? intval($row['persons']) : null;
                 $rPrice = isset($row['price']) ? floatval($row['price']) : null;
                 $rDownpayment = isset($row['downpayment']) ? floatval($row['downpayment']) : null;
+                $rPoolType = '';
                 $hasReservation = !empty($rAmenity);
                 if ($hasReservation) {
                     $publishDate = !empty($rStartDate) ? date('m/d/y', strtotime($rStartDate)) : $publishDate;
@@ -720,11 +723,19 @@ if (!$data) {
     <?php if ($validId !== ''): ?>
     <div class="section-title">Guest ID</div>
     <div class="pay-proof">
-      <?php $isPdf = (bool)preg_match('/\.pdf$/i', $validId); ?>
-      <?php if($isPdf): ?>
-        <a href="<?php echo htmlspecialchars($validId); ?>" target="_blank" style="color:#23412e;font-weight:600;">Open uploaded ID (PDF)</a>
+      <?php
+        $baseUrl = $scheme . '://' . $host . $basePath;
+        $idHref = rtrim($baseUrl, '/') . '/' . ltrim($validId, '/');
+        $idPhys = __DIR__ . '/' . ltrim(str_replace('\\', '/', $validId), '/');
+        $idExists = file_exists($idPhys);
+        $isPdf = (bool)preg_match('/\.pdf$/i', $validId);
+      ?>
+      <?php if ($isPdf): ?>
+        <a href="<?php echo htmlspecialchars($idHref); ?>" target="_blank" style="color:#23412e;font-weight:600;">Open uploaded ID (PDF)</a>
+      <?php elseif ($idExists): ?>
+        <img src="<?php echo htmlspecialchars($idHref); ?>" alt="Uploaded guest ID">
       <?php else: ?>
-        <img src="<?php echo htmlspecialchars($validId); ?>" alt="Uploaded guest ID">
+        <p style="color:#b45309;font-weight:600;">Uploaded ID file is missing or was removed. Please contact the resident to re-submit.</p>
       <?php endif; ?>
     </div>
     <?php endif; ?>

@@ -21,7 +21,7 @@ body {
 
 /* Sidebar */
 .sidebar {
-    width: 260px;
+    width: 220px;
     background-color: #ffffff;
     border-right: 1px solid #e0e0e0;
     display: flex;
@@ -32,7 +32,7 @@ body {
 }
 
 .sidebar-header {
-    padding: 20px;
+    padding: 16px;
     display: flex;
     align-items: center;
 }
@@ -60,20 +60,20 @@ body {
 
 .nav-menu {
     flex: 1;
-    padding: 20px 15px;
+    padding: 16px 12px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 4px;
 }
 
 .nav-item {
     display: flex;
     align-items: center;
-    padding: 12px 15px;
+    padding: 10px 12px;
     text-decoration: none;
     color: #555;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     transition: background 0.2s, color 0.2s;
     border-radius: 8px;
     margin-bottom: 2px;
@@ -91,7 +91,7 @@ body {
 }
 
 .nav-item i, .nav-item img {
-    margin-right: 15px;
+    margin-right: 12px;
     width: 20px;
     text-align: center;
 }
@@ -106,7 +106,7 @@ body {
 }
 
 .sidebar-footer {
-    padding: 20px;
+    padding: 16px;
     border-top: 1px solid #eee;
     display: flex;
     justify-content: space-between;
@@ -181,8 +181,8 @@ body {
     flex: 1;
     display: flex;
     flex-direction: column;
-    margin-left: 260px;
-    width: calc(100% - 260px);
+    margin-left: 220px;
+    width: calc(100% - 220px);
 }
 
 .top-header {
@@ -1526,8 +1526,8 @@ body {
     flex: 1;
     display: flex;
     flex-direction: column;
-    margin-left: 260px;
-    width: calc(100% - 260px);
+    margin-left: 220px;
+    width: calc(100% - 220px);
 }
 
 .header {

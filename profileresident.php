@@ -831,152 +831,85 @@ body.account-blocked { overflow: hidden; }
   border-bottom: 1px solid rgba(212, 175, 55, 0.45);
   box-shadow: inset 0 -1px 0 rgba(212, 175, 55, 0.25);
 }
-.main-content.ecopoint-active .top-header .brand-main {
-  color: #fde886;
-}
-.main-content.ecopoint-active .top-header .brand-sub {
-  color: rgba(255,255,255,0.82);
-}
+.main-content.ecopoint-active .top-header .brand-main { color: #fde886; }
+.main-content.ecopoint-active .top-header .brand-sub { color: rgba(255,255,255,0.82); }
 .main-content.ecopoint-active .top-header .icon-btn,
 .main-content.ecopoint-active .top-header .user-profile,
-.main-content.ecopoint-active .top-header .menu-toggle {
-  border-color: rgba(212, 175, 55, 0.5);
-}
+.main-content.ecopoint-active .top-header .menu-toggle { border-color: rgba(212, 175, 55, 0.5); }
 .main-content.ecopoint-active .top-header .icon-btn i,
 .main-content.ecopoint-active .top-header .user-profile,
-.main-content.ecopoint-active .top-header .menu-toggle i {
-  color: #fde886;
-}
-.main-content.ecopoint-active .top-header .notif-count {
-  background: #d4af37;
-  color: #10251b;
-}
+.main-content.ecopoint-active .top-header .menu-toggle i { color: #fde886; }
+.main-content.ecopoint-active .top-header .notif-count { background: #d4af37; color: #10251b; }
+
+/* Panel shell — light background, not dark green */
 .main-content.ecopoint-active #panel-points-history {
-  background: linear-gradient(180deg, #0d1f1a 0%, #123126 100%);
-  border: 1px solid rgba(212, 175, 55, 0.35);
+  background: #f4f7f5;
+  border: 1px solid #dce8e2;
   border-radius: 18px;
-  box-shadow: 0 18px 45px rgba(6, 13, 11, 0.28);
+  box-shadow: 0 6px 20px rgba(9,18,14,0.06);
   padding: 20px;
 }
+
+/* Activity list header */
 .main-content.ecopoint-active #panel-points-history .activity-list-header {
-  background: rgba(15, 42, 32, 0.9);
-  border: 1px solid rgba(212, 175, 55, 0.28);
-  color: #f0ebe2;
-  border-radius: 14px;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
-}
-.main-content.ecopoint-active #panel-points-history .activity-list-header div:first-child {
-  color: #f0ebe2;
-}
-.main-content.ecopoint-active #panel-points-history .activity-list-header div:first-child div {
-  color: #cfc6a3;
-}
-.main-content.ecopoint-active #panel-points-history .ecopoint-panel-shell {
-  position: relative;
-  z-index: 1;
-}
-.main-content.ecopoint-active #panel-points-history .ecopoint-header-card {
-  background: linear-gradient(135deg, rgba(12, 30, 22, 0.96), rgba(28, 62, 48, 0.96));
-  border: 1px solid rgba(212, 175, 55, 0.45);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
-  color: #f0ebe2;
-}
-.main-content.ecopoint-active #panel-points-history {
-  background: linear-gradient(180deg, #173c33 0%, #1d463d 100%);
-  border: 1px solid rgba(212, 175, 55, 0.28);
-  border-radius: 18px;
-  box-shadow: 0 14px 32px rgba(9, 18, 14, 0.14);
-  padding: 20px;
-}
-.main-content.ecopoint-active #panel-points-history .activity-list-header {
-  background: rgba(17, 48, 40, 0.82);
-  border: 1px solid rgba(212, 175, 55, 0.22);
+  background: linear-gradient(135deg, #0f2f27, #174a3c);
+  border: 1px solid rgba(212,175,55,0.35);
   color: #f0ebe2;
   border-radius: 14px;
 }
-.main-content.ecopoint-active #panel-points-history .activity-list-header div:first-child {
-  color: #f0ebe2;
-}
-.main-content.ecopoint-active #panel-points-history .activity-list-header div:first-child div {
-  color: #cfc6a3;
-}
+.main-content.ecopoint-active #panel-points-history .activity-list-header div:first-child { color: #f0ebe2; }
+.main-content.ecopoint-active #panel-points-history .activity-list-header div:first-child div { color: #cfc6a3; }
+
+.main-content.ecopoint-active #panel-points-history .ecopoint-panel-shell { position: relative; z-index: 1; }
+
+/* Header card — subtle light green, not heavy dark */
 .main-content.ecopoint-active #panel-points-history .ecopoint-header-card {
-  background: linear-gradient(135deg, #0f2f27 0%, #174a3c 100%);
-  border: 1px solid rgba(212, 175, 55, 0.4);
-  box-shadow: 0 12px 28px rgba(8, 22, 18, 0.12);
-  color: #f7f4ea;
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+  border: 1px solid #86efac;
+  box-shadow: 0 4px 14px rgba(16,163,74,0.08);
+  color: #14532d;
 }
-.main-content.ecopoint-active #panel-points-history .ecopoint-header-kicker,
-.main-content.ecopoint-active #panel-points-history .ecopoint-header-title,
-.main-content.ecopoint-active #panel-points-history .ecopoint-header-desc,
-.main-content.ecopoint-active #panel-points-history .ecopoint-kpi-label,
-.main-content.ecopoint-active #panel-points-history .ecopoint-kpi-subtext,
-.main-content.ecopoint-active #panel-points-history .ecopoint-card-title,
-.main-content.ecopoint-active #panel-points-history .ecopoint-card-note,
-.main-content.ecopoint-active #panel-points-history .ecopoint-material-title,
-.main-content.ecopoint-active #panel-points-history .ecopoint-material-subtitle,
-.main-content.ecopoint-active #panel-points-history .ecopoint-live-card-title,
-.main-content.ecopoint-active #panel-points-history .ecopoint-live-message,
-.main-content.ecopoint-active #panel-points-history .ecopoint-live-station-name,
-.main-content.ecopoint-active #panel-points-history .ecopoint-live-metric-label,
-.main-content.ecopoint-active #panel-points-history .ecopoint-table th {
-  color: #f7f4ea;
-}
-.main-content.ecopoint-active #panel-points-history .ecopoint-header-kicker {
-  color: #fde886;
-}
-.main-content.ecopoint-active #panel-points-history .ecopoint-header-title {
-  color: #fce67c;
-}
-.main-content.ecopoint-active #panel-points-history .ecopoint-header-desc,
-.main-content.ecopoint-active #panel-points-history .ecopoint-kpi-subtext,
-.main-content.ecopoint-active #panel-points-history .ecopoint-card-note,
-.main-content.ecopoint-active #panel-points-history .ecopoint-material-subtitle,
-.main-content.ecopoint-active #panel-points-history .ecopoint-live-message,
-.main-content.ecopoint-active #panel-points-history .ecopoint-live-metric-label,
-.main-content.ecopoint-active #panel-points-history .ecopoint-table td {
-  color: #f0ebe2;
-}
+.main-content.ecopoint-active #panel-points-history .ecopoint-header-kicker { color: #166534; }
+.main-content.ecopoint-active #panel-points-history .ecopoint-header-title { color: #14532d; }
+.main-content.ecopoint-active #panel-points-history .ecopoint-header-desc { color: #166534; }
+
+/* KPI cards + section cards — white/light, not dark green */
 .main-content.ecopoint-active #panel-points-history .ecopoint-kpi-card,
-.main-content.ecopoint-active #panel-points-history .ecopoint-card,
+.main-content.ecopoint-active #panel-points-history .ecopoint-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 2px 10px rgba(15,23,42,0.04);
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-kpi-card:first-child {
+  background: linear-gradient(135deg, #0f2f27, #1a5240);
+  border: 1px solid rgba(212,175,55,0.4);
+  box-shadow: 0 4px 16px rgba(10,30,22,0.15);
+}
+
+/* KPI text colors — light theme for most cards, gold for balance */
+.main-content.ecopoint-active #panel-points-history .ecopoint-kpi-label { color: #6b7280; }
+.main-content.ecopoint-active #panel-points-history .ecopoint-kpi-value { color: #111827; font-weight: 800; }
+.main-content.ecopoint-active #panel-points-history .ecopoint-kpi-subtext { color: #6b7280; }
+.main-content.ecopoint-active #panel-points-history .ecopoint-kpi-card:first-child .ecopoint-kpi-label { color: rgba(253,232,134,0.8); }
+.main-content.ecopoint-active #panel-points-history .ecopoint-kpi-card:first-child .ecopoint-kpi-value { color: #fde886; font-size: 2rem; }
+.main-content.ecopoint-active #panel-points-history .ecopoint-kpi-card:first-child .ecopoint-kpi-subtext { color: rgba(240,235,226,0.7); }
+
+/* Section card text colors */
+.main-content.ecopoint-active #panel-points-history .ecopoint-card-title { color: #111827; }
+.main-content.ecopoint-active #panel-points-history .ecopoint-card-note { color: #6b7280; }
+.main-content.ecopoint-active #panel-points-history .ecopoint-material-title { color: #111827; }
+.main-content.ecopoint-active #panel-points-history .ecopoint-material-subtitle { color: #6b7280; }
+.main-content.ecopoint-active #panel-points-history .ecopoint-table th { color: #6b7280; background: #f8fafc; }
+.main-content.ecopoint-active #panel-points-history .ecopoint-table td { color: #374151; }
+
+/* Material values — green accent */
+.main-content.ecopoint-active #panel-points-history .ecopoint-material-value { color: #14532d; }
+
+/* Live panel — prominent dark card */
 .main-content.ecopoint-active #panel-points-history .ecopoint-live-panel {
-  background: #1d433b;
-  border: 1px solid rgba(212, 175, 55, 0.24);
-  box-shadow: 0 10px 24px rgba(8, 18, 14, 0.1);
-}
-.main-content.ecopoint-active #panel-points-history .ecopoint-kpi-value,
-.main-content.ecopoint-active #panel-points-history .ecopoint-material-value,
-.main-content.ecopoint-active #panel-points-history .ecopoint-live-metric strong,
-.main-content.ecopoint-active #panel-points-history .ecopoint-live-status-badge {
-  color: #fde886;
-}
-.main-content.ecopoint-active #panel-points-history .ecopoint-live-metric strong {
-  font-size: 1.08rem;
-  line-height: 1.3;
-}
-.main-content.ecopoint-active #panel-points-history .ecopoint-progress {
-  background: rgba(255,255,255,0.08);
-  border-radius: 999px;
-}
-.main-content.ecopoint-active #panel-points-history .ecopoint-progress-bar {
-  background: linear-gradient(90deg, #d4af37, #f2d884);
-}
-.main-content.ecopoint-active #panel-points-history .ecopoint-material-row {
-  border-bottom-color: rgba(212, 175, 55, 0.18);
-}
-.main-content.ecopoint-active #panel-points-history .ecopoint-table {
-  background: transparent;
-}
-.main-content.ecopoint-active #panel-points-history .ecopoint-table th,
-.main-content.ecopoint-active #panel-points-history .ecopoint-table td {
-  border-bottom-color: rgba(212, 175, 55, 0.18);
-}
-.main-content.ecopoint-active #panel-points-history .ecopoint-empty {
-  background: rgba(15, 39, 31, 0.34);
-  border-color: rgba(212, 175, 55, 0.2);
-  color: #f7f4ea;
-}
-.main-content.ecopoint-active #panel-points-history .ecopoint-live-panel {
+  background: linear-gradient(135deg, #0f2f27, #174a3c);
+  border: 1px solid rgba(212,175,55,0.35);
+  box-shadow: 0 6px 20px rgba(8,22,18,0.12);
   padding: 18px 18px 16px;
   border-radius: 18px;
 }
@@ -1006,87 +939,98 @@ body.account-blocked { overflow: hidden; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 6px 10px;
+  padding: 5px 10px;
   border-radius: 999px;
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  background: rgba(253, 232, 134, 0.12);
-  border: 1px solid rgba(253, 232, 134, 0.35);
+  background: rgba(253,232,134,0.12);
+  border: 1px solid rgba(253,232,134,0.35);
   color: #fde886;
 }
 .main-content.ecopoint-active #panel-points-history .ecopoint-live-station-name {
   font-size: 1rem;
   font-weight: 700;
+  color: #f7f4ea;
 }
 .main-content.ecopoint-active #panel-points-history .ecopoint-live-indicator {
   width: 10px;
   height: 10px;
   border-radius: 50%;
   background: #fde886;
-  box-shadow: 0 0 0 6px rgba(253, 232, 134, 0.2);
+  box-shadow: 0 0 0 6px rgba(253,232,134,0.2);
 }
 .main-content.ecopoint-active #panel-points-history .ecopoint-live-message {
-  background: rgba(255,255,255,0.03);
-  border-left: 3px solid rgba(253, 232, 134, 0.6);
-  border-radius: 12px;
+  background: rgba(255,255,255,0.06);
+  border-left: 3px solid rgba(253,232,134,0.6);
+  border-radius: 10px;
   padding: 10px 12px;
   margin: 10px 0 14px;
-  line-height: 1.55;
-  font-size: 0.94rem;
+  line-height: 1.5;
+  font-size: 0.9rem;
   color: #f0ebe2;
 }
 .main-content.ecopoint-active #panel-points-history .ecopoint-live-meta {
   display: grid;
   grid-template-columns: repeat(4, minmax(120px, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 .main-content.ecopoint-active #panel-points-history .ecopoint-live-metric {
-  background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(212, 175, 55, 0.18);
-  border-radius: 12px;
-  padding: 12px 12px 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(212,175,55,0.18);
+  border-radius: 10px;
+  padding: 10px 12px 8px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 82px;
+  min-height: 70px;
 }
 .main-content.ecopoint-active #panel-points-history .ecopoint-live-metric-label {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: #cfc6a3;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 .main-content.ecopoint-active #panel-points-history .ecopoint-live-metric strong {
-  font-size: 1.02rem;
+  font-size: 1rem;
   font-weight: 700;
   color: #fde886;
 }
+
+/* Progress bars */
+.main-content.ecopoint-active #panel-points-history .ecopoint-progress { background: #e5e7eb; border-radius: 999px; }
+.main-content.ecopoint-active #panel-points-history .ecopoint-progress-bar { background: linear-gradient(90deg, #16a34a, #22c55e); }
+.main-content.ecopoint-active #panel-points-history .ecopoint-material-row { border-bottom-color: #e5e7eb; }
+
+/* Table */
+.main-content.ecopoint-active #panel-points-history .ecopoint-table { background: transparent; }
+.main-content.ecopoint-active #panel-points-history .ecopoint-table th,
+.main-content.ecopoint-active #panel-points-history .ecopoint-table td { border-bottom-color: #e5e7eb; }
+
+/* Empty state */
+.main-content.ecopoint-active #panel-points-history .ecopoint-empty {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  color: #6b7280;
+}
+
+/* Action buttons */
 .main-content.ecopoint-active #panel-points-history .ecopoint-action-btn {
   background: linear-gradient(135deg, #d4af37, #f1d77d);
   color: #0d2018;
-  box-shadow: 0 10px 18px rgba(212, 175, 55, 0.18);
+  box-shadow: 0 6px 14px rgba(212,175,55,0.18);
 }
-.main-content.ecopoint-active #panel-points-history .ecopoint-action-btn:hover {
-  filter: brightness(1.04);
-}
+.main-content.ecopoint-active #panel-points-history .ecopoint-action-btn:hover { filter: brightness(1.04); }
+
 @media (max-width: 768px) {
-  .main-content.ecopoint-active #panel-points-history {
-    padding: 14px;
-  }
-  .main-content.ecopoint-active #panel-points-history .ecopoint-live-meta {
-    grid-template-columns: 1fr 1fr;
-  }
+  .main-content.ecopoint-active #panel-points-history { padding: 14px; }
+  .main-content.ecopoint-active #panel-points-history .ecopoint-live-meta { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 480px) {
-  .main-content.ecopoint-active #panel-points-history .ecopoint-live-meta {
-    grid-template-columns: 1fr;
-  }
-  .main-content.ecopoint-active #panel-points-history .ecopoint-live-header {
-    align-items: flex-start;
-  }
+  .main-content.ecopoint-active #panel-points-history .ecopoint-live-meta { grid-template-columns: 1fr; }
+  .main-content.ecopoint-active #panel-points-history .ecopoint-live-header { align-items: flex-start; }
 }
 .toast-item { background: #fff; border-left: 4px solid #23412e; box-shadow: 0 4px 12px rgba(0,0,0,0.18); border-radius: 10px; padding: 10px 12px; min-width: 260px; display: flex; align-items: flex-start; gap: 8px; color: #333; }
 .toast-item .toast-message { flex: 1; font-size: 0.85rem; }
@@ -1363,18 +1307,18 @@ body.account-blocked { overflow: hidden; }
 /* Moved to dashboard.css */
 .note-error{color:#b91c1c;font-weight:700;}
 .notif-error { color:#b91c1c; font-weight:700; }
-.ecopoint-panel-shell{display:flex;flex-direction:column;gap:18px}
-.ecopoint-header-card{background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:1px solid #86efac;border-radius:18px;padding:18px 20px;color:#14532d}
+.ecopoint-panel-shell{display:flex;flex-direction:column;gap:14px}
+.ecopoint-header-card{background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:1px solid #86efac;border-radius:14px;padding:16px 18px;color:#14532d}
 .ecopoint-header-kicker{font-size:0.74rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em}
-.ecopoint-header-title{font-size:1.4rem;font-weight:800;margin-top:4px}
+.ecopoint-header-title{font-size:1.3rem;font-weight:800;margin-top:4px}
 .ecopoint-header-desc{font-size:0.9rem;line-height:1.5;margin-top:6px;color:#166534}
 .ecopoint-promo{display:inline-block;background:linear-gradient(90deg,#f0fdf4,#dcfce7);color:#14532d;padding:8px 12px;border-radius:12px;font-weight:800;margin-bottom:8px}
-.ecopoint-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
-.ecopoint-kpi-card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:16px;box-shadow:0 4px 16px rgba(15,23,42,0.05)}
+.ecopoint-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.ecopoint-kpi-card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:14px 16px;box-shadow:0 2px 10px rgba(15,23,42,0.04)}
 .ecopoint-kpi-label{font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#6b7280}
-.ecopoint-kpi-value{font-size:1.6rem;font-weight:800;color:#111827;margin-top:6px}
-.ecopoint-kpi-subtext{font-size:0.82rem;color:#4b5563;line-height:1.45;margin-top:6px}
-.ecopoint-card{background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:18px;box-shadow:0 4px 16px rgba(15,23,42,0.05)}
+.ecopoint-kpi-value{font-size:1.4rem;font-weight:800;color:#111827;margin-top:4px}
+.ecopoint-kpi-subtext{font-size:0.8rem;color:#4b5563;line-height:1.4;margin-top:4px}
+.ecopoint-card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px 18px;box-shadow:0 2px 10px rgba(15,23,42,0.04)}
 .ecopoint-card-title{font-size:1.02rem;font-weight:800;color:#111827;margin:0 0 6px}
 .ecopoint-card-note{font-size:0.85rem;color:#6b7280;line-height:1.45;margin-bottom:14px}
 .ecopoint-progress{width:100%;height:10px;border-radius:999px;background:#e5e7eb;overflow:hidden}
@@ -1712,38 +1656,32 @@ body.account-blocked { overflow: hidden; }
         </div>
 
         <div class="panel-section" id="panel-points-history" style="<?php echo $activeSection === 'panel-points-history' ? '' : 'display:none;'; ?>">
-          <div class="activity-list-header">
-            <div>
-              VHEcoPoint
-              <div style="font-size:0.8rem; color:#999; margin-top:4px;">Smart Waste Segregation Station dashboard for residents</div>
-            </div>
-          </div>
 
           <div class="ecopoint-panel-shell" style="margin-top:20px;">
             <div class="ecopoint-header-card">
-              <div class="ecopoint-header-kicker">Resident EcoPoint</div>
-              <div class="ecopoint-header-title">VHEcoPoint</div>
+              <div class="ecopoint-header-kicker">Resident Dashboard</div>
+              <div class="ecopoint-header-title"><i class="fa-solid fa-leaf" style="margin-right:8px; font-size:0.9em;"></i>Your EcoPoint Dashboard</div>
               <div class="ecopoint-header-desc">Track your current point balance, weekly recycling progress, daily session usage, expiry countdown, and station-ready QR access in one place.</div>
             </div>
 
             <div class="ecopoint-kpi-grid">
               <div class="ecopoint-kpi-card">
-                <div class="ecopoint-kpi-label">Current Point Balance</div>
-                <div class="ecopoint-kpi-value"><?php echo number_format($currentPoints); ?> pts</div>
+                <div class="ecopoint-kpi-label"><i class="fa-solid fa-coins" style="margin-right:5px; opacity:0.7;"></i>Current Point Balance</div>
+                <div class="ecopoint-kpi-value"><i class="fa-solid fa-star" style="font-size:0.6em; margin-right:4px; opacity:0.6;"></i><?php echo number_format($currentPoints); ?> pts</div>
                 <div class="ecopoint-kpi-subtext">Net balance from VHEcoPoint recycling ledger (earn − redeem ± adjustments).</div>
               </div>
               <div class="ecopoint-kpi-card">
-                <div class="ecopoint-kpi-label">Weekly Points Earned</div>
+                <div class="ecopoint-kpi-label"><i class="fa-solid fa-chart-line" style="margin-right:5px; opacity:0.7;"></i>Weekly Points Earned</div>
                 <div class="ecopoint-kpi-value"><?php echo number_format($ecoPointWeeklyPoints); ?> / <?php echo number_format($ecoPointWeeklyCap); ?> pts</div>
                 <div class="ecopoint-kpi-subtext"><?php echo number_format($ecoPointWeeklyRemaining); ?> pts remain before this week's program cap resets.</div>
               </div>
               <div class="ecopoint-kpi-card">
-                <div class="ecopoint-kpi-label">Daily Sessions Used</div>
+                <div class="ecopoint-kpi-label"><i class="fa-solid fa-right-to-bracket" style="margin-right:5px; opacity:0.7;"></i>Daily Sessions Used</div>
                 <div class="ecopoint-kpi-value"><?php echo number_format($ecoPointTodaySessionsUsed); ?> / <?php echo number_format($ecoPointDailySessionsMax); ?> Used Today</div>
                 <div class="ecopoint-kpi-subtext"><?php echo number_format($ecoPointSessionsRemaining); ?> session<?php echo $ecoPointSessionsRemaining === 1 ? '' : 's'; ?> remaining. Maximum of 3 VHEcoPoint station visits per day.</div>
               </div>
               <div class="ecopoint-kpi-card">
-                <div class="ecopoint-kpi-label">Points Expiry Countdown</div>
+                <div class="ecopoint-kpi-label"><i class="fa-solid fa-clock" style="margin-right:5px; opacity:0.7;"></i>Points Expiry Countdown</div>
                 <div class="ecopoint-kpi-value"><?php echo htmlspecialchars($ecoPointExpiryCountdownLabel); ?></div>
                 <div class="ecopoint-kpi-subtext"><?php echo htmlspecialchars($ecoPointExpiryCountdownSubtext); ?></div>
               </div>
@@ -1783,8 +1721,8 @@ body.account-blocked { overflow: hidden; }
               <h3 class="ecopoint-card-title">Weekly Material Cap Tracker</h3>
               <div class="ecopoint-card-note">Weekly contributions count toward the current 250-point program cap. Material rows show your contribution by recyclables logged this week.</div>
               <div style="display:flex;justify-content:space-between;align-items:flex-end;margin:10px 0 6px 0;">
-                <div style="font-weight:700;color:#f0ebe2;font-size:13px;">Total Weekly Progress</div>
-                <div style="font-weight:800;color:#fde886;font-size:15px;"><?php echo number_format($ecoPointWeeklyPoints); ?> / <?php echo number_format($ecoPointWeeklyCap); ?> pts &middot; <?php echo intval($ecoPointWeeklyProgress); ?>%</div>
+                <div style="font-weight:700;color:#374151;font-size:13px;">Total Weekly Progress</div>
+                <div style="font-weight:800;color:#14532d;font-size:15px;"><?php echo number_format($ecoPointWeeklyPoints); ?> / <?php echo number_format($ecoPointWeeklyCap); ?> pts &middot; <?php echo intval($ecoPointWeeklyProgress); ?>%</div>
               </div>
               <div class="ecopoint-progress" style="margin-bottom:14px;">
                 <div class="ecopoint-progress-bar" style="width:<?php echo intval($ecoPointWeeklyProgress); ?>%;"></div>
