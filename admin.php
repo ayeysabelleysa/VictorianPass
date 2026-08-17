@@ -3323,7 +3323,7 @@ $verifyContext = isset($_GET['verify_context']) ? $_GET['verify_context'] : '';
 
 // Determine active system: VictorianPass or VHEcoPoint
 $victorianPassPages = ['dashboard', 'residents', 'visitors', 'requests', 'resident_guest_forms', 'visitor_requests', 'report', 'security', 'history', 'summary'];
-$vhEcoPointPages = ['smart_waste'];
+$vhEcoPointPages = ['smart_waste', 'smart_waste_sessions', 'smart_waste_logs'];
 $currentSystem = in_array($currentPage, $vhEcoPointPages) ? 'ecopoint' : 'victorianpass';
 ?>
 
@@ -5282,8 +5282,10 @@ body.modal-open { overflow: hidden; }
        <!-- VHEcoPoint Navigation -->
        <?php if ($currentSystem == 'ecopoint'): ?>
        <div class="nav-section">
-         <div class="nav-section-title">Smart Waste Station</div>
-         <a href="?page=smart_waste" class="nav-item <?php echo $currentPage == 'smart_waste' ? 'active' : ''; ?>" data-page="smart_waste"><i class="fa-solid fa-recycle"></i><span>Dashboard</span></a>
+         <div class="nav-section-title">VHEcoPoint</div>
+         <a href="?page=smart_waste" class="nav-item <?php echo $currentPage == 'smart_waste' ? 'active' : ''; ?>" data-page="smart_waste"><i class="fa-solid fa-gauge"></i><span>Overview</span></a>
+         <a href="?page=smart_waste_sessions" class="nav-item <?php echo $currentPage == 'smart_waste_sessions' ? 'active' : ''; ?>" data-page="smart_waste_sessions"><i class="fa-solid fa-recycle"></i><span>Sessions</span></a>
+         <a href="?page=smart_waste_logs" class="nav-item <?php echo $currentPage == 'smart_waste_logs' ? 'active' : ''; ?>" data-page="smart_waste_logs"><i class="fa-solid fa-clock-rotate-left"></i><span>Amenity Logs</span></a>
        </div>
        <?php endif; ?>
      </nav>
@@ -5303,7 +5305,9 @@ body.modal-open { overflow: hidden; }
       'visitor_requests' => 'Visitor Requests',
       'reservations' => 'Reservations',
       'report' => 'View Reported Incidents',
-      'smart_waste' => 'VHEcoPoint',
+      'smart_waste' => 'VHEcoPoint Dashboard',
+      'smart_waste_sessions' => 'VHEcoPoint Sessions',
+      'smart_waste_logs' => 'VHEcoPoint Amenity Logs',
       'security' => 'Security Guards',
       'residents' => 'Residents',
       'cancelled' => 'Cancelled Requests',
@@ -5619,7 +5623,7 @@ body.modal-open { overflow: hidden; }
 </section>
 <?php endif; ?>
 
-<?php if ($currentPage == 'smart_waste'): ?>
+<?php if (in_array($currentPage, ['smart_waste', 'smart_waste_sessions', 'smart_waste_logs'])): ?>
 <?php
   // ---------------------------------------------------------------------
   // VHEcoPoint panel - REAL data from ecopoint_waste_sessions / stations
@@ -5692,7 +5696,7 @@ body.modal-open { overflow: hidden; }
     } catch (Throwable $e) {}
 
     try {
-      $r = $con->query("SELECT COUNT(*) AS c FROM users WHERE user_type='resident' AND COALESCE(status,'active') <> 'denied'");
+      $r = $con->query("SELECT COUNT(*) AS c FROM users WHERE user_type='resident' AND status = 'active'");
       if ($r && $row = $r->fetch_assoc()) $swStats['resident_count'] = intval($row['c'] ?? 0);
     } catch (Throwable $e) {}
 
@@ -5764,7 +5768,6 @@ body.modal-open { overflow: hidden; }
         // Material stats + participation (distinct residents) from COMPLETED sessions
         $r = $con->query("SELECT ws.material_type, ws.weight_kg, ws.created_at, ws.user_id FROM ecopoint_waste_sessions ws WHERE ws.status='COMPLETED'");
         if ($r) {
-          $seenU = [];
           while ($row = $r->fetch_assoc()) {
             $label = smartWasteMaterialLabel((string)($row['material_type'] ?? ''), '');
             if (!isset($materialConfigs[$label])) continue; // only the 3 allowed recyclables
@@ -5772,17 +5775,30 @@ body.modal-open { overflow: hidden; }
             $materialStats[$label]['kg_total'] += $w;
             $materialStats[$label]['txn_count']++;
             if (date('Y-m-d', strtotime((string)$row['created_at'])) === $todayKey) $materialStats[$label]['kg_today'] += $w;
-            $u = intval($row['user_id'] ?? 0);
-            if ($u > 0) $seenU[$u] = true;
           }
-          $participationStats['all_time_count'] = count($seenU);
         }
 
-        // Participation windows (COMPLETED sessions)
-        $r = $con->query("SELECT COUNT(DISTINCT user_id) AS c FROM ecopoint_waste_sessions WHERE status='COMPLETED' AND completed_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)");
+        // All-time participation: unique active residents with at least one COMPLETED session
+        $r = $con->query("SELECT COUNT(DISTINCT ws.user_id) AS c FROM ecopoint_waste_sessions ws INNER JOIN users u ON u.id = ws.user_id WHERE ws.status='COMPLETED' AND u.user_type='resident' AND u.status='active'");
+        if ($r && $row = $r->fetch_assoc()) $participationStats['all_time_count'] = intval($row['c'] ?? 0);
+
+        // Participation windows: unique active residents with COMPLETED sessions
+        $r = $con->query("SELECT COUNT(DISTINCT ws.user_id) AS c FROM ecopoint_waste_sessions ws INNER JOIN users u ON u.id = ws.user_id WHERE ws.status='COMPLETED' AND u.user_type='resident' AND u.status='active' AND ws.completed_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)");
         if ($r && $row = $r->fetch_assoc()) $participationStats['last30_count'] = intval($row['c'] ?? 0);
-        $r = $con->query("SELECT COUNT(DISTINCT user_id) AS c FROM ecopoint_waste_sessions WHERE status='COMPLETED' AND completed_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)");
+        $r = $con->query("SELECT COUNT(DISTINCT ws.user_id) AS c FROM ecopoint_waste_sessions ws INNER JOIN users u ON u.id = ws.user_id WHERE ws.status='COMPLETED' AND u.user_type='resident' AND u.status='active' AND ws.completed_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)");
         if ($r && $row = $r->fetch_assoc()) $participationStats['last7_count'] = intval($row['c'] ?? 0);
+
+        // Participants list for sidebar
+        $participants = [];
+        $r = $con->query("SELECT u.id, u.first_name, u.last_name, u.house_number, u.email,
+                 COUNT(ws.id) AS session_count, SUM(ws.weight_kg) AS total_kg, SUM(ws.points_awarded) AS total_pts,
+                 MAX(ws.completed_at) AS last_session
+               FROM ecopoint_waste_sessions ws
+               LEFT JOIN users u ON u.id = ws.user_id
+               WHERE ws.status = 'COMPLETED' AND u.id IS NOT NULL
+               GROUP BY u.id, u.first_name, u.last_name, u.house_number, u.email
+               ORDER BY last_session DESC");
+        if ($r) { while ($row = $r->fetch_assoc()) $participants[] = $row; }
 
         // Live active sessions
         $r = $con->query("SELECT ws.*, st.station_code,
@@ -5845,9 +5861,10 @@ body.modal-open { overflow: hidden; }
     <span class="station-name">VHEcoPoint</span>
     <span class="station-desc">Smart Waste Segregation Station</span>
   </div>
-  <h3>EcoPoint Admin Panel</h3>
+  <h3>VHEcoPoint Admin Panel</h3>
 
-  <div class="dashboard-grid" style="padding:0; margin:0 0 20px;">
+  <?php if ($currentPage == 'smart_waste'): ?>
+  <div class="dashboard-grid" style="padding:0; margin:0 0 20px; grid-template-columns:repeat(3, 1fr);">
     <div class="dashboard-widget">
       <div class="dashboard-widget-label">Active Sessions Now</div>
       <div class="dashboard-widget-value"><?php echo number_format($swStats['active_now']); ?></div>
@@ -5859,17 +5876,29 @@ body.modal-open { overflow: hidden; }
       <div class="dashboard-widget-subtext"><?php echo number_format($swStats['total_kg_today'], 2); ?> kg - <?php echo number_format($swStats['total_pts_today']); ?> pts today</div>
     </div>
     <div class="dashboard-widget">
-      <div class="dashboard-widget-label">EcoPoints Awarded</div>
+      <div class="dashboard-widget-label">Total Sessions</div>
+      <div class="dashboard-widget-value"><?php echo number_format($swStats['total_sessions']); ?></div>
+      <div class="dashboard-widget-subtext"><?php echo number_format($swStats['total_kg'], 2); ?> kg collected all-time</div>
+    </div>
+    <div class="dashboard-widget">
+      <div class="dashboard-widget-label">VHEcoPoints Awarded</div>
       <div class="dashboard-widget-value"><?php echo number_format($swStats['total_pts']); ?></div>
       <div class="dashboard-widget-subtext"><?php echo number_format($swStats['total_pts_today']); ?> earned today - <?php echo number_format($swStats['redeemed_points']); ?> redeemed</div>
     </div>
     <div class="dashboard-widget">
-      <div class="dashboard-widget-label">Account Logs</div>
-      <div class="dashboard-widget-value"><?php echo number_format($accountLogActive); ?></div>
-      <div class="dashboard-widget-subtext"><?php echo number_format($accountLogSessions); ?> total sessions - <?php echo number_format($accountLogMonth); ?> active this month</div>
+      <div class="dashboard-widget-label">Total Kg Collected</div>
+      <div class="dashboard-widget-value"><?php echo number_format($swStats['total_kg'], 2); ?></div>
+      <div class="dashboard-widget-subtext"><?php echo number_format($swStats['total_sessions']); ?> completed sessions all-time</div>
+    </div>
+    <div class="dashboard-widget">
+      <div class="dashboard-widget-label">Registered Residents</div>
+      <div class="dashboard-widget-value"><?php echo number_format($swStats['resident_count']); ?></div>
+      <div class="dashboard-widget-subtext"><?php echo number_format($accountLogActive); ?> have used the station - <?php echo number_format($accountLogMonth); ?> active this month</div>
     </div>
   </div>
+  <?php endif; ?>
 
+  <?php if ($currentPage == 'smart_waste_sessions'): ?>
   <div class="smart-waste-card">
         <h4>Real-Time Active Sessions</h4>
         <div class="smart-waste-note">Sessions currently in progress at VHEcoPoint stations. Refreshes automatically.</div>
@@ -5909,7 +5938,7 @@ body.modal-open { overflow: hidden; }
         <h4>Recycling Session History</h4>
         <div class="smart-waste-note">All VHEcoPoint recycling sessions with resident details, timing, materials, weight, and points awarded.</div>
         <form class="smart-waste-form-grid" method="GET" action="">
-          <input type="hidden" name="page" value="smart_waste">
+          <input type="hidden" name="page" value="smart_waste_sessions">
           <div>
             <label>Search</label>
             <input type="text" name="q" placeholder="Name, house #, station, QR ref, or session ID..." value="<?php echo htmlspecialchars($swSearch); ?>">
@@ -5926,7 +5955,7 @@ body.modal-open { overflow: hidden; }
           <div style="display:flex;align-items:flex-end;gap:8px;">
             <button type="submit" class="btn btn-approve" style="padding:9px 16px;font-family:'Poppins',sans-serif;"><i class="fa-solid fa-magnifying-glass"></i> Filter</button>
             <?php if ($swSearch !== '' || $swStatus !== ''): ?>
-              <a href="admin.php?page=smart_waste" class="btn btn-delete" style="padding:9px 14px;font-family:'Poppins',sans-serif;">Clear</a>
+              <a href="admin.php?page=smart_waste_sessions" class="btn btn-delete" style="padding:9px 14px;font-family:'Poppins',sans-serif;">Clear</a>
             <?php endif; ?>
           </div>
         </form>
@@ -5964,7 +5993,9 @@ body.modal-open { overflow: hidden; }
           </table>
         </div>
       </div>
+  <?php endif; ?>
 
+  <?php if ($currentPage == 'smart_waste_logs'): ?>
       <div class="smart-waste-card">
         <h4>Amenity Redemption / Usage Logs</h4>
         <div class="smart-waste-note">Separate log showing which resident redeemed points for which amenity or facility booking.</div>
@@ -5998,46 +6029,92 @@ body.modal-open { overflow: hidden; }
           </table>
         </div>
       </div>
+  <?php endif; ?>
 
-      <div class="smart-waste-card">
-        <h4>Weekly Station Activity</h4>
-        <div class="smart-waste-note">VHEcoPoint sessions logged per day over the last 7 days.</div>
-        <div class="smart-waste-chart">
-          <?php foreach ($weeklyActivity as $day): ?>
+  <?php if ($currentPage == 'smart_waste'): ?>
+  <div style="display:flex; flex-direction:column; gap:16px;">
+    <div class="smart-waste-card">
+      <h4>Weekly Station Activity</h4>
+      <div class="smart-waste-note">VHEcoPoint sessions logged per day over the last 7 days.</div>
+      <div class="smart-waste-chart">
+        <?php foreach ($weeklyActivity as $day): ?>
+          <?php
+            $barHeight = max(18, intval((($day['count'] ?? 0) / $maxWeeklyCount) * 120));
+            if (($day['count'] ?? 0) === 0) { $barHeight = 18; }
+          ?>
+          <div class="smart-waste-bar-wrap">
+            <div class="smart-waste-bar-value"><?php echo intval($day['count'] ?? 0); ?></div>
+            <div class="smart-waste-bar" style="height:<?php echo $barHeight; ?>px;"></div>
+            <div class="smart-waste-bar-label"><?php echo htmlspecialchars($day['label'] ?? ''); ?></div>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    </div>
+
+    <div class="smart-waste-card">
+      <h4>Resident Participation Rates</h4>
+      <div class="smart-waste-note">Participation is based on registered VictorianPass residents who have successfully scanned their QR code at a VHEcoPoint station.</div>
+      <div class="smart-waste-kpi-grid">
+        <div class="smart-waste-kpi">
+          <div class="smart-waste-kpi-label">VHEcoPoint Participants</div>
+          <div class="smart-waste-kpi-value"><?php echo number_format($participationStats['all_time_count']); ?></div>
+          <div class="smart-waste-kpi-subtext">Unique residents with at least 1 successful VHEcoPoint QR scan</div>
+        </div>
+        <div class="smart-waste-kpi">
+          <div class="smart-waste-kpi-label">Registered Residents</div>
+          <div class="smart-waste-kpi-value"><?php echo number_format($swStats['resident_count']); ?></div>
+          <div class="smart-waste-kpi-subtext">Total active VictorianPass resident accounts</div>
+        </div>
+        <div class="smart-waste-kpi">
+          <div class="smart-waste-kpi-label">All-Time Participation Rate</div>
+          <div class="smart-waste-kpi-value"><?php echo number_format($participationStats['all_time_rate'], 1); ?>%</div>
+          <div class="smart-waste-kpi-subtext"><?php echo number_format($participationStats['all_time_count']); ?> of <?php echo number_format($swStats['resident_count']); ?> registered residents</div>
+        </div>
+      </div>
+      <div class="smart-waste-kpi-grid" style="margin-top:12px;">
+        <div class="smart-waste-kpi">
+          <div class="smart-waste-kpi-label">Active in Last 30 Days</div>
+          <div class="smart-waste-kpi-value"><?php echo number_format($participationStats['last30_rate'], 1); ?>%</div>
+          <div class="smart-waste-kpi-subtext"><?php echo number_format($participationStats['last30_count']); ?> of <?php echo number_format($swStats['resident_count']); ?> registered residents</div>
+        </div>
+        <div class="smart-waste-kpi">
+          <div class="smart-waste-kpi-label">Active in Last 7 Days</div>
+          <div class="smart-waste-kpi-value"><?php echo number_format($participationStats['last7_rate'], 1); ?>%</div>
+          <div class="smart-waste-kpi-subtext"><?php echo number_format($participationStats['last7_count']); ?> of <?php echo number_format($swStats['resident_count']); ?> registered residents</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="smart-waste-card">
+      <h4><i class="fa-solid fa-users" style="margin-right:6px;"></i>Station Participants</h4>
+      <div class="smart-waste-note"><?php echo number_format($participationStats['all_time_count']); ?> of <?php echo number_format($swStats['resident_count']); ?> registered residents have used the VHEcoPoint station.</div>
+      <?php if (empty($participants)): ?>
+        <div class="smart-waste-empty">No participants yet.</div>
+      <?php else: ?>
+        <div class="smart-waste-list">
+          <?php foreach ($participants as $p): ?>
             <?php
-              $barHeight = max(18, intval((($day['count'] ?? 0) / $maxWeeklyCount) * 120));
-              if (($day['count'] ?? 0) === 0) { $barHeight = 18; }
+              $pName = trim(($p['first_name'] ?? '') . ' ' . ($p['last_name'] ?? ''));
+              if ($pName === '') $pName = 'Resident #' . intval($p['id']);
+              $pHouse = trim((string)($p['house_number'] ?? ''));
+              $pLastSession = !empty($p['last_session']) ? date('M j, Y', strtotime($p['last_session'])) : '-';
             ?>
-            <div class="smart-waste-bar-wrap">
-              <div class="smart-waste-bar-value"><?php echo intval($day['count'] ?? 0); ?></div>
-              <div class="smart-waste-bar" style="height:<?php echo $barHeight; ?>px;"></div>
-              <div class="smart-waste-bar-label"><?php echo htmlspecialchars($day['label'] ?? ''); ?></div>
+            <div class="smart-waste-list-item">
+              <span class="smart-waste-material-icon" style="background:#ecfdf3; color:#15803d;">
+                <i class="fa-solid fa-user"></i>
+              </span>
+              <div class="smart-waste-list-main">
+                <div class="smart-waste-list-title"><?php echo htmlspecialchars($pName); ?> <?php if ($pHouse !== ''): ?><small style="color:#6b7280;font-weight:400;">(<?php echo htmlspecialchars($pHouse); ?>)</small><?php endif; ?></div>
+                <div class="smart-waste-list-subtitle"><?php echo intval($p['session_count']); ?> session<?php echo $p['session_count'] == 1 ? '' : 's'; ?> - <?php echo number_format(floatval($p['total_kg'] ?? 0), 2); ?> kg - <?php echo number_format(intval($p['total_pts'] ?? 0)); ?> pts</div>
+                <div class="smart-waste-list-subtitle"><small style="color:#9ca3af;">Last: <?php echo $pLastSession; ?></small></div>
+              </div>
             </div>
           <?php endforeach; ?>
         </div>
-      </div>
-
-  <div class="smart-waste-card" style="margin-top:0;">
-    <h4>Resident Participation Rates</h4>
-    <div class="smart-waste-note">Participation is based on unique residents with at least one completed VHEcoPoint session.</div>
-    <div class="smart-waste-kpi-grid">
-      <div class="smart-waste-kpi">
-        <div class="smart-waste-kpi-label">All-Time Participation</div>
-        <div class="smart-waste-kpi-value"><?php echo number_format($participationStats['all_time_rate'], 1); ?>%</div>
-        <div class="smart-waste-kpi-subtext"><?php echo number_format($participationStats['all_time_count']); ?> of <?php echo number_format($swStats['resident_count']); ?> residents</div>
-      </div>
-      <div class="smart-waste-kpi">
-        <div class="smart-waste-kpi-label">Active in Last 30 Days</div>
-        <div class="smart-waste-kpi-value"><?php echo number_format($participationStats['last30_rate'], 1); ?>%</div>
-        <div class="smart-waste-kpi-subtext"><?php echo number_format($participationStats['last30_count']); ?> recently participating residents</div>
-      </div>
-      <div class="smart-waste-kpi">
-        <div class="smart-waste-kpi-label">Active in Last 7 Days</div>
-        <div class="smart-waste-kpi-value"><?php echo number_format($participationStats['last7_rate'], 1); ?>%</div>
-        <div class="smart-waste-kpi-subtext"><?php echo number_format($participationStats['last7_count']); ?> active residents this week</div>
-      </div>
+      <?php endif; ?>
     </div>
   </div>
+  <?php endif; ?>
 </section>
 <?php endif; ?>
 

@@ -386,6 +386,20 @@ if ($ecoPointNextExpiryTs !== null) {
     $ecoPointExpiryCountdownSubtext = 'Estimated next points expiry: ' . date('M d, Y', $ecoPointNextExpiryTs);
 }
 
+// Participation stats for resident dashboard
+$vpResidentCount = 0;
+$vpParticipantCount = 0;
+$vpParticipantRate = 0;
+try {
+    if ($con instanceof mysqli) {
+        $r = $con->query("SELECT COUNT(*) AS c FROM users WHERE user_type='resident' AND status='active'");
+        if ($r && $row = $r->fetch_assoc()) $vpResidentCount = intval($row['c'] ?? 0);
+        $r = $con->query("SELECT COUNT(DISTINCT ws.user_id) AS c FROM ecopoint_waste_sessions ws INNER JOIN users u ON u.id = ws.user_id WHERE ws.status='COMPLETED' AND u.user_type='resident' AND u.status='active'");
+        if ($r && $row = $r->fetch_assoc()) $vpParticipantCount = intval($row['c'] ?? 0);
+        $vpParticipantRate = $vpResidentCount > 0 ? round(($vpParticipantCount / $vpResidentCount) * 100, 1) : 0;
+    }
+} catch (Throwable $e) {}
+
 // Fetch Activities (Reservations, Reports, Guest Forms)
 $activities = [];
 $reservationRefs = [];
@@ -1660,7 +1674,7 @@ body.account-blocked { overflow: hidden; }
           <div class="ecopoint-panel-shell" style="margin-top:20px;">
             <div class="ecopoint-header-card">
               <div class="ecopoint-header-kicker">Resident Dashboard</div>
-              <div class="ecopoint-header-title"><i class="fa-solid fa-leaf" style="margin-right:8px; font-size:0.9em;"></i>Your EcoPoint Dashboard</div>
+              <div class="ecopoint-header-title"><i class="fa-solid fa-leaf" style="margin-right:8px; font-size:0.9em;"></i>Your VHEcoPoint Dashboard</div>
               <div class="ecopoint-header-desc">Track your current point balance, weekly recycling progress, daily session usage, expiry countdown, and station-ready QR access in one place.</div>
             </div>
 
@@ -1684,6 +1698,28 @@ body.account-blocked { overflow: hidden; }
                 <div class="ecopoint-kpi-label"><i class="fa-solid fa-clock" style="margin-right:5px; opacity:0.7;"></i>Points Expiry Countdown</div>
                 <div class="ecopoint-kpi-value"><?php echo htmlspecialchars($ecoPointExpiryCountdownLabel); ?></div>
                 <div class="ecopoint-kpi-subtext"><?php echo htmlspecialchars($ecoPointExpiryCountdownSubtext); ?></div>
+              </div>
+            </div>
+            <!-- Community Participation -->
+            <div class="ecopoint-card" style="margin-top:14px; padding:20px 24px;">
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px;">
+                <i class="fa-solid fa-users" style="font-size:0.85em; opacity:0.7;"></i>
+                <div style="font-size:0.85rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:#6b7280;">Community Participation</div>
+              </div>
+              <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:12px;">
+                <div>
+                  <div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#6b7280;">VHEcoPoint Participants</div>
+                  <div style="font-size:1.3rem; font-weight:800; color:#111827; margin-top:4px;"><?php echo number_format($vpParticipantCount); ?></div>
+                </div>
+                <div>
+                  <div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#6b7280;">Registered Residents</div>
+                  <div style="font-size:1.3rem; font-weight:800; color:#111827; margin-top:4px;"><?php echo number_format($vpResidentCount); ?></div>
+                </div>
+                <div>
+                  <div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#6b7280;">Participation Rate</div>
+                  <div style="font-size:1.3rem; font-weight:800; color:#111827; margin-top:4px;"><?php echo number_format($vpParticipantRate, 1); ?>%</div>
+                  <div style="font-size:0.75rem; color:#4b5563; line-height:1.4; margin-top:2px;"><?php echo number_format($vpParticipantCount); ?> of <?php echo number_format($vpResidentCount); ?> registered residents</div>
+                </div>
               </div>
             </div>
             <!-- Live session panel: shows real-time weight/points when using VHEcoPoint station -->
