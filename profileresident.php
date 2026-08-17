@@ -284,9 +284,12 @@ if ($con instanceof mysqli) {
         $stmt->execute();
         $res = $stmt->get_result();
         while ($row = $res->fetch_assoc()) {
+          $desc = (string)($row['description'] ?? '');
           $isEcoTx = (!empty($row['ecopoint_session_id']) && intval($row['ecopoint_session_id']) > 0)
-                   || (stripos((string)($row['description'] ?? ''), 'VHEcoPoint') !== false)
-                   || (stripos((string)($row['description'] ?? ''), 'recycling') !== false);
+                   || (stripos($desc, 'VHEcoPoint') !== false)
+                   || (stripos($desc, 'recycling') !== false)
+                   || (stripos($desc, 'Redeemed points') !== false)
+                   || (stripos($desc, 'redeem') !== false && !empty($row['reservation_ref_code']));
           if ($isEcoTx) {
             $ecoPointTransactions[] = $row;
           }
@@ -324,6 +327,7 @@ $ecoPointWeeklyStats = [
 $ecoPointWeeklyPoints = 0;
 $ecoPointTodaySessionsUsed = 0;
 $ecoPointRecyclingHistory = [];
+$allPointHistory = [];
 $ecoPointNextExpiryTs = null;
 $todayDateKey = date('Y-m-d');
 $weekStartDateKey = date('Y-m-d', strtotime('monday this week'));
@@ -370,6 +374,31 @@ foreach ($ecoPointTransactions as $tx) {
         }
     }
 }
+
+// Build full points history (earn + redeem) for McDonald's-style display
+foreach ($ecoPointTransactions as $tx) {
+    $txType = strtolower(trim((string)($tx['transaction_type'] ?? '')));
+    if ($txType !== 'earn' && $txType !== 'redeem') continue;
+    $createdAt = (string)($tx['created_at'] ?? '');
+    $createdTs = $createdAt !== '' ? strtotime($createdAt) : false;
+    if ($createdTs === false || $createdTs <= 0) $createdTs = time();
+    $amount = intval($tx['amount'] ?? 0);
+    $description = (string)($tx['description'] ?? '');
+    $materialLabel = residentEcoPointMaterialLabel($tx['material_type'] ?? '', $description);
+    $weightKg = floatval($tx['weight_kg'] ?? 0);
+    $allPointHistory[] = [
+        'type' => $txType,
+        'amount' => $amount,
+        'date_ts' => $createdTs,
+        'date_label' => $createdTs ? date('M j, Y', $createdTs) : '-',
+        'time_label' => $createdTs ? date('g:i A', $createdTs) : '',
+        'description' => $description,
+        'material_label' => $materialLabel,
+        'weight_kg' => $weightKg,
+    ];
+}
+usort($allPointHistory, function ($a, $b) { return $b['date_ts'] <=> $a['date_ts']; });
+
 $ecoPointWeeklyRemaining = max(0, $ecoPointWeeklyCap - $ecoPointWeeklyPoints);
 $ecoPointWeeklyProgress = $ecoPointWeeklyCap > 0 ? min(100, round(($ecoPointWeeklyPoints / $ecoPointWeeklyCap) * 100)) : 0;
 $ecoPointSessionsRemaining = max(0, $ecoPointDailySessionsMax - $ecoPointTodaySessionsUsed);
@@ -1700,28 +1729,6 @@ body.account-blocked { overflow: hidden; }
                 <div class="ecopoint-kpi-subtext"><?php echo htmlspecialchars($ecoPointExpiryCountdownSubtext); ?></div>
               </div>
             </div>
-            <!-- Community Participation -->
-            <div class="ecopoint-card" style="margin-top:14px; padding:20px 24px;">
-              <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px;">
-                <i class="fa-solid fa-users" style="font-size:0.85em; opacity:0.7;"></i>
-                <div style="font-size:0.85rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:#6b7280;">Community Participation</div>
-              </div>
-              <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:12px;">
-                <div>
-                  <div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#6b7280;">VHEcoPoint Participants</div>
-                  <div style="font-size:1.3rem; font-weight:800; color:#111827; margin-top:4px;"><?php echo number_format($vpParticipantCount); ?></div>
-                </div>
-                <div>
-                  <div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#6b7280;">Registered Residents</div>
-                  <div style="font-size:1.3rem; font-weight:800; color:#111827; margin-top:4px;"><?php echo number_format($vpResidentCount); ?></div>
-                </div>
-                <div>
-                  <div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#6b7280;">Participation Rate</div>
-                  <div style="font-size:1.3rem; font-weight:800; color:#111827; margin-top:4px;"><?php echo number_format($vpParticipantRate, 1); ?>%</div>
-                  <div style="font-size:0.75rem; color:#4b5563; line-height:1.4; margin-top:2px;"><?php echo number_format($vpParticipantCount); ?> of <?php echo number_format($vpResidentCount); ?> registered residents</div>
-                </div>
-              </div>
-            </div>
             <!-- Live session panel: shows real-time weight/points when using VHEcoPoint station -->
             <div class="ecopoint-card ecopoint-live-panel" id="ecopoint-live-panel" style="display:block; margin-top:14px;">
               <div class="ecopoint-live-card-title">Live Station Session</div>
@@ -1782,32 +1789,82 @@ body.account-blocked { overflow: hidden; }
             </div>
 
             <div class="ecopoint-card">
-              <h3 class="ecopoint-card-title">Recycling Activity History</h3>
-              <div class="ecopoint-card-note">Each deposit shows when you recycled, the detected material, recorded weight, and the points earned from that station activity.</div>
-              <?php if (empty($ecoPointRecyclingHistory)): ?>
-                <div class="ecopoint-empty">No VHEcoPoint recycling activity yet.</div>
+              <h3 class="ecopoint-card-title"><i class="fa-solid fa-receipt" style="margin-right:6px; font-size:0.85em; opacity:0.7;"></i>Points History</h3>
+              <div class="ecopoint-card-note">Your VHEcoPoint earn and redeem transactions.</div>
+              <?php if (empty($allPointHistory)): ?>
+                <div class="ecopoint-empty">No VHEcoPoint activity yet.</div>
               <?php else: ?>
-                <div class="ecopoint-table-wrap">
-                  <table class="ecopoint-table">
-                    <thead>
-                      <tr>
-                        <th>Date</th>
-                        <th>Material</th>
-                        <th>Weight</th>
-                        <th>Points Earned</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <?php foreach ($ecoPointRecyclingHistory as $historyRow): ?>
-                        <tr>
-                          <td><?php echo htmlspecialchars($historyRow['date_label']); ?></td>
-                          <td><?php echo htmlspecialchars($historyRow['material_label']); ?></td>
-                          <td><?php echo number_format($historyRow['weight_kg'], 2); ?> kg</td>
-                          <td style="font-weight:800; color:#166534;">+<?php echo number_format($historyRow['points_earned']); ?> pts</td>
-                        </tr>
-                      <?php endforeach; ?>
-                    </tbody>
-                  </table>
+                <div style="display:flex; flex-direction:column;">
+                  <?php
+                  $currentDateGroup = '';
+                  foreach ($allPointHistory as $hpIdx => $hp):
+                    $dateGroup = $hp['date_label'];
+                    if ($dateGroup !== $currentDateGroup):
+                      $currentDateGroup = $dateGroup;
+                  ?>
+                    <div style="font-size:0.75rem; font-weight:700; color:#6b7280; text-transform:uppercase; letter-spacing:0.04em; padding:14px 0 6px 0; border-bottom:1px solid #f1f5f9;">
+                      <?php echo htmlspecialchars($dateGroup); ?>
+                    </div>
+                  <?php endif; ?>
+                    <div style="border-bottom:1px solid #f1f5f9;">
+                      <div class="vp-tx-row" style="display:flex; align-items:center; gap:12px; padding:12px 0; cursor:pointer;" onclick="var d=document.getElementById('vp-detail-<?php echo $hpIdx; ?>'); d.style.display=d.style.display==='none'?'block':'none';">
+                        <div style="width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; <?php echo $hp['type'] === 'earn' ? 'background:#dcfce7; color:#166534;' : 'background:#fef2f2; color:#991b1b;'; ?>">
+                          <i class="fa-solid <?php echo $hp['type'] === 'earn' ? 'fa-arrow-down' : 'fa-arrow-up'; ?>" style="font-size:0.8rem;"></i>
+                        </div>
+                        <div style="flex:1; min-width:0;">
+                          <div style="font-size:0.82rem; font-weight:600; color:#111827; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                            <?php
+                              if ($hp['type'] === 'earn') {
+                                echo htmlspecialchars($hp['material_label']);
+                                if ($hp['weight_kg'] > 0) echo ' - ' . number_format($hp['weight_kg'], 2) . ' kg';
+                              } else {
+                                echo htmlspecialchars($hp['description'] !== '' ? $hp['description'] : 'Points Redeemed');
+                              }
+                            ?>
+                          </div>
+                          <div style="font-size:0.7rem; color:#9ca3af; margin-top:1px;"><?php echo $hp['time_label']; ?></div>
+                        </div>
+                        <div style="font-size:0.9rem; font-weight:800; <?php echo $hp['type'] === 'earn' ? 'color:#166534;' : 'color:#991b1b;'; ?> white-space:nowrap;">
+                          <?php echo $hp['type'] === 'earn' ? '+' : '-'; ?><?php echo number_format($hp['amount']); ?> pts
+                        </div>
+                        <div style="flex-shrink:0; width:18px; text-align:center; color:#9ca3af; font-size:0.65rem;">
+                          <i class="fa-solid fa-chevron-down" id="vp-chevron-<?php echo $hpIdx; ?>"></i>
+                        </div>
+                      </div>
+                      <div id="vp-detail-<?php echo $hpIdx; ?>" style="display:none; padding:0 0 14px 48px;">
+                        <div style="background:#f9fafb; border-radius:10px; padding:14px 16px; font-size:0.78rem; color:#374151; line-height:1.7;">
+                          <?php if ($hp['type'] === 'earn'): ?>
+                            <div style="display:flex; justify-content:space-between;"><span style="color:#6b7280;">Type</span><span style="font-weight:600; color:#166534;">Points Earned</span></div>
+                            <div style="display:flex; justify-content:space-between;"><span style="color:#6b7280;">Material</span><span style="font-weight:600;"><?php echo htmlspecialchars($hp['material_label']); ?></span></div>
+                            <?php if ($hp['weight_kg'] > 0): ?>
+                              <div style="display:flex; justify-content:space-between;"><span style="color:#6b7280;">Weight</span><span style="font-weight:600;"><?php echo number_format($hp['weight_kg'], 2); ?> kg</span></div>
+                            <?php endif; ?>
+                            <div style="display:flex; justify-content:space-between;"><span style="color:#6b7280;">Points Earned</span><span style="font-weight:800; color:#166534;">+<?php echo number_format($hp['amount']); ?> pts</span></div>
+                          <?php else: ?>
+                            <div style="display:flex; justify-content:space-between;"><span style="color:#6b7280;">Type</span><span style="font-weight:600; color:#991b1b;">Points Redeemed</span></div>
+                            <?php
+                              $desc = $hp['description'];
+                              $amenityName = '';
+                              $refCode = '';
+                              if (preg_match('/for\s+(.+?)(?:\s+\(Ref:.*)?$/i', $desc, $m)) {
+                                $amenityName = trim($m[1]);
+                              }
+                              if (preg_match('/\(Ref:\s*([^)]+)\)/', $desc, $m2)) {
+                                $refCode = trim($m2[1]);
+                              }
+                              if ($amenityName !== ''): ?>
+                                <div style="display:flex; justify-content:space-between;"><span style="color:#6b7280;">Amenity</span><span style="font-weight:600;"><?php echo htmlspecialchars($amenityName); ?></span></div>
+                              <?php endif; ?>
+                              <?php if ($refCode !== ''): ?>
+                                <div style="display:flex; justify-content:space-between;"><span style="color:#6b7280;">Reference</span><span style="font-weight:600; font-family:monospace; font-size:0.72rem;"><?php echo htmlspecialchars($refCode); ?></span></div>
+                              <?php endif; ?>
+                            <div style="display:flex; justify-content:space-between;"><span style="color:#6b7280;">Points Used</span><span style="font-weight:800; color:#991b1b;">-<?php echo number_format($hp['amount']); ?> pts</span></div>
+                          <?php endif; ?>
+                          <div style="display:flex; justify-content:space-between; margin-top:4px; padding-top:8px; border-top:1px solid #e5e7eb;"><span style="color:#6b7280;">Date & Time</span><span style="font-weight:600;"><?php echo htmlspecialchars($hp['date_label'] . ' at ' . $hp['time_label']); ?></span></div>
+                        </div>
+                      </div>
+                    </div>
+                  <?php endforeach; ?>
                 </div>
               <?php endif; ?>
             </div>

@@ -60,8 +60,10 @@ if ($resGF && $resGF->num_rows > 0) {
     $rPrice = null;
     $rDownpayment = null;
     $rPoolType = '';
+    $rUsePoints = 0;
+    $rPointsUsed = 0;
 
-    $stmtR = $con->prepare("SELECT amenity, start_date, end_date, start_time, end_time, persons, price, downpayment, qr_path, payment_status, receipt_path, denial_reason, approval_status, receipt_attempts, pool_booking_type FROM reservations WHERE ref_code = ? LIMIT 1");
+    $stmtR = $con->prepare("SELECT amenity, start_date, end_date, start_time, end_time, persons, price, downpayment, qr_path, payment_status, receipt_path, denial_reason, approval_status, receipt_attempts, pool_booking_type, use_points, points_used FROM reservations WHERE ref_code = ? LIMIT 1");
     if ($stmtR) {
         $stmtR->bind_param('s', $row['ref_code']);
         if ($stmtR->execute()) {
@@ -77,6 +79,8 @@ if ($resGF && $resGF->num_rows > 0) {
                 $rPrice = isset($r['price']) ? floatval($r['price']) : null;
                 $rDownpayment = isset($r['downpayment']) ? floatval($r['downpayment']) : null;
                 $rPoolType = $r['pool_booking_type'] ?? '';
+                $rUsePoints = isset($r['use_points']) ? intval($r['use_points']) : 0;
+                $rPointsUsed = isset($r['points_used']) ? intval($r['points_used']) : 0;
 
                 $rPayStatus = strtolower(trim($r['payment_status'] ?? ''));
                 $rReceipt = $r['receipt_path'] ?? '';
@@ -162,7 +166,9 @@ if ($resGF && $resGF->num_rows > 0) {
         'denial_reason' => isset($rReason) ? $rReason : '',
         'receipt_attempts' => isset($rAttempts) ? intval($rAttempts) : 0,
         'valid_id_path' => $validIdPath,
-        'pool_booking_type' => $rPoolType
+        'pool_booking_type' => $rPoolType,
+        'use_points' => $rUsePoints,
+        'points_used' => $rPointsUsed
     ];
 }
 
@@ -281,7 +287,9 @@ if (!$data) {
             'receipt_path' => $row['receipt_path'] ?? '',
             'denial_reason' => $row['denial_reason'] ?? '',
             'receipt_attempts' => $attempts,
-            'pool_booking_type' => $row['pool_booking_type'] ?? ''
+            'pool_booking_type' => $row['pool_booking_type'] ?? '',
+            'use_points' => isset($row['use_points']) ? intval($row['use_points']) : 0,
+            'points_used' => isset($row['points_used']) ? intval($row['points_used']) : 0
         ];
     }
 }
@@ -630,21 +638,104 @@ if (!$data) {
         <?php endif; ?>
 
         <?php if($data['price'] !== null): ?>
+        <?php
+            $usePts = intval($data['use_points'] ?? 0);
+            $ptsUsed = intval($data['points_used'] ?? 0);
+            $rDurationHours = 0;
+            if (!empty($data['start_time']) && !empty($data['end_time'])) {
+                $stR = trim((string)$data['start_time']);
+                $etR = trim((string)$data['end_time']);
+                if (preg_match('/^(\d{1,2}):(\d{2})/', $stR, $mS) && preg_match('/^(\d{1,2}):(\d{2})/', $etR, $mE)) {
+                    $diffMin = (intval($mE[1]) * 60 + intval($mE[2])) - (intval($mS[1]) * 60 + intval($mS[2]));
+                    if ($diffMin < 0) $diffMin += 24 * 60;
+                    $rDurationHours = $diffMin / 60;
+                }
+            }
+            $rAmenityName = $data['amenity'] ?? '';
+            $rAmenityRate = 0;
+            if (in_array($rAmenityName, ['Basketball Court','Tennis Court'], true)) $rAmenityRate = 100;
+            elseif ($rAmenityName === 'Clubhouse') $rAmenityRate = 300;
+            elseif ($rAmenityName === 'Multi-Purpose Building') $rAmenityRate = 200;
+            $rOriginalAmount = $rDurationHours * $rAmenityRate;
+            $rDiscountAmount = $rAmenityRate;
+            $rPaidHours = $usePts ? max(0, intval($rDurationHours) - 1) : intval($rDurationHours);
+            $rFinalAmount = $data['price'];
+            $rDownpaymentPaid = floatval($data['downpayment'] ?? 0);
+            $rRemainingBalance = max(0, $rFinalAmount - $rDownpaymentPaid);
+        ?>
         <div class="price-section">
-            <div class="info-row total-price">
-                <span>Total Price</span>
-                <span>₱<?php echo number_format($data['price'], 2); ?></span>
-            </div>
-            <?php if($data['downpayment'] !== null && $data['downpayment'] > 0): ?>
-            <div class="info-row" style="margin-top:5px; font-size:0.9rem; color:#666;">
-                <span>Downpayment Paid</span>
-                <span>- ₱<?php echo number_format($data['downpayment'], 2); ?></span>
-            </div>
-            <div class="info-row" style="margin-top:5px; font-weight:600; color:#c2410c;">
-                <span>Balance Due</span>
-                <span>₱<?php echo number_format(max(0, $data['price'] - $data['downpayment']), 2); ?></span>
+            <?php if ($usePts && $ptsUsed > 0): ?>
+            <div style="background:#d1fae5; border-radius:8px; padding:12px 14px; margin-bottom:12px; border:1px solid #34d399;">
+              <div style="display:flex; justify-content:space-between; margin:3px 0; font-weight:600; color:#065f46;">
+                <span><i class="fa-solid fa-leaf" style="margin-right:4px;"></i>VHEcoPoint Discount</span>
+                <span>1 Free Hour</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin:3px 0; color:#065f46;">
+                <span>VHEcoPoint Points Used</span>
+                <span style="font-weight:700; color:#991b1b;">-<?php echo number_format($ptsUsed); ?> pts</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin:3px 0; color:#065f46;">
+                <span>Discount</span>
+                <span style="font-weight:700; color:#166534;">-₱<?php echo number_format($rDiscountAmount, 2); ?></span>
+              </div>
             </div>
             <?php endif; ?>
+
+            <?php if ($usePts && $ptsUsed > 0): ?>
+            <div class="info-row" style="margin-bottom:3px; font-size:0.9rem; color:#374151;">
+                <span class="info-label">Reservation Duration</span>
+                <span class="info-value"><?php echo intval($rDurationHours); ?> hour<?php echo intval($rDurationHours) !== 1 ? 's' : ''; ?></span>
+            </div>
+            <div class="info-row" style="margin-bottom:3px; font-size:0.9rem; color:#374151;">
+                <span class="info-label">VHEcoPoint Reward</span>
+                <span class="info-value" style="color:#166534; font-weight:600;">-1 Free Hour</span>
+            </div>
+            <div class="info-row" style="margin-bottom:8px; font-size:0.9rem; color:#374151;">
+                <span class="info-label">Paid Duration</span>
+                <span class="info-value" style="font-weight:600;"><?php echo $rPaidHours; ?> hour<?php echo $rPaidHours !== 1 ? 's' : ''; ?></span>
+            </div>
+            <?php endif; ?>
+
+            <div class="info-row total-price">
+                <span>Final Amount</span>
+                <span>₱<?php echo number_format($rFinalAmount, 2); ?></span>
+            </div>
+
+            <?php
+              $rRequiredDP = round($rFinalAmount * 0.5, 2);
+              $rIsFullyPaid = ($rDownpaymentPaid >= $rFinalAmount);
+              $rIsDPOnly = ($rDownpaymentPaid > 0 && $rDownpaymentPaid < $rFinalAmount);
+              $rPendingPayment = ($rDownpaymentPaid <= 0 && $rRemainingBalance > 0);
+            ?>
+            <div class="info-row" style="margin-top:6px; font-size:0.9rem; color:#374151;">
+                <span class="info-label">Required Downpayment</span>
+                <span class="info-value">₱<?php echo number_format($rRequiredDP, 2); ?></span>
+            </div>
+            <div class="info-row" style="margin-top:3px; font-size:0.9rem; color:#374151;">
+                <span class="info-label">Downpayment Paid</span>
+                <span class="info-value" style="color:<?php echo $rDownpaymentPaid > 0 ? '#166534; font-weight:600' : '#991b1b'; ?>;">₱<?php echo number_format($rDownpaymentPaid, 2); ?></span>
+            </div>
+            <div class="info-row" style="margin-top:3px; font-size:0.9rem; font-weight:600; color:#c2410c;">
+                <span class="info-label">Remaining Balance</span>
+                <span class="info-value">₱<?php echo number_format($rRemainingBalance, 2); ?></span>
+            </div>
+
+            <div style="margin-top:10px; padding:8px 12px; border-radius:8px; font-size:0.85rem; font-weight:600; text-align:center;
+              <?php if ($rIsFullyPaid): ?>
+                background:#d1fae5; color:#065f46; border:1px solid #34d399;
+              <?php elseif ($rIsDPOnly): ?>
+                background:#fef3c7; color:#92400e; border:1px solid #fbbf24;
+              <?php else: ?>
+                background:#fee2e2; color:#991b1b; border:1px solid #fca5a5;
+              <?php endif; ?>">
+              <?php if ($rIsFullyPaid): ?>
+                <i class="fa-solid fa-circle-check"></i> Fully Paid
+              <?php elseif ($rIsDPOnly): ?>
+                <i class="fa-solid fa-clock"></i> Downpayment Paid — Remaining ₱<?php echo number_format($rRemainingBalance, 2); ?> payable at the Administration Office
+              <?php else: ?>
+                <i class="fa-solid fa-triangle-exclamation"></i> Pending Payment — Visit the Administration Office to complete payment
+              <?php endif; ?>
+            </div>
         </div>
         <?php endif; ?>
     </div>
@@ -747,7 +838,7 @@ if (!$data) {
       $denial = trim($data['denial_reason'] ?? '');
       $overall = strtolower(trim($data['status'] ?? ''));
       $overallCancelled = (strpos($overall, 'cancel') !== false);
-      $showPayment = ($pstat !== '' || $receipt !== '' || $overallCancelled);
+      $showPayment = ($pstat !== '' || $receipt !== '' || $overallCancelled || ($data['price'] !== null && $data['price'] > 0));
       if ($showPayment):
     ?>
     <div class="section-title">Payment</div>

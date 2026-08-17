@@ -144,9 +144,12 @@ function reserveCalcVHEcoBalance(mysqli $con, int $userId): int {
     }
     $balance = 0;
     while ($row = $res->fetch_assoc()) {
+        $desc = (string)($row['description'] ?? '');
         $isEcoTx = (!empty($row['ecopoint_session_id']) && intval($row['ecopoint_session_id']) > 0)
-                 || (stripos((string)($row['description'] ?? ''), 'VHEcoPoint') !== false)
-                 || (stripos((string)($row['description'] ?? ''), 'recycling') !== false);
+                 || (stripos($desc, 'VHEcoPoint') !== false)
+                 || (stripos($desc, 'recycling') !== false)
+                 || (stripos($desc, 'Redeemed points') !== false)
+                 || (strtolower(trim((string)($row['transaction_type'] ?? ''))) === 'redeem' && !empty($row['reservation_ref_code']));
         if (!$isEcoTx) continue;
         $txType = strtolower(trim((string)($row['transaction_type'] ?? 'earn')));
         $amt = intval($row['amount'] ?? 0);
@@ -241,8 +244,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
       $basePrice = 0;
     }
-    $price = $use_points_post ? 0 : round($basePrice, 2);
-    $downpayment = $use_points_post ? 0 : round($price * 0.5, 2);
+    if ($use_points_post && $acct === 'resident') {
+      $paidHours = max(0, $hours - 1);
+      $price = round($paidHours * $rate, 2);
+      $downpayment = 0;
+    } else {
+      $price = round($basePrice, 2);
+      $downpayment = round($price * 0.5, 2);
+    }
     $allowedAmenities = ['Clubhouse','Multi-Purpose Building','Basketball Court','Tennis Court'];
     if (!in_array($amenity, $allowedAmenities, true)) { $errorMsg = 'Please select an amenity.'; }
     $sdObj = $start ? DateTime::createFromFormat('Y-m-d', $start) : false;
@@ -491,39 +500,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $use_points_post = isset($_POST['use_points']) ? intval($_POST['use_points']) : 0;
             $points_required = 0;
             if ($use_points_post && $acct === 'resident' && isset($_SESSION['user_id'])) {
-              // First, strictly enforce 1-hour only for point redemptions! No partial discounts!
-              if ($hours !== 1) {
-                $errorMsg = "Point Redemption Error: Points may only be redeemed for a full 1-hour amenity booking. Please adjust your booking to exactly 1 hour to use points.";
-              } else {
-                // Calculate points required
-                switch ($amenity) {
-                  case 'Basketball Court':
-                  case 'Tennis Court':
-                    $points_required = 300;
-                    break;
-                  case 'Clubhouse':
-                    $points_required = 600;
-                    break;
-                  case 'Multi-Purpose Building':
-                    $points_required = 750;
-                    break;
-                  default:
-                    $errorMsg = "Invalid amenity for point redemption.";
+              // Points cover 1 free hour; remaining hours are paid in cash.
+              // Calculate points required (always for 1 hour regardless of total duration).
+              switch ($amenity) {
+                case 'Basketball Court':
+                case 'Tennis Court':
+                  $points_required = 300;
+                  break;
+                case 'Clubhouse':
+                  $points_required = 600;
+                  break;
+                case 'Multi-Purpose Building':
+                  $points_required = 750;
+                  break;
+                default:
+                  $errorMsg = "Invalid amenity for point redemption.";
+              }
+              if (!$errorMsg) {
+                $current_points = reserveCalcVHEcoBalance($con, intval($_SESSION['user_id']));
+                if ($current_points < $points_required) {
+                  $errorMsg = "Insufficient VHEcoPoint Balance: You need " . $points_required . " pts to redeem 1 free hour for this amenity, but your current VHEcoPoint ledger balance is " . $current_points . " pts. Earn more points by recycling eligible materials at the VHEcoPoint Smart Waste Segregation Station.";
                 }
-                if (!$errorMsg) {
-                  // Get current VHEcoPoint balance from the single source of truth
-                  // (point_transactions VHEcoPoint ledger), NOT raw users.points,
-                  // so the resident sees exactly the same number as in their dashboard.
-                  $current_points = reserveCalcVHEcoBalance($con, intval($_SESSION['user_id']));
-                  // Validate sufficient points
-                  if ($current_points < $points_required) {
-                    $errorMsg = "Insufficient VHEcoPoint Balance: You need " . $points_required . " pts to redeem this 1-hour amenity booking, but your current VHEcoPoint ledger balance is " . $current_points . " pts. Earn more points by recycling eligible materials at the VHEcoPoint Smart Waste Segregation Station.";
-                  }
-                }
-                if (!$errorMsg) {
-                  // Everything good, proceed with redemption!
-                  $paidOk = true;
-                }
+              }
+              if (!$errorMsg) {
+                $paidOk = true;
               }
             }
 
@@ -548,8 +548,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               'end_time' => $endTime,
               'hours' => $hours,
               'persons' => $persons,
-              'price' => $use_points_post ? 0 : $price,
-              'downpayment' => $use_points_post ? 0 : $downpayment,
+              'price' => $price,
+              'downpayment' => $downpayment,
               'user_id' => $user_id,
               'entry_pass_id' => $entry_pass_id,
               'booking_for' => $booking_for,
@@ -566,11 +566,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               $errorMsg = 'This reservation has already been submitted.';
             } else {
               $_SESSION['reservation_submitted'] = $newRef;
-              // If using points, we can skip downpayment and mark as paid
+              // If using points, deduct the free hour and proceed
               if ($use_points_post && !$errorMsg) {
-                // Create reservation directly with verified payment status
                 try {
-                  // First, deduct points (we validated earlier, but do it inside transaction!)
                   $con->begin_transaction();
                   
                   // Deduct points
@@ -580,23 +578,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   $stmtDeduct->close();
                   
                   // Record transaction in point_transactions
-                  $txnDescription = "Redeemed points for 1-hour " . htmlspecialchars($amenity) . " booking (Ref: " . $newRef . ")";
+                  $txnDescription = "Redeemed points for 1 free hour of " . htmlspecialchars($amenity) . " booking (Ref: " . $newRef . ")";
                   $stmtTxn = $con->prepare("INSERT INTO point_transactions (user_id, transaction_type, amount, description, reservation_ref_code) VALUES (?, 'redeem', ?, ?, ?)");
                   $stmtTxn->bind_param('iiss', $_SESSION['user_id'], $points_required, $txnDescription, $newRef);
                   $stmtTxn->execute();
                   $stmtTxn->close();
                   
-                  // Insert reservation
-                  $stmt = $con->prepare("INSERT INTO reservations (ref_code, amenity, start_date, end_date, start_time, end_time, persons, price, downpayment, user_id, entry_pass_id, booking_for, account_type, payment_status, approval_status, status, use_points, points_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'verified', 'pending', 'pending', ?, ?)");
-                  $stmt->bind_param('ssssssiddiissii', $newRef, $amenity, $start, $end, $startTime, $endTime, $persons, $_SESSION['pending_reservation']['price'], $_SESSION['pending_reservation']['downpayment'], $user_id, $entry_pass_id, $booking_for, $acct, $use_points_post, $points_required);
+                  // Insert reservation with use_points and points_used
+                  $stmt = $con->prepare("INSERT INTO reservations (ref_code, amenity, start_date, end_date, start_time, end_time, persons, price, downpayment, user_id, entry_pass_id, booking_for, account_type, payment_status, approval_status, status, use_points, points_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', 'pending', ?, ?)");
+                  $stmt->bind_param('ssssssiddiissii', $newRef, $amenity, $start, $end, $startTime, $endTime, $persons, $price, $downpayment, $user_id, $entry_pass_id, $booking_for, $acct, $use_points_post, $points_required);
                   $stmt->execute();
                   $stmt->close();
                   
                   $con->commit();
                   
-                  // Redirect to success or profile page
-                  header('Location: profileresident.php?reservation_success=1&points_used=' . $points_required);
-                  exit;
+                  // Store pending reservation in session for downpayment page
+                  $_SESSION['pending_reservation']['use_points'] = $use_points_post;
+                  $_SESSION['pending_reservation']['points_used'] = $points_required;
+                  
+                  if ($price > 0) {
+                    // Remaining balance exists — redirect to downpayment for the paid hours
+                    $redir = 'downpayment.php?continue=' . (($acct === 'resident') ? 'reserve_resident' : 'reserve');
+                    if (!empty($entry_pass_id)) { $redir .= '&entry_pass_id=' . urlencode((string)$entry_pass_id); }
+                    $redir .= '&ref_code=' . urlencode($newRef);
+                    header('Location: ' . $redir);
+                    exit;
+                  } else {
+                    // Fully free (1-hour booking with points) — mark verified and redirect
+                    $con->query("UPDATE reservations SET payment_status='verified' WHERE ref_code='" . $con->real_escape_string($newRef) . "'");
+                    header('Location: profileresident.php?reservation_success=1&points_used=' . $points_required);
+                    exit;
+                  }
                 } catch (Throwable $e) {
                   $con->rollback();
                   error_log('reserve.php point redemption booking error: ' . $e->getMessage());
@@ -698,13 +710,109 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_times') {
   $personsByDate = [];
   $slotBookings = [];
   if ($amenity !== '' && ($date || ($startDate && $endDate))) {
-    // Helper function to check overlap
-    $checkOverlap = function($row, $sDate, $eDate) {
-        if (!$row['start_date'] || !$row['end_date']) return false;
-        return max($sDate, $row['start_date']) <= min($eDate, $row['end_date']);
-    };
     try {
       if (!($con instanceof mysqli)) { throw new Exception('DB unavailable'); }
+
+      // Filter: bookings whose date range overlaps [startDate, endDate]
+      $dateFilter = " AND start_date <= ? AND end_date >= ?";
+
+      // Query 1: reservations table (has start_time/end_time)
+      $sql1 = "SELECT start_date, end_date, start_time, end_time, persons, approval_status, status, use_points FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history'))" . $dateFilter;
+      $stmt1 = $con->prepare($sql1);
+      if ($stmt1) {
+        $stmt1->bind_param("sss", $amenity, $endDate, $startDate);
+        $stmt1->execute();
+        $res1 = $stmt1->get_result();
+        while ($row = $res1->fetch_assoc()) {
+          $hasTime = !empty($row['start_time']) && !empty($row['end_time']);
+          $times[] = [
+            'start_date' => $row['start_date'],
+            'end_date'   => $row['end_date'],
+            'start'      => $hasTime ? $row['start_time'] : null,
+            'end'        => $hasTime ? $row['end_time'] : null,
+            'has_time'   => $hasTime ? 1 : 0,
+            'persons'    => intval($row['persons'] ?? 0),
+            'use_points' => intval($row['use_points'] ?? 0),
+          ];
+          if (!empty($row['persons'])) {
+            $personsTotal += intval($row['persons']);
+          }
+        }
+        $stmt1->close();
+      }
+
+      // Query 2: resident_reservations table (may not have time columns)
+      $sql2 = "SELECT start_date, end_date, approval_status, ref_code FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved')" . $dateFilter;
+      $stmt2 = $con->prepare($sql2);
+      if ($stmt2) {
+        $stmt2->bind_param("sss", $amenity, $endDate, $startDate);
+        $stmt2->execute();
+        $res2 = $stmt2->get_result();
+        while ($row = $res2->fetch_assoc()) {
+          $hasTime = false;
+          if (!empty($row['ref_code']) && ($con instanceof mysqli)) {
+            $stmt2b = $con->prepare("SELECT start_time, end_time, persons, use_points FROM reservations WHERE ref_code = ? LIMIT 1");
+            if ($stmt2b) {
+              $stmt2b->bind_param("s", $row['ref_code']);
+              $stmt2b->execute();
+              $res2b = $stmt2b->get_result();
+              if ($res2b && ($r2b = $res2b->fetch_assoc())) {
+                $hasTime = !empty($r2b['start_time']) && !empty($r2b['end_time']);
+                $times[] = [
+                  'start_date' => $row['start_date'],
+                  'end_date'   => $row['end_date'],
+                  'start'      => $hasTime ? $r2b['start_time'] : null,
+                  'end'        => $hasTime ? $r2b['end_time'] : null,
+                  'has_time'   => $hasTime ? 1 : 0,
+                  'persons'    => intval($r2b['persons'] ?? 0),
+                  'use_points' => intval($r2b['use_points'] ?? 0),
+                ];
+                if (!empty($r2b['persons'])) {
+                  $personsTotal += intval($r2b['persons']);
+                }
+              }
+              $stmt2b->close();
+            }
+          }
+          if (!$hasTime) {
+            $times[] = [
+              'start_date' => $row['start_date'],
+              'end_date'   => $row['end_date'],
+              'start'      => null,
+              'end'        => null,
+              'has_time'   => 0,
+              'persons'    => 0,
+              'use_points' => 0,
+            ];
+          }
+        }
+        $stmt2->close();
+      }
+
+      // Query 3: guest_forms table (may not have time columns)
+      $sql3 = "SELECT start_date, end_date, persons, approval_status FROM guest_forms WHERE amenity = ? AND approval_status IN ('pending','approved')" . $dateFilter;
+      $stmt3 = $con->prepare($sql3);
+      if ($stmt3) {
+        $stmt3->bind_param("sss", $amenity, $endDate, $startDate);
+        $stmt3->execute();
+        $res3 = $stmt3->get_result();
+        while ($row = $res3->fetch_assoc()) {
+          $times[] = [
+            'start_date' => $row['start_date'],
+            'end_date'   => $row['end_date'],
+            'start'      => null,
+            'end'        => null,
+            'has_time'   => 0,
+            'persons'    => intval($row['persons'] ?? 0),
+            'use_points' => 0,
+          ];
+          if (!empty($row['persons'])) {
+            $personsTotal += intval($row['persons']);
+          }
+        }
+        $stmt3->close();
+      }
+
     } catch (Throwable $e) {
       error_log('reserve.php booked_times error: ' . $e->getMessage());
       $times = [];
@@ -714,6 +822,18 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_times') {
     }
   }
   echo json_encode(['times' => $times, 'persons_total' => $personsTotal, 'capacity' => $capacity, 'persons_by_date' => $personsByDate, 'slot_bookings' => $slotBookings]);
+  exit;
+}
+
+if (isset($_GET['action']) && $_GET['action'] === 'check_points') {
+  header('Content-Type: application/json');
+  if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'resident') {
+    echo json_encode(['ok' => false, 'balance' => 0, 'error' => 'Not authenticated as resident.']);
+    exit;
+  }
+  $uid = intval($_SESSION['user_id']);
+  $balance = reserveCalcVHEcoBalance($con, $uid);
+  echo json_encode(['ok' => true, 'balance' => $balance]);
   exit;
 }
 if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident') {
@@ -829,7 +949,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
   </div>
   <div class="ecopoint-badge">
     <span class="ecopoint-icon">♻</span>
-    <span class="ecopoint-text">VH EcoPoint</span>
+    <span class="ecopoint-text">VHEcoPoint</span>
   </div>
 </header>
 
@@ -1278,13 +1398,13 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                           Choose an amenity to compare the cash amount and the point redemption requirement.
                         </div>
                         <div id="redemption-info" style="display:none;font-size:0.9rem;">
-                          <p style="margin:4px 0 8px 0; padding:8px 10px; border-radius:8px; background:#fff3cd; border:1px solid #ffc107; color:#856404; font-size:0.85rem; font-weight:600;">
-                            ⚠️ <strong>Point redemptions are limited to one free hour per reservation.</strong>
+                          <p style="margin:4px 0 8px 0; padding:8px 10px; border-radius:8px; background:#d1fae5; border:1px solid #34d399; color:#065f46; font-size:0.85rem; font-weight:600;">
+                            <i class="fa-solid fa-circle-check"></i> <strong>1 free hour will be deducted from your selected duration.</strong>
                           </p>
                           <p style="margin:4px 0;">Current balance: <span id="current-points-guide" style="color:#23412e;font-weight:700;"><?php echo number_format($residentPoints); ?> pts</span></p>
-                          <p style="margin:4px 0;">Required points: <span id="required-points" style="color:#23412e;font-weight:700;"></span></p>
+                          <p style="margin:4px 0;">Points required (1 free hour): <span id="required-points" style="color:#23412e;font-weight:700;"></span></p>
                           <p style="margin:4px 0;">Remaining balance: <span id="remaining-points" style="color:#23412e;font-weight:700;"></span></p>
-                          <p style="margin:4px 0;">Current savings guide: <span id="savings-guide" style="color:#166534;font-weight:700;">Select an amenity first</span></p>
+                          <p style="margin:4px 0;">Savings: <span id="savings-guide" style="color:#166534;font-weight:700;">Select an amenity first</span></p>
                         </div>
                       </div>
                     </div>
@@ -1418,19 +1538,19 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     if (cashBtn) cashBtn.classList.toggle('is-active', !toggle || !toggle.checked);
     if (pointsBtn) pointsBtn.classList.toggle('is-active', !!(toggle && toggle.checked));
     if (pointsRequiredLabel) {
-      pointsRequiredLabel.textContent = amenity ? (pointsRequired.toLocaleString() + ' pts for 1 free hour') : 'Select an amenity first';
+      pointsRequiredLabel.textContent = amenity ? (pointsRequired.toLocaleString() + ' pts = 1 free hour') : 'Select an amenity first';
     }
     if (guide) {
       if (!amenity) {
         guide.textContent = 'Choose an amenity to compare the cash amount and the point redemption requirement.';
       } else if (toggle && toggle.checked) {
-        guide.textContent = 'Redeem points for one free hour and save around P' + savingsValue.toLocaleString() + ' on this booking.';
+        guide.textContent = '1 free hour redeemed with points. Remaining hours are charged at regular rate.';
       } else {
-        guide.textContent = 'Cash booking is active. You can switch to point redemption and save around P' + savingsValue.toLocaleString() + ' for the first hour when eligible.';
+        guide.textContent = 'Cash booking is active. You can switch to point redemption and get 1 free hour for ' + pointsRequired.toLocaleString() + ' pts.';
       }
     }
     if (savingsGuide) {
-      savingsGuide.textContent = amenity ? ('Save around P' + savingsValue.toLocaleString() + ' for the first free hour') : 'Select an amenity first';
+      savingsGuide.textContent = amenity ? ('Saves ₱' + savingsValue.toLocaleString() + ' (1 free hour)') : 'Select an amenity first';
     }
     if (currentPointsGuide) {
       currentPointsGuide.textContent = residentPoints.toLocaleString() + ' pts';
@@ -1438,8 +1558,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
   }
 
   // Function to show a popup error
-  function showPointsErrorPopup(message) {
-    // Create popup and overlay using CSS classes so they are responsive on mobile
+  function showPointsErrorPopup(message, showPayNormally) {
     let popup = document.getElementById('points-error-popup');
     let overlay = document.getElementById('points-error-overlay');
     if (!overlay) {
@@ -1462,9 +1581,12 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
 
     popup.innerHTML = `
       <div class="points-error-inner">
-        <h3 class="points-error-title">⚠️ Points Redemption Error</h3>
+        <h3 class="points-error-title"><i class="fa-solid fa-triangle-exclamation" style="color:#dc2626;"></i> Insufficient VHEcoPoints</h3>
         <p class="points-error-message">${message}</p>
-        <button class="points-error-close">Close</button>
+        <div class="points-error-actions" style="display:flex;gap:10px;margin-top:16px;justify-content:center;flex-wrap:wrap;">
+          ${showPayNormally ? '<button class="points-error-pay-normal" style="padding:10px 20px;border-radius:8px;border:2px solid #16a34a;background:#d1fae5;color:#065f46;font-weight:700;cursor:pointer;">Pay Normally</button>' : ''}
+          <button class="points-error-close" style="padding:10px 20px;border-radius:8px;border:2px solid #dc2626;background:#fee2e2;color:#991b1b;font-weight:700;cursor:pointer;">Cancel</button>
+        </div>
       </div>
     `;
 
@@ -1473,6 +1595,24 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
       closeBtn.addEventListener('click', () => {
         popup.classList.remove('open');
         overlay.classList.remove('open');
+      });
+    }
+
+    const payNormalBtn = popup.querySelector('.points-error-pay-normal');
+    if (payNormalBtn) {
+      payNormalBtn.addEventListener('click', () => {
+        popup.classList.remove('open');
+        overlay.classList.remove('open');
+        const toggle = document.getElementById('use-points-toggle');
+        if (toggle) toggle.checked = false;
+        usePoints = false;
+        const redemptionInfo = document.getElementById('redemption-info');
+        if (redemptionInfo) redemptionInfo.style.display = 'none';
+        const currentPointsEl = document.getElementById('current-points-display');
+        if (currentPointsEl) currentPointsEl.textContent = residentPoints.toLocaleString() + ' pts';
+        updateDisplayedPrice();
+        updateDownpaymentSuggestion();
+        updateBookingModeCards();
       });
     }
 
@@ -1517,66 +1657,41 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     const requiredPointsEl = document.getElementById('required-points');
     const remainingPointsEl = document.getElementById('remaining-points');
     const currentPointsEl = document.getElementById('current-points-display');
-    const hoursInput = document.getElementById('hoursInput');
-    const hoursSelect = document.getElementById('hoursSelect');
-    const hoursCountSpan = document.getElementById('hoursCount');
 
     if (!toggle) return;
 
     usePoints = toggle.checked;
 
     if (usePoints) {
-      // Auto-set duration to exactly 1 hour
-      if (hoursCountSpan) hoursCountSpan.textContent = '1';
-      if (hoursInput) hoursInput.value = '1';
-      if (hoursSelect) hoursSelect.value = '1';
-
-      // Lock hours controls
-      lockHoursControls(true);
-
       if (!selectedAmenity) {
         toggle.checked = false;
         usePoints = false;
-        lockHoursControls(false);
         showPointsErrorPopup("Please select an amenity first before redeeming points.");
       } else {
         const pointsRequired = getPointsRequired(selectedAmenity);
         const remainingPoints = residentPoints - pointsRequired;
 
         if (remainingPoints < 0) {
-          toggle.checked = false;
-          usePoints = false;
-          lockHoursControls(false);
-          showPointsErrorPopup(`Insufficient Points: You need ${pointsRequired.toLocaleString()} points to redeem this amenity, but you only have ${residentPoints.toLocaleString()} points. Please earn more points by participating in recycling activities.`);
+        toggle.checked = false;
+        usePoints = false;
+        showPointsErrorPopup("You do not have enough VHEcoPoints to redeem the 1 free hour for this amenity. Please pay normally or earn more points by recycling at the VHEcoPoint Smart Waste Station.", true);
           if (redemptionInfo) redemptionInfo.style.display = 'none';
         } else {
-          if (requiredPointsEl) requiredPointsEl.textContent = pointsRequired.toLocaleString();
-          if (remainingPointsEl) remainingPointsEl.textContent = remainingPoints.toLocaleString();
+          if (requiredPointsEl) requiredPointsEl.textContent = pointsRequired.toLocaleString() + ' pts';
+          if (remainingPointsEl) remainingPointsEl.textContent = remainingPoints.toLocaleString() + ' pts';
           if (redemptionInfo) redemptionInfo.style.display = 'block';
-
-          // Update the points bar display
           if (currentPointsEl) {
             currentPointsEl.textContent = remainingPoints.toLocaleString() + ' pts';
           }
-
-          // Also update end time based on 1 hour
-          const hc = document.getElementById('hoursChosen');
-          if (hc) hc.value = '1';
-          computeEndTimeFromHours();
         }
       }
     } else {
-      // Unlock hours controls
-      lockHoursControls(false);
       if (redemptionInfo) redemptionInfo.style.display = 'none';
-
-      // Reset points bar display
       if (currentPointsEl) {
         currentPointsEl.textContent = residentPoints.toLocaleString() + ' pts';
       }
     }
 
-    // Update price and downpayment
     updateDisplayedPrice();
     updateDownpaymentSuggestion();
     updateBookingModeCards();
@@ -1603,29 +1718,23 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     }
     updateBookingModeCards();
 
-    // If hours change while points are enabled, disable points toggle and show error
+    // If hours change while points are enabled, recalculate price
     const hoursInputs = [document.getElementById('hoursInput'), document.getElementById('hoursSelect')].filter(el => el);
     hoursInputs.forEach(input => {
       input.addEventListener('change', function() {
         const toggleEl = document.getElementById('use-points-toggle');
         if (toggleEl && toggleEl.checked) {
-          // Re-enforce 1 hour
-          toggleEl.checked = false;
-          usePoints = false;
-          lockHoursControls(false);
+          updateDisplayedPrice();
+          updateDownpaymentSuggestion();
           updateRedemptionInfo();
-          showPointsErrorPopup("Point redemptions are limited to one free hour per reservation. To change the duration, please disable point redemption first.");
         }
       });
       input.addEventListener('input', function() {
         const toggleEl = document.getElementById('use-points-toggle');
         if (toggleEl && toggleEl.checked) {
-          // Re-enforce 1 hour
-          toggleEl.checked = false;
-          usePoints = false;
-          lockHoursControls(false);
+          updateDisplayedPrice();
+          updateDownpaymentSuggestion();
           updateRedemptionInfo();
-          showPointsErrorPopup("Point redemptions are limited to one free hour per reservation. To change the duration, please disable point redemption first.");
         }
       });
     });
@@ -2407,10 +2516,6 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
   }
   function changeHours(val){
     if(!requireDateBeforeHours()) return;
-    if (usePoints) {
-      showPointsErrorPopup("Point redemptions are limited to one free hour per reservation. To change the duration, please disable point redemption first.");
-      return;
-    }
     const hoursSpan=document.getElementById('hoursCount');
     if(!hoursSpan) return;
     let hrs=parseInt(hoursSpan.textContent||'1');
@@ -2427,10 +2532,6 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
 
   function selectDuration(hours){
     if(!requireDateBeforeHours()) return;
-    if (usePoints) {
-      showPointsErrorPopup("Point redemptions are limited to one free hour per reservation. To change the duration, please disable point redemption first.");
-      return;
-    }
     const hoursInput=document.getElementById('hoursInput');
     const hoursCount=document.getElementById('hoursCount');
     if(hoursInput){ hoursInput.value=String(Math.max(1,parseInt(hours,10)||1)); }
@@ -2447,6 +2548,17 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
   }
 
   async function fetchBookedTimesFor(date){ if(!document.getElementById('amenityField').value) return {times:[], persons_total:0, capacity:0}; try{ const res=await fetch(`reserve.php?action=booked_times&amenity=${encodeURIComponent(selectedAmenity)}&date=${encodeURIComponent(date)}`); const data=await res.json(); return data||{times:[], persons_total:0, capacity:0}; }catch(_){ return {times:[], persons_total:0, capacity:0}; } }
+
+  async function fetchLivePointsBalance() {
+    try {
+      const res = await fetch('reserve.php?action=check_points');
+      const data = await res.json();
+      if (data.ok && typeof data.balance === 'number') {
+        return data.balance;
+      }
+    } catch (_) {}
+    return null;
+  }
 
   function isHourBasedAmenity(amen){ return amen==='Basketball Court' || amen==='Tennis Court' || amen==='Clubhouse' || amen==='Multi-Purpose Building'; }
   function isPersonBasedAmenity(){ return false; }
@@ -2519,21 +2631,29 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     const residents=parseInt(document.getElementById('residentsCountInput')?.value||'0',10);
     const guests=parseInt(document.getElementById('guestsCountInput')?.value||'0',10);
     const hours=parseInt(document.getElementById('hoursInput')?.value||'0',10);
-    const base = usePoints ? 0 : computeDynamicPrice(amen, residents, guests, hours);
+    const fullBase = computeDynamicPrice(amen, residents, guests, hours);
+    const paidHours = usePoints ? Math.max(0, hours - 1) : hours;
+    const base = usePoints ? (paidHours * getHourlyRate(amen, isResidentSelfBooking())) : fullBase;
     const dpPercent=0.5;
-    const downpayment = usePoints ? 0 : (base*dpPercent);
+    const downpayment = (usePoints && paidHours <= 0) ? 0 : (base*dpPercent);
     const priceEl=document.getElementById('price'); if(priceEl){ priceEl.textContent = '₱' + base.toFixed(2); }
     const dpText=document.getElementById('dpAmountText'); if(dpText){ dpText.textContent='₱' + downpayment.toFixed(2); }
     const bd=document.getElementById('priceBreakdown');
     if(bd){
       if(amen){
         const requiredPoints = getPointsRequired(amen);
-        const savingsValue = getAmenitySavingsValue(amen);
+        const hourlyRate = getHourlyRate(amen, isResidentSelfBooking());
         bd.style.display='block';
         if(usePoints){
-          bd.innerHTML='Redeem mode active: ' + requiredPoints.toLocaleString() + ' pts for 1 free hour. Estimated savings: P' + savingsValue.toLocaleString() + '.';
+          const discountVal = hourlyRate;
+          bd.innerHTML = '<div style="line-height:1.8;">' +
+            '<div style="display:flex;justify-content:space-between;"><span>Original Duration: ' + hours + ' hour' + (hours > 1 ? 's' : '') + '</span><span>₱' + fullBase.toFixed(2) + '</span></div>' +
+            '<div style="display:flex;justify-content:space-between;color:#166534;"><span>VHEcoPoint Reward: -1 Free Hour (' + requiredPoints.toLocaleString() + ' pts)</span><span>-₱' + discountVal.toFixed(2) + '</span></div>' +
+            '<div style="display:flex;justify-content:space-between;font-weight:600;color:#374151;"><span>Paid Duration: ' + paidHours + ' hour' + (paidHours !== 1 ? 's' : '') + '</span></div>' +
+            '<div style="display:flex;justify-content:space-between;border-top:1px solid #e5e7eb;padding-top:6px;margin-top:4px;font-weight:700;"><span>Final Amount</span><span>₱' + base.toFixed(2) + '</span></div>' +
+            '</div>';
         }else{
-          bd.innerHTML='Cash mode active. You can also redeem ' + requiredPoints.toLocaleString() + ' pts to save around P' + savingsValue.toLocaleString() + ' on the first hour.';
+          bd.innerHTML='Cash mode active. You can also redeem ' + requiredPoints.toLocaleString() + ' pts for 1 free hour (save ₱' + hourlyRate.toFixed(2) + ').';
         }
       }else{
         bd.style.display='none';
@@ -2550,9 +2670,10 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     const residents=parseInt(document.getElementById('residentsCountInput')?.value||'0',10);
     const guests=parseInt(document.getElementById('guestsCountInput')?.value||'0',10);
     const hours=parseInt(document.getElementById('hoursInput')?.value||'0',10);
-    const base = usePoints ? 0 : computeDynamicPrice(amen, residents, guests, hours);
+    const paidHours = usePoints ? Math.max(0, hours - 1) : hours;
+    const base = usePoints ? (paidHours * getHourlyRate(amen, isResidentSelfBooking())) : computeDynamicPrice(amen, residents, guests, hours);
     const dpPercent=0.5;
-    const downpayment = usePoints ? 0 : (base*dpPercent);
+    const downpayment = (usePoints && paidHours <= 0) ? 0 : (base*dpPercent);
     dp.value = downpayment.toFixed(2);
     const dpText=document.getElementById('dpAmountText'); if(dpText){ dpText.textContent='₱' + downpayment.toFixed(2); }
     updateBookingSummary();
@@ -2739,9 +2860,9 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
   function getReservedHoursForDay(booked, minH, maxH, ds, amen){
     let reservedHours=0; const marked={};
     (booked||[]).forEach(t=>{
-      if(isHourBasedAmenity(amen) && (t.has_time===false || t.has_time===0)) return;
-      let bS=0, bE=24;
-      if (t.has_time) {
+      if(t.start_date && t.end_date && (t.end_date < ds || t.start_date > ds)) return;
+      let bS=minH, bE=maxH;
+      if (t.has_time && t.start && t.end) {
         bS=parseInt(String(t.start).split(':')[0],10);
         bE=parseInt(String(t.end).split(':')[0],10);
       }
@@ -2840,7 +2961,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     const times=data.times||[];
     const sMin2=toMinutes(st); const eMin2=toMinutes(et);
     const amen=document.getElementById('amenityField').value;
-    const overlap=times.some(function(t){ if(isHourBasedAmenity(amen) && (t.has_time===false || t.has_time===0)) return false; const ts=toMinutes(t.start); const te=toMinutes(t.end); return !(sMin2>=te || eMin2<=ts); });
+    const overlap=times.some(function(t){ if(!t.has_time){ return true; } const ts=toMinutes(t.start); const te=toMinutes(t.end); return !(sMin2>=te || eMin2<=ts); });
     if(overlap){pill.textContent='Unavailable';pill.className='status-pill unavailable'}
     else{
       const hrsRange=getAmenityHours(amen);
@@ -3092,7 +3213,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
       const hours=parseInt(document.getElementById('hoursInput')?.value||'0');
       showIncompleteWarnings(true);
       
-      // Client-side points validation
+      // Client-side + server-side points validation
       const usePointsToggle = document.getElementById('use-points-toggle');
       if (usePointsToggle && usePointsToggle.checked && typeof residentPoints !== 'undefined') {
         let reqPoints = 0;
@@ -3108,9 +3229,17 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
             reqPoints = 750;
             break;
         }
+        // First check the cached balance
         if (residentPoints < reqPoints) {
-          // Show error popup
-          showErrorModal(`Insufficient Points: You do not have enough points to redeem this amenity. You need ${reqPoints} points but only have ${residentPoints}.`);
+          showPointsErrorPopup("You do not have enough VHEcoPoints to redeem the 1 free hour for this amenity. You need " + reqPoints.toLocaleString() + " pts but only have " + residentPoints.toLocaleString() + " pts. Please pay normally or earn more points.", true);
+          return;
+        }
+        // Then do a live server check to catch race conditions or stale data
+        const liveBalance = await fetchLivePointsBalance();
+        if (liveBalance !== null && liveBalance < reqPoints) {
+          // Update the cached balance so UI reflects reality
+          window.__residentPoints = liveBalance;
+          showPointsErrorPopup("You do not have enough VHEcoPoints to redeem the 1 free hour for this amenity. You need " + reqPoints.toLocaleString() + " pts but your current balance is " + liveBalance.toLocaleString() + " pts. Please pay normally or earn more points.", true);
           return;
         }
       }
@@ -3141,7 +3270,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
         const data=await fetchBookedTimesFor(s);
         const times=(data && data.times) ? data.times : [];
         const sM=toMinutes(st), eM=toMinutes(et);
-        const overlap=times.some(function(t){ if(isHourBasedAmenity(amen) && (t.has_time===false || t.has_time===0)) return false; const ts=toMinutes(t.start), te=toMinutes(t.end); return !(eM<=ts || sM>=te); });
+        const overlap=times.some(function(t){ if(!t.has_time){ return true; } const ts=toMinutes(t.start), te=toMinutes(t.end); return !(eM<=ts || sM>=te); });
         if(overlap){
           showTimeError('Selected time overlaps an existing booking. Please choose a different time.');
           return;
@@ -3202,29 +3331,41 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
           }
         }
         const displayPrice = usePoints ? '₱0.00' : priceTxt;
-        const displayDownpayment = usePoints ? '₱0.00' : (dpVal!==''?('₱'+Number(dpVal).toFixed(2)):'—');
+        let displayDownpayment = (dpVal!==''?('₱'+Number(dpVal).toFixed(2)):'—');
         
         let summaryParts = [
           ['Amenity', amenVal||'-'],
-          ['Mode', usePoints ? 'Redeem points' : 'Cash'],
+          ['Mode', usePoints ? 'Redeem Points' : 'Cash'],
           ['Start Date', formatDateToMMDDYYYY(s) || '-'],
           ['End Date', formatDateToMMDDYYYY(eD) || '-'],
           ['Duration', durationDisplay],
           ['Time', timeDisplay || '-'],
-          ['Persons', String(personsVal)],
-          ['Total Price', displayPrice]
+          ['Persons', String(personsVal)]
         ];
         
         if (usePoints) {
           const pointsNeeded = getPointsRequired(amenVal);
-          summaryParts.splice(7, 0, ['Points Used', pointsNeeded.toLocaleString() + ' pts']);
+          const hourlyRate = getHourlyRate(amenVal, isResidentSelfBooking());
+          const fullBase = computeDynamicPrice(amenVal, rCount, gCount, hoursVal);
+          const paidHours = Math.max(0, hoursVal - 1);
+          const discountVal = hourlyRate;
+          const chargedAmount = paidHours * hourlyRate;
+          displayDownpayment = paidHours > 0 ? '₱' + (chargedAmount * 0.5).toFixed(2) : '₱0.00';
+          summaryParts.push(['Original Duration', hoursVal + ' hour' + (hoursVal > 1 ? 's' : '')]);
+          summaryParts.push(['VHEcoPoint Reward', '-1 Free Hour (' + pointsNeeded.toLocaleString() + ' pts)']);
+          summaryParts.push(['Paid Duration', paidHours + ' hour' + (paidHours !== 1 ? 's' : '')]);
+          summaryParts.push(['Original Amount', '₱' + fullBase.toFixed(2)]);
+          summaryParts.push(['Discount', '-₱' + discountVal.toFixed(2)]);
+          summaryParts.push(['Final Amount', '₱' + chargedAmount.toFixed(2)]);
+        } else {
+          summaryParts.push(['Total Price', displayPrice]);
         }
         summaryParts.push(['Downpayment', displayDownpayment]);
         
         let summaryHTML = summaryParts.map(function(x){ return '<div style="display:flex;justify-content:space-between;margin:4px 0"><span style="font-weight:600">'+x[0]+'</span><span>'+x[1]+'</span></div>'; }).join('');
         
         if (usePoints) {
-          summaryHTML = '<div style="background:#fff3cd; color:#856404; padding:8px; border-radius:8px; border:1px solid #ffc107; margin-bottom:12px; font-weight:600;"><i class="fa-solid fa-coins"></i> This reservation is being redeemed with points!</div>' + summaryHTML;
+          summaryHTML = '<div style="background:#d1fae5; color:#065f46; padding:8px; border-radius:8px; border:1px solid #34d399; margin-bottom:12px; font-weight:600;"><i class="fa-solid fa-circle-check"></i> 1 free hour redeemed with VHEcoPoint points!</div>' + summaryHTML;
         }
         const sumEl=document.getElementById('verifySummary'); if(sumEl){ sumEl.innerHTML = summaryHTML; }
         const vm=document.getElementById('verifyModal'); if(vm){ vm.style.display='flex'; }
@@ -3652,7 +3793,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
   function formatTimeSlot(h){ const ampm = h>=12 ? 'PM' : 'AM'; let hh=h%12; if(hh===0) hh=12; return `${hh}:00 ${ampm}`; }
   function formatTimeHM(h,m){ const ap=h>=12?'PM':'AM'; let hh=h%12; if(hh===0) hh=12; const mm=String(m).padStart(2,'0'); return `${hh}:${mm} ${ap}`; }
   function generateTimeSlots(amenity){ const hrs=getAmenityHours(amenity); const min=parseInt(hrs.min.split(':')[0],10); const max=parseInt(hrs.max.split(':')[0],10); const out=[]; for(let h=min; h<max; h++){ out.push({ label: formatTimeSlot(h), value: `${String(h).padStart(2,'0')}:00` }); } return out; }
-  function computeMaxDuration(amenity,startHour,booked){ const hrs=getAmenityHours(amenity); const maxHour=parseInt(hrs.max.split(':')[0],10); let max=0; for(let h=1; startHour+h<=maxHour; h++){ const thisStart=`${String(startHour).padStart(2,'0')}:00`; const thisEnd=`${String(startHour+h).padStart(2,'0')}:00`; const sM=toMinutes(thisStart), eM=toMinutes(thisEnd); const overlaps=(booked||[]).some(function(t){ if(isHourBasedAmenity(amenity) && (t.has_time===false || t.has_time===0)) return false; const ts=toMinutes(t.start), te=toMinutes(t.end); return !(eM<=ts || sM>=te); }); if(overlaps) break; max=h; } return max; }
+  function computeMaxDuration(amenity,startHour,booked,selectedDate){ const hrs=getAmenityHours(amenity); const maxHour=parseInt(hrs.max.split(':')[0],10); let max=0; for(let h=1; startHour+h<=maxHour; h++){ const thisStart=`${String(startHour).padStart(2,'0')}:00`; const thisEnd=`${String(startHour+h).padStart(2,'0')}:00`; const sM=toMinutes(thisStart), eM=toMinutes(thisEnd); const overlaps=(booked||[]).some(function(t){ if(selectedDate && t.start_date && t.end_date && (t.end_date < selectedDate || t.start_date > selectedDate)) return false; if(!t.has_time){ const bS=parseInt(hrs.min.split(':')[0],10); return !(eM<=bS || sM>=maxHour); } const ts=toMinutes(t.start), te=toMinutes(t.end); return !(eM<=ts || sM>=te); }); if(overlaps) break; max=h; } return max; }
 
   function renderHoursChipsForAmenity(){ const amen=document.getElementById('amenityField').value; const dc=document.getElementById('durationContainer'); const lbl=document.getElementById('hoursSectionLabel'); if(!dc) return; dc.innerHTML=''; if(!isHourBasedAmenity(amen)){ dc.style.display='none'; if(lbl) lbl.style.display='none'; return; } dc.style.display='flex'; if(lbl) lbl.style.display='block'; dc.style.flexWrap='wrap'; dc.style.gap='8px'; dc.style.margin='8px 0 0 0'; const maxH=(amen==='Clubhouse' || amen==='Multi-Purpose Building')?12:9; for(let h=1; h<=maxH; h++){ const b=document.createElement('button'); b.type='button'; b.className='dur-btn'; b.textContent=`${h}h`; b.dataset.hours=String(h); b.onclick=function(){ selectDuration(h); }; dc.appendChild(b); } const currentH=parseInt(document.getElementById('hoursInput').value||'',10); if(currentH){ const sel=Array.from(dc.children).find(b=>b.dataset.hours===String(currentH)); if(sel) sel.classList.add('selected'); } }
 
@@ -3707,9 +3848,9 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
       });
       return;
     }
-    window.__slotRenderTokenCounter=(window.__slotRenderTokenCounter||0)+1; const __token=window.__slotRenderTokenCounter; window.__activeSlotRenderToken=__token; if(!date){ container.innerHTML=''; if(notice){ notice.style.display='none'; notice.textContent=''; } return; } fetchBookedTimesFor(date).then(data=>{ if(window.__activeSlotRenderToken!==__token) return; const booked=data.times||[]; window.__bookedTimesForDate=booked||[]; let anyEnabled=false; let disabledCount=0; slots.forEach(slot=>{ const startHour=parseInt(slot.value.split(':')[0],10); const maxPossible=computeMaxDuration(amen,startHour,booked); const valid=(maxPossible>=hours); const btn=document.createElement('button'); btn.type='button'; btn.className='slot-btn airbnb'; btn.textContent=slot.label; btn.dataset.slot=slot.value; if(!valid){ disabledCount++; btn.classList.add('unavailable'); btn.setAttribute('aria-disabled','true'); btn.onclick=function(){ showToast('This start time cannot fit your selected duration. Try a different start time or duration.','warning'); }; } else { anyEnabled=true; btn.classList.add('available'); btn.onclick=function(){ selectTimeSlot(slot.value); }; } container.appendChild(btn); }); let hasBookedHours=false; (booked||[]).forEach(function(t){ if(isHourBasedAmenity(amen) && (t.has_time===false || t.has_time===0)) return; const bS=parseInt(String(t.start).split(':')[0],10); const bE=parseInt(String(t.end).split(':')[0],10); if(bE>bS){ hasBookedHours=true; } }); if(notice){ if(!anyEnabled){ notice.style.display='block'; notice.textContent = hasBookedHours ? 'Fully Booked — no time slots available for this date.' : ''; } else if(disabledCount>0){ notice.style.display='block'; notice.textContent = hasBookedHours ? 'Partially Booked — some time slots are unavailable.' : ''; } else { notice.style.display='none'; notice.textContent=''; } } if(!anyEnabled){ showTimeError('No start times fit the selected hours. Try a different duration.'); } else { showTimeError(''); } const st=document.getElementById('startTimeInput').value; if(st){ const selBtn=Array.from(container.children).find(b=>b.tagName==='BUTTON' && b.dataset.slot===st); if(selBtn) selBtn.classList.add('selected'); } updateActionStates(); }); }
+    window.__slotRenderTokenCounter=(window.__slotRenderTokenCounter||0)+1; const __token=window.__slotRenderTokenCounter; window.__activeSlotRenderToken=__token; if(!date){ container.innerHTML=''; if(notice){ notice.style.display='none'; notice.textContent=''; } return; } fetchBookedTimesFor(date).then(data=>{ if(window.__activeSlotRenderToken!==__token) return; const booked=data.times||[]; window.__bookedTimesForDate=booked||[]; let anyEnabled=false; let disabledCount=0; slots.forEach(slot=>{ const startHour=parseInt(slot.value.split(':')[0],10); const maxPossible=computeMaxDuration(amen,startHour,booked,date); const valid=(maxPossible>=hours); const btn=document.createElement('button'); btn.type='button'; btn.className='slot-btn airbnb'; btn.textContent=slot.label; btn.dataset.slot=slot.value; if(!valid){ disabledCount++; btn.classList.add('unavailable'); btn.setAttribute('aria-disabled','true'); btn.onclick=function(){ showToast('This start time cannot fit your selected duration. Try a different start time or duration.','warning'); }; } else { anyEnabled=true; btn.classList.add('available'); btn.onclick=function(){ selectTimeSlot(slot.value); }; } container.appendChild(btn); }); let hasBookedHours=false; (booked||[]).forEach(function(t){ if(!t.has_time){ hasBookedHours=true; return; } const bS=parseInt(String(t.start).split(':')[0],10); const bE=parseInt(String(t.end).split(':')[0],10); if(bE>bS){ hasBookedHours=true; } }); if(notice){ if(!anyEnabled){ notice.style.display='block'; notice.textContent = hasBookedHours ? 'Fully Booked — no time slots available for this date.' : ''; } else if(disabledCount>0){ notice.style.display='block'; notice.textContent = hasBookedHours ? 'Partially Booked — some time slots are unavailable.' : ''; } else { notice.style.display='none'; notice.textContent=''; } } if(!anyEnabled){ showTimeError('No start times fit the selected hours. Try a different duration.'); } else { showTimeError(''); } const st=document.getElementById('startTimeInput').value; if(st){ const selBtn=Array.from(container.children).find(b=>b.tagName==='BUTTON' && b.dataset.slot===st); if(selBtn) selBtn.classList.add('selected'); } updateActionStates(); }); }
 
-  function selectTimeSlot(start){ const hInput=document.getElementById('hoursInput'); const hrs=parseInt(hInput?.value||'0',10); if(!hrs || hrs<1){ showTimeError('Please select number of hours before choosing a start time.'); return; } const amen=document.getElementById('amenityField').value; const booked=window.__bookedTimesForDate||[]; const startHour=parseInt(start.split(':')[0],10); if(computeMaxDuration(amen,startHour,booked) < Math.max(1,hrs)){ showTimeError('This start time cannot fit your selected duration. Try a different start time or duration.'); showToast(`⚠️ Not enough free hours starting from this time to complete ${hrs} hour${hrs>1?'s':''}.`,'warning'); return; } document.getElementById('startTimeInput').value=start; computeEndTimeFromHours(); const sh=startHour, eh=sh+hrs; const tr=document.getElementById('selectedTimeRange'); if(tr){ tr.textContent=`Selected Time 🕒: ${formatTimeSlot(sh)} - ${formatTimeSlot(eh)}`; tr.style.display='block'; } const tn=document.getElementById('selectedTimeNote'); if(tn){ tn.style.display='none'; } const cont=document.getElementById('timeSlotContainer'); if(cont){ Array.from(cont.querySelectorAll('.slot-btn')).forEach(function(b){ b.classList.remove('selected'); }); const sel=Array.from(cont.querySelectorAll('.slot-btn')).find(function(b){ return b.dataset.slot===start; }); if(sel){ sel.classList.add('selected'); } } showTimeError(''); updateActionStates(); }
+  function selectTimeSlot(start){ const hInput=document.getElementById('hoursInput'); const hrs=parseInt(hInput?.value||'0',10); if(!hrs || hrs<1){ showTimeError('Please select number of hours before choosing a start time.'); return; } const amen=document.getElementById('amenityField').value; const booked=window.__bookedTimesForDate||[]; const startHour=parseInt(start.split(':')[0],10); const selDate=document.getElementById('startDateInput')?.value||''; if(computeMaxDuration(amen,startHour,booked,selDate) < Math.max(1,hrs)){ showTimeError('This start time cannot fit your selected duration. Try a different start time or duration.'); showToast(`⚠️ Not enough free hours starting from this time to complete ${hrs} hour${hrs>1?'s':''}.`,'warning'); return; } document.getElementById('startTimeInput').value=start; computeEndTimeFromHours(); const sh=startHour, eh=sh+hrs; const tr=document.getElementById('selectedTimeRange'); if(tr){ tr.textContent=`Selected Time 🕒: ${formatTimeSlot(sh)} - ${formatTimeSlot(eh)}`; tr.style.display='block'; } const tn=document.getElementById('selectedTimeNote'); if(tn){ tn.style.display='none'; } const cont=document.getElementById('timeSlotContainer'); if(cont){ Array.from(cont.querySelectorAll('.slot-btn')).forEach(function(b){ b.classList.remove('selected'); }); const sel=Array.from(cont.querySelectorAll('.slot-btn')).find(function(b){ return b.dataset.slot===start; }); if(sel){ sel.classList.add('selected'); } } showTimeError(''); updateActionStates(); }
   function renderHoursDropdownForAmenity(){
     const amen=document.getElementById('amenityField').value;
     const sel=document.getElementById('hoursSelect');
@@ -3739,7 +3880,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     Array.from(container.querySelectorAll('.slot-btn')).forEach(function(btn){
       const ds=btn.dataset.slot; if(!ds) return;
       const sh=parseInt(ds.split(':')[0],10);
-      const maxPossible=computeMaxDuration(amen,sh,booked);
+      const maxPossible=computeMaxDuration(amen,sh,booked,selectedDate);
       const isPastOnToday = (selectedDate===todayStrLocal) && (sh<currentHour || (sh===currentHour && currentMinute>0));
       if(btn.disabled || isPastOnToday || maxPossible<Math.max(1,hours)){
         btn.disabled=true;

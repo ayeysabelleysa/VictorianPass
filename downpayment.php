@@ -66,7 +66,7 @@ $user_id = isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : null;
 $pending = isset($_SESSION['pending_reservation']) ? $_SESSION['pending_reservation'] : null;
 
 if ((!is_array($pending) || empty($pending)) && $ref_code !== '' && ($con instanceof mysqli)) {
-    $stmtC = $con->prepare("SELECT amenity, start_date, end_date, start_time, end_time, persons, price, downpayment, entry_pass_id, booking_for FROM reservations WHERE ref_code = ? LIMIT 1");
+    $stmtC = $con->prepare("SELECT amenity, start_date, end_date, start_time, end_time, persons, price, downpayment, entry_pass_id, booking_for, use_points, points_used FROM reservations WHERE ref_code = ? LIMIT 1");
     $stmtC->bind_param('s', $ref_code);
     $stmtC->execute();
     $resC = $stmtC->get_result();
@@ -81,7 +81,9 @@ if ((!is_array($pending) || empty($pending)) && $ref_code !== '' && ($con instan
             'price' => isset($rwC['price']) ? floatval($rwC['price']) : null,
             'downpayment' => isset($rwC['downpayment']) ? floatval($rwC['downpayment']) : null,
             'entry_pass_id' => isset($rwC['entry_pass_id']) ? intval($rwC['entry_pass_id']) : null,
-            'booking_for' => $rwC['booking_for'] ?? null
+            'booking_for' => $rwC['booking_for'] ?? null,
+            'use_points' => isset($rwC['use_points']) ? intval($rwC['use_points']) : 0,
+            'points_used' => isset($rwC['points_used']) ? intval($rwC['points_used']) : 0
         ];
         $_SESSION['pending_reservation'] = $pending;
         if ($entry_pass_id <= 0 && !empty($pending['entry_pass_id'])) { $entry_pass_id = intval($pending['entry_pass_id']); }
@@ -381,6 +383,8 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     $downpayment = isset($pending['downpayment']) ? floatval($pending['downpayment']) : null;
     $isHourBased = in_array($amenity, ['Basketball Court','Tennis Court','Clubhouse','Multi-Purpose Building'], true);
     $isPersonBased = in_array($amenity, [], true);
+    $booking_for = isset($pending['booking_for']) ? trim($pending['booking_for']) : '';
+    if ($booking_for === '') { $booking_for = 'resident'; }
     if ($downpayment === null || $downpayment <= 0) { $downpayment = round($price * 0.5, 2); }
     $remaining = max(0, round($price - $downpayment, 2));
     $durationText = '--';
@@ -445,18 +449,35 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
           }
           $persons = isset($pending['persons']) ? intval($pending['persons']) : 1;
         ?>
-        <div class="row"><span class="label">Time</span><span class="amount">
-          <?php
-            $st = $pending['start_time'] ?? '';
-            $et = $pending['end_time'] ?? '';
-            echo ($st && $et) ? (format_time_ap($st) . ' – ' . format_time_ap($et)) : '--';
-          ?>
-        </span></div>
-        <div class="row"><span class="label">Duration</span><span class="amount"><?php echo htmlspecialchars($durationText); ?></span></div>
+        <?php
+          $st = $pending['start_time'] ?? '';
+          $et = $pending['end_time'] ?? '';
+          $timeDisplay = ($st && $et) ? (format_time_ap($st) . ' – ' . format_time_ap($et)) : '--';
+        ?>
+        <div class="row"><span class="label">Time</span><span class="amount"><?php echo htmlspecialchars($timeDisplay); ?></span></div>
+        <div class="row"><span class="label">Duration</span><span class="amount"><?php echo htmlspecialchars($timeDisplay); ?> (<?php echo intval($hours); ?> hour<?php echo intval($hours) !== 1 ? 's' : ''; ?>)</span></div>
         <div class="row"><span class="label">Persons</span><span class="amount"><?php echo intval($persons); ?></span></div>
-        <div class="row"><span class="label">Total Price</span><span class="amount">₱<?php echo number_format($price, 2); ?></span></div>
+        <?php
+          $usePoints = isset($pending['use_points']) ? intval($pending['use_points']) : 0;
+          $pointsUsed = isset($pending['points_used']) ? intval($pending['points_used']) : 0;
+          if ($usePoints && $pointsUsed > 0 && $hours > 0) {
+            $amenityRate = 0;
+            if (in_array($amenity, ['Basketball Court','Tennis Court'], true)) $amenityRate = ($booking_for === 'resident') ? 100 : 150;
+            elseif ($amenity === 'Clubhouse') $amenityRate = ($booking_for === 'resident') ? 300 : 450;
+            elseif ($amenity === 'Multi-Purpose Building') $amenityRate = ($booking_for === 'resident') ? 200 : 300;
+            $fullPrice = $hours * $amenityRate;
+            $discountAmount = $amenityRate;
+            $paidHours = max(0, $hours - 1);
+        ?>
+        <div class="row" style="background:#d1fae5; border-radius:6px; padding:8px 12px; margin:4px 0;"><span class="label" style="font-weight:600; color:#065f46;"><i class="fa-solid fa-leaf" style="margin-right:4px;"></i>VHEcoPoint Discount</span><span class="amount" style="font-weight:600; color:#065f46;">1 Free Hour</span></div>
+        <div class="row"><span class="label">VHEcoPoint Points Used</span><span class="amount" style="color:#991b1b; font-weight:600;">-<?php echo number_format($pointsUsed); ?> pts</span></div>
+        <div class="row"><span class="label">Discount</span><span class="amount" style="color:#166534; font-weight:600;">-₱<?php echo number_format($discountAmount, 2); ?></span></div>
+        <div class="row"><span class="label">Original Duration</span><span class="amount"><?php echo intval($hours); ?> hour<?php echo intval($hours) !== 1 ? 's' : ''; ?></span></div>
+        <div class="row"><span class="label">Paid Duration</span><span class="amount" style="font-weight:600;"><?php echo $paidHours; ?> hour<?php echo $paidHours !== 1 ? 's' : ''; ?></span></div>
+        <?php } ?>
+        <div class="row"><span class="label">Final Amount</span><span class="amount">₱<?php echo number_format($price, 2); ?></span></div>
         <div class="row"><span class="label">Online Payment (Partial)</span><span class="amount">₱<?php echo number_format($downpayment, 2); ?></span></div>
-        <div class="row"><span class="label">Onsite Payment (Remaining)</span><span class="amount">₱<?php echo number_format($remaining, 2); ?></span></div>
+        <div class="row"><span class="label">Onsite Payment (Remaining Balance)</span><span class="amount">₱<?php echo number_format($remaining, 2); ?></span></div>
         <div class="row"><span class="label">QR Reference Code</span><span class="amount"><?php echo htmlspecialchars($ref_code ?: 'N/A'); ?></span></div>
       </div>
       <form method="POST" enctype="multipart/form-data" style="margin-top:12px; display:flex; flex-direction:column; gap:10px;">
