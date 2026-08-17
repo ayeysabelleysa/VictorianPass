@@ -5696,6 +5696,20 @@ body.modal-open { overflow: hidden; }
       if ($r && $row = $r->fetch_assoc()) $swStats['resident_count'] = intval($row['c'] ?? 0);
     } catch (Throwable $e) {}
 
+    $accountLogActive = 0;
+    $accountLogMonth = 0;
+    $accountLogSessions = 0;
+    try {
+      if ($swHas['sessions']) {
+        $r = $con->query("SELECT COUNT(DISTINCT user_id) AS c FROM ecopoint_waste_sessions");
+        if ($r && $row = $r->fetch_assoc()) $accountLogActive = intval($row['c'] ?? 0);
+        $r = $con->query("SELECT COUNT(DISTINCT user_id) AS c FROM ecopoint_waste_sessions WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)");
+        if ($r && $row = $r->fetch_assoc()) $accountLogMonth = intval($row['c'] ?? 0);
+        $r = $con->query("SELECT COUNT(*) AS c FROM ecopoint_waste_sessions");
+        if ($r && $row = $r->fetch_assoc()) $accountLogSessions = intval($row['c'] ?? 0);
+      }
+    } catch (Throwable $e) {}
+
     if ($swHas['pts']) {
       try {
         $r = $con->query("SELECT COUNT(*) AS c,
@@ -5845,20 +5859,18 @@ body.modal-open { overflow: hidden; }
       <div class="dashboard-widget-subtext"><?php echo number_format($swStats['total_kg_today'], 2); ?> kg - <?php echo number_format($swStats['total_pts_today']); ?> pts today</div>
     </div>
     <div class="dashboard-widget">
-      <div class="dashboard-widget-label">Total Kg Collected</div>
-      <div class="dashboard-widget-value"><?php echo number_format($swStats['total_kg'], 2); ?></div>
-      <div class="dashboard-widget-subtext"><?php echo number_format($swStats['total_sessions']); ?> completed sessions all-time</div>
-    </div>
-    <div class="dashboard-widget">
       <div class="dashboard-widget-label">EcoPoints Awarded</div>
       <div class="dashboard-widget-value"><?php echo number_format($swStats['total_pts']); ?></div>
       <div class="dashboard-widget-subtext"><?php echo number_format($swStats['total_pts_today']); ?> earned today - <?php echo number_format($swStats['redeemed_points']); ?> redeemed</div>
     </div>
+    <div class="dashboard-widget">
+      <div class="dashboard-widget-label">Account Logs</div>
+      <div class="dashboard-widget-value"><?php echo number_format($accountLogActive); ?></div>
+      <div class="dashboard-widget-subtext"><?php echo number_format($accountLogSessions); ?> total sessions - <?php echo number_format($accountLogMonth); ?> active this month</div>
+    </div>
   </div>
 
-  <div class="smart-waste-layout">
-    <div class="smart-waste-main">
-      <div class="smart-waste-card">
+  <div class="smart-waste-card">
         <h4>Real-Time Active Sessions</h4>
         <div class="smart-waste-note">Sessions currently in progress at VHEcoPoint stations. Refreshes automatically.</div>
         <div class="table-responsive-wrapper smart-waste-table-compact">
@@ -5922,11 +5934,11 @@ body.modal-open { overflow: hidden; }
         <div class="table-responsive-wrapper smart-waste-table-compact">
           <table>
             <thead><tr>
-              <th>ID</th><th>Started</th><th>Ended</th><th>Duration</th><th>Station</th><th>Resident</th><th>House</th><th>Status</th><th>Material</th><th>Weight</th><th>Pts Awarded</th>
+              <th>ID</th><th>Started</th><th>Ended</th><th>Duration</th><th>Resident</th><th>House</th><th>Status</th><th>Material</th><th>Weight</th><th>Pts Awarded</th>
             </tr></thead>
             <tbody>
               <?php if (empty($historySessions)): ?>
-                <tr><td colspan="11" style="text-align:center;">No sessions found<?php echo ($swSearch !== '' || $swStatus !== '') ? ' for the current search/filter' : ''; ?>.</td></tr>
+                <tr><td colspan="10" style="text-align:center;">No sessions found<?php echo ($swSearch !== '' || $swStatus !== '') ? ' for the current search/filter' : ''; ?>.</td></tr>
               <?php else: foreach ($historySessions as $s): ?>
                 <?php
                   $stStyle = $swStatusStyle[$s['status']] ?? ['#374151', '#f3f4f6'];
@@ -5940,7 +5952,6 @@ body.modal-open { overflow: hidden; }
                   <td><?php echo $s['created_at'] ? date('M j, g:i A', strtotime($s['created_at'])) : '-'; ?></td>
                   <td><?php echo htmlspecialchars($ended); ?></td>
                   <td><?php echo swDuration($s['created_at'] ?? '', $isFinal ? ($s['completed_at'] ?? '') : ''); ?></td>
-                  <td><?php echo htmlspecialchars($s['station_code'] ?? '-'); ?></td>
                   <td><strong><?php echo htmlspecialchars($resident); ?></strong><br><small style="color:#6b7280;"><?php echo htmlspecialchars($s['email'] ?? ''); ?></small></td>
                   <td><?php echo htmlspecialchars($s['house_number'] ?? '-'); ?></td>
                   <td><span class="smart-waste-status-pill" style="background:<?php echo $stStyle[1]; ?>;color:<?php echo $stStyle[0]; ?>;"><?php echo htmlspecialchars($s['status']); ?></span></td>
@@ -6005,89 +6016,25 @@ body.modal-open { overflow: hidden; }
           <?php endforeach; ?>
         </div>
       </div>
-    </div>
 
-    <div class="smart-waste-side">
-      <div class="smart-waste-card">
-        <h4>Total Kg Collected Per Material Type</h4>
-        <div class="smart-waste-note">All-time collected weight per VHEcoPoint material category from completed sessions.</div>
-        <div class="smart-waste-list">
-          <?php foreach ($materialStats as $label => $materialRow): ?>
-            <?php $materialConfig = $materialConfigs[$label] ?? ['icon' => 'fa-recycle', 'color' => '#2f7d32']; ?>
-            <div class="smart-waste-list-item">
-              <span class="smart-waste-material-icon" style="color:<?php echo htmlspecialchars($materialConfig['color']); ?>;">
-                <i class="fa-solid <?php echo htmlspecialchars($materialConfig['icon']); ?>"></i>
-              </span>
-              <div class="smart-waste-list-main">
-                <div class="smart-waste-list-title"><?php echo htmlspecialchars($label); ?></div>
-                <div class="smart-waste-list-subtitle"><?php echo number_format($materialRow['txn_count']); ?> deposit<?php echo $materialRow['txn_count'] == 1 ? '' : 's'; ?> - <?php echo number_format($materialRow['kg_today'], 2); ?> kg today</div>
-                <div class="smart-waste-progress">
-                  <div class="smart-waste-progress-bar" style="width:<?php echo intval(($materialRow['kg_total'] / $maxMaterialKg) * 100); ?>%; background:<?php echo htmlspecialchars($materialConfig['color']); ?>;"></div>
-                </div>
-              </div>
-              <div class="smart-waste-list-value"><?php echo number_format($materialRow['kg_total'], 2); ?> kg</div>
-            </div>
-          <?php endforeach; ?>
-        </div>
+  <div class="smart-waste-card" style="margin-top:0;">
+    <h4>Resident Participation Rates</h4>
+    <div class="smart-waste-note">Participation is based on unique residents with at least one completed VHEcoPoint session.</div>
+    <div class="smart-waste-kpi-grid">
+      <div class="smart-waste-kpi">
+        <div class="smart-waste-kpi-label">All-Time Participation</div>
+        <div class="smart-waste-kpi-value"><?php echo number_format($participationStats['all_time_rate'], 1); ?>%</div>
+        <div class="smart-waste-kpi-subtext"><?php echo number_format($participationStats['all_time_count']); ?> of <?php echo number_format($swStats['resident_count']); ?> residents</div>
       </div>
-
-      <div class="smart-waste-card">
-        <h4>Resident Participation Rates</h4>
-        <div class="smart-waste-note">Participation is based on unique residents with at least one completed VHEcoPoint session.</div>
-        <div class="smart-waste-kpi-grid">
-          <div class="smart-waste-kpi">
-            <div class="smart-waste-kpi-label">All-Time Participation</div>
-            <div class="smart-waste-kpi-value"><?php echo number_format($participationStats['all_time_rate'], 1); ?>%</div>
-            <div class="smart-waste-kpi-subtext"><?php echo number_format($participationStats['all_time_count']); ?> of <?php echo number_format($swStats['resident_count']); ?> residents</div>
-          </div>
-          <div class="smart-waste-kpi">
-            <div class="smart-waste-kpi-label">Active in Last 30 Days</div>
-            <div class="smart-waste-kpi-value"><?php echo number_format($participationStats['last30_rate'], 1); ?>%</div>
-            <div class="smart-waste-kpi-subtext"><?php echo number_format($participationStats['last30_count']); ?> recently participating residents</div>
-          </div>
-          <div class="smart-waste-kpi">
-            <div class="smart-waste-kpi-label">Active in Last 7 Days</div>
-            <div class="smart-waste-kpi-value"><?php echo number_format($participationStats['last7_rate'], 1); ?>%</div>
-            <div class="smart-waste-kpi-subtext"><?php echo number_format($participationStats['last7_count']); ?> active residents this week</div>
-          </div>
-        </div>
+      <div class="smart-waste-kpi">
+        <div class="smart-waste-kpi-label">Active in Last 30 Days</div>
+        <div class="smart-waste-kpi-value"><?php echo number_format($participationStats['last30_rate'], 1); ?>%</div>
+        <div class="smart-waste-kpi-subtext"><?php echo number_format($participationStats['last30_count']); ?> recently participating residents</div>
       </div>
-
-      <div class="smart-waste-card">
-        <h4>Recent Amenity Redemptions</h4>
-        <div class="smart-waste-note">Quick view of recent point redemptions for amenities and facility bookings.</div>
-        <?php if (empty($amenityRedemptionLogs)): ?>
-          <div class="smart-waste-empty">No redemption records found yet.</div>
-        <?php else: ?>
-          <div class="smart-waste-list">
-            <?php foreach ($amenityRedemptionLogs as $record): ?>
-              <?php
-                $recordName = trim(($record['first_name'] ?? '') . ' ' . ($record['last_name'] ?? ''));
-                if ($recordName === '') { $recordName = 'Resident'; }
-                $houseNum = trim((string)($record['house_number'] ?? ''));
-                $recordDate = !empty($record['created_at']) ? date('M d, Y g:i A', strtotime($record['created_at'])) : '-';
-                $recordDesc = trim((string)($record['description'] ?? ''));
-                if ($recordDesc === '') { $recordDesc = 'Amenity Booking'; }
-                $recordRef = trim((string)($record['reservation_ref_code'] ?? ''));
-              ?>
-              <div class="smart-waste-list-item">
-                <span class="smart-waste-material-icon" style="background:#fef2f2; color:#b91c1c;">
-                  <i class="fa-solid fa-gift"></i>
-                </span>
-                <div class="smart-waste-list-main">
-                  <div class="smart-waste-list-title"><?php echo htmlspecialchars($recordName); ?></div>
-                  <div class="smart-waste-list-subtitle">
-                    <?php echo htmlspecialchars($recordDesc); ?>
-                    <?php if ($houseNum !== ''): ?> - <?php echo htmlspecialchars($houseNum); ?><?php endif; ?>
-                    <?php if ($recordRef !== ''): ?> - <?php echo htmlspecialchars($recordRef); ?><?php endif; ?>
-                    <br><small><?php echo htmlspecialchars($recordDate); ?></small>
-                  </div>
-                </div>
-                <div class="smart-waste-list-value" style="color:#b91c1c;">-<?php echo number_format(intval($record['amount'] ?? 0)); ?> pts</div>
-              </div>
-            <?php endforeach; ?>
-          </div>
-        <?php endif; ?>
+      <div class="smart-waste-kpi">
+        <div class="smart-waste-kpi-label">Active in Last 7 Days</div>
+        <div class="smart-waste-kpi-value"><?php echo number_format($participationStats['last7_rate'], 1); ?>%</div>
+        <div class="smart-waste-kpi-subtext"><?php echo number_format($participationStats['last7_count']); ?> active residents this week</div>
       </div>
     </div>
   </div>
