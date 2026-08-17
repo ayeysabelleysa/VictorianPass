@@ -1,1 +1,7 @@
+<<<<<<< HEAD
 ﻿sessions/
+=======
+venv/
+__pycache__/
+*.pyc
+>>>>>>> fcce7cc (Update Project_wasteBin)
