@@ -948,7 +948,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     </div>
   </div>
   <div class="ecopoint-badge">
-    <span class="ecopoint-icon">♻</span>
+    <span class="ecopoint-icon"><i class="fa-solid fa-recycle"></i></span>
     <span class="ecopoint-text">VHEcoPoint</span>
   </div>
 </header>
@@ -1042,12 +1042,12 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
               ?>
                 <div style="background:#fffbeb; border:1px solid #fcd34d; border-radius:16px; padding:20px;">
                   <div style="font-weight:800; color:#92400e; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
-                    💡 Earn More Points
-                  </div>
-                  <ul style="margin:0; padding-left:20px; color:#78350f; line-height:2;">
-                    <li>♻️ Recycle PET Plastic Bottles (≤1000ml): <strong>+55 points per kg</strong></li>
-                    <li>🥫 Recycle Aluminum Cans: <strong>+140 points per kg</strong></li>
-                    <li>📄 Recycle Paper & Cardboard: <strong>+30 points per kg</strong></li>
+                     <i class="fa-solid fa-lightbulb"></i> Earn More Points
+                   </div>
+                   <ul style="margin:0; padding-left:20px; color:#78350f; line-height:2;">
+                     <li><i class="fa-solid fa-recycle" style="margin-right:4px;"></i> Recycle PET Plastic Bottles (≤1000ml): <strong>+55 points per kg</strong></li>
+                     <li><i class="fa-solid fa-droplet" style="margin-right:4px;"></i> Recycle Aluminum Cans: <strong>+140 points per kg</strong></li>
+                     <li><i class="fa-regular fa-file" style="margin-right:4px;"></i> Recycle Paper & Cardboard: <strong>+30 points per kg</strong></li>
                   </ul>
                   <p style="margin:12px 0 0 0; color:#78350f; font-size:0.95rem; line-height:1.5;">
                     Visit VHEcoPoint Smart Waste Segregation Station and recycle eligible materials to earn points that can be redeemed for free amenity reservations.
