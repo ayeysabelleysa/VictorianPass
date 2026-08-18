@@ -403,7 +403,7 @@ $ecoPointWeeklyRemaining = max(0, $ecoPointWeeklyCap - $ecoPointWeeklyPoints);
 $ecoPointWeeklyProgress = $ecoPointWeeklyCap > 0 ? min(100, round(($ecoPointWeeklyPoints / $ecoPointWeeklyCap) * 100)) : 0;
 $ecoPointSessionsRemaining = max(0, $ecoPointDailySessionsMax - $ecoPointTodaySessionsUsed);
 $ecoPointExpiryCountdownLabel = 'No active recycling points yet';
-$ecoPointExpiryCountdownSubtext = 'Start using VHEcoPoint to begin your points cycle.';
+$ecoPointExpiryCountdownSubtext = 'Start using VHEcoPoint to begin your points cycle. Points expire 12 months after they are earned.';
 if ($ecoPointNextExpiryTs !== null) {
     $secondsLeft = max(0, $ecoPointNextExpiryTs - time());
     $daysLeft = (int)floor($secondsLeft / 86400);
@@ -412,7 +412,7 @@ if ($ecoPointNextExpiryTs !== null) {
     if ($daysLeft < 1) {
         $ecoPointExpiryCountdownLabel = max(1, $hoursLeft) . ' hour' . (max(1, $hoursLeft) === 1 ? '' : 's');
     }
-    $ecoPointExpiryCountdownSubtext = 'Estimated next points expiry: ' . date('M d, Y', $ecoPointNextExpiryTs);
+    $ecoPointExpiryCountdownSubtext = 'Estimated next points expiry: ' . date('M d, Y', $ecoPointNextExpiryTs) . ' • Points expire 12 months after they are earned.';
 }
 
 // Participation stats for resident dashboard
