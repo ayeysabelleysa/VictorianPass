@@ -3733,6 +3733,16 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-main); }
     justify-content: flex-start;
     padding-left: 0;
 }
+.header-actions {
+    margin-left: auto;
+    justify-content: flex-end;
+}
+.notifications {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
 .header-title-group {
     display: flex;
     align-items: center;
@@ -4561,13 +4571,22 @@ table td.actions .delete-form.show { width: 100%; }
     position: relative;
     color: rgba(255,255,255,0.9);
     transition: var(--transition);
-    padding: 6px;
+    padding: 8px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 42px;
+    height: 42px;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+    flex-shrink: 0;
 }
 .notif-btn:hover { background: rgba(255,255,255,0.2); color: #fff; }
+.notif-btn img {
+    width: 20px;
+    height: 20px;
+    display: block;
+}
 .notif-btn svg { width: 20px; height: 20px; fill: currentColor; }
 
 .notif-badge {
