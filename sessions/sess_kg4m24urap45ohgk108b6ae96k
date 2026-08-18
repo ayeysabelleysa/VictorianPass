@@ -1,1 +1,1 @@
-mainpage_schema_checked|b:1;
+mainpage_schema_checked|b:1;user_id|i:8;email|s:22:"test@victorianpass.com";user_type|s:8:"resident";role|s:8:"resident";login_failure_count|i:0;csrf_token|s:64:"430727f881faa3694b92a8fd979de487c60cd9693322f170e27e225d67d50537";
