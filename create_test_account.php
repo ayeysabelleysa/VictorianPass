@@ -1,16 +1,12 @@
 <?php
 require_once __DIR__ . '/connect.php';
 
-$test_email = 'test@victorianpass.com';
-$test_plain_password = 'Test123!';
-$test_password_hash = password_hash($test_plain_password, PASSWORD_DEFAULT);
-$test_first_name = 'Test';
-$test_last_name = 'User';
-$test_phone = '09123456789';
-$test_sex = 'Male';
-$test_birthdate = '1990-01-01';
-$test_house_number = '101';
-$test_address = '101 Test Street';
+// Test account details
+$test_email = "test@victorianpass.com";
+$test_password = password_hash("Test123!", PASSWORD_DEFAULT);
+$test_first_name = "Test";
+$test_last_name = "User";
+$test_house_number = "101";
 $test_points = 3000;
 $test_user_type = 'resident';
 $test_status = 'active';
@@ -21,79 +17,27 @@ $check_stmt->execute();
 $check_result = $check_stmt->get_result();
 
 if ($check_result->num_rows > 0) {
+    // Update existing test account
     $test_user = $check_result->fetch_assoc();
-
-    $update_stmt = $con->prepare(
-        'UPDATE users
-         SET password = ?,
-             first_name = ?,
-             last_name = ?,
-             phone = ?,
-             sex = ?,
-             birthdate = ?,
-             house_number = ?,
-             address = ?,
-             points = ?,
-             user_type = ?,
-             status = ?
-         WHERE id = ?'
-    );
-
-    $update_stmt->bind_param(
-        'ssssssssissi',
-        $test_password_hash,
-        $test_first_name,
-        $test_last_name,
-        $test_phone,
-        $test_sex,
-        $test_birthdate,
-        $test_house_number,
-        $test_address,
-        $test_points,
-        $test_user_type,
-        $test_status,
-        $test_user['id']
-    );
-
+    $update_stmt = $con->prepare("UPDATE users SET points = ?, status = ? WHERE id = ?");
+    $update_stmt->bind_param("isi", $test_points, $test_status, $test_user['id']);
     $update_stmt->execute();
-    echo "Test account repaired successfully!\n";
+    echo "Test account updated successfully!\n";
     echo "Email: " . htmlspecialchars($test_email) . "\n";
-    echo "Password: " . htmlspecialchars($test_plain_password) . "\n";
+    echo "Password: Test123!\n";
     echo "Points: " . htmlspecialchars($test_points) . "\n";
-    echo "User Type: " . htmlspecialchars($test_user_type) . "\n";
-    echo "Status: " . htmlspecialchars($test_status) . "\n";
-    echo "ID: " . (int)$test_user['id'];
+    echo "ID: " . $test_user['id'];
     $update_stmt->close();
 } else {
-    $insert_stmt = $con->prepare(
-        'INSERT INTO users (first_name, last_name, phone, email, password, sex, birthdate, house_number, address, user_type, status, points)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    );
-
-    $insert_stmt->bind_param(
-        'sssssssssssi',
-        $test_first_name,
-        $test_last_name,
-        $test_phone,
-        $test_email,
-        $test_password_hash,
-        $test_sex,
-        $test_birthdate,
-        $test_house_number,
-        $test_address,
-        $test_user_type,
-        $test_status,
-        $test_points
-    );
-
+    // Insert new test account
+    $insert_stmt = $con->prepare("INSERT INTO users (email, password, first_name, last_name, house_number, points, user_type, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    $insert_stmt->bind_param("ssssiiss", $test_email, $test_password, $test_first_name, $test_last_name, $test_house_number, $test_points, $test_user_type, $test_status);
     $insert_stmt->execute();
     echo "Test account created successfully!\n";
     echo "Email: " . htmlspecialchars($test_email) . "\n";
-    echo "Password: " . htmlspecialchars($test_plain_password) . "\n";
+    echo "Password: Test123!\n";
     echo "Points: " . htmlspecialchars($test_points) . "\n";
-    echo "User Type: " . htmlspecialchars($test_user_type) . "\n";
-    echo "Status: " . htmlspecialchars($test_status) . "\n";
-    echo "ID: " . (int)$con->insert_id;
+    echo "ID: " . $con->insert_id;
     $insert_stmt->close();
 }
 
