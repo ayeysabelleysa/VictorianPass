@@ -947,6 +947,11 @@ html { scroll-behavior: smooth; }
   flex-shrink: 0;
 }
 
+.ecopoint-step-icon i{
+  font-size: 1.3rem;
+  color: #23412e;
+}
+
 .ecopoint-step-copy h4{
   margin: 0 0 4px;
   font-size: 1rem;

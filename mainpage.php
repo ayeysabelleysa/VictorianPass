@@ -224,6 +224,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VictorianPass</title>
   <link rel="icon" type="image/png" href="images/logo.svg">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
   <?php $mainCssVer = @filemtime(__DIR__ . '/css/mainpage.css') ?: time(); $respCssVer = @filemtime(__DIR__ . '/css/responsive.css') ?: time(); ?>
   <link rel="stylesheet" href="css/mainpage.css?v=<?php echo $mainCssVer; ?>">
@@ -353,7 +354,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       <button type="button" class="ecopoint-modal-close" id="ecopointModalClose" aria-label="Close">&times;</button>
       <div class="ecopoint-shell">
         <div class="ecopoint-intro-card" style="margin-bottom:18px;">
-          <h2 class="section-title ecopoint-title" id="ecopointModalTitle"><span class="ecopoint-title-icon" aria-hidden="true">&#9851;</span><span>Learn About VHEcoPoint</span></h2>
+          <h2 class="section-title ecopoint-title" id="ecopointModalTitle"><span class="ecopoint-title-icon" aria-hidden="true"><i class="fa-solid fa-leaf"></i></span><span>Learn About VHEcoPoint</span></h2>
           <div class="section-divider"></div>          <?php if (!$isLoggedIn): ?>
           <div style="background:#fef3c7; border:1px solid #fcd34d; border-radius:8px; padding:12px 14px; margin-bottom:16px; color:#92400e;">
             <strong style="display:block; margin-bottom:4px;">For Residents Exclusively</strong>
@@ -361,26 +362,26 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
           </div>
           <?php endif; ?>          <p class="section-subtitle ecopoint-description">VHEcoPoint is Victorian Heights Subdivision’s Smart Waste Segregation Station that automatically sorts recyclables and rewards you with points redeemable for free amenity bookings. Scan your VictorianPass QR code, deposit recyclables, and points are credited to your account instantly.</p>
             <?php if ($isResident): ?>
-            <p style="background:#dbeafe; border:1px solid #7dd3fc; border-radius:8px; padding:10px 12px; color:#0c4a6e; font-weight:600;"><strong>💡 Tip:</strong> You can view your personal QR code on your <a href="profileresident.php" style="color:#0369a1; text-decoration:underline;">profile dashboard</a> page.</p>
+            <p style="background:#dbeafe; border:1px solid #7dd3fc; border-radius:8px; padding:10px 12px; color:#0c4a6e; font-weight:600;"><strong><i class="fa-solid fa-lightbulb" style="margin-right:6px;"></i>Tip:</strong> You can view your personal QR code on your <a href="profileresident.php" style="color:#0369a1; text-decoration:underline;">profile dashboard</a> page.</p>
             <?php endif; ?>
             <h3 class="ecopoint-card-title">How It Works</h3>
             <div class="ecopoint-step-list">
               <div class="ecopoint-step-item">
-                <div class="ecopoint-step-icon" aria-hidden="true">🔍</div>
+                <div class="ecopoint-step-icon" aria-hidden="true"><i class="fa-solid fa-qrcode"></i></div>
                 <div class="ecopoint-step-copy">
                   <h4>Scan</h4>
                   <p>Scan your VictorianPass QR code at the VHEcoPoint station.</p>
                 </div>
               </div>
               <div class="ecopoint-step-item">
-                <div class="ecopoint-step-icon" aria-hidden="true">♻️</div>
+                <div class="ecopoint-step-icon" aria-hidden="true"><i class="fa-solid fa-recycle"></i></div>
                 <div class="ecopoint-step-copy">
                   <h4>Deposit</h4>
                   <p>Drop your recyclables (Plastic, Aluminum Cans, Paper &amp; Cardboard).</p>
                 </div>
               </div>
               <div class="ecopoint-step-item">
-                <div class="ecopoint-step-icon" aria-hidden="true">🎁</div>
+                <div class="ecopoint-step-icon" aria-hidden="true"><i class="fa-solid fa-gift"></i></div>
                 <div class="ecopoint-step-copy">
                   <h4>Earn &amp; Redeem</h4>
                   <p>Points are credited automatically and redeemable for free amenity bookings.</p>

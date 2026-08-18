@@ -546,7 +546,7 @@ if (empty($error)) {
         }
         
         .container { 
-            width: 100%; 
+            width: min(100%, 400px); 
             max-width: 400px; 
             background: #1e1e1e; 
             border-radius: 16px; 
@@ -579,7 +579,7 @@ if (empty($error)) {
             color: #fff;
         }
         .status-header h1 {
-            font-size: 1.6rem;
+            font-size: clamp(1.25rem, 4vw, 1.6rem);
             font-weight: 800;
             margin-bottom: 5px;
             text-transform: uppercase;
@@ -602,8 +602,10 @@ if (empty($error)) {
             border-radius: 12px;
             display: inline-block;
             box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-            width: 210px;
-            height: 210px;
+            width: min(68vw, 210px);
+            height: min(68vw, 210px);
+            max-width: 210px;
+            max-height: 210px;
         }
         .qr-box img, .qr-box canvas {
             width: 100% !important;
@@ -704,6 +706,46 @@ if (empty($error)) {
             color: #555;
             font-size: 0.75rem;
             text-align: center;
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 12px 10px;
+            }
+
+            .container {
+                border-radius: 12px;
+            }
+
+            .top-bar {
+                padding: 12px 10px;
+            }
+
+            .status-header {
+                padding: 22px 14px;
+            }
+
+            .qr-display {
+                padding: 16px 12px;
+            }
+
+            .details-section {
+                padding: 16px 14px;
+            }
+
+            .detail-row {
+                gap: 8px;
+                font-size: 0.8rem;
+                line-height: 1.4;
+            }
+
+            .detail-row .value {
+                max-width: 58%;
+            }
+
+            .action-area {
+                padding: 18px 14px 20px;
+            }
         }
     </style>
 </head>

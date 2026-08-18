@@ -1211,6 +1211,18 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                 .calendar td.active { background:#ffffff; border:2px solid #16a34a; color:#0f172a; box-shadow:none; }
                 .calendar td.active-start,
                 .calendar td.active-end { background:#ffffff !important; color:#23412e; font-weight:800; border:2px solid #23412e; box-shadow:inset 0 0 0 2px rgba(35,65,46,0.15); }
+                .calendar td.range-highlight {
+                  background: #fde68a !important;
+                  border-color: #f59e0b !important;
+                  color: #78350f !important;
+                  box-shadow: inset 0 0 0 2px rgba(245, 158, 11, 0.2) !important;
+                }
+                .calendar td.range-highlight.active-start,
+                .calendar td.range-highlight.active-end {
+                  background: #fde68a !important;
+                  border-color: #23412e !important;
+                  color: #23412e !important;
+                }
               </style>
               <div class="calendar" style="width:100%">
                 <div class="calendar-header">
@@ -1978,6 +1990,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
         setStart(dateString, true);
       }
     }
+    updateSelectedDateRangeHighlight();
     await evaluateCalendarAvailability();
     (function(){
       const cells=Array.from(document.querySelectorAll('.calendar td[data-date]'));
@@ -2023,6 +2036,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     document.getElementById('endDateInput').value='';
     endDateRangeError=false;
     document.querySelectorAll('.calendar td').forEach(td=>{ td.classList.remove('active'); td.classList.remove('active-start'); td.classList.remove('active-end'); });
+    updateSelectedDateRangeHighlight();
     evaluateCalendarAvailability();
     computeAvailability();
     renderTimeSlotButtons();
@@ -2060,6 +2074,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
           if(en){ en.classList.add('active-end'); }
         }
       })();
+      updateSelectedDateRangeHighlight();
       computeAvailability();
       renderTimeSlotButtons();
       updateActionStates();
