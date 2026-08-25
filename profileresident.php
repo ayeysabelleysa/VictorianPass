@@ -4911,7 +4911,7 @@ function replaceProof(reportId, proofId){
           case 'WAITING':    return 'Waiting for deposit — station verified your QR';
           case 'ACTIVE':     return 'Session active — station verified your QR';
           case 'PROCESSING': return 'Recycling in progress — station is weighing your deposit';
-          case 'COMPLETED':  return 'Session complete — points credited ✅';
+          case 'COMPLETED':  return 'Session complete — points credited <i class="fa-solid fa-circle-check" aria-hidden="true"></i>';
           case 'CANCELLED':  return 'Session cancelled (station aborted)';
           case 'ERROR':      return 'Session error — see station admin if needed';
           default:           return 'No active session';
@@ -4943,7 +4943,7 @@ function replaceProof(reportId, proofId){
           pointsEl.textContent = '0 pts';
           return;
         }
-        statusEl.textContent = statusLabel(s.status);
+        statusEl.innerHTML = statusLabel(s.status);
         weightEl.textContent = fmtKg(s.total_weight_kg && parseFloat(s.total_weight_kg) > 0 ? s.total_weight_kg : s.weight_kg);
         // For active/processing, show *calculated* points so user sees progress;
         // for completed, show final awarded points.

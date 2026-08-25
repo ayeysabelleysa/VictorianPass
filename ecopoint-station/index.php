@@ -10,6 +10,7 @@ declare(strict_types=1);
   <title>VHEcoPoint Station Display</title>
   <link rel="icon" type="image/svg+xml" href="../images/logo.svg" />
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <style>
     :root{
       color-scheme: dark;
@@ -832,13 +833,13 @@ declare(strict_types=1);
 </head>
 <body>
   <button class="mode-toggle" id="modeToggle" type="button" aria-label="Toggle dark and light mode">
-    <span class="ic" id="modeIcon" aria-hidden="true">☀</span>
+    <span class="ic" id="modeIcon" aria-hidden="true"><i class="fa-solid fa-sun"></i></span>
     <span id="modeLabel">Light</span>
   </button>
   <div class="station" id="station">
     <div class="topbar" aria-hidden="true">
       <div class="brand">
-        <div class="brand-icon">♻</div>
+        <div class="brand-icon"><i class="fa-solid fa-recycle"></i></div>
         <div class="brand-title">
           <strong>VHEcoPoint Station</strong>
           <span>Victorian Heights Subdivision</span>
@@ -851,8 +852,8 @@ declare(strict_types=1);
         <div class="fit-root">
           <div class="card">
             <div class="station-emblem" aria-hidden="true">
-              <div class="station-icon">♻</div>
-              <div class="recycle">♻</div>
+              <div class="station-icon"><i class="fa-solid fa-recycle"></i></div>
+              <div class="recycle"><i class="fa-solid fa-recycle"></i></div>
             </div>
             <h1 class="title">VHEcoPoint</h1>
             <p class="subtitle">Smart Waste Segregation Station</p>
@@ -933,21 +934,21 @@ declare(strict_types=1);
             <div class="session-grid" aria-label="Live session values">
               <div class="stat stat-material">
                 <div class="stat-top">
-                  <div class="stat-ic" aria-hidden="true">♻</div>
+                  <div class="stat-ic" aria-hidden="true"><i class="fa-solid fa-recycle"></i></div>
                   <p class="k">Material Detected</p>
                 </div>
                 <p class="v"><span id="materialDetected">Plastic</span></p>
               </div>
               <div class="stat">
                 <div class="stat-top">
-                  <div class="stat-ic" aria-hidden="true">⚖</div>
+                  <div class="stat-ic" aria-hidden="true"><i class="fa-solid fa-scale-balanced"></i></div>
                   <p class="k">Real-time Weight</p>
                 </div>
                 <p class="v"><span id="weightKg">0.00</span> <small>kg</small></p>
               </div>
               <div class="stat">
                 <div class="stat-top">
-                  <div class="stat-ic" aria-hidden="true">🎁</div>
+                  <div class="stat-ic" aria-hidden="true"><i class="fa-solid fa-gift"></i></div>
                   <p class="k">Points (Live)</p>
                 </div>
                 <p class="v"><span id="pointsLive">0</span> <small>pts</small></p>
@@ -1018,21 +1019,21 @@ declare(strict_types=1);
             <h3>Accepted Materials</h3>
             <ul class="list">
               <li>
-                <div class="icon">♻️</div>
+                <div class="icon"><i class="fa-solid fa-recycle" aria-hidden="true"></i></div>
                 <div class="text">
                   <strong>Plastic</strong>
                   <span>PET Bottles ≤1000ml (must be capped) — 55 pts/kg</span>
                 </div>
               </li>
               <li>
-                <div class="icon">🥫</div>
+                <div class="icon"><i class="fa-solid fa-bottle-water" aria-hidden="true"></i></div>
                 <div class="text">
                   <strong>Aluminum Cans</strong>
                   <span>Small to medium canned goods — 140 pts/kg</span>
                 </div>
               </li>
               <li>
-                <div class="icon">📄</div>
+                <div class="icon"><i class="fa-solid fa-file-lines" aria-hidden="true"></i></div>
                 <div class="text">
                   <strong>Paper &amp; Cardboard</strong>
                   <span>Old documents, newspapers, small to medium boxes — 30 pts/kg</span>
@@ -1045,28 +1046,28 @@ declare(strict_types=1);
             <h3>How It Works</h3>
             <ul class="list">
               <li>
-                <div class="icon">🔍</div>
+                <div class="icon"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></div>
                 <div class="text">
                   <strong>Scan your VictorianPass QR code</strong>
                   <span>Your account is verified instantly.</span>
                 </div>
               </li>
               <li>
-                <div class="icon">♻️</div>
+                <div class="icon"><i class="fa-solid fa-recycle" aria-hidden="true"></i></div>
                 <div class="text">
                   <strong>Deposit your recyclables into the station</strong>
                   <span>Follow on-screen guidance while sorting.</span>
                 </div>
               </li>
               <li>
-                <div class="icon">⚖️</div>
+                <div class="icon"><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i></div>
                 <div class="text">
                   <strong>The station weighs your materials automatically</strong>
                   <span>Weight is measured in kilograms (kg).</span>
                 </div>
               </li>
               <li>
-                <div class="icon">🎁</div>
+                <div class="icon"><i class="fa-solid fa-gift" aria-hidden="true"></i></div>
                 <div class="text">
                   <strong>Points are credited instantly</strong>
                   <span>Points go directly to your VictorianPass account.</span>
@@ -1079,21 +1080,21 @@ declare(strict_types=1);
             <h3>Point Redemption</h3>
             <ul class="list">
               <li>
-                <div class="icon">🏀</div>
+                <div class="icon"><i class="fa-solid fa-basketball" aria-hidden="true"></i></div>
                 <div class="text">
                   <strong>300 points = 1 free hour</strong>
                   <span>Basketball Court or Tennis Court</span>
                 </div>
               </li>
               <li>
-                <div class="icon">🏛️</div>
+                <div class="icon"><i class="fa-solid fa-building-columns" aria-hidden="true"></i></div>
                 <div class="text">
                   <strong>600 points = 1 free hour</strong>
                   <span>Clubhouse</span>
                 </div>
               </li>
               <li>
-                <div class="icon">🏢</div>
+                <div class="icon"><i class="fa-solid fa-building" aria-hidden="true"></i></div>
                 <div class="text">
                   <strong>750 points = 1 free hour</strong>
                   <span>Multi-Purpose Building</span>
@@ -1113,21 +1114,21 @@ declare(strict_types=1);
             <h3>Daily &amp; Weekly Limits</h3>
             <ul class="list">
               <li>
-                <div class="icon">📆</div>
+                <div class="icon"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i></div>
                 <div class="text">
                   <strong>Maximum 3 deposit sessions per day</strong>
                   <span>Helps maintain fair access for all residents.</span>
                 </div>
               </li>
               <li>
-                <div class="icon">🧾</div>
+                <div class="icon"><i class="fa-solid fa-file-invoice" aria-hidden="true"></i></div>
                 <div class="text">
                   <strong>Maximum 250 points per week</strong>
                   <span>Resets every Monday 12:00 AM</span>
                 </div>
               </li>
               <li>
-                <div class="icon">💰</div>
+                <div class="icon"><i class="fa-solid fa-sack-dollar" aria-hidden="true"></i></div>
                 <div class="text">
                   <strong>Maximum balance: 3,000 points</strong>
                   <span>Keep redeeming to make the most of VHEcoPoint.</span>
@@ -1170,9 +1171,9 @@ declare(strict_types=1);
           try { localStorage.setItem(STORAGE_KEY, t); } catch (e) {}
         }
         var nextLabel = (t === 'dark') ? 'Light Mode' : 'Dark Mode';
-        var nextIcon = (t === 'dark') ? '☀' : '🌙';
+        var nextIcon = (t === 'dark') ? '<i class="fa-solid fa-sun" aria-hidden="true"></i>' : '<i class="fa-solid fa-moon" aria-hidden="true"></i>';
         if (modeLabel) modeLabel.textContent = nextLabel;
-        if (modeIcon) modeIcon.textContent = nextIcon;
+        if (modeIcon) modeIcon.innerHTML = nextIcon;
       }
 
       function getInitialTheme(){

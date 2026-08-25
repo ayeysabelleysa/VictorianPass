@@ -6,6 +6,7 @@
   <title>Status Result - VictorianPass</title>
   <link rel="icon" type="image/png" href="images/logo.svg" />
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <style>
     body { animation: fadeIn 0.6s ease-in-out; }
     * { font-family: 'Poppins', sans-serif !important; margin: 0; padding: 0; box-sizing: border-box; }
@@ -278,7 +279,16 @@
       return count;
     }
     let statusData = {};
-    
+
+    function escHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+    function bannerHtml(iconClass, text) {
+      return (iconClass ? '<i class="' + iconClass + '" aria-hidden="true"></i> ' : '') + escHtml(text);
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
       const params = new URLSearchParams(window.location.search);
       const code = params.get("code");
@@ -288,7 +298,7 @@
       const dashboardRows = document.getElementById("dashboardRows");
 
       if (!code) {
-        statusDiv.textContent = "⚠️ No code provided!";
+        statusDiv.innerHTML = bannerHtml('fa-solid fa-triangle-exclamation', 'No code provided!');
         statusDiv.className = "status-message declined";
       } else {
         fetch(`status.php?code=${code}`)
@@ -309,25 +319,26 @@
               const statusClass = (status === 'pending_update') ? 'pending' : status;
               const statusLabel = String(data.status || '').replace(/[_-]+/g,' ').toLowerCase().replace(/\b\w/g,function(m){ return m.toUpperCase(); });
               let bannerText = '';
+              let bannerIcon = '';
               switch (status) {
-                case 'approved': bannerText = '✅ Valid Entry Pass'; break;
-                case 'expired': bannerText = '❌ Expired Entry Pass'; break;
-                case 'pending': bannerText = '⏳ Pending Review'; break;
-                case 'pending_update': bannerText = '⏳ Pending Update'; break;
-                case 'denied': bannerText = '❌ Denied Entry Pass'; break;
-                case 'rejected': bannerText = 'Rejected'; break;
-                case 'cancelled': bannerText = '❌ Cancelled Reservation'; break;
-                default: bannerText = `⚠️ ${data.message || 'Unknown status'}`;
+                case 'approved': bannerText = 'Valid Entry Pass'; bannerIcon = 'fa-solid fa-circle-check'; break;
+                case 'expired': bannerText = 'Expired Entry Pass'; bannerIcon = 'fa-solid fa-circle-xmark'; break;
+                case 'pending': bannerText = 'Pending Review'; bannerIcon = 'fa-solid fa-hourglass-half'; break;
+                case 'pending_update': bannerText = 'Pending Update'; bannerIcon = 'fa-solid fa-hourglass-half'; break;
+                case 'denied': bannerText = 'Denied Entry Pass'; bannerIcon = 'fa-solid fa-circle-xmark'; break;
+                case 'rejected': bannerText = 'Rejected'; bannerIcon = ''; break;
+                case 'cancelled': bannerText = 'Cancelled Reservation'; bannerIcon = 'fa-solid fa-circle-xmark'; break;
+                default: bannerText = data.message || 'Unknown status'; bannerIcon = 'fa-solid fa-triangle-exclamation';
               }
-              statusDiv.textContent = bannerText;
+              statusDiv.innerHTML = bannerHtml(bannerIcon, bannerText);
               statusDiv.className = `status-message ${statusClass}`;
 
               // Update Document Title and Dashboard Header
-              document.title = `${bannerText.replace(/^[✅❌⏳⚠️]\s*/, '')} - VictorianPass`;
+              document.title = `${bannerText} - VictorianPass`;
               const dashTitleDiv = document.getElementById('dashboardStatusTitle');
               if (dashTitleDiv) {
                  dashTitleDiv.style.display = 'block';
-                 dashTitleDiv.querySelector('h2').textContent = bannerText;
+                 dashTitleDiv.querySelector('h2').innerHTML = bannerHtml(bannerIcon, bannerText);
                  // Set color based on status if needed, but white text on dark background works
                  if (status === 'cancelled' || status === 'denied' || status === 'expired') {
                      dashTitleDiv.querySelector('h2').style.color = '#ffcccb';
@@ -386,12 +397,12 @@
                   </tr>`;
               }, 600);
             } else {
-              statusDiv.textContent = `⚠️ ${data.message}`;
+              statusDiv.innerHTML = bannerHtml('fa-solid fa-triangle-exclamation', data.message);
               statusDiv.className = "status-message declined";
             }
           })
           .catch(error => {
-            statusDiv.textContent = "⚠️ Error connecting to server.";
+            statusDiv.innerHTML = bannerHtml('fa-solid fa-triangle-exclamation', 'Error connecting to server.');
             statusDiv.className = "status-message declined";
             console.error('Error:', error);
           });
@@ -428,11 +439,11 @@
       
       const accessWindow = `${formatMDY(data.start_date || '') || '-'}${data.expires_at ? ' → ' + formatMDY(data.expires_at) : ''}`;
       const statusLower = (status || '').toLowerCase();
-      const banner = statusLower === 'approved' ? '✅ Valid Entry Pass'
-                    : statusLower === 'expired' ? '❌ Expired Entry Pass'
-                    : statusLower === 'pending' ? '⏳ Pending Review'
-                    : statusLower === 'cancelled' ? '❌ Cancelled Reservation'
-                    : `⚠️ ${status}`;
+      const banner = statusLower === 'approved' ? bannerHtml('fa-solid fa-circle-check', 'Valid Entry Pass')
+                    : statusLower === 'expired' ? bannerHtml('fa-solid fa-circle-xmark', 'Expired Entry Pass')
+                    : statusLower === 'pending' ? bannerHtml('fa-solid fa-hourglass-half', 'Pending Review')
+                    : statusLower === 'cancelled' ? bannerHtml('fa-solid fa-circle-xmark', 'Cancelled Reservation')
+                    : bannerHtml('fa-solid fa-triangle-exclamation', status);
 
       document.getElementById("qrDetails").innerHTML = `
         <p style="font-weight:600;">${banner}</p>
@@ -607,16 +618,16 @@
             d.status = 'cancelled';
             window.statusData = d;
             const statusDiv = document.getElementById('statusResult');
-            const newBannerText = isGuest ? '❌ Cancelled Request' : '❌ Cancelled Reservation';
-            statusDiv.textContent = newBannerText;
+            const newBannerText = isGuest ? 'Cancelled Request' : 'Cancelled Reservation';
+            statusDiv.innerHTML = bannerHtml('fa-solid fa-circle-xmark', newBannerText);
             statusDiv.className = 'status-message cancelled';
-            
+
             // Update Document Title and Dashboard Header
             document.title = `Cancelled ${isGuest ? 'Request' : 'Reservation'} - VictorianPass`;
             const dashTitleDiv = document.getElementById('dashboardStatusTitle');
             if (dashTitleDiv) {
                 dashTitleDiv.style.display = 'block';
-                dashTitleDiv.querySelector('h2').textContent = newBannerText;
+                dashTitleDiv.querySelector('h2').innerHTML = bannerHtml('fa-solid fa-circle-xmark', newBannerText);
                 dashTitleDiv.querySelector('h2').style.color = '#ffcccb';
             }
             

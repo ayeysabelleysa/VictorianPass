@@ -1002,6 +1002,257 @@ html { scroll-behavior: smooth; }
   padding: 2px 2px 0;
 }
 
+/* ---------- Points Guide & Redeem Your Points ---------- */
+.ecopoint-duo-grid{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-items: stretch;
+}
+
+.ecopoint-duo-grid .ecopoint-card{
+  padding: 20px 22px;
+}
+
+.ecopoint-duo-grid .ecopoint-card-title{
+  font-size: 1.05rem;
+  margin-bottom: 14px;
+}
+
+/* Points Guide */
+.pg-list{
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.pg-row{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 14px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+}
+
+.pg-item{
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: #374151;
+  font-weight: 600;
+  font-size: 0.93rem;
+  line-height: 1.35;
+}
+
+.pg-dot{
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #16a34a;
+  flex-shrink: 0;
+}
+
+.pg-pts{
+  color: #14532d;
+  font-weight: 800;
+  font-size: 1.18rem;
+  line-height: 1;
+  white-space: nowrap;
+  letter-spacing: -0.02em;
+}
+
+.pg-pts small{
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #15803d;
+  margin-left: 4px;
+  letter-spacing: 0.01em;
+}
+
+.pg-rate{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 10px;
+  padding: 11px 14px;
+  background: linear-gradient(135deg, #23412e 0%, #1f5a33 100%);
+  border-radius: 12px;
+}
+
+.pg-rate-label{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #d1fae5;
+}
+
+.pg-rate-label i{
+  font-size: 0.85rem;
+  color: #f2c24f;
+}
+
+.pg-rate-value{
+  font-size: 1.18rem;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.pg-limits{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin-top: 10px;
+}
+
+.pg-limit{
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  color: #166534;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.pg-limit i{
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  color: #16a34a;
+}
+
+.pg-limit strong{
+  font-weight: 800;
+}
+
+.pg-note{
+  margin-top: 10px;
+  font-size: 0.78rem;
+}
+
+/* Redeem Your Points */
+.redeem-sub{
+  margin: -6px 0 12px;
+  font-size: 0.85rem;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.redeem-list{
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.reward-card{
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 13px 14px;
+  background: #ffffff;
+  border: 1px solid #dbe7de;
+  border-left: 4px solid #16a34a;
+  border-radius: 14px;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.reward-card:hover{
+  box-shadow: 0 6px 16px rgba(22, 101, 52, 0.10);
+  transform: translateY(-1px);
+}
+
+.reward-pts{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 74px;
+  flex-shrink: 0;
+  align-self: stretch;
+  padding-right: 13px;
+  border-right: 1px dashed #d1d5db;
+}
+
+.reward-pts-num{
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #14532d;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.reward-pts-unit{
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #15803d;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.reward-info{
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.reward-label{
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #16a34a;
+}
+
+.reward-amenity{
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.3;
+}
+
+.reward-amenity i{
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  color: #16a34a;
+}
+
+.reward-desc{
+  font-size: 0.78rem;
+  color: #6b7280;
+  line-height: 1.45;
+}
+
+@media (max-width: 1024px){
+  .ecopoint-duo-grid{ grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px){
+  .ecopoint-duo-grid .ecopoint-card{ padding: 18px 16px; }
+  .pg-row{ padding: 10px 12px; }
+  .pg-limits{ grid-template-columns: 1fr; }
+  .reward-card{ align-items: flex-start; }
+  .reward-pts{ width: 64px; padding-right: 10px; }
+}
+
 .ecopoint-action-wrap{
   margin-top: auto;
   padding-top: 18px;

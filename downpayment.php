@@ -344,6 +344,12 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     .field-label{color:#111827;font-weight:600;font-size:.95rem;display:block;margin-top:6px}
     .field-input{width:100%;padding:.75rem;border:1px solid #ccc;border-radius:8px;font-size:.95rem;background:#fff;color:#111827;font-family:'Poppins',sans-serif;box-sizing:border-box;margin-top:6px}
     .field-input:focus{border-color:#23412e;box-shadow:0 0 0 3px rgba(35,65,46,0.1);outline:none}
+    .field-input.invalid{border-color:#dc2626;box-shadow:0 0 0 3px rgba(220,38,38,0.08)}
+    .field-input.valid{border-color:#16a34a}
+    .ref-hint{display:none;align-items:flex-start;gap:6px;margin-top:6px;font-size:.85rem;font-weight:600;line-height:1.45}
+    .ref-hint.error{display:flex;color:#b30000}
+    .ref-hint.success{display:flex;color:#166534}
+    .ref-hint i{margin-top:2px}
     #confirmBtn{padding:12px 20px;font-size:1rem;margin-top:8px;align-self:flex-end}
     .upload-preview{display:flex;flex-direction:column;gap:8px;align-items:flex-start;justify-content:flex-start;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px}
     .upload-preview img{max-width:100%;height:auto;border-radius:8px}
@@ -492,7 +498,8 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
           <button type="button" class="btn btn-outline" id="removeFileBtn" disabled>Remove Selected File</button>
         </div>
         <label for="gcashReferenceNumber" class="field-label">GCash Reference Number (from receipt)</label>
-        <input type="text" name="gcashreferencenumber" id="gcashReferenceNumber" class="field-input" placeholder="Enter the GCash reference number from your receipt" required inputmode="numeric" pattern="\d{13}" minlength="13" maxlength="13">
+        <input type="text" name="gcashreferencenumber" id="gcashReferenceNumber" class="field-input" placeholder="Enter the 13-digit GCash reference number" required inputmode="numeric" pattern="\d{13}" minlength="13" autocomplete="off">
+        <div class="ref-hint" id="refHint" aria-live="polite"></div>
         <button type="submit" class="btn" id="confirmBtn" disabled>Confirm Payment</button>
       </form>
     </div>
@@ -557,11 +564,33 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
         }
         preview.style.display='flex';
       }
+      function refState(){
+        const raw=((refInput && refInput.value)||'').trim();
+        if(!raw) return { state:'empty', msg:'' };
+        if(!/^\d+$/.test(raw)) return { state:'error', msg:'Numbers only — please remove any letters or symbols.' };
+        if(raw.length>13) return { state:'error', msg:'Too long — the GCash reference number must be exactly 13 digits (you entered '+raw.length+').' };
+        if(raw.length<13) return { state:'error', msg:'Too short — '+raw.length+' of 13 digits entered. The reference number must be exactly 13 digits.' };
+        if(/^(\d)\1{12}$/.test(raw)) return { state:'error', msg:'Invalid reference number — digits cannot all be the same.' };
+        return { state:'success', msg:'Valid 13-digit reference number.' };
+      }
+      function renderRefHint(st){
+        const hint=document.getElementById('refHint');
+        if(!hint) return;
+        hint.className='ref-hint'+(st.state==='error'?' error':st.state==='success'?' success':'');
+        if(st.state==='empty'){ hint.style.display='none'; hint.innerHTML=''; if(refInput){ refInput.classList.remove('invalid','valid'); } return; }
+        hint.style.display='flex';
+        const icon=st.state==='success' ? '<i class="fa-solid fa-circle-check"></i>' : '<i class="fa-solid fa-triangle-exclamation"></i>';
+        hint.innerHTML=icon+' <span>'+st.msg+'</span>';
+        if(refInput){
+          refInput.classList.toggle('invalid', st.state==='error');
+          refInput.classList.toggle('valid', st.state==='success');
+        }
+      }
       function update(){
         const hasFile=!!(input && input.files && input.files.length>0);
-        const refVal=(refInput && (refInput.value||'').trim())||'';
-        const validRef=/^\d{13}$/.test(refVal) && !/^(\d)\1{12}$/.test(refVal);
-        btn.disabled=!(hasFile && validRef);
+        const st=refState();
+        renderRefHint(st);
+        btn.disabled=!(hasFile && st.state==='success');
         removeBtn.disabled=!hasFile;
         renderPreview(hasFile?input.files[0]:null);
       }
@@ -595,15 +624,24 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
       if(input){ input.addEventListener('change', update); }
       if(refInput){
         refInput.addEventListener('input', function(){
-          const cleaned = (refInput.value || '').replace(/\D+/g, '').slice(0, 13);
+          const cleaned = (refInput.value || '').replace(/\D+/g, '');
           if (refInput.value !== cleaned) { refInput.value = cleaned; }
           update();
         });
+        refInput.addEventListener('blur', update);
       }
       if(removeBtn){ removeBtn.addEventListener('click', function(){ input.value=''; update(); }); }
       if(form){
         form.addEventListener('submit', function(e){
-          if(btn.disabled || pendingSubmit) return;
+          if(pendingSubmit) return;
+          const st=refState();
+          if(st.state!=='success'){
+            e.preventDefault();
+            renderRefHint(st);
+            if(refInput){ refInput.focus(); }
+            return;
+          }
+          if(btn.disabled) return;
           e.preventDefault();
           openProceed();
         });

@@ -388,7 +388,7 @@ if ($stmt) {
   <div class="modal" role="dialog" aria-modal="true">
     <header>
       <h2><i class="fa-solid fa-receipt" style="color:var(--accent);margin-right:8px"></i> VHEcoPoint Session Detail</h2>
-      <button onclick="closeDetail()" aria-label="Close">✕</button>
+      <button onclick="closeDetail()" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
     </header>
     <div id="detailBody" style="min-height:80px;display:flex;align-items:center;justify-content:center;color:var(--muted)">
       Loading…

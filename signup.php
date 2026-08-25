@@ -506,7 +506,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       <img src="images/loginpage/biglogo.svg" alt="Logo" class="biglogo">
 
       <?php if ($registration_success): ?>
-        <div class="success-banner">✅ You have successfully registered! Redirecting to login…</div>
+        <div class="success-banner"><i class="fa-solid fa-circle-check"></i> You have successfully registered! Redirecting to login…</div>
       <?php endif; ?>
       <h1>Sign Up</h1>
       <p class="subtitle">Create your VictorianPass account to get started.</p>
@@ -1315,7 +1315,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
           } else {
             // For PDF or other types
             const icon = document.createElement('span');
-            icon.textContent = '📄'; // Simple icon
+            icon.innerHTML = '<i class="fa-solid fa-file-lines"></i>';
             icon.style.fontSize = '24px';
             previewContent.appendChild(icon);
           }
@@ -1777,7 +1777,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <div class="modal-content" style="max-width: 400px; text-align: center; padding: 30px; border-radius: 12px; position: relative; top: 50%; transform: translateY(-50%); margin: auto;">
       <button type="button" class="close" onclick="document.getElementById('errorModal').style.display='none'" aria-label="Close">&times;</button>
       <div style="margin-bottom: 15px;">
-         <span style="font-size: 3rem;">⚠️</span>
+         <i class="fa-solid fa-triangle-exclamation" style="font-size: 3rem; color: #e67e22;"></i>
       </div>
       <h3 style="color: #c0392b; margin-bottom: 10px;">Error</h3>
       <div id="errorModalMessage" style="color: #555; font-size: 1rem;"></div>
@@ -1825,7 +1825,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                       previewContent.appendChild(name);
                   } else {
                       const icon = document.createElement('span');
-                      icon.textContent = '📄';
+                      icon.innerHTML = '<i class="fa-solid fa-file-lines"></i>';
                       icon.style.fontSize = '24px';
                       previewContent.appendChild(icon);
                       

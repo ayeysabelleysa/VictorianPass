@@ -76,6 +76,8 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
 .calendar td.active-end { background: #fff; color: #23412e; font-weight: 800; border: 2px solid #23412e; box-shadow: inset 0 0 0 2px rgba(35,65,46,0.15); }
 .calendar td.today { border: 2px solid #23412e; font-weight: 700; background: rgba(35,65,46,0.08); }
 .calendar td.disabled { color: #ccc; cursor: not-allowed; background: #f9f9f9; opacity: 0.5; font-weight: 400; }
+.calendar td.in-range { background: #e3f0e6; color: #23412e; font-weight: 700; border-radius: 0; box-shadow: inset 0 0 0 1px rgba(35,65,46,0.10); }
+.calendar td.in-range:hover { transform: none; background: #d5e9db; }
 .calendar td.fully-booked { background: #fee2e2; color: #b30000; border: 1px solid #fecaca; font-weight: 600; }
 .calendar td.partly { background: #ffedd5; color: #c2410c; border: 1px solid #fdba74; font-weight: 600; }
 .calendar td.partly:hover { background: #fed7aa; }
@@ -604,6 +606,124 @@ select:focus {
   cursor: pointer;
   line-height: 1;
   z-index: 2;
+}
+
+/* Confirm Details — grouped summary sections */
+.vs-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #34d399;
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  margin: 10px 0 14px;
+  text-align: left;
+}
+
+.vs-banner i {
+  flex-shrink: 0;
+}
+
+.vs-section {
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 11px 13px;
+  text-align: left;
+}
+
+.vs-section + .vs-section {
+  margin-top: 12px;
+}
+
+.vs-section-title {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b7280;
+  margin-bottom: 7px;
+}
+
+.vs-reward {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.vs-reward .vs-section-title {
+  color: #15803d;
+}
+
+.vs-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.vs-lbl {
+  color: #4b5563;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.vs-val {
+  color: #111827;
+  text-align: right;
+  min-width: 0;
+}
+
+.vs-good .vs-val {
+  color: #15803d;
+  font-weight: 700;
+}
+
+.vs-final-row {
+  border-top: 1px dashed #d1d5db;
+  margin-top: 7px;
+  padding-top: 9px;
+}
+
+.vs-final-row .vs-lbl {
+  color: #14532d;
+  font-weight: 800;
+}
+
+.vs-final-row .vs-val {
+  color: #14532d;
+  font-weight: 800;
+  font-size: 1.12rem;
+}
+
+.vs-dp-row {
+  margin-top: 7px;
+  padding: 8px 10px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 9px;
+}
+
+.vs-dp-row .vs-lbl {
+  color: #065f46;
+  font-weight: 800;
+}
+
+.vs-dp-row .vs-val {
+  color: #065f46;
+  font-weight: 800;
+  font-size: 1.02rem;
+}
+
+@media (max-width: 420px) {
+  .vs-lbl { white-space: normal; }
 }
 
 .ref-code {

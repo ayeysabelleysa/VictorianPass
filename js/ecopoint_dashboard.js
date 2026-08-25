@@ -96,7 +96,7 @@
   // =====================================================================
   // Notification System
   // =====================================================================
-  function showNotification(type, title, message) {
+  function showNotification(type, title, message, iconClassOverride, iconColor) {
     // Create or reuse notification container
     let container = getElement('ecopoint-notification-container');
     if (!container) {
@@ -119,7 +119,7 @@
     const bgColor = type === 'success' ? '#d1fae5' : type === 'error' ? '#fee2e2' : '#fef3c7';
     const borderColor = type === 'success' ? '#86efac' : type === 'error' ? '#fca5a5' : '#fde047';
     const textColor = type === 'success' ? '#15803d' : type === 'error' ? '#991b1b' : '#b45309';
-    const iconEmoji = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+    const iconClass = iconClassOverride || (type === 'success' ? 'fa-solid fa-circle-check' : type === 'error' ? 'fa-solid fa-circle-xmark' : 'fa-solid fa-circle-info');
 
     notification.style.cssText = `
       background-color: ${bgColor};
@@ -139,7 +139,8 @@
       font-size: 16px;
       margin-bottom: 4px;
     `;
-    titleEl.textContent = iconEmoji + ' ' + title;
+    titleEl.innerHTML = '<i class="' + iconClass + '"' + (iconColor ? ' style="color:' + iconColor + '"' : '') + ' aria-hidden="true"></i> ';
+    titleEl.appendChild(document.createTextNode(title));
 
     const messageEl = document.createElement('div');
     messageEl.style.cssText = `
@@ -208,7 +209,7 @@
       color: #166534;
       font-size: 2rem;
     `;
-    iconWrap.textContent = type === 'success' ? '♻️' : '✅';
+    iconWrap.innerHTML = '<i class="fa-solid ' + (type === 'success' ? 'fa-recycle' : 'fa-circle-check') + '" aria-hidden="true"></i>';
 
     const cardTitle = document.createElement('div');
     cardTitle.style.cssText = `
@@ -365,7 +366,9 @@
     }
 
     if (statusEl) {
-      statusEl.textContent = isActive ? '🟢 Session Active' : getStatusLabel(session.status);
+      statusEl.innerHTML = isActive
+        ? '<span style="color:#22c55e"><i class="fa-solid fa-circle" aria-hidden="true"></i></span> Session Active'
+        : getStatusLabel(session.status);
     }
 
     if (messageEl) {
@@ -391,12 +394,12 @@
 
   function getStatusLabel(status) {
     const statusMap = {
-      'WAITING': '⏳ Waiting to Start',
-      'ACTIVE': '🟢 Session Active',
-      'PROCESSING': '⚙️ Processing',
-      'COMPLETED': '✅ Completed',
-      'CANCELLED': '❌ Cancelled',
-      'ERROR': '⚠️ Error',
+      'WAITING': '<i class="fa-solid fa-hourglass-half" aria-hidden="true"></i> Waiting to Start',
+      'ACTIVE': '<span style="color:#22c55e"><i class="fa-solid fa-circle" aria-hidden="true"></i></span> Session Active',
+      'PROCESSING': '<i class="fa-solid fa-gear" aria-hidden="true"></i> Processing',
+      'COMPLETED': '<i class="fa-solid fa-circle-check" style="color:#16a34a" aria-hidden="true"></i> Completed',
+      'CANCELLED': '<i class="fa-solid fa-circle-xmark" style="color:#dc2626" aria-hidden="true"></i> Cancelled',
+      'ERROR': '<i class="fa-solid fa-triangle-exclamation" style="color:#d97706" aria-hidden="true"></i> Error',
     };
     return statusMap[String(status).toUpperCase()] || status || 'No Active Session';
   }
@@ -483,7 +486,7 @@
     if (!prevSession && newSession) {
       showSessionPopup(
         'success',
-        '♻️ VHEcoPoint Successfully Verified',
+        'VHEcoPoint Successfully Verified',
         'Your VictorianPass QR has been verified successfully.',
         'Your recycling session is now active. You may begin depositing recyclables.',
         'Continue'
@@ -500,7 +503,7 @@
       const pointsAwarded = Math.max(0, parseInt((prevSession && prevSession.total_points) || (prevSession && prevSession.points_awarded) || 0));
       showSessionPopup(
         'success',
-        '✅ VHEcoPoint Session Completed',
+        'VHEcoPoint Session Completed',
         'Your recycling activity has been recorded successfully.',
         '+' + pointsAwarded + ' EcoPoints',
         'Got it'
@@ -510,14 +513,14 @@
     // Session status changed
     else if (newSession && prevSession && newSession.status !== prevSession.status) {
       const statusMap = {
-        'ACTIVE': { emoji: '🟢', text: 'Session is now active' },
-        'PROCESSING': { emoji: '⚙️', text: 'Processing waste data' },
-        'COMPLETED': { emoji: '✅', text: 'Session completed successfully' },
-        'CANCELLED': { emoji: '❌', text: 'Session was cancelled' },
-        'ERROR': { emoji: '⚠️', text: 'An error occurred during processing' },
+        'ACTIVE': { icon: 'fa-solid fa-circle', color: '#22c55e', text: 'Session is now active' },
+        'PROCESSING': { icon: 'fa-solid fa-gear', text: 'Processing waste data' },
+        'COMPLETED': { icon: 'fa-solid fa-circle-check', color: '#16a34a', text: 'Session completed successfully' },
+        'CANCELLED': { icon: 'fa-solid fa-circle-xmark', color: '#dc2626', text: 'Session was cancelled' },
+        'ERROR': { icon: 'fa-solid fa-triangle-exclamation', color: '#d97706', text: 'An error occurred during processing' },
       };
-      const info = statusMap[String(newSession.status).toUpperCase()] || { emoji: 'ℹ️', text: 'Status changed' };
-      showNotification('info', info.emoji + ' Status Update', info.text);
+      const info = statusMap[String(newSession.status).toUpperCase()] || { icon: 'fa-solid fa-circle-info', text: 'Status changed' };
+      showNotification('info', 'Status Update', info.text, info.icon, info.color);
       log('Session status changed', { from: prevSession.status, to: newSession.status });
     }
     // Weight updated significantly

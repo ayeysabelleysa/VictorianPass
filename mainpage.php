@@ -391,55 +391,71 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
           </article>
 
           <?php if ($isResident): ?>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+          <div class="ecopoint-duo-grid">
           <article class="ecopoint-card">
-            <h3 class="ecopoint-card-title" style="font-size:0.95rem;">Points Guide</h3>
-            <div class="ecopoint-info-list" style="gap:8px;">
-              <div class="ecopoint-info-row" style="padding:6px 0;">
-                <span class="ecopoint-info-label" style="font-size:0.85rem;">Plastic (≤1000ml)</span>
-                <span class="ecopoint-info-value" style="font-size:0.9rem;">55 pts/kg</span>
+            <h3 class="ecopoint-card-title">Points Guide</h3>
+            <div class="pg-list">
+              <div class="pg-row">
+                <span class="pg-item"><span class="pg-dot" aria-hidden="true"></span>Plastic (≤1000ml)</span>
+                <span class="pg-pts">55<small>pts/kg</small></span>
               </div>
-              <div class="ecopoint-info-row" style="padding:6px 0;">
-                <span class="ecopoint-info-label" style="font-size:0.85rem;">Aluminum Cans</span>
-                <span class="ecopoint-info-value" style="font-size:0.9rem;">140 pts/kg</span>
+              <div class="pg-row">
+                <span class="pg-item"><span class="pg-dot" aria-hidden="true"></span>Aluminum Cans</span>
+                <span class="pg-pts">140<small>pts/kg</small></span>
               </div>
-              <div class="ecopoint-info-row" style="padding:6px 0;">
-                <span class="ecopoint-info-label" style="font-size:0.85rem;">Paper &amp; Cardboard</span>
-                <span class="ecopoint-info-value" style="font-size:0.9rem;">30 pts/kg</span>
+              <div class="pg-row">
+                <span class="pg-item"><span class="pg-dot" aria-hidden="true"></span>Paper &amp; Cardboard</span>
+                <span class="pg-pts">30<small>pts/kg</small></span>
               </div>
-              <div class="ecopoint-info-row ecopoint-info-highlight" style="padding:8px 0; margin-top:4px;">
-                <span class="ecopoint-info-label" style="font-size:0.85rem;">1 point value</span>
-                <span class="ecopoint-info-value" style="font-size:0.9rem;">₱0.30</span>
-              </div>
-              <div class="ecopoint-footnote" style="font-size:0.75rem; margin-top:8px;">Weekly cap: 250 pts</div>
-              <div class="ecopoint-footnote" style="font-size:0.75rem;">3 sessions/day · Max: 3,000 pts</div>
             </div>
+            <div class="pg-rate">
+              <span class="pg-rate-label"><i class="fa-solid fa-coins" aria-hidden="true"></i>1 point value</span>
+              <span class="pg-rate-value">&#8369;0.30</span>
+            </div>
+            <div class="pg-limits">
+              <div class="pg-limit">
+                <i class="fa-solid fa-calendar-week" aria-hidden="true"></i>
+                <span><strong>Weekly Cap:</strong> 250 pts</span>
+              </div>
+              <div class="pg-limit">
+                <i class="fa-solid fa-calendar-day" aria-hidden="true"></i>
+                <span><strong>Maximum:</strong> 3 recycling sessions/day</span>
+              </div>
+            </div>
+            <div class="ecopoint-footnote pg-note">Maximum balance: 3,000 pts</div>
           </article>
 
           <article class="ecopoint-card">
-            <h3 class="ecopoint-card-title" style="font-size:0.95rem;">Redeem Your Points</h3>
-            <div class="ecopoint-info-list" style="gap:8px;">
-              <div class="ecopoint-info-row" style="padding:6px 0;">
-                <span class="ecopoint-info-value" style="font-size:0.9rem; font-weight:700;">300 pts</span>
-                <span class="ecopoint-info-label" style="font-size:0.85rem;">1 hr Basketball/Tennis</span>
+            <h3 class="ecopoint-card-title">Redeem Your Points</h3>
+            <p class="redeem-sub">Your EcoPoints redeem free hours at our subdivision amenities.</p>
+            <div class="redeem-list">
+              <div class="reward-card">
+                <div class="reward-pts"><span class="reward-pts-num">300</span><span class="reward-pts-unit">pts</span></div>
+                <div class="reward-info">
+                  <span class="reward-label">1 FREE HOUR</span>
+                  <span class="reward-amenity"><i class="fa-solid fa-basketball" aria-hidden="true"></i>Basketball Court or Tennis Court</span>
+                  <span class="reward-desc">Redeem 300 points for 1 complimentary hour of court use.</span>
+                </div>
               </div>
-              <div class="ecopoint-info-row" style="padding:6px 0;">
-                <span class="ecopoint-info-value" style="font-size:0.9rem; font-weight:700;">600 pts</span>
-                <span class="ecopoint-info-label" style="font-size:0.85rem;">1 hr Clubhouse</span>
+              <div class="reward-card">
+                <div class="reward-pts"><span class="reward-pts-num">600</span><span class="reward-pts-unit">pts</span></div>
+                <div class="reward-info">
+                  <span class="reward-label">1 FREE HOUR</span>
+                  <span class="reward-amenity"><i class="fa-solid fa-building-columns" aria-hidden="true"></i>Clubhouse</span>
+                  <span class="reward-desc">Redeem 600 points for 1 complimentary hour of clubhouse use.</span>
+                </div>
               </div>
-              <div class="ecopoint-info-row" style="padding:6px 0;">
-                <span class="ecopoint-info-value" style="font-size:0.9rem; font-weight:700;">750 pts</span>
-                <span class="ecopoint-info-label" style="font-size:0.85rem;">1 hr Multi-Purpose</span>
+              <div class="reward-card">
+                <div class="reward-pts"><span class="reward-pts-num">750</span><span class="reward-pts-unit">pts</span></div>
+                <div class="reward-info">
+                  <span class="reward-label">1 FREE HOUR</span>
+                  <span class="reward-amenity"><i class="fa-solid fa-building" aria-hidden="true"></i>Multi-Purpose Building</span>
+                  <span class="reward-desc">Redeem 750 points for 1 complimentary hour of facility use.</span>
+                </div>
               </div>
             </div>
           </article>
           </div>
-          
-          <article class="ecopoint-card">
-            <div class="ecopoint-action-wrap" style="text-align:center;">
-              <a href="profileresident.php?section=panel-points-history" class="btn-change ecopoint-action-btn">View VHEcoPoint</a>
-            </div>
-          </article>
           <?php endif; ?>
         </div>
       </div>

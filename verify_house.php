@@ -29,7 +29,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       echo json_encode(['success' => false, 'message' => 'Please enter your House Number.']);
       exit;
     }
-    echo "<script>alert('⚠️ Please enter your House Number.');</script>";
+    echo "<script>alert('Please enter your House Number.');</script>";
   } else {
     $check = $con->prepare("SELECT id FROM houses WHERE house_number = ?");
     $check->bind_param("s", $house_number);
@@ -51,7 +51,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         echo json_encode(['success' => false, 'message' => 'Invalid or unregistered House Number!']);
         exit;
       }
-      echo "<script>alert('❌ Invalid or unregistered House Number!');</script>";
+      echo "<script>alert('Invalid or unregistered House Number!');</script>";
     }
   }
 }

@@ -132,6 +132,7 @@ if ($isGuest && $guest) {
   <title>Resident ID - VictorianPass</title>
   <link rel="icon" type="image/png" href="images/logo.svg" />
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     * { font-family: 'Poppins', sans-serif; box-sizing: border-box; }
     body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; background:#0f0f0f; }
@@ -172,7 +173,7 @@ if ($isGuest && $guest) {
       </div>
       <div class="pass-title"><?php echo $isGuest ? 'Guest Pass' : 'Resident Pass'; ?></div>
       <?php if (!empty($error)): ?>
-        <div class="foot" style="color:#ffb3b3">⚠️ <?php echo htmlspecialchars($error); ?></div>
+        <div class="foot" style="color:#ffb3b3"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> <?php echo htmlspecialchars($error); ?></div>
       <?php else: ?>
       <div class="id-top">
         <div class="avatar">

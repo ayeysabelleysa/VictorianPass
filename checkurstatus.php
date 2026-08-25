@@ -211,7 +211,7 @@ require_once __DIR__ . '/session_bootstrap.php';
       const code = codeInput.value.trim();
       if (!code) {
         resultBox.style.display = 'block';
-        resultBox.innerHTML = '⚠️ Please enter your status code.';
+        resultBox.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Please enter your status code.';
         return;
       }
 
@@ -242,11 +242,11 @@ require_once __DIR__ . '/session_bootstrap.php';
             </div>
           `;
         } else {
-          resultBox.innerHTML = `⚠️ ${data.message || 'Unable to find status for this code.'}`;
+          resultBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ${data.message || 'Unable to find status for this code.'}`;
         }
       } catch (err) {
         resultBox.style.display = 'block';
-        resultBox.innerHTML = '⚠️ Error connecting to server.';
+        resultBox.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Error connecting to server.';
       }
     });
   </script>

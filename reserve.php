@@ -968,7 +968,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
           <div style="background:#fff; border-radius:20px; max-width:800px; width:100%; max-height:90vh; overflow-y:auto; position:relative;">
             <!-- Modal Header -->
             <div style="padding:24px 24px 0; display:flex; justify-content:space-between; align-items:center;">
-              <h2 style="margin:0; color:#23412e; font-size:1.5rem; font-weight:800;">🎁 View Rewards</h2>
+              <h2 style="margin:0; color:#23412e; font-size:1.5rem; font-weight:800;"><i class="fa-solid fa-gift" aria-hidden="true"></i> View Rewards</h2>
               <button type="button" id="closeRewardsModal" style="background:#f3f4f6; border:none; width:36px; height:36px; border-radius:50%; font-size:1.25rem; cursor:pointer; color:#4b5563;">
                 ×
               </button>
@@ -1008,9 +1008,9 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                           <div style="display:flex; gap:8px; align-items:center; font-size:0.8rem; margin-top:4px;">
                             <span style="color:#23412e; font-weight:700;"><?php echo number_format($amenity['points']); ?> pts / hour</span>
                             <?php if ($isEligible): ?>
-                              <span style="background:#d1fae5; color:#065f46; padding:2px 8px; border-radius:10px; font-weight:700; font-size:0.75rem;">✓ Eligible</span>
+                              <span style="background:#d1fae5; color:#065f46; padding:2px 8px; border-radius:10px; font-weight:700; font-size:0.75rem;"><i class="fa-solid fa-check" aria-hidden="true"></i> Eligible</span>
                             <?php else: ?>
-                              <span style="background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:10px; font-weight:700; font-size:0.75rem;">✗ Need <?php echo number_format($amenity['points'] - $residentPoints); ?> more</span>
+                              <span style="background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:10px; font-weight:700; font-size:0.75rem;"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Need <?php echo number_format($amenity['points'] - $residentPoints); ?> more</span>
                             <?php endif; ?>
                           </div>
                         </div>
@@ -1109,7 +1109,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
       </div>
       <?php if ($isResident): ?>
       <div class="booking-steps-protip-float" id="proTipFloat">
-        <span class="protip-icon">💡</span>
+        <span class="protip-icon"><i class="fa-solid fa-lightbulb" aria-hidden="true"></i></span>
         <span class="protip-text"><strong>Pro Tip:</strong> You can use the points you have collected in VHEcoPoint Smart Waste Segregation Station when booking an amenity for a free 1 hour. Click on an amenity above to see if you're eligible!</span>
         <button type="button" class="protip-dismiss" id="proTipDismiss" aria-label="Dismiss pro tip">&times;</button>
       </div>
@@ -1922,18 +1922,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     } else {
       if(isSameAsStart && !selectedEnd){
         setEnd(dateString);
-        (function(){
-          const cells=Array.from(document.querySelectorAll('.calendar td[data-date]'));
-          cells.forEach(td=>{ td.classList.remove('active-start'); td.classList.remove('active-end'); });
-          if(selectedStart){
-            const s=cells.find(td=>td.getAttribute('data-date')===selectedStart);
-            if(s){ s.classList.add('active-start'); s.classList.remove('active'); }
-          }
-          if(selectedEnd){
-            const e=cells.find(td=>td.getAttribute('data-date')===selectedEnd);
-            if(e){ e.classList.add('active-end'); e.classList.remove('active'); }
-          }
-        })();
+        updateSelectedDateRangeHighlight();
 
         computeAvailability();
         renderTimeSlotButtons();
@@ -1992,18 +1981,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     }
     updateSelectedDateRangeHighlight();
     await evaluateCalendarAvailability();
-    (function(){
-      const cells=Array.from(document.querySelectorAll('.calendar td[data-date]'));
-      cells.forEach(td=>{ td.classList.remove('active-start'); td.classList.remove('active-end'); });
-      if(selectedStart){
-        const s=cells.find(td=>td.getAttribute('data-date')===selectedStart);
-        if(s){ s.classList.add('active-start'); s.classList.remove('active'); s.classList.remove('available'); }
-      }
-      if(selectedEnd){
-        const e=cells.find(td=>td.getAttribute('data-date')===selectedEnd);
-        if(e){ e.classList.add('active-end'); e.classList.remove('active'); e.classList.remove('available'); }
-      }
-    })();
+    updateSelectedDateRangeHighlight();
     computeAvailability();
     renderTimeSlotButtons();
     markDirty('startDateInput');
@@ -2011,6 +1989,24 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     updateActionStates();
     updateSelectedTimeRange();
     updateBookingSummary();
+  }
+
+  function updateSelectedDateRangeHighlight(){
+    const cells=Array.from(document.querySelectorAll('.calendar td[data-date]'));
+    cells.forEach(function(td){
+      const ds=td.getAttribute('data-date');
+      td.classList.remove('active','active-start','active-end','in-range');
+      if(selectedStart && ds===selectedStart){
+        td.classList.add('active-start');
+        td.classList.remove('available');
+      } else if(selectedEnd && ds===selectedEnd){
+        td.classList.add('active-end');
+        td.classList.remove('available');
+      } else if(selectedStart && selectedEnd && ds>selectedStart && ds<selectedEnd){
+        td.classList.add('in-range');
+        td.classList.remove('available');
+      }
+    });
   }
 
   function clearStartDate(){
@@ -2062,18 +2058,6 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
       if(this.checked){
         if(s){ selectedEnd=s; document.getElementById('endDateInput').value=s; document.getElementById('endDate').textContent=formatDateToMMDDYYYY(s); }
       }
-      (function(){
-        const cells=Array.from(document.querySelectorAll('.calendar td[data-date]'));
-        cells.forEach(td=>{ td.classList.remove('active-start'); td.classList.remove('active-end'); td.classList.remove('active'); });
-        if(selectedStart){
-          const st=cells.find(td=>td.getAttribute('data-date')===selectedStart);
-          if(st){ st.classList.add('active-start'); }
-        }
-        if(selectedEnd){
-          const en=cells.find(td=>td.getAttribute('data-date')===selectedEnd);
-          if(en){ en.classList.add('active-end'); }
-        }
-      })();
       updateSelectedDateRangeHighlight();
       computeAvailability();
       renderTimeSlotButtons();
@@ -2305,6 +2289,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
   function resetReservationForm(){
     try{
       selectedStart=null; selectedEnd=null;
+      document.querySelectorAll('.calendar td').forEach(function(td){ td.classList.remove('active','active-start','active-end','in-range'); });
       const ids=['startDateInput','endDateInput','startTimeInput','endTimeInput'];
       ids.forEach(function(id){ const el=document.getElementById(id); if(el){ el.value=''; } });
       const sd=document.getElementById('startDate'); if(sd){ sd.textContent='--'; }
@@ -2555,7 +2540,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     updateDownpaymentSuggestion();
     renderTimeSlotButtons();
     const st=document.getElementById('startTimeInput').value;
-    if(st){ computeEndTimeFromHours(); const sh=parseInt(st.split(':')[0],10); const eh=sh+parseInt(hoursInput.value||'0',10); const tr=document.getElementById('selectedTimeRange'); if(tr && hoursInput.value){ tr.textContent=`Selected Time 🕒: ${formatTimeSlot(sh)} - ${formatTimeSlot(eh)}`; tr.style.display='block'; } }
+    if(st){ computeEndTimeFromHours(); const sh=parseInt(st.split(':')[0],10); const eh=sh+parseInt(hoursInput.value||'0',10); const tr=document.getElementById('selectedTimeRange'); if(tr && hoursInput.value){ tr.innerHTML='<i class="fa-regular fa-clock" aria-hidden="true"></i> Selected Time: '+formatTimeSlot(sh)+' - '+formatTimeSlot(eh); tr.style.display='block'; } }
     const dc=document.getElementById('durationContainer'); if(dc){ Array.from(dc.children).forEach(b=>b.classList.remove('selected')); const sel=Array.from(dc.children).find(b=>b.dataset.hours===String(hoursInput.value)); if(sel){ sel.classList.add('selected'); } }
     updateActionStates();
     const hc=document.getElementById('hoursChosen'); if(hc){ hc.value='1'; }
@@ -2818,7 +2803,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     if(!st || !et){ el.style.display='none'; el.textContent=''; if(tn){ tn.style.display='none'; } return; }
     const sh=parseInt(st.split(':')[0],10); const sm=parseInt(st.split(':')[1]||'0',10);
     const eh=parseInt(et.split(':')[0],10); const em=parseInt(et.split(':')[1]||'0',10);
-    el.textContent=`Selected Time 🕒: ${formatTimeHM(sh,sm)} - ${formatTimeHM(eh,em)}`;
+    el.innerHTML='<i class="fa-regular fa-clock" aria-hidden="true"></i> Selected Time: '+formatTimeHM(sh,sm)+' - '+formatTimeHM(eh,em);
     el.style.display='block';
     if(tn){ tn.style.display = 'none'; }
   }
@@ -3347,17 +3332,13 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
         }
         const displayPrice = usePoints ? '₱0.00' : priceTxt;
         let displayDownpayment = (dpVal!==''?('₱'+Number(dpVal).toFixed(2)):'—');
-        
-        let summaryParts = [
-          ['Amenity', amenVal||'-'],
-          ['Mode', usePoints ? 'Redeem Points' : 'Cash'],
-          ['Start Date', formatDateToMMDDYYYY(s) || '-'],
-          ['End Date', formatDateToMMDDYYYY(eD) || '-'],
-          ['Duration', durationDisplay],
-          ['Time', timeDisplay || '-'],
-          ['Persons', String(personsVal)]
-        ];
-        
+
+        function vsRow(label, value, extraClass){
+          return '<div class="vs-row'+(extraClass?' '+extraClass:'')+'"><span class="vs-lbl">'+label+'</span><span class="vs-val">'+value+'</span></div>';
+        }
+
+        let summaryHTML = '';
+
         if (usePoints) {
           const pointsNeeded = getPointsRequired(amenVal);
           const hourlyRate = getHourlyRate(amenVal, isResidentSelfBooking());
@@ -3366,22 +3347,51 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
           const discountVal = hourlyRate;
           const chargedAmount = paidHours * hourlyRate;
           displayDownpayment = paidHours > 0 ? '₱' + (chargedAmount * 0.5).toFixed(2) : '₱0.00';
-          summaryParts.push(['Original Duration', hoursVal + ' hour' + (hoursVal > 1 ? 's' : '')]);
-          summaryParts.push(['VHEcoPoint Reward', '-1 Free Hour (' + pointsNeeded.toLocaleString() + ' pts)']);
-          summaryParts.push(['Paid Duration', paidHours + ' hour' + (paidHours !== 1 ? 's' : '')]);
-          summaryParts.push(['Original Amount', '₱' + fullBase.toFixed(2)]);
-          summaryParts.push(['Discount', '-₱' + discountVal.toFixed(2)]);
-          summaryParts.push(['Final Amount', '₱' + chargedAmount.toFixed(2)]);
+
+          summaryHTML += '<div class="vs-banner"><i class="fa-solid fa-circle-check"></i> 1 Free Hour Redeemed with VHEcoPoint Points!</div>';
+
+          summaryHTML += '<div class="vs-section">'
+            + '<div class="vs-section-title">Reservation Details</div>'
+            + vsRow('Amenity', amenVal||'-')
+            + vsRow('Start Date', formatDateToMMDDYYYY(s) || '-')
+            + vsRow('End Date', formatDateToMMDDYYYY(eD) || '-')
+            + vsRow('Time', timeDisplay || '-')
+            + vsRow('Persons', String(personsVal))
+            + '</div>';
+
+          summaryHTML += '<div class="vs-section vs-reward">'
+            + '<div class="vs-section-title">VHEcoPoint Reward</div>'
+            + vsRow('Original Duration', hoursVal + ' hour' + (hoursVal > 1 ? 's' : ''))
+            + vsRow('VHEcoPoint Reward', '-1 Free Hour (' + pointsNeeded.toLocaleString() + ' pts)', 'vs-good')
+            + vsRow('Paid Duration', paidHours + ' hour' + (paidHours !== 1 ? 's' : ''))
+            + '</div>';
+
+          summaryHTML += '<div class="vs-section vs-payment">'
+            + '<div class="vs-section-title">Payment Summary</div>'
+            + vsRow('Original Amount', '₱' + fullBase.toFixed(2))
+            + vsRow('VHEcoPoint Discount', '-₱' + discountVal.toFixed(2), 'vs-good')
+            + vsRow('Final Amount', '₱' + chargedAmount.toFixed(2), 'vs-final-row')
+            + vsRow('Downpayment', displayDownpayment, 'vs-dp-row')
+            + '</div>';
         } else {
-          summaryParts.push(['Total Price', displayPrice]);
+          summaryHTML += '<div class="vs-section">'
+            + '<div class="vs-section-title">Reservation Details</div>'
+            + vsRow('Amenity', amenVal||'-')
+            + vsRow('Mode', usePoints ? 'Redeem Points' : 'Cash')
+            + vsRow('Start Date', formatDateToMMDDYYYY(s) || '-')
+            + vsRow('End Date', formatDateToMMDDYYYY(eD) || '-')
+            + vsRow('Duration', durationDisplay)
+            + vsRow('Time', timeDisplay || '-')
+            + vsRow('Persons', String(personsVal))
+            + '</div>';
+
+          summaryHTML += '<div class="vs-section vs-payment">'
+            + '<div class="vs-section-title">Payment Summary</div>'
+            + vsRow('Total Price', displayPrice)
+            + vsRow('Downpayment', displayDownpayment, 'vs-dp-row')
+            + '</div>';
         }
-        summaryParts.push(['Downpayment', displayDownpayment]);
-        
-        let summaryHTML = summaryParts.map(function(x){ return '<div style="display:flex;justify-content:space-between;margin:4px 0"><span style="font-weight:600">'+x[0]+'</span><span>'+x[1]+'</span></div>'; }).join('');
-        
-        if (usePoints) {
-          summaryHTML = '<div style="background:#d1fae5; color:#065f46; padding:8px; border-radius:8px; border:1px solid #34d399; margin-bottom:12px; font-weight:600;"><i class="fa-solid fa-circle-check"></i> 1 free hour redeemed with VHEcoPoint points!</div>' + summaryHTML;
-        }
+
         const sumEl=document.getElementById('verifySummary'); if(sumEl){ sumEl.innerHTML = summaryHTML; }
         const vm=document.getElementById('verifyModal'); if(vm){ vm.style.display='flex'; }
         return;
@@ -3865,7 +3875,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     }
     window.__slotRenderTokenCounter=(window.__slotRenderTokenCounter||0)+1; const __token=window.__slotRenderTokenCounter; window.__activeSlotRenderToken=__token; if(!date){ container.innerHTML=''; if(notice){ notice.style.display='none'; notice.textContent=''; } return; } fetchBookedTimesFor(date).then(data=>{ if(window.__activeSlotRenderToken!==__token) return; const booked=data.times||[]; window.__bookedTimesForDate=booked||[]; let anyEnabled=false; let disabledCount=0; slots.forEach(slot=>{ const startHour=parseInt(slot.value.split(':')[0],10); const maxPossible=computeMaxDuration(amen,startHour,booked,date); const valid=(maxPossible>=hours); const btn=document.createElement('button'); btn.type='button'; btn.className='slot-btn airbnb'; btn.textContent=slot.label; btn.dataset.slot=slot.value; if(!valid){ disabledCount++; btn.classList.add('unavailable'); btn.setAttribute('aria-disabled','true'); btn.onclick=function(){ showToast('This start time cannot fit your selected duration. Try a different start time or duration.','warning'); }; } else { anyEnabled=true; btn.classList.add('available'); btn.onclick=function(){ selectTimeSlot(slot.value); }; } container.appendChild(btn); }); let hasBookedHours=false; (booked||[]).forEach(function(t){ if(!t.has_time){ hasBookedHours=true; return; } const bS=parseInt(String(t.start).split(':')[0],10); const bE=parseInt(String(t.end).split(':')[0],10); if(bE>bS){ hasBookedHours=true; } }); if(notice){ if(!anyEnabled){ notice.style.display='block'; notice.textContent = hasBookedHours ? 'Fully Booked — no time slots available for this date.' : ''; } else if(disabledCount>0){ notice.style.display='block'; notice.textContent = hasBookedHours ? 'Partially Booked — some time slots are unavailable.' : ''; } else { notice.style.display='none'; notice.textContent=''; } } if(!anyEnabled){ showTimeError('No start times fit the selected hours. Try a different duration.'); } else { showTimeError(''); } const st=document.getElementById('startTimeInput').value; if(st){ const selBtn=Array.from(container.children).find(b=>b.tagName==='BUTTON' && b.dataset.slot===st); if(selBtn) selBtn.classList.add('selected'); } updateActionStates(); }); }
 
-  function selectTimeSlot(start){ const hInput=document.getElementById('hoursInput'); const hrs=parseInt(hInput?.value||'0',10); if(!hrs || hrs<1){ showTimeError('Please select number of hours before choosing a start time.'); return; } const amen=document.getElementById('amenityField').value; const booked=window.__bookedTimesForDate||[]; const startHour=parseInt(start.split(':')[0],10); const selDate=document.getElementById('startDateInput')?.value||''; if(computeMaxDuration(amen,startHour,booked,selDate) < Math.max(1,hrs)){ showTimeError('This start time cannot fit your selected duration. Try a different start time or duration.'); showToast(`⚠️ Not enough free hours starting from this time to complete ${hrs} hour${hrs>1?'s':''}.`,'warning'); return; } document.getElementById('startTimeInput').value=start; computeEndTimeFromHours(); const sh=startHour, eh=sh+hrs; const tr=document.getElementById('selectedTimeRange'); if(tr){ tr.textContent=`Selected Time 🕒: ${formatTimeSlot(sh)} - ${formatTimeSlot(eh)}`; tr.style.display='block'; } const tn=document.getElementById('selectedTimeNote'); if(tn){ tn.style.display='none'; } const cont=document.getElementById('timeSlotContainer'); if(cont){ Array.from(cont.querySelectorAll('.slot-btn')).forEach(function(b){ b.classList.remove('selected'); }); const sel=Array.from(cont.querySelectorAll('.slot-btn')).find(function(b){ return b.dataset.slot===start; }); if(sel){ sel.classList.add('selected'); } } showTimeError(''); updateActionStates(); }
+  function selectTimeSlot(start){ const hInput=document.getElementById('hoursInput'); const hrs=parseInt(hInput?.value||'0',10); if(!hrs || hrs<1){ showTimeError('Please select number of hours before choosing a start time.'); return; } const amen=document.getElementById('amenityField').value; const booked=window.__bookedTimesForDate||[]; const startHour=parseInt(start.split(':')[0],10); const selDate=document.getElementById('startDateInput')?.value||''; if(computeMaxDuration(amen,startHour,booked,selDate) < Math.max(1,hrs)){ showTimeError('This start time cannot fit your selected duration. Try a different start time or duration.'); showToast(`<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Not enough free hours starting from this time to complete ${hrs} hour${hrs>1?'s':''}.`,'warning'); return; } document.getElementById('startTimeInput').value=start; computeEndTimeFromHours(); const sh=startHour, eh=sh+hrs; const tr=document.getElementById('selectedTimeRange'); if(tr){ tr.innerHTML='<i class="fa-regular fa-clock" aria-hidden="true"></i> Selected Time: '+formatTimeSlot(sh)+' - '+formatTimeSlot(eh); tr.style.display='block'; } const tn=document.getElementById('selectedTimeNote'); if(tn){ tn.style.display='none'; } const cont=document.getElementById('timeSlotContainer'); if(cont){ Array.from(cont.querySelectorAll('.slot-btn')).forEach(function(b){ b.classList.remove('selected'); }); const sel=Array.from(cont.querySelectorAll('.slot-btn')).find(function(b){ return b.dataset.slot===start; }); if(sel){ sel.classList.add('selected'); } } showTimeError(''); updateActionStates(); }
   function renderHoursDropdownForAmenity(){
     const amen=document.getElementById('amenityField').value;
     const sel=document.getElementById('hoursSelect');
