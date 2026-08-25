@@ -1386,6 +1386,16 @@ body.account-blocked { overflow: hidden; }
   .ecopoint-kpi-grid{grid-template-columns:1fr}
   .ecopoint-header-title{font-size:1.2rem}
 }
+#qrChoiceModal .modal-content,#qrViewModal .modal-content{width:min(92vw,420px);padding:20px}
+#qrChoiceModal .modal-content h3,#qrViewModal .modal-content h3{font-size:1.05rem}
+#qrViewCardContainer .resident-id-card .id-top{flex-wrap:wrap}
+#qrViewCardContainer .resident-id-card .avatar{width:120px;height:120px;min-width:100px;font-size:1.1rem}
+#qrViewCardContainer .resident-id-card .top-info .name{font-size:.95rem}
+@media (max-width:400px){
+  #qrChoiceModal .modal-content,#qrViewModal .modal-content{width:96vw;padding:16px}
+  #qrViewCardContainer .resident-id-card .id-top{gap:8px}
+  #qrViewCardContainer .resident-id-card .avatar{width:90px;height:90px;min-width:80px}
+}
 </style>
 <style>
 .item-extra-link.item-extra-cancel{background:#ef4444;color:#ffffff;border:1px solid #ef4444;padding:8px 16px;border-radius:50px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;font-weight:500;text-decoration:none}
@@ -2354,6 +2364,10 @@ body.account-blocked { overflow: hidden; }
     closeQRView();
     var modal = document.getElementById('qrChoiceModal');
     if(!modal) return;
+    var sb=document.querySelector('.sidebar');
+    var ov=document.getElementById('sidebarOverlay');
+    if(sb) sb.classList.remove('open');
+    if(ov) ov.classList.remove('show');
     modal.style.display = 'flex';
   }
   function closeQRChoice(){ var m=document.getElementById('qrChoiceModal'); if(m) m.style.display='none'; }
@@ -2367,10 +2381,10 @@ body.account-blocked { overflow: hidden; }
     if(card){
       var clone = card.cloneNode(true);
       clone.removeAttribute('id');
-      clone.style.width = '100%';
-      clone.style.maxWidth = '360px';
-      clone.style.display = 'block';
-      clone.style.margin = '0 auto';
+    clone.style.width = '100%';
+    clone.style.maxWidth = 'min(360px, 100%)';
+    clone.style.display = 'block';
+    clone.style.margin = '0 auto';
       container.appendChild(clone);
     }
     view.style.display = 'flex';
@@ -2395,6 +2409,10 @@ body.account-blocked { overflow: hidden; }
       if (!qrButton || !qrTooltip || !qrTooltip.classList.contains('visible')) return;
       var el = anchor || qrButton;
       var rect = el.getBoundingClientRect();
+      if (rect.right < 0 || rect.left > window.innerWidth || rect.width === 0) {
+        setQRHighlight(false);
+        return;
+      }
       var tooltipWidth = qrTooltip.offsetWidth || 220;
       var left = rect.right + 16;
       var top = rect.top + (rect.height / 2);
