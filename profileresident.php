@@ -1386,13 +1386,20 @@ body.account-blocked { overflow: hidden; }
   .ecopoint-kpi-grid{grid-template-columns:1fr}
   .ecopoint-header-title{font-size:1.2rem}
 }
-#qrChoiceModal .modal-content,#qrViewModal .modal-content{width:min(92vw,420px);padding:20px}
-#qrChoiceModal .modal-content h3,#qrViewModal .modal-content h3{font-size:1.05rem}
+#qrChoiceModal .modal-content{width:min(92vw,420px);padding:20px}
+#qrChoiceModal .modal-content h3{font-size:1.05rem}
+#qrViewModal .modal-content{text-align:center;padding:24px 20px 20px;overflow-x:hidden}
+#qrViewModal .modal-content h3{font-size:1.05rem}
 #qrViewCardContainer .resident-id-card .id-top{flex-wrap:wrap}
 #qrViewCardContainer .resident-id-card .avatar{width:120px;height:120px;min-width:100px;font-size:1.1rem}
 #qrViewCardContainer .resident-id-card .top-info .name{font-size:.95rem}
-@media (max-width:400px){
-  #qrChoiceModal .modal-content,#qrViewModal .modal-content{width:96vw;padding:16px}
+@media(max-width:768px){
+  #qrViewModal .modal{overflow:hidden}
+  #qrViewModal .modal-content{width:min(92vw,420px);max-height:85vh;overflow-y:auto;overflow-x:hidden;padding:48px 20px 20px}
+}
+@media(max-width:480px){
+  #qrViewModal .modal-content{width:min(96vw,400px);padding:44px 14px 14px}
+  #qrChoiceModal .modal-content{width:min(96vw,400px);padding:16px}
   #qrViewCardContainer .resident-id-card .id-top{gap:8px}
   #qrViewCardContainer .resident-id-card .avatar{width:90px;height:90px;min-width:80px}
 }
@@ -2381,12 +2388,16 @@ body.account-blocked { overflow: hidden; }
     if(card){
       var clone = card.cloneNode(true);
       clone.removeAttribute('id');
-    clone.style.width = '100%';
-    clone.style.maxWidth = 'min(360px, 100%)';
-    clone.style.display = 'block';
-    clone.style.margin = '0 auto';
+      clone.style.width = '100%';
+      clone.style.maxWidth = 'min(360px, 100%)';
+      clone.style.display = 'block';
+      clone.style.margin = '0 auto';
       container.appendChild(clone);
     }
+    var sb=document.querySelector('.sidebar');
+    var ov=document.getElementById('sidebarOverlay');
+    if(sb) sb.classList.remove('open');
+    if(ov) ov.classList.remove('show');
     view.style.display = 'flex';
   }
   function closeQRView(){ var m=document.getElementById('qrViewModal'); if(m) m.style.display='none'; }
