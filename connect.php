@@ -19,9 +19,9 @@ if ($isLocal) {
 } else {
     // Hostinger Production Credentials
     $host = 'localhost';
-    $user = 'u277316228_VPass';
+    $user = 'u785375633_VHEcoPoint_';
     $pass = 'Rionne0821@';
-    $db   = 'u277316228_victorianPass';
+    $db   = 'u785375633_FLS_VHEcoPoint';
 }
 
 // Create connection
