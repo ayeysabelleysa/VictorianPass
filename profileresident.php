@@ -1071,6 +1071,68 @@ body.account-blocked { overflow: hidden; }
   .main-content.ecopoint-active #panel-points-history { padding: 14px; }
   .main-content.ecopoint-active #panel-points-history .ecopoint-live-meta { grid-template-columns: 1fr 1fr; }
 }
+
+/* Compact, balanced VHEcoPoint / dashboard header on mobile */
+@media (max-width: 768px) {
+  .top-header {
+    height: 58px;
+    padding: 0 14px;
+  }
+  .header-brand {
+    min-width: 0;
+    overflow: hidden;
+  }
+  .header-brand img {
+    height: 32px;
+    margin-right: 10px;
+    flex-shrink: 0;
+  }
+  .menu-toggle {
+    width: 36px;
+    height: 34px;
+    font-size: 1.25rem;
+    margin-right: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .brand-text {
+    min-width: 0;
+    overflow: hidden;
+  }
+  .brand-main { font-size: 0.95rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .brand-sub { font-size: 0.68rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .header-actions { gap: 10px; }
+  .icon-btn { font-size: 1.05rem; flex-shrink: 0; }
+  .user-name { font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 90px; }
+  .user-avatar { width: 34px; height: 34px; flex-shrink: 0; }
+  .user-profile { gap: 7px; min-width: 0; }
+}
+
+@media (max-width: 430px) {
+  .top-header { padding: 0 10px; }
+  .header-brand img { margin-right: 8px; }
+  .brand-main { font-size: 0.88rem; max-width: 120px; }
+  .brand-sub { font-size: 0.62rem; max-width: 110px; }
+  .header-actions { gap: 8px; }
+  .user-name { font-size: 0.76rem; max-width: 70px; }
+}
+
+@media (max-width: 430px) {
+  .top-header { padding: 0 10px; }
+  .header-brand img { margin-right: 8px; }
+  .brand-main { font-size: 0.88rem; }
+  .brand-sub { font-size: 0.62rem; }
+  .header-actions { gap: 8px; }
+  .user-name { font-size: 0.76rem; }
+}
+
+@media (max-width: 320px) {
+  .brand-sub { display: none; }
+  .user-name { display: none; }
+  .header-actions { gap: 6px; }
+}
 @media (max-width: 480px) {
   .main-content.ecopoint-active #panel-points-history .ecopoint-live-meta { grid-template-columns: 1fr; }
   .main-content.ecopoint-active #panel-points-history .ecopoint-live-header { align-items: flex-start; }

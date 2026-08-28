@@ -615,12 +615,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   <script>
     document.addEventListener('DOMContentLoaded', function(){
       // Profile Dropdown Logic
+      var profileUrl = <?php echo json_encode($userType === 'resident' ? 'profileresident.php' : 'dashboardvisitor.php'); ?>;
       var wrap = document.getElementById('profileWrap');
       var trigger = document.getElementById('profileAccountTrigger');
       var dropdown = document.getElementById('profileDropdown');
       
       if(wrap && dropdown && trigger) {
           var closeTimeout;
+
+          function isMobile(){
+            return window.innerWidth <= 900;
+          }
 
           function openDropdown() {
               clearTimeout(closeTimeout);
@@ -641,14 +646,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
               }, 200); // Small delay before closing to allow moving mouse
           }
 
-          // Hover Events
-          wrap.addEventListener('mouseenter', openDropdown);
-          wrap.addEventListener('mouseleave', closeDropdown);
+          // Hover Events (desktop only)
+          if (!isMobile()) {
+            wrap.addEventListener('mouseenter', openDropdown);
+            wrap.addEventListener('mouseleave', closeDropdown);
+          }
 
-          // Click Toggle
+          // Click Toggle — on mobile, navigate to profile page directly
           trigger.addEventListener('click', function(e) {
               e.preventDefault();
               e.stopPropagation();
+              if (isMobile()) {
+                  window.location.href = profileUrl;
+                  return;
+              }
               if (dropdown.classList.contains('show')) {
                   dropdown.classList.remove('show');
                   setTimeout(function() { dropdown.style.display = 'none'; }, 300);
