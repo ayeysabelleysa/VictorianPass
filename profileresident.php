@@ -1386,22 +1386,95 @@ body.account-blocked { overflow: hidden; }
   .ecopoint-kpi-grid{grid-template-columns:1fr}
   .ecopoint-header-title{font-size:1.2rem}
 }
-#qrChoiceModal .modal-content{width:min(92vw,420px);padding:20px}
-#qrChoiceModal .modal-content h3{font-size:1.05rem}
-#qrViewModal .modal-content{text-align:center;padding:24px 20px 20px;overflow-x:hidden}
-#qrViewModal .modal-content h3{font-size:1.05rem}
-#qrViewCardContainer .resident-id-card .id-top{flex-wrap:wrap}
-#qrViewCardContainer .resident-id-card .avatar{width:120px;height:120px;min-width:100px;font-size:1.1rem}
-#qrViewCardContainer .resident-id-card .top-info .name{font-size:.95rem}
-@media(max-width:768px){
-  #qrViewModal .modal{overflow:hidden}
-  #qrViewModal .modal-content{width:min(92vw,420px);max-height:85vh;overflow-y:auto;overflow-x:hidden;padding:48px 20px 20px}
+body.qr-modal-open{ overflow:hidden }
+
+/* QR Modals — standalone centered overlay, above hamburger sidebar (z:100) and overlay (z:99) */
+.qr-modal{
+  position:fixed; inset:0; width:100%; height:100%;
+  background:rgba(0,0,0,0.55);
+  display:none; justify-content:center; align-items:center;
+  z-index:3000;
+  padding:12px;
 }
-@media(max-width:480px){
-  #qrViewModal .modal-content{width:min(96vw,400px);padding:44px 14px 14px}
-  #qrChoiceModal .modal-content{width:min(96vw,400px);padding:16px}
-  #qrViewCardContainer .resident-id-card .id-top{gap:8px}
-  #qrViewCardContainer .resident-id-card .avatar{width:90px;height:90px;min-width:80px}
+.qr-modal-content{
+  position:relative; width:92vw; max-width:420px;
+  max-height:90vh; overflow-y:auto; overflow-x:hidden;
+  background:#fff; border-radius:14px;
+  padding:44px 22px 22px; text-align:center;
+  box-shadow:0 12px 36px rgba(0,0,0,0.28);
+  -webkit-overflow-scrolling:touch;
+}
+.qr-modal-content .close{
+  position:absolute; top:10px; right:12px; z-index:2;
+  width:32px; height:32px; border-radius:50%; border:0;
+  background:#e5e7eb; color:#111827; font-size:18px;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; line-height:1;
+}
+.qr-modal-content .close:hover{ filter:brightness(0.92); }
+.qr-modal-content h3{ margin:0 0 6px; font-size:1.1rem; font-weight:700; color:#111827; }
+.qr-modal-body{ color:#475569; line-height:1.55; font-size:.93rem; margin:0 0 14px; }
+.qr-modal-actions{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+.qr-modal-note{ margin-top:8px; color:#6b7280; font-size:.9rem; }
+#qrViewCardContainer{
+  margin:10px auto; display:flex; justify-content:center;
+  overflow:hidden;
+}
+
+/* Resident card inside QR View — responsive to container */
+#qrViewCardContainer .resident-id-card{
+  width:100%; max-width:360px;
+}
+#qrViewCardContainer .resident-id-card .id-top{
+  flex-wrap:wrap; gap:10px; padding:12px 14px;
+}
+#qrViewCardContainer .resident-id-card .avatar{
+  width:130px; height:130px; min-width:100px;
+  border-radius:10px; flex-shrink:0;
+}
+#qrViewCardContainer .resident-id-card .avatar img{
+  width:100%; height:100%; object-fit:contain;
+}
+#qrViewCardContainer .resident-id-card .top-info{
+  flex:1 1 0; min-width:0;
+}
+#qrViewCardContainer .resident-id-card .top-info .name{
+  font-size:1rem; word-wrap:break-word; overflow-wrap:break-word;
+}
+#qrViewCardContainer .resident-id-card .contact{
+  font-size:.84rem; word-wrap:break-word; overflow-wrap:break-word;
+  word-break:break-word; hyphens:auto;
+}
+#qrViewCardContainer .resident-id-card .row{
+  align-items:flex-start; gap:8px;
+}
+#qrViewCardContainer .resident-id-card .label{
+  white-space:nowrap; flex-shrink:0;
+}
+#qrViewCardContainer .resident-id-card .value{
+  word-wrap:break-word; overflow-wrap:break-word;
+  word-break:break-word; hyphens:auto; text-align:right;
+}
+#qrViewCardContainer .resident-id-card .divider{
+  margin:0 14px;
+}
+#qrViewCardContainer .resident-id-card .id-body{
+  padding:10px 14px;
+}
+
+/* 320–430px mobile */
+@media(max-width:430px){
+  .qr-modal{ padding:8px; }
+  .qr-modal-content{
+    width:96vw; max-width:none;
+    max-height:92vh; padding:40px 14px 16px;
+  }
+  .qr-modal-content h3{ font-size:1rem; }
+  #qrViewCardContainer .resident-id-card .id-top{ gap:8px; padding:10px 12px; }
+  #qrViewCardContainer .resident-id-card .avatar{ width:110px; height:110px; min-width:90px; }
+  #qrViewCardContainer .resident-id-card .top-info .name{ font-size:.92rem; }
+  #qrViewCardContainer .resident-id-card .id-body{ padding:8px 12px; }
+  #qrViewCardContainer .resident-id-card .row{ margin:4px 0; }
 }
 </style>
 <style>
@@ -1478,35 +1551,35 @@ body.account-blocked { overflow: hidden; }
         <strong>This is your QR Code</strong>
         <span>Use this QR code at the VHEcoPoint Station to start your recycling session.</span>
       </div>
-    <!-- QR Choice Modal -->
-    <div id="qrChoiceModal" class="modal" style="display:none;">
-      <div class="modal-content" style="max-width:420px;text-align:center;position:relative;">
-        <button type="button" class="close" aria-label="Close" id="qrChoiceClose">&times;</button>
-        <h3 style="margin-top:6px;">My QR Code</h3>
-        <div style="margin:18px 0 4px;color:#475569;line-height:1.6;">
-          Choose one of the options below to continue with your resident QR ID.
-        </div>
-        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:18px;">
-          <button type="button" class="btn-confirm" id="qrViewBtn">View</button>
-          <button type="button" class="btn-confirm" id="qrDownloadBtn">Download</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- QR View Modal (full ID card preview) -->
-    <div id="qrViewModal" class="modal" style="display:none;">
-      <div class="modal-content" style="max-width:560px;text-align:center;">
-        <button type="button" class="close" aria-label="Close" id="qrViewClose">&times;</button>
-        <h3 style="margin-top:6px;">My Personal QR ID</h3>
-        <div id="qrViewCardContainer" style="margin:12px 0; display:flex; justify-content:center;"></div>
-        <div style="margin-top:8px;color:#6b7280;font-size:0.95rem;">This is your resident QR ID card, including your personal details and scan-ready code.</div>
-        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px;">
-          <button type="button" class="btn-confirm" id="qrViewDownloadBtn">Download</button>
-        </div>
-      </div>
-    </div>
       <a href="logout.php" class="logout-btn" title="Log Out"><i class="fa-solid fa-right-from-bracket"></i> <span>Log Out</span></a>
     </div>
+  </aside>
+
+  <!-- QR Choice Modal -->
+  <div id="qrChoiceModal" class="modal qr-modal" style="display:none;">
+    <div class="modal-content qr-modal-content" id="qrChoiceModalContent">
+      <button type="button" class="close" aria-label="Close" id="qrChoiceClose">&times;</button>
+      <h3>My QR Code</h3>
+      <div class="qr-modal-body">Choose one of the options below to continue with your resident QR ID.</div>
+      <div class="qr-modal-actions">
+        <button type="button" class="btn-confirm" id="qrViewBtn">View</button>
+        <button type="button" class="btn-confirm" id="qrDownloadBtn">Download</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR View Modal (full ID card preview) -->
+  <div id="qrViewModal" class="modal qr-modal" style="display:none;">
+    <div class="modal-content qr-modal-content" id="qrViewModalContent">
+      <button type="button" class="close" aria-label="Close" id="qrViewClose">&times;</button>
+      <h3>My Personal QR ID</h3>
+      <div id="qrViewCardContainer"></div>
+      <div class="qr-modal-note">This is your resident QR ID card, including your personal details and scan-ready code.</div>
+      <div class="qr-modal-actions">
+        <button type="button" class="btn-confirm" id="qrViewDownloadBtn">Download</button>
+      </div>
+    </div>
+  </div>
 
     <!-- Hidden ID Card for Download Generation -->
     <?php if (!$isAccountBlocked): ?>
@@ -2371,13 +2444,16 @@ body.account-blocked { overflow: hidden; }
     closeQRView();
     var modal = document.getElementById('qrChoiceModal');
     if(!modal) return;
-    var sb=document.querySelector('.sidebar');
-    var ov=document.getElementById('sidebarOverlay');
-    if(sb) sb.classList.remove('open');
-    if(ov) ov.classList.remove('show');
     modal.style.display = 'flex';
+    document.body.classList.add('qr-modal-open');
   }
-  function closeQRChoice(){ var m=document.getElementById('qrChoiceModal'); if(m) m.style.display='none'; }
+  function closeQRChoice(){
+    var m=document.getElementById('qrChoiceModal');
+    if(m) m.style.display='none';
+    if(!document.getElementById('qrViewModal') || document.getElementById('qrViewModal').style.display==='none'){
+      document.body.classList.remove('qr-modal-open');
+    }
+  }
   function openQRView(){
     closeQRChoice();
     var view = document.getElementById('qrViewModal');
@@ -2389,18 +2465,19 @@ body.account-blocked { overflow: hidden; }
       var clone = card.cloneNode(true);
       clone.removeAttribute('id');
       clone.style.width = '100%';
-      clone.style.maxWidth = 'min(360px, 100%)';
+      clone.style.maxWidth = '360px';
       clone.style.display = 'block';
       clone.style.margin = '0 auto';
       container.appendChild(clone);
     }
-    var sb=document.querySelector('.sidebar');
-    var ov=document.getElementById('sidebarOverlay');
-    if(sb) sb.classList.remove('open');
-    if(ov) ov.classList.remove('show');
     view.style.display = 'flex';
+    document.body.classList.add('qr-modal-open');
   }
-  function closeQRView(){ var m=document.getElementById('qrViewModal'); if(m) m.style.display='none'; }
+  function closeQRView(){
+    var m=document.getElementById('qrViewModal');
+    if(m) m.style.display='none';
+    document.body.classList.remove('qr-modal-open');
+  }
   document.addEventListener('DOMContentLoaded', function() {
     var qrButton = document.querySelector('.sidebar-footer .download-qr-btn[title="My QR"]');
     var qrTooltip = document.getElementById('qrHelpTooltip');
@@ -2488,8 +2565,8 @@ body.account-blocked { overflow: hidden; }
   });
   // Close modals when clicking outside
   window.addEventListener('click', function(e){
-    var qc = document.getElementById('qrChoiceModal'); if(qc && e.target === qc) qc.style.display='none';
-    var qv = document.getElementById('qrViewModal'); if(qv && e.target === qv) qv.style.display='none';
+    var qc = document.getElementById('qrChoiceModal'); if(qc && e.target === qc) closeQRChoice();
+    var qv = document.getElementById('qrViewModal'); if(qv && e.target === qv) closeQRView();
   });
   // Event Delegation for View Pass buttons
   document.addEventListener('click', function(e){
