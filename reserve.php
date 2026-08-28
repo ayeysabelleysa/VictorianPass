@@ -992,7 +992,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                       ['name' => 'Basketball Court', 'points' => 300, 'img' => 'images/basketballcourt.png'],
                       ['name' => 'Tennis Court', 'points' => 300, 'img' => 'images/tenniscourt.png'],
                       ['name' => 'Clubhouse', 'points' => 600, 'img' => 'images/clubhouse.png'],
-                      ['name' => 'Multi-Purpose Building', 'points' => 750, 'img' => 'images/multipurposebuilding.jpg']
+                      ['name' => 'Multi-Purpose Building', 'points' => 750, 'img' => 'images/multi purpose building.png']
                     ];
                     foreach ($allAmenities as $amenity): 
                       $isEligible = $residentPoints >= $amenity['points'];
@@ -1073,7 +1073,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
       </div>
       <?php endif; ?>
 
-      <div class="section-header" id="amenitiesHeader"><h2>Amenities</h2><p>Choose a facility below to view availability and reserve your preferred schedule.</p></div>
+      <div class="section-header" id="amenitiesHeader"><h2>Amenities</h2><p>Choose an amenity below to view availability and reserve your preferred schedule.</p></div>
 
       <div class="booking-steps" aria-label="Booking steps">
         <div class="booking-steps-header">
@@ -1136,7 +1136,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
             </div>
             <div class="amenity-card" data-amenity="Multi-Purpose Building" data-key="multipurpose" data-price="300">
               <div class="amenity-media">
-                <img src="images/multipurposebuilding.jpg" alt="Multi-Purpose Building">
+                <img src="images/multi purpose building.png" alt="Multi-Purpose Building">
               </div>
               <div class="info">
                 <div class="title-block">
@@ -1435,7 +1435,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     </div>
   </div>
   <div id="amenityImageModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1000; align-items:center; justify-content:center;">
-    <div style="position:relative; background:#fff; border-radius:12px; padding:12px; max-width:90vw; max-height:90vh;">
+    <div class="amia-box" style="position:relative; background:#fff; border-radius:12px; padding:12px; max-width:90vw; max-height:90vh;">
       <button type="button" id="amenityImageClose" class="modal-close" aria-label="Close">&times;</button>
       <img id="amenityImageModalImg" src="" alt="Amenity" style="display:block; max-width:85vw; max-height:80vh;">
     </div>
@@ -1517,6 +1517,29 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
   let availabilityToken=0;
   let selectedAmenity=document.getElementById('amenityField').value||'';
   let usePoints = false;
+
+  function vpShowModal(el){
+    if(!el) return;
+    el.classList.remove('closing');
+    el.classList.add('open');
+    el.style.display='flex';
+  }
+  function vpHideModal(el, done){
+    if(!el) return;
+    if(el.classList.contains('closing')) { if(done) done(); return; }
+    if(el.classList.contains('open') || getComputedStyle(el).display!=='none'){
+      el.classList.remove('open');
+      el.classList.add('closing');
+      setTimeout(function(){
+        el.style.display='none';
+        el.classList.remove('closing');
+        if(done) done();
+      }, 260);
+    } else {
+      el.style.display='none';
+      if(done) done();
+    }
+  }
 
   function getPointsRequired(amenity) {
     switch(amenity) {
@@ -2081,7 +2104,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     multipurpose:{
       title:'Multi-Purpose Building',
       value:'Multi-Purpose Building',
-      img:'images/multipurposebuilding.jpg',
+      img:'images/multi purpose building.png',
       desc:'A versatile space for various community activities, events, and recreational uses.',
       days:'Available Monday – Sunday',
       priceLabel:'₱300 visitor | ₱200 resident per hour',
@@ -2233,14 +2256,14 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
       if(!modal||!img) return;
       img.src=info.img;
       img.alt=info.title;
-      modal.style.display='flex';
+      vpShowModal(modal);
     }catch(_){ }
   }
   (function initAmenityImageModal(){
     const modal=document.getElementById('amenityImageModal');
     const close=document.getElementById('amenityImageClose');
-    if(close){ close.onclick=function(){ if(modal) modal.style.display='none'; }; }
-    if(modal){ modal.addEventListener('click',function(e){ if(e.target===modal){ modal.style.display='none'; } }); }
+    if(close){ close.onclick=function(){ vpHideModal(modal); }; }
+    if(modal){ modal.addEventListener('click',function(e){ if(e.target===modal){ vpHideModal(modal); } }); }
   })();
 
   function showErrorModal(message) {
@@ -2248,7 +2271,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     const messageEl = document.getElementById('errorModalMessage');
     if (modal && messageEl) {
       messageEl.textContent = message;
-      modal.style.display = 'flex';
+      vpShowModal(modal);
     }
   }
 
@@ -2256,9 +2279,9 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     const modal=document.getElementById('errorModal');
     const closeBtn=document.getElementById('errorModalCloseBtn');
     const okBtn=document.getElementById('errorModalOkBtn');
-    if(closeBtn){ closeBtn.onclick=function(){ if(modal) modal.style.display='none'; }; }
-    if(okBtn){ okBtn.onclick=function(){ if(modal) modal.style.display='none'; }; }
-    if(modal){ modal.addEventListener('click',function(e){ if(e.target===modal){ modal.style.display='none'; } }); }
+    if(closeBtn){ closeBtn.onclick=function(){ vpHideModal(modal); }; }
+    if(okBtn){ okBtn.onclick=function(){ vpHideModal(modal); }; }
+    if(modal){ modal.addEventListener('click',function(e){ if(e.target===modal){ vpHideModal(modal); } }); }
     <?php if (!empty($errorMsg)): ?>
       // Show error from PHP
       showErrorModal(<?php echo json_encode($errorMsg); ?>);
@@ -3602,17 +3625,17 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     const confirmBtn=document.getElementById('changeAmenityConfirmBtn');
     if(cancelBtn){
       cancelBtn.addEventListener('click',function(){
-        modal.style.display='none';
+        vpHideModal(modal);
       });
     }
     if(closeBtn){
       closeBtn.addEventListener('click',function(){
-        modal.style.display='none';
+        vpHideModal(modal);
       });
     }
     if(confirmBtn){
       confirmBtn.addEventListener('click',function(){
-        modal.style.display='none';
+        vpHideModal(modal);
         resetAmenitySelection();
       });
     }

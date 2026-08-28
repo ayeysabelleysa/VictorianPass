@@ -581,7 +581,7 @@ html { scroll-behavior: smooth; }
 .amenities-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 18px; max-width: 960px; margin-left: auto; margin-right: auto; }
 .amenity-card { background: #fff; color: #222; padding: 18px; border-radius: 14px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); border: 1px solid #e9ecef; transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease; display: flex; flex-direction: column; align-items: stretch; min-height: 220px; }
 .amenity-card:hover { transform: translateY(-2px); box-shadow: 0 14px 28px rgba(0,0,0,0.18); border-color: #dfe4ea; }
-.amenity-card img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; display: block; margin: 0 0 8px; }
+.amenity-card img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; object-position: center; border-radius: 10px; display: block; margin: 0 0 8px; height: auto; }
 .amenity-card .title { font-weight: 700; font-size: 1.25rem; margin: 0 0 6px; color: #23412e; text-align: center; }
 .amenity-card .desc { color: #555; font-size: 1rem; margin: 0; text-align: center; line-height: 1.5; flex: 1; }
 .amenity-card .amenity-btn { margin-top: 16px; align-self: center; display: inline-flex; align-items: center; justify-content: center; padding: 8px 18px; border-radius: 999px; font-size: 0.9rem; font-weight: 600; text-decoration: none; background: #23412e; color: #fff; border: none; cursor: pointer; transition: transform .2s ease, box-shadow .2s ease, background .2s ease; }

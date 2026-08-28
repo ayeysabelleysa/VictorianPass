@@ -5,8 +5,16 @@ body { margin: 0; font-family: 'Poppins', sans-serif; background: #fafbfc; color
 html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%; overflow-y: auto; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes modalPop {
-  from { opacity: 0; transform: scale(0.95) translateY(10px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes modalClose {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.92); }
+}
+@keyframes modalFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
 /* Navigation */
@@ -40,8 +48,8 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
 .booking-steps-protip-float .protip-dismiss{background:transparent;border:0;color:#6b9e7a;font-size:1.1rem;cursor:pointer;line-height:1;flex-shrink:0;padding:0 2px;margin-top:-2px}
 .booking-steps-protip-float .protip-dismiss:hover{color:#1f5a33}
 @keyframes protipSlideIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
-.booking-steps-body{display:flex;flex-direction:row;gap:10px;align-items:stretch}
-.booking-steps.is-collapsed .booking-steps-body{display:none}
+.booking-steps-body{display:flex;flex-direction:row;gap:10px;align-items:stretch;max-height:400px;opacity:1;overflow:hidden;transition:max-height .28s cubic-bezier(0.2,0.8,0.2,1),opacity .24s ease,margin .24s ease}
+.booking-steps.is-collapsed .booking-steps-body{max-height:0;opacity:0;margin:0}
 .booking-steps.is-collapsed .booking-steps-toggle{transform:rotate(0deg)}
 .booking-step{display:flex;align-items:flex-start;gap:8px;flex:1;min-width:0}
 .step-index{width:22px;height:22px;border-radius:50%;border:none;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.75rem;color:#fff;background:#23412e;flex-shrink:0;box-shadow:0 1px 4px rgba(35,65,46,0.25)}
@@ -92,7 +100,7 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
 /* Amenity Description */
 .amenity-desc{background:#fff;color:#111827;padding:20px 24px;border-radius:18px;box-shadow:0 8px 24px rgba(15,23,42,0.08);border:1.5px solid #e5e7eb;width:100%;max-width:680px;margin:0 auto 12px;display:flex;flex-direction:column;gap:8px}
 .amenity-desc .media{display:flex;align-items:flex-start;gap:16px;margin-bottom:8px}
-.amenity-desc .desc-img{width:220px;height:130px;border-radius:12px;object-fit:cover;display:none; flex-shrink:0;box-shadow:0 3px 10px rgba(0,0,0,0.16)}
+.amenity-desc .desc-img{width:220px;height:130px;border-radius:12px;object-fit:cover;object-position:center;display:none; flex-shrink:0;box-shadow:0 3px 10px rgba(0,0,0,0.16)}
 .amenity-desc h3 { margin:0 0 6px; font-weight:900; color:#23412e; font-size:1.3rem; letter-spacing:-0.02em; }
 .amenity-desc p { margin:0; color:#4b5563; line-height:1.5; font-size:0.95rem; }
 .amenity-desc .avail{display:block; font-weight:700; color:#23412e; font-size:1rem; margin-bottom:6px}
@@ -107,7 +115,8 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
 .amenity-card{display:flex; gap:14px; align-items:flex-start; background:#fff; color:#222; padding:14px 18px; border-radius:16px; box-shadow:0 4px 14px rgba(15,23,42,0.07); border:1.5px solid #e5e7eb; cursor:pointer; transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease, background .2s ease, max-height .25s ease; min-height:140px; position:relative; pointer-events:auto; width:100%; max-width:760px}
 .amenity-card:hover{transform:translateY(-4px); box-shadow:0 8px 20px rgba(0,0,0,0.1); border-color:#23412e}
 .amenity-card.selected{border:1.5px solid #e5e7eb; background:#fff; box-shadow:0 4px 16px rgba(0,0,0,0.08)}
-.amenity-card img{width:100%; height:160px; object-fit:cover; border-radius:14px; box-shadow:0 2px 8px rgba(0,0,0,0.1); flex-shrink:0; transition:height .25s ease}
+.amenity-card .amenity-media{width:100%; aspect-ratio:16/9; overflow:hidden; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.1); flex-shrink:0; align-self:flex-start}
+.amenity-card .amenity-media img{width:100%; height:100%; object-fit:cover; object-position:center; display:block; border-radius:0}
 .amenity-card .info{flex:1; color:#222; display:flex; flex-direction:column; gap:6px; min-width:0}
 .amenity-card .title-block{display:flex;flex-direction:column;gap:4px}
 .amenity-card .price{color:#23412e;font-weight:700; font-size:0.95rem}
@@ -129,8 +138,9 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
   .amenity-card[data-details-visible="true"]{
     max-height:500px;
   }
-  .amenity-card[data-details-visible="true"] img{
-    height:120px;
+  .amenity-card .amenity-media{width:220px; aspect-ratio:16/9; height:auto}
+  .amenity-card[data-details-visible="true"] .amenity-media{
+    height:auto;
   }
 }
 .amenity-card .info .meta{color:#666; font-size:0.85rem; display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-start; align-items:center; margin-top:4px; padding-right:140px}
@@ -554,7 +564,6 @@ select:focus {
 }
 
 /* Modal */
-/* Modal */
 .modal {
   display: none;
   position: fixed;
@@ -578,9 +587,23 @@ select:focus {
   max-width: 450px;
   text-align: center;
   position: relative;
-  animation: modalPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transform-origin: center;
+  animation: modalPop 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.35);
   border: 1px solid #e5e7eb;
+}
+
+/* Maximizing (opening) animation — smooth scale + size, centered, no layout shift */
+.modal.open .modal-content {
+  animation: modalPop 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Minimizing (closing) animation — scale back down + fade, stays centered */
+.modal.closing {
+  animation: modalFadeOut 0.25s ease-in forwards;
+}
+.modal.closing .modal-content {
+  animation: modalClose 0.25s ease-in forwards;
 }
 
 .modal-content h2 {
@@ -1149,7 +1172,7 @@ input:focus-visible {
   .hero{padding:14px 4%}
   .amenities-list{display:flex; flex-direction:column; align-items:center}
   .amenity-card {min-height:auto; flex-direction:column; align-items:flex-start; max-width:720px; width:100%; flex:0 0 auto}
-  .amenity-card img{width:100%;height:150px;border-radius:10px}
+  .amenity-card .amenity-media{width:100%; height:auto}
   .amenity-card .info{width:100%; flex-direction:column; align-items:flex-start; gap:6px}
   .amenity-card .info .meta{width:100%; justify-content:flex-start}
   .amenity-card .info .meta{padding-right:0; gap:10px}
@@ -1169,7 +1192,7 @@ input:focus-visible {
 }
 @media (min-width:1024px){
   .layout{grid-template-columns:minmax(0,1fr)}
-  .amenity-card img{width:180px;height:120px}
+  .amenity-card .amenity-media{width:240px; height:auto}
   .reservation-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"cal preview" "form form";align-items:stretch;gap:16px}
   .reservation-grid .calendar{grid-area:cal;margin:0;max-width:420px;overflow:auto}
   .reservation-grid .amenity-preview{grid-area:preview;max-width:420px;overflow:auto}
@@ -1177,6 +1200,21 @@ input:focus-visible {
 }
 .toast{position:fixed; top:14px; left:50%; transform:translateX(-50%); background:#23412e; color:#fff; padding:10px 14px; border-radius:10px; box-shadow:0 8px 18px rgba(0,0,0,.12); font-size:.9rem; z-index:1000; display:none}
 #amenityImageModalImg{width:100%; height:auto; max-width:85vw; max-height:80vh; object-fit:contain;}
+#amenityImageModal{
+  animation: modalFadeOut 0s;
+}
+#amenityImageModal.open{ animation: modalFadeOut 0s; }
+#amenityImageModal .amia-box{
+  animation: modalPop 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform-origin: center;
+}
+#amenityImageModal.closing{ animation: modalFadeOut 0.25s ease-in forwards; }
+#amenityImageModal.closing .amia-box{ animation: modalClose 0.25s ease-in forwards; }
+#viewRewardsModal{ animation: modalFadeOut 0s; }
+#viewRewardsModal.open{ animation: modalFadeOut 0s; }
+#viewRewardsModal > div{ animation: modalPop 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); transform-origin: center; }
+#viewRewardsModal.closing{ animation: modalFadeOut 0.25s ease-in forwards; }
+#viewRewardsModal.closing > div{ animation: modalClose 0.25s ease-in forwards; }
 @media (max-width:640px){
   body{padding-top:64px}
   .navbar{padding:10px 4%}
@@ -1202,7 +1240,7 @@ input:focus-visible {
 @media (max-width:480px){
   .brand-text p{display:none}
   .amenity-card{padding:16px}
-  .amenity-card img{height:140px}
+  .amenity-card .amenity-media{width:100%; height:auto}
   .amenity-desc{padding:16px}
   .res-label{flex-wrap:wrap}
   .price-box{

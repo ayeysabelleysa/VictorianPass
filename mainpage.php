@@ -479,7 +479,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <div class="section-divider"></div>
     <div class="amenities-grid">
       <div class="amenity-card">
-        <img src="images/multipurposebuilding.jpg" alt="Multi-Purpose Building">
+        <img src="images/multi purpose building.png" alt="Multi-Purpose Building">
         <h3 class="title">Multi-Purpose Building</h3>
         <p class="desc">A versatile space for various community activities, events, and recreational uses.</p>
       </div>
