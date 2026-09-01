@@ -1,7 +1,5 @@
-import lgpio
 import time
-
-from smbus2 import SMBus
+import requests
 
 from qr_scanner import (
     start_scanner,
@@ -12,524 +10,394 @@ from qr_scanner import (
 
 from Weight import (
     start_weight,
+    get_weight,
     measure_incentive,
     close_weight
 )
 
+from inductive import (
+    start_inductive,
+    metal_detected,
+    wait_for_metal_stable,
+    close_inductive
+)
 
-SENSOR_GPIO = 17
 
-LCD_ADDRESS = 0x27
-LCD_BUS = 1
-LCD_WIDTH = 16
+# =========================
+# SETTINGS
+# =========================
 
-IDLE_TIMEOUT = 120
+CAMERA_URL = "http://127.0.0.1:5000/status"
+
+MIN_WEIGHT = 20.0
+WEIGHT_STABLE_TIME = 3.0
+METAL_STABLE_TIME = 3.0
 
 MAX_SESSIONS = 3
 DAILY_POINT_CAP = 250
 
-METAL_STABLE_TIME = 3
+CAMERA_TIMEOUT = 0.5
+
+# System stops after 2 minutes
+# without a new item being placed.
+IDLE_TIMEOUT = 120
+
+# Fast removal detection
+REMOVAL_CHECK_INTERVAL = 0.15
 
 
-LCD_CHR = 1
-LCD_CMD = 0
+# =========================
+# CAMERA
+# =========================
 
-LCD_LINE_1 = 0x80
-LCD_LINE_2 = 0xC0
-
-ENABLE = 0b00000100
-
-E_PULSE = 0.0005
-E_DELAY = 0.0005
-
-
-bus = SMBus(LCD_BUS)
-
-sensor = None
-scanner = None
-
-
-def lcd_toggle_enable(bits):
-
-    time.sleep(E_DELAY)
-
-    bus.write_byte(
-        LCD_ADDRESS,
-        bits | ENABLE
-    )
-
-    time.sleep(E_PULSE)
-
-    bus.write_byte(
-        LCD_ADDRESS,
-        bits & ~ENABLE
-    )
-
-    time.sleep(E_DELAY)
-
-
-def lcd_byte(bits, mode):
-
-    high_bits = (
-        mode |
-        (bits & 0xF0) |
-        0x08
-    )
-
-    low_bits = (
-        mode |
-        ((bits << 4) & 0xF0) |
-        0x08
-    )
-
-    bus.write_byte(
-        LCD_ADDRESS,
-        high_bits
-    )
-
-    lcd_toggle_enable(high_bits)
-
-    bus.write_byte(
-        LCD_ADDRESS,
-        low_bits
-    )
-
-    lcd_toggle_enable(low_bits)
-
-
-def lcd_init():
-
-    lcd_byte(0x33, LCD_CMD)
-    lcd_byte(0x32, LCD_CMD)
-    lcd_byte(0x06, LCD_CMD)
-    lcd_byte(0x0C, LCD_CMD)
-    lcd_byte(0x28, LCD_CMD)
-    lcd_byte(0x01, LCD_CMD)
-
-    time.sleep(0.005)
-
-
-def lcd_display(message, line):
-
-    message = str(message).ljust(LCD_WIDTH)
-
-    lcd_byte(
-        line,
-        LCD_CMD
-    )
-
-    for character in message[:LCD_WIDTH]:
-
-        lcd_byte(
-            ord(character),
-            LCD_CHR
+def camera_status():
+    try:
+        r = requests.get(
+            CAMERA_URL,
+            timeout=CAMERA_TIMEOUT
         )
 
+        if r.status_code == 200:
+            return r.json()
 
-def show_scan():
+    except Exception:
+        pass
 
-    lcd_display(
-        "Scan Victorian",
-        LCD_LINE_1
-    )
-
-    lcd_display(
-        "Pass QR",
-        LCD_LINE_2
-    )
+    return {}
 
 
-def show_user(vp_number, sessions_left):
+# =========================
+# WAIT FOR ITEM
+# =========================
 
-    lcd_display(
-        vp_number,
-        LCD_LINE_1
-    )
-
-    lcd_display(
-        "Sessions left:" + str(sessions_left),
-        LCD_LINE_2
-    )
-
-
-def show_points(vp_number, points, sessions_left):
-
-    lcd_display(
-        vp_number,
-        LCD_LINE_1
-    )
-
-    lcd_display(
-        "Points:" + str(round(points, 1)),
-        LCD_LINE_2
-    )
-
-
-def metal_detected():
-
-    return lgpio.gpio_read(
-        sensor,
-        SENSOR_GPIO
-    ) == 0
-
-
-def wait_for_metal_stable():
-
-    stable_start = None
+def wait_for_item():
+    start = time.monotonic()
 
     while True:
 
-        if metal_detected():
+        weight = get_weight(1)
 
-            if stable_start is None:
+        if weight >= MIN_WEIGHT:
+            return weight
 
-                stable_start = time.time()
+        # 2-minute idle timeout
+        if time.monotonic() - start >= IDLE_TIMEOUT:
+            return None
 
-            elapsed = (
-                time.time() -
-                stable_start
-            )
+        time.sleep(REMOVAL_CHECK_INTERVAL)
 
-            if elapsed >= METAL_STABLE_TIME:
 
-                return True
+# =========================
+# WEIGHT STABILITY
+# =========================
 
-        else:
+def wait_for_weight_stable():
+    stable_start = None
+    last_weight = 0
 
+    while True:
+
+        weight = get_weight(1)
+
+        if weight < MIN_WEIGHT:
             stable_start = None
+            time.sleep(0.1)
+            continue
 
-        time.sleep(0.05)
+        if stable_start is None:
+            stable_start = time.monotonic()
+
+        last_weight = weight
+
+        if time.monotonic() - stable_start >= WEIGHT_STABLE_TIME:
+            return last_weight
+
+        time.sleep(0.1)
 
 
-def process_item(
-    vp_number,
-    material,
-    current_points
-):
+# =========================
+# CAMERA MATERIAL
+# =========================
+
+def get_camera_material():
+
+    while True:
+
+        # Item must still be on HX711
+        weight = get_weight(1)
+
+        if weight < MIN_WEIGHT:
+            return None
+
+        data = camera_status()
+
+        if not data:
+            time.sleep(0.1)
+            continue
+
+        # Mixed material
+        if data.get("mixed"):
+            return "Mixed"
+
+        # Camera confirmed
+        if data.get("confirmed"):
+
+            material = data.get("material")
+
+            if material in ("Plastic", "Paper"):
+                return material
+
+        time.sleep(0.1)
+
+
+# =========================
+# WAIT FOR REMOVAL
+# =========================
+
+def wait_for_removal():
+
+    print("Remove the item.")
+
+    while True:
+
+        weight = get_weight(1)
+        metal = metal_detected()
+
+        # Both sensors clear
+        if weight < MIN_WEIGHT and not metal:
+            print("Item removed.")
+            return
+
+        time.sleep(REMOVAL_CHECK_INTERVAL)
+
+
+# =========================
+# PROCESS ONE ITEM
+# =========================
+
+def process_item():
 
     print()
-    print("Metal stable for 3 seconds.")
-    print("Starting weight measurement.")
+    print("Ready for next item.")
+    print("Place item on the weight platform...")
 
-    weight, points = measure_incentive(
-        material
-    )
+    # ---------------------
+    # HX711 FIRST
+    # ---------------------
 
-    remaining = (
-        DAILY_POINT_CAP -
-        current_points
-    )
+    weight = wait_for_item()
 
-    if points > remaining:
+    if weight is None:
+        return "IDLE"
 
-        points = max(
-            0,
-            remaining
-        )
+    print("Item detected. Hold still for 3 seconds...")
 
-    current_points += points
+    # ---------------------
+    # WEIGHT STABILITY
+    # ---------------------
 
-    print("--------------------------------")
-    print("ITEM PROCESSED")
-    print("--------------------------------")
-    print("User:", vp_number)
-    print("Material:", material)
-    print("Weight:", round(weight, 2), "g")
-    print("Incentive:", round(points, 2), "points")
-    print(
-        "Daily total:",
-        round(current_points, 2),
-        "points"
-    )
-    print("--------------------------------")
-    print()
+    weight = wait_for_weight_stable()
 
-    return current_points
+    print("Weight stable. Checking material...")
 
+    # ---------------------
+    # METAL
+    # ---------------------
+
+    if metal_detected():
+
+        print("Metal detected. Verifying...")
+
+        if not wait_for_metal_stable(METAL_STABLE_TIME):
+            print("Metal verification failed.")
+            wait_for_removal()
+            return "REJECTED"
+
+        material = "aluminum"
+
+    # ---------------------
+    # PLASTIC / PAPER
+    # ---------------------
+
+    else:
+
+        print("Identifying material...")
+
+        material = get_camera_material()
+
+        if material is None:
+            print("Item removed. Please try again.")
+            return "REJECTED"
+
+        if material == "Mixed":
+            print("Mixed material. Item rejected.")
+            wait_for_removal()
+            return "REJECTED"
+
+    # ---------------------
+    # FINAL HX711 CHECK
+    # ---------------------
+
+    weight = get_weight(1)
+
+    if weight < MIN_WEIGHT:
+        print("Item removed. Please try again.")
+        return "REJECTED"
+
+    # ---------------------
+    # FINAL METAL CHECK
+    # ---------------------
+
+    if material == "aluminum":
+
+        if not metal_detected():
+            print("Metal verification lost.")
+            wait_for_removal()
+            return "REJECTED"
+
+    else:
+
+        if metal_detected():
+            print("Metal detected. Item rejected.")
+            wait_for_removal()
+            return "REJECTED"
+
+    # ---------------------
+    # CALCULATE INCENTIVE
+    # ---------------------
+
+    print("Verifying item...")
+
+    weight, points = measure_incentive(material)
+
+    return weight, points, material
+
+
+# =========================
+# MAIN
+# =========================
+
+scanner = None
 
 try:
 
-    lcd_init()
-
-    sensor = lgpio.gpiochip_open(0)
-
-    lgpio.gpio_claim_input(
-        sensor,
-        SENSOR_GPIO
-    )
-
+    start_weight()
+    start_inductive()
     scanner = start_scanner()
 
-    start_weight()
-
     print()
     print("================================")
-    print("VICTORIANPASS WASTE BIN")
+    print("VHEcoPoint")
     print("================================")
-    print("System LOCKED")
-    print("Waiting for QR code...")
+    print("System ready.")
+    print("Please scan your VictorianPass.")
     print()
-
-    show_scan()
 
     while True:
 
-        qr_data = read_qr(scanner)
+        # =====================
+        # QR
+        # =====================
 
-        print("QR scanned:", qr_data)
+        qr = read_qr(scanner)
 
-        if not is_victorianpass(qr_data):
-
-            print("Invalid QR.")
-            print("VictorianPass code required.")
-            print()
-
-            lcd_display(
-                "Invalid QR",
-                LCD_LINE_1
-            )
-
-            lcd_display(
-                "Scan VP QR",
-                LCD_LINE_2
-            )
-
-            time.sleep(2)
-
-            show_scan()
-
+        if not is_victorianpass(qr):
+            print("Invalid QR. Please try again.")
             continue
 
-
-        vp_number = qr_data
-
+        user = qr
         sessions = 0
-        current_points = 0
-
-        last_activity = time.time()
+        total_points = 0
 
         print()
-        print("--------------------------------")
+        print("================================")
         print("USER SESSION STARTED")
-        print("--------------------------------")
-        print("User:", vp_number)
-        print("Sessions left:", MAX_SESSIONS)
-        print("Points: 0 / 250")
-        print("--------------------------------")
+        print(f"User: {user}")
+        print("================================")
+
+        # =====================
+        # ITEM LOOP
+        # =====================
+
+        while sessions < MAX_SESSIONS:
+
+            if total_points >= DAILY_POINT_CAP:
+                break
+
+            result = process_item()
+
+            # -----------------
+            # 2 MINUTE IDLE
+            # -----------------
+
+            if result == "IDLE":
+
+                print()
+                print("================================")
+                print("SYSTEM IDLE")
+                print("No item detected for 2 minutes.")
+                print("System stopped.")
+                print("================================")
+
+                raise SystemExit
+
+            # -----------------
+            # REJECTED
+            # -----------------
+
+            if result == "REJECTED":
+                continue
+
+            # -----------------
+            # VALID ITEM
+            # -----------------
+
+            weight, points, material = result
+
+            # Daily cap
+            remaining = DAILY_POINT_CAP - total_points
+
+            points = min(
+                points,
+                max(0, remaining)
+            )
+
+            total_points += points
+            sessions += 1
+
+            print()
+            print("--------------------------------")
+            print("ITEM ACCEPTED")
+            print(f"Material : {material.capitalize()}")
+            print(f"Weight   : {weight:.2f} g")
+            print(f"Points   : {points:.2f}")
+            print("--------------------------------")
+            print(f"Sessions : {sessions}/{MAX_SESSIONS}")
+            print(f"Total    : {total_points:.2f}/{DAILY_POINT_CAP}")
+
+            # -----------------
+            # REMOVE ITEM
+            # -----------------
+
+            wait_for_removal()
+
+        # =====================
+        # SESSION FINISHED
+        # =====================
+
+        print()
+        print("================================")
+        print("SESSION FINISHED")
+        print(f"Items: {sessions}")
+        print(f"Points: {total_points:.2f}")
+        print("Please scan again.")
+        print("================================")
         print()
 
-        show_user(
-            vp_number,
-            MAX_SESSIONS
-        )
 
-        time.sleep(2)
-
-
-        while True:
-
-            # ---------------------------------------------
-            # IDLE TIMEOUT
-            # ---------------------------------------------
-
-            if (
-                time.time() -
-                last_activity
-                >= IDLE_TIMEOUT
-            ):
-
-                print()
-                print("2-minute idle timeout.")
-                print("Session locked.")
-                print()
-
-                show_scan()
-
-                break
-
-
-            # ---------------------------------------------
-            # SESSION LIMIT
-            # ---------------------------------------------
-
-            if sessions >= MAX_SESSIONS:
-
-                print()
-                print("--------------------------------")
-                print("DAILY SESSION LIMIT REACHED")
-                print("--------------------------------")
-                print("User:", vp_number)
-                print(
-                    "Sessions:",
-                    sessions,
-                    "/",
-                    MAX_SESSIONS
-                )
-                print(
-                    "Points:",
-                    round(current_points, 2),
-                    "/ 250"
-                )
-                print("--------------------------------")
-                print()
-
-                lcd_display(
-                    "0 Sessions Left",
-                    LCD_LINE_1
-                )
-
-                lcd_display(
-                    "Scan Next Day",
-                    LCD_LINE_2
-                )
-
-                time.sleep(3)
-
-                show_scan()
-
-                break
-
-
-            # ---------------------------------------------
-            # POINT CAP
-            # ---------------------------------------------
-
-            if current_points >= DAILY_POINT_CAP:
-
-                print()
-                print("--------------------------------")
-                print("DAILY POINT CAP REACHED")
-                print("--------------------------------")
-                print("User:", vp_number)
-                print(
-                    "Points:",
-                    round(current_points, 2)
-                )
-                print("--------------------------------")
-                print()
-
-                lcd_display(
-                    "250 Point Limit",
-                    LCD_LINE_1
-                )
-
-                lcd_display(
-                    "Reached",
-                    LCD_LINE_2
-                )
-
-                time.sleep(3)
-
-                show_scan()
-
-                break
-
-
-            # ---------------------------------------------
-            # METAL DETECTION
-            # ---------------------------------------------
-
-            if metal_detected():
-
-                last_activity = time.time()
-
-                print()
-                print("Metal detected.")
-                print("Checking stability...")
-
-                if wait_for_metal_stable():
-
-                    last_activity = time.time()
-
-                    current_points = process_item(
-                        vp_number,
-                        "aluminum",
-                        current_points
-                    )
-
-                    # Count the completed session
-                    sessions += 1
-
-                    sessions_left = (
-                        MAX_SESSIONS -
-                        sessions
-                    )
-
-                    print(
-                        "Session:",
-                        sessions,
-                        "/",
-                        MAX_SESSIONS
-                    )
-
-                    print(
-                        "Sessions left:",
-                        sessions_left
-                    )
-
-                    print(
-                        "Daily points:",
-                        round(current_points, 2),
-                        "/",
-                        DAILY_POINT_CAP
-                    )
-
-                    print()
-
-
-                    # -------------------------------------
-                    # DISPLAY RESULT
-                    # -------------------------------------
-
-                    lcd_display(
-                        vp_number,
-                        LCD_LINE_1
-                    )
-
-                    lcd_display(
-                        "Points:" +
-                        str(round(current_points, 1)),
-                        LCD_LINE_2
-                    )
-
-                    time.sleep(2)
-
-
-                    # -------------------------------------
-                    # SHOW REMAINING SESSIONS
-                    # -------------------------------------
-
-                    if sessions_left > 0:
-
-                        show_user(
-                            vp_number,
-                            sessions_left
-                        )
-
-                        time.sleep(2)
-
-                    else:
-
-                        lcd_display(
-                            "0 Sessions Left",
-                            LCD_LINE_1
-                        )
-
-                        lcd_display(
-                            "Scan Next Day",
-                            LCD_LINE_2
-                        )
-
-                        time.sleep(3)
-
-                        show_scan()
-
-                        break
-
-            else:
-
-                time.sleep(0.1)
-
+# =========================
+# STOP
+# =========================
 
 except KeyboardInterrupt:
 
@@ -537,46 +405,25 @@ except KeyboardInterrupt:
     print("System stopped.")
 
 
+# =========================
+# CLEANUP
+# =========================
+
 finally:
 
     try:
-
         close_scanner(scanner)
-
-    except:
-
+    except Exception:
         pass
 
-
     try:
-
         close_weight()
-
-    except:
-
+    except Exception:
         pass
-
 
     try:
-
-        if sensor is not None:
-
-            lgpio.gpiochip_close(
-                sensor
-            )
-
-    except:
-
+        close_inductive()
+    except Exception:
         pass
-
-
-    try:
-
-        bus.close()
-
-    except:
-
-        pass
-
 
     print("System released.")

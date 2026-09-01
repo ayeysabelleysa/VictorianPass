@@ -1,46 +1,42 @@
-import requests
+import cv2
 import time
 
-ESP32_IP = "192.168.100.138"
-CAPTURE_URL = f"http://{ESP32_IP}/capture"
+RTSP_URL = "rtsp://192.168.100.153:554/live"
 
-print("================================")
-print("ESP32-CAM TEST")
-print("================================")
+print("Connecting to V380...")
+print(RTSP_URL)
 
-frame = 0
+cap = cv2.VideoCapture(RTSP_URL)
+
+if not cap.isOpened():
+    print("ERROR: Could not open V380 stream")
+    exit()
+
+print("V380 stream connected!")
+
+frame_count = 0
+start_time = time.time()
 
 while True:
+    ret, frame = cap.read()
 
-    try:
-        response = requests.get(
-            CAPTURE_URL,
-            timeout=5
-        )
+    if not ret:
+        print("ERROR: Could not read frame")
+        break
 
-        if response.status_code == 200:
+    frame_count += 1
 
-            frame += 1
+    # Print status every 30 frames
+    if frame_count % 30 == 0:
+        elapsed = time.time() - start_time
 
-            filename = f"frame_{frame}.jpg"
-
-            with open(filename, "wb") as file:
-                file.write(response.content)
-
+        if elapsed > 0:
+            fps = frame_count / elapsed
             print(
-                f"Frame {frame}: "
-                f"{len(response.content)} bytes"
+                f"Receiving video: "
+                f"{frame_count} frames | "
+                f"{fps:.1f} FPS | "
+                f"Resolution: {frame.shape[1]}x{frame.shape[0]}"
             )
 
-        else:
-
-            print(
-                "Camera returned:",
-                response.status_code
-            )
-
-    except Exception as error:
-
-        print("Camera error:", error)
-
-    time.sleep(0.5)
+cap.release()
