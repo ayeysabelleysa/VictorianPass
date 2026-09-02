@@ -129,74 +129,90 @@ function eco_authenticate_station(mysqli $con): array {
 // Resident QR code → user lookup (secure: only trust DB rows, never
 // trust client-supplied balances!)
 // ------------------------------------------------------------------
-function eco_find_resident_by_qr(mysqli $con, string $qrCode): ?array {
+function eco_find_resident_by_qr(mysqli $con, string $qrCode): ?array
+{
     $qrCode = trim($qrCode);
-    if ($qrCode === '') return null;
 
-    // ----------------------------------------------------------
-    // 1) Old migration path: residents.qr_code (kept for back-compat)
-    // ----------------------------------------------------------
-    if (class_exists('mysqli')) {
-        $colQ = $con->query("SHOW COLUMNS FROM residents LIKE 'qr_code'");
-        if ($colQ && $colQ->num_rows > 0) {
-            $stmt = $con->prepare("SELECT id, full_name, ecopoint_balance, qr_code, status FROM residents WHERE qr_code = ? LIMIT 1");
-            if ($stmt) {
-                $stmt->bind_param('s', $qrCode);
-                $stmt->execute();
-                $row = $stmt->get_result()->fetch_assoc();
-                $stmt->close();
-                if ($row) {
-                    $balance = (int)($row['ecopoint_balance'] ?? 0);
-                    // Mirror to users.points if that's the main table the dashboard uses
-                    $uid = (int)$row['id'];
-                    $syncStmt = $con->prepare("UPDATE users SET points = GREATEST(points, ?) WHERE id = ?");
-                    if ($syncStmt) {
-                        $syncStmt->bind_param('ii', $balance, $uid);
-                        @$syncStmt->execute();
-                        $syncStmt->close();
-                    }
-                    return [
-                        'user_id'    => $uid,
-                        'ref_code'   => (string)($row['qr_code'] ?? ''),
-                        'full_name'  => (string)($row['full_name'] ?? 'Resident'),
-                        'balance'    => $balance,
-                        'status'     => (string)($row['status'] ?? 'active'),
-                    ];
-                }
-            }
-        }
+    if ($qrCode === '') {
+        return null;
     }
 
-    // ----------------------------------------------------------
-    // 2) Main path: users.ref_code (the existing QR system used by
-    //    qr_view.php / profileresident.php)
-    // ----------------------------------------------------------
-    $stmt = $con->prepare("
-        SELECT id, ref_code, first_name, last_name, points, status
-        FROM   users
-        WHERE  ref_code = ?
-        LIMIT  1
-    ");
-    if (!$stmt) return null;
-    $stmt->bind_param('s', $qrCode);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    if (!$row) return null;
+    /*
+     * VictorianPass resident QR codes use the resident's
+     * house_number as the QR identifier.
+     *
+     * Example:
+     * VH-0019
+     * VH-2002
+     *
+     * The users table contains:
+     * - house_number
+     * - user_type
+     * - status
+     * - points
+     */
 
-    $status = strtolower((string)($row['status'] ?? 'pending'));
-    $isActive = (strpos($status, 'active') !== false || strpos($status, 'approv') !== false);
+    $stmt = $con->prepare("
+        SELECT
+            id,
+            first_name,
+            middle_name,
+            last_name,
+            house_number,
+            points,
+            status
+        FROM users
+        WHERE house_number = ?
+          AND user_type = 'resident'
+        LIMIT 1
+    ");
+
+    if (!$stmt) {
+        return null;
+    }
+
+    $stmt->bind_param('s', $qrCode);
+
+    if (!$stmt->execute()) {
+        $stmt->close();
+        return null;
+    }
+
+    $row = $stmt->get_result()->fetch_assoc();
+
+    $stmt->close();
+
+    if (!$row) {
+        return null;
+    }
+
+    $status = strtolower(
+        trim((string)($row['status'] ?? 'pending'))
+    );
+
+    $fullName = trim(
+        (string)($row['first_name'] ?? '') . ' ' .
+        (string)($row['middle_name'] ?? '') . ' ' .
+        (string)($row['last_name'] ?? '')
+    );
 
     return [
-        'user_id'   => (int)$row['id'],
-        'ref_code'  => (string)($row['ref_code'] ?? ''),
-        'full_name' => trim((string)($row['first_name'] ?? '') . ' ' . (string)($row['last_name'] ?? '')),
-        'balance'   => (int)($row['points'] ?? 0),
-        'status'    => $isActive ? 'active' : $status,
+        'user_id'  => (int)$row['id'],
+
+        // Kept under the old key name so the rest
+        // of the EcoPoint code does not need changing.
+        'ref_code' => (string)($row['house_number'] ?? ''),
+
+        'full_name' => $fullName,
+
+        'balance' => (int)($row['points'] ?? 0),
+
+        'status' => $status,
     ];
 }
+   
 
-// ------------------------------------------------------------------
+// -----------------------------------------------------------------
 // Explicit weekly window: Monday 00:00 (reset) to the following Monday 00:00
 // This guarantees the weekly cap resets EVERY MONDAY 12:00 AM as required.
 // Weekday = 0 means Monday in PHP date("N").
