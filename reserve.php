@@ -1266,7 +1266,11 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                     <div id="dateError" class="time-error" style="display:none;"></div>
                     <input type="time" name="endTime" id="endTimeInput" min="08:00" max="23:00" style="display:none;">
                     <div id="timeError" class="time-error" style="display:none;"></div>
-                  <div class="date-extra">
+                  </div>
+                  </div>
+                    <div class="note">Reservations must be made at least 1 day in advance. Same-day bookings are not allowed.</div>
+                  <div class="rsv-time-attendees" style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start; width:100%;">
+                    <div class="date-extra" style="flex:1 1 340px; min-width:280px; margin-top:0;">
                     <input type="time" name="startTime" id="startTimeInput" min="08:00" max="23:00" style="display:none;">
                     <div class="res-label" id="hoursLabel" style="margin-top:8px; display:none;"><small>Number of Hours</small></div>
                     <div class="counter" id="hoursCounter" style="display:none;">
@@ -1285,8 +1289,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                     <div id="selectedTimeNote" class="selected-time-note" style="display:none;">Note: This is the available time. Please leave by closing time.</div>
                     <div id="availabilityNotice" class="avail-notice" style="display:none;"></div>
                   </div>
-                    <div class="note">Reservations must be made at least 1 day in advance. Same-day bookings are not allowed.</div>
-                    <div class="res-item persons">
+                    <div class="res-item persons" style="flex:1 1 320px; min-width:280px; margin-top:0;">
                     <div id="personsMaxNote" class="label-help"></div>
                       <?php if (!$isResident): ?>
                       <div class="res-label"><small>Total Participants</small></div>
@@ -1371,6 +1374,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                       </div>
                       <?php endif; ?>
                     </div>
+                    </div>
                     <div class="res-item price-row">
                       <div class="price-box">
                         <div class="price-label">Total Price</div>
@@ -1425,8 +1429,6 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                     <div id="submitWrap" class="res-item" style="margin-top:12px; display:none; gap:8px; align-items:center; flex-wrap:wrap;">
                       <button id="submitBtn" class="btn-submit disabled" type="submit" disabled>Next</button>
                     </div>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
