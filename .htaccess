@@ -1,0 +1,21 @@
+# VictorianPass root configuration
+
+# Serve index.php as the default directory index
+DirectoryIndex index.php index.html
+
+# Prevent directory listing
+Options -Indexes
+
+# Protect sensitive files from being served directly
+<FilesMatch "\.(log|sql|env|ini|lock)$">
+  Require all denied
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # If the request is not a real file or directory, no rewrite is applied.
+</IfModule>
+
+<IfModule mod_php.c>
+  # Override any per-directory PHP settings here if needed.
+</IfModule>
