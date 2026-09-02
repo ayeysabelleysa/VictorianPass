@@ -183,17 +183,38 @@ function isAmenityPaymentVerified($con, $refCode){
   return $ps === 'verified';
 }
 
+// One-time schema migration guard — avoids per-request DDL that caused 504s.
+if (!function_exists('vpSchemaDone')) {
+  function vpSchemaDone($con, $key) {
+    if (!($con instanceof mysqli)) { return false; }
+    $res = @$con->query("SELECT name FROM schema_migrations WHERE name = '" . $con->real_escape_string($key) . "' LIMIT 1");
+    return $res && $res->num_rows > 0;
+  }
+}
+if (!function_exists('vpMarkSchemaDone')) {
+  function vpMarkSchemaDone($con, $key) {
+    if (!($con instanceof mysqli)) { return; }
+    @$con->query("CREATE TABLE IF NOT EXISTS schema_migrations (name VARCHAR(80) PRIMARY KEY, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    @$con->query("INSERT INTO schema_migrations (name) VALUES ('" . $con->real_escape_string($key) . "') ON DUPLICATE KEY UPDATE name = name");
+  }
+}
+
 // Ensure new guest_forms table exists for admin operations
-ensureGuestFormsTable($con);
-ensureGuestFormsWantsAmenityColumn($con);
-ensureGuestFormsAmenityColumns($con);
-ensureDenialReasonColumns($con);
-ensureEmailStatusColumns($con);
-ensureDownpaymentColumn($con);
-ensureUsersPointsColumn($con);
-ensurePointTransactionsTable($con);
-ensureHouseRange($con);
-ensureReceiptAttemptsColumn($con);
+$adminSchemaChecked = isset($_SESSION['admin_schema_v1']);
+if (!$adminSchemaChecked && !vpSchemaDone($con, 'admin_v1')) {
+  ensureGuestFormsTable($con);
+  ensureGuestFormsWantsAmenityColumn($con);
+  ensureGuestFormsAmenityColumns($con);
+  ensureDenialReasonColumns($con);
+  ensureEmailStatusColumns($con);
+  ensureDownpaymentColumn($con);
+  ensureUsersPointsColumn($con);
+  ensurePointTransactionsTable($con);
+  ensureHouseRange($con);
+  ensureReceiptAttemptsColumn($con);
+  vpMarkSchemaDone($con, 'admin_v1');
+}
+if (vpSchemaDone($con, 'admin_v1')) { $_SESSION['admin_schema_v1'] = true; }
 
 // Handle AJAX request for user details (admin resident profile)
 if (isset($_GET['action']) && $_GET['action'] == 'get_user_details' && isset($_GET['id'])) {
@@ -1785,12 +1806,6 @@ function ensureIncidentTables($con) {
     }
 }
 
-ensureReservationStatusColumn($con);
-autoExpireReservations($con);
-ensureIncidentTables($con);
-ensureReceiptUploadedAtColumn($con);
-ensureReservationGcashReferenceColumn($con);
-ensureReservationBookerColumns($con);
 // Ensure resident reservations have necessary columns
 function ensureResidentApprovalColumns($con) {
     $check1 = $con->query("SHOW COLUMNS FROM resident_reservations LIKE 'approved_by'");
@@ -1802,8 +1817,6 @@ function ensureResidentApprovalColumns($con) {
         $con->query("ALTER TABLE resident_reservations ADD COLUMN approval_date DATETIME NULL AFTER approved_by");
     }
 }
-ensureResidentApprovalColumns($con);
-ensureResidentReservationQrColumn($con);
 
 // Ensure users table has a status column to support deactivation and pending approval
 function ensureUsersStatusColumn($con) {
@@ -1818,14 +1831,13 @@ function ensureUsersStatusColumn($con) {
         }
     }
 }
-ensureUsersStatusColumn($con);
+
 function ensureUsersSuspensionReasonColumn($con) {
     $check = $con->query("SHOW COLUMNS FROM users LIKE 'suspension_reason'");
     if ($check && $check->num_rows === 0) {
         $con->query("ALTER TABLE users ADD COLUMN suspension_reason VARCHAR(255) NULL AFTER status");
     }
 }
-ensureUsersSuspensionReasonColumn($con);
 
 // Ensure notifications table exists
 function ensureNotificationsTable($con) {
@@ -1842,7 +1854,25 @@ function ensureNotificationsTable($con) {
         INDEX idx_is_read (is_read)
     ) ENGINE=InnoDB");
 }
-ensureNotificationsTable($con);
+
+autoExpireReservations($con);
+
+// admin_v2 one-time schema migration guard
+$adminSchemaV2Checked = isset($_SESSION['admin_schema_v2']);
+if (!$adminSchemaV2Checked && !vpSchemaDone($con, 'admin_v2')) {
+  ensureReservationStatusColumn($con);
+  ensureIncidentTables($con);
+  ensureReceiptUploadedAtColumn($con);
+  ensureReservationGcashReferenceColumn($con);
+  ensureReservationBookerColumns($con);
+  ensureResidentApprovalColumns($con);
+  ensureResidentReservationQrColumn($con);
+  ensureUsersStatusColumn($con);
+  ensureUsersSuspensionReasonColumn($con);
+  ensureNotificationsTable($con);
+  vpMarkSchemaDone($con, 'admin_v2');
+}
+if (vpSchemaDone($con, 'admin_v2')) { $_SESSION['admin_schema_v2'] = true; }
 
 function notifyUser($con, $userId, $title, $message, $type = 'info') {
     if (!$userId) { return; }

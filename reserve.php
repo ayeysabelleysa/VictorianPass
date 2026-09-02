@@ -15,6 +15,28 @@ if ($resetReservation) {
 
 // Unified reservation page for residents and visitors
 
+// ---------------------------------------------------------------------------
+// One-time schema migration guard
+// ---------------------------------------------------------------------------
+// Without this, the CREATE TABLE / ALTER TABLE / SHOW COLUMNS checks below ran
+// on EVERY page load of reserve.php. On shared Hostinger they acquired DDL locks
+// and blew past nginx's gateway timeout, producing 504 errors on reserve.php and
+// index.php. They now run exactly once for the whole site (persisted in the DB).
+if (!function_exists('vpSchemaDone')) {
+  function vpSchemaDone($con, $key) {
+    if (!($con instanceof mysqli)) { return false; }
+    $res = @$con->query("SELECT name FROM schema_migrations WHERE name = '" . $con->real_escape_string($key) . "' LIMIT 1");
+    return $res && $res->num_rows > 0;
+  }
+}
+if (!function_exists('vpMarkSchemaDone')) {
+  function vpMarkSchemaDone($con, $key) {
+    if (!($con instanceof mysqli)) { return; }
+    @$con->query("CREATE TABLE IF NOT EXISTS schema_migrations (name VARCHAR(80) PRIMARY KEY, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    @$con->query("INSERT INTO schema_migrations (name) VALUES ('" . $con->real_escape_string($key) . "') ON DUPLICATE KEY UPDATE name = name");
+  }
+}
+
 // Ensure reservations has entry_pass_id column to link entry pass info
 function ensureReservationEntryPassColumn($con) {
   if (!($con instanceof mysqli)) { return; }
@@ -24,18 +46,20 @@ function ensureReservationEntryPassColumn($con) {
   }
 }
 
-ensureReservationEntryPassColumn($con);
-
 // Ensure reservations columns are nullable, supporting placeholder record before amenity selection
 function ensureReservationsNullable($con) {
   if (!($con instanceof mysqli)) { return; }
-  @$con->query("ALTER TABLE reservations MODIFY amenity VARCHAR(100) NULL");
-  @$con->query("ALTER TABLE reservations MODIFY start_date DATE NULL");
-  @$con->query("ALTER TABLE reservations MODIFY end_date DATE NULL");
-  @$con->query("ALTER TABLE reservations MODIFY persons INT NULL");
-  @$con->query("ALTER TABLE reservations MODIFY price DECIMAL(10,2) NULL");
+  $res = $con->query("SHOW COLUMNS FROM reservations WHERE Field IN ('amenity','start_date','end_date','persons','price')");
+  $nil = [];
+  if ($res) {
+    while ($row = $res->fetch_assoc()) { $nil[strtolower($row['Field'])] = (strtoupper($row['Null']) === 'YES'); }
+  }
+  if (!isset($nil['amenity'])   || !$nil['amenity'])   { @$con->query("ALTER TABLE reservations MODIFY amenity VARCHAR(100) NULL"); }
+  if (!isset($nil['start_date']) || !$nil['start_date']) { @$con->query("ALTER TABLE reservations MODIFY start_date DATE NULL"); }
+  if (!isset($nil['end_date'])  || !$nil['end_date'])  { @$con->query("ALTER TABLE reservations MODIFY end_date DATE NULL"); }
+  if (!isset($nil['persons'])   || !$nil['persons'])   { @$con->query("ALTER TABLE reservations MODIFY persons INT NULL"); }
+  if (!isset($nil['price'])     || !$nil['price'])     { @$con->query("ALTER TABLE reservations MODIFY price DECIMAL(10,2) NULL"); }
 }
-ensureReservationsNullable($con);
 
 // Ensure time and downpayment fields exist
 function ensureReservationTimeAndDownpayment($con){
@@ -47,7 +71,6 @@ function ensureReservationTimeAndDownpayment($con){
   $c3 = $con->query("SHOW COLUMNS FROM reservations LIKE 'downpayment'");
   if(!$c3 || $c3->num_rows===0){ @$con->query("ALTER TABLE reservations ADD COLUMN downpayment DECIMAL(10,2) NULL AFTER price"); }
 }
-ensureReservationTimeAndDownpayment($con);
 
 // Ensure common columns used by upsert exist (payment_status, account_type, receipt_path)
 function ensureReservationCommonColumns($con){
@@ -63,7 +86,6 @@ function ensureReservationCommonColumns($con){
     }
   }
 }
-ensureReservationCommonColumns($con);
 
 // Ensure users table has points column
 function ensurePointsColumn($con){
@@ -73,7 +95,6 @@ function ensurePointsColumn($con){
     $con->query("ALTER TABLE users ADD COLUMN points INT DEFAULT 0");
   }
 }
-ensurePointsColumn($con);
 
 // Ensure transaction history table exists
 function ensureTransactionHistoryTable($con){
@@ -100,7 +121,6 @@ function ensureTransactionHistoryTable($con){
     }
   }
 }
-ensureTransactionHistoryTable($con);
 
 // Ensure reservations table has point redemption columns
 function ensureReservationPointColumns($con){
@@ -114,7 +134,21 @@ function ensureReservationPointColumns($con){
     $con->query("ALTER TABLE reservations ADD COLUMN points_used INT DEFAULT 0");
   }
 }
-ensureReservationPointColumns($con);
+
+$reserveSchemaChecked = isset($_SESSION['reserve_schema_checked']);
+if (!$reserveSchemaChecked && !vpSchemaDone($con, 'reserve_v1')) {
+  ensureReservationEntryPassColumn($con);
+  ensureReservationsNullable($con);
+  ensureReservationTimeAndDownpayment($con);
+  ensureReservationCommonColumns($con);
+  ensurePointsColumn($con);
+  ensureTransactionHistoryTable($con);
+  ensureReservationPointColumns($con);
+  vpMarkSchemaDone($con, 'reserve_v1');
+}
+if (vpSchemaDone($con, 'reserve_v1')) {
+  $_SESSION['reserve_schema_checked'] = true;
+}
 
 /**
  * Single source of truth for a resident's VHEcoPoint balance.
@@ -932,7 +966,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
   <title>VictorianPass - Reserve</title>
   <link rel="icon" type="image/png" href="images/logo.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="CSS/reserve.css?v=12">
+  <link rel="stylesheet" href="CSS/reserve.css?v=<?php echo @filemtime(__DIR__ . '/CSS/reserve.css') ?: 12; ?>">
 </head>
 <body>
   <div id="notifyLayer" class="toast"></div>
