@@ -1288,7 +1288,48 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                     <div id="selectedTimeRange" class="selected-time-range" style="display:none;"></div>
                     <div id="selectedTimeNote" class="selected-time-note" style="display:none;">Note: This is the available time. Please leave by closing time.</div>
                     <div id="availabilityNotice" class="avail-notice" style="display:none;"></div>
+                    <!-- Points Redemption Toggle -->
+                    <?php if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident'): ?>
+                    <div class="res-item booking-mode-row">
+                      <div class="booking-mode-shell">
+                        <div class="booking-mode-title">Book with cash or redeem points</div>
+                        <div class="booking-mode-grid">
+                          <button type="button" class="booking-mode-card is-active" id="bookingModeCash">
+                            <span class="booking-mode-label">Cash</span>
+                            <span class="booking-mode-value">Pay online downpayment</span>
+                            <span class="booking-mode-meta">Use the regular VictorianPass booking flow.</span>
+                          </button>
+                          <button type="button" class="booking-mode-card" id="bookingModePoints">
+                            <span class="booking-mode-label">Redeem Points</span>
+                            <span class="booking-mode-value" id="bookingModePointsRequired">750 pts = 1 free hour</span>
+                            <span class="booking-mode-meta">Free 1-hour booking when you have enough VHEcoPoint points.</span>
+                          </button>
+                        </div>
+                        <input type="checkbox" id="use-points-toggle" style="display:none;">
+                        <div class="booking-mode-guide" id="bookingModeGuide">
+                          Choose an amenity to compare the cash amount and the point redemption requirement.
+                        </div>
+                        <div id="redemption-info" class="redemption-info">
+                          <p class="redemption-note">
+                            <i class="fa-solid fa-circle-check" aria-hidden="true"></i> <strong>1 free hour will be deducted from your selected duration.</strong>
+                          </p>
+                          <p class="redemption-line">Current balance: <span id="current-points-guide"><?php echo number_format($residentPoints); ?> pts</span></p>
+                          <p class="redemption-line">Points required (1 free hour): <span id="required-points"></span></p>
+                          <p class="redemption-line">Remaining balance: <span id="remaining-points"></span></p>
+                          <p class="redemption-line">Savings: <span id="savings-guide">Select an amenity first</span></p>
+                        </div>
+                      </div>
+                    </div>
+                    <?php endif; ?>
+                    <div class="res-item price-row">
+                      <div class="price-box">
+                        <div class="price-label">Total Price</div>
+                        <div id="price" class="price-amount">₱0.00</div>
+                        <div id="priceBreakdown" class="price-breakdown" style="display:none;"></div>
+                      </div>
+                    </div>
                   </div>
+                    <div class="res-item right-col" style="flex:1 1 320px; min-width:280px; margin-top:0;">
                     <div class="res-item persons" style="flex:1 1 320px; min-width:280px; margin-top:0;">
                     <div id="personsMaxNote" class="label-help"></div>
                       <?php if (!$isResident): ?>
@@ -1371,63 +1412,23 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                             </div>
                           </div>
                         </div>
-                      </div>
-                      <?php endif; ?>
                     </div>
-                    </div>
-                    <div class="res-item price-row">
-                      <div class="price-box">
-                        <div class="price-label">Total Price</div>
-                        <div id="price" class="price-amount">₱0.00</div>
-                        <div id="priceBreakdown" style="display:none;margin-top:6px;font-size:0.9rem;color:#444;"></div>
-                      </div>
+                    <?php endif; ?>
                     </div>
                     <div class="res-item price-row">
                       <div class="price-box">
                         <div class="price-label">Downpayment (50% Online)</div>
-                        <div id="dpAmountText" class="price-amount">₱0</div>
+                        <div id="dpAmountText" class="price-amount">₱0.00</div>
                       </div>
                       <input type="hidden" name="downpayment" id="downpaymentInput" value="">
-                      <small class="dp-info" style="display:block;margin-top:8px;padding:10px 12px;border-radius:10px;background:#f0faf2;border:1.5px solid #cfe6d4;color:#23412e;font-weight:600;">This is a partial payment of 50% of the total price. The remaining balance can be paid onsite at the administration office.</small>
+                      <small class="dp-info">This is a partial payment of 50% of the total price. The remaining balance can be paid onsite at the administration office.</small>
                       <small class="nonrefundable">Downpayment is non-refundable.</small>
+                      <small class="booking-mode-hint" id="bookingModeHint"></small>
                     </div>
-
-                    <!-- Points Redemption Toggle -->
-                    <?php if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident'): ?>
-                    <div class="res-item booking-mode-row" style="margin-top:16px;">
-                      <div class="booking-mode-shell">
-                        <div class="booking-mode-title">Book with cash or redeem points</div>
-                        <div class="booking-mode-grid">
-                          <button type="button" class="booking-mode-card is-active" id="bookingModeCash">
-                            <span class="booking-mode-label">Cash</span>
-                            <span class="booking-mode-value">Pay online downpayment</span>
-                            <span class="booking-mode-meta">Use the regular VictorianPass booking flow.</span>
-                          </button>
-                          <button type="button" class="booking-mode-card" id="bookingModePoints">
-                            <span class="booking-mode-label">Redeem Points</span>
-                            <span class="booking-mode-value" id="bookingModePointsRequired">Select an amenity first</span>
-                            <span class="booking-mode-meta">Free 1-hour booking when you have enough VHEcoPoint points.</span>
-                          </button>
-                        </div>
-                        <input type="checkbox" id="use-points-toggle" style="display:none;">
-                        <div class="booking-mode-guide" id="bookingModeGuide">
-                          Choose an amenity to compare the cash amount and the point redemption requirement.
-                        </div>
-                        <div id="redemption-info" style="display:none;font-size:0.9rem;">
-                          <p style="margin:4px 0 8px 0; padding:8px 10px; border-radius:8px; background:#d1fae5; border:1px solid #34d399; color:#065f46; font-size:0.85rem; font-weight:600;">
-                            <i class="fa-solid fa-circle-check"></i> <strong>1 free hour will be deducted from your selected duration.</strong>
-                          </p>
-                          <p style="margin:4px 0;">Current balance: <span id="current-points-guide" style="color:#23412e;font-weight:700;"><?php echo number_format($residentPoints); ?> pts</span></p>
-                          <p style="margin:4px 0;">Points required (1 free hour): <span id="required-points" style="color:#23412e;font-weight:700;"></span></p>
-                          <p style="margin:4px 0;">Remaining balance: <span id="remaining-points" style="color:#23412e;font-weight:700;"></span></p>
-                          <p style="margin:4px 0;">Savings: <span id="savings-guide" style="color:#166534;font-weight:700;">Select an amenity first</span></p>
-                        </div>
-                      </div>
-                    </div>
-                    <?php endif; ?>
-
-                    <div id="submitWrap" class="res-item" style="margin-top:12px; display:none; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <div id="submitWrap" class="res-item submit-wrap">
                       <button id="submitBtn" class="btn-submit disabled" type="submit" disabled>Next</button>
+                    </div>
+                    </div>
                     </div>
               </div>
             </div>
@@ -1575,7 +1576,17 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     if (cashBtn) cashBtn.classList.toggle('is-active', !toggle || !toggle.checked);
     if (pointsBtn) pointsBtn.classList.toggle('is-active', !!(toggle && toggle.checked));
     if (pointsRequiredLabel) {
-      pointsRequiredLabel.textContent = amenity ? (pointsRequired.toLocaleString() + ' pts = 1 free hour') : 'Select an amenity first';
+      pointsRequiredLabel.textContent = amenity ? (pointsRequired.toLocaleString() + ' pts = 1 free hour') : '750 pts = 1 free hour';
+    }
+    const bookingModeHint = document.getElementById('bookingModeHint');
+    if (bookingModeHint) {
+      if (!amenity) {
+        bookingModeHint.textContent = 'Cash booking is active. You can switch to point redemption and get 1 free hour for 750 pts.';
+      } else if (toggle && toggle.checked) {
+        bookingModeHint.textContent = 'Point redemption is active. 1 free hour will be deducted from your selected duration.';
+      } else {
+        bookingModeHint.textContent = 'Cash booking is active. You can switch to point redemption and get 1 free hour for ' + pointsRequired.toLocaleString() + ' pts.';
+      }
     }
     if (guide) {
       if (!amenity) {
@@ -2600,8 +2611,8 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
   }
   function computeDynamicPrice(amen, residentsCount, guestsCount, hours){
     const h = parseInt(hours||'0',10);
-    const hoursCount = Number.isFinite(h) && h > 0 ? h : 1;
-    if(!isHourBasedAmenity(amen)){
+    const hoursCount = Number.isFinite(h) && h > 0 ? h : 0;
+    if(!isHourBasedAmenity(amen) || hoursCount <= 0){
       return 0;
     }
     return hoursCount * getHourlyRate(amen, isResidentSelfBooking());
@@ -2669,16 +2680,24 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
         const requiredPoints = getPointsRequired(amen);
         const hourlyRate = getHourlyRate(amen, isResidentSelfBooking());
         bd.style.display='block';
-        if(usePoints){
-          const discountVal = hourlyRate;
-          bd.innerHTML = '<div style="line-height:1.8;">' +
-            '<div style="display:flex;justify-content:space-between;"><span>Original Duration: ' + hours + ' hour' + (hours > 1 ? 's' : '') + '</span><span>₱' + fullBase.toFixed(2) + '</span></div>' +
-            '<div style="display:flex;justify-content:space-between;color:#166534;"><span>VHEcoPoint Reward: -1 Free Hour (' + requiredPoints.toLocaleString() + ' pts)</span><span>-₱' + discountVal.toFixed(2) + '</span></div>' +
-            '<div style="display:flex;justify-content:space-between;font-weight:600;color:#374151;"><span>Paid Duration: ' + paidHours + ' hour' + (paidHours !== 1 ? 's' : '') + '</span></div>' +
-            '<div style="display:flex;justify-content:space-between;border-top:1px solid #e5e7eb;padding-top:6px;margin-top:4px;font-weight:700;"><span>Final Amount</span><span>₱' + base.toFixed(2) + '</span></div>' +
-            '</div>';
+        if(hours > 0){
+          let rows = '';
+          rows += '<div class="bd-row"><span>Original Duration: ' + hours + ' hour' + (hours !== 1 ? 's' : '') + '</span><span>₱' + fullBase.toFixed(2) + '</span></div>';
+          if(usePoints){
+            const discountVal = hourlyRate;
+            rows += '<div class="bd-row bd-reward"><span>VHEcoPoint Reward: -1 Free Hour (' + requiredPoints.toLocaleString() + ' pts)</span><span>-₱' + discountVal.toFixed(2) + '</span></div>';
+          }else{
+            rows += '<div class="bd-row"><span>VHEcoPoint Reward: 0</span><span>₱0.00</span></div>';
+          }
+          rows += '<div class="bd-row"><span>Paid Duration: ' + paidHours + ' hour' + (paidHours !== 1 ? 's' : '') + '</span><span>₱' + base.toFixed(2) + '</span></div>';
+          rows += '<div class="bd-row bd-total"><span>Final Amount</span><span>₱' + base.toFixed(2) + '</span></div>';
+          bd.innerHTML = rows;
         }else{
-          bd.innerHTML='Cash mode active. You can also redeem ' + requiredPoints.toLocaleString() + ' pts for 1 free hour (save ₱' + hourlyRate.toFixed(2) + ').';
+          bd.innerHTML =
+            '<div class="bd-row"><span>Original Duration: 0 hours</span><span>₱0.00</span></div>' +
+            '<div class="bd-row"><span>VHEcoPoint Reward: 0</span><span>₱0.00</span></div>' +
+            '<div class="bd-row"><span>Paid Duration: 0 hours</span><span>₱0.00</span></div>' +
+            '<div class="bd-row bd-total"><span>Final Amount</span><span>₱0.00</span></div>';
         }
       }else{
         bd.style.display='none';
