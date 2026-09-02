@@ -183,25 +183,27 @@ function isAmenityPaymentVerified($con, $refCode){
   return $ps === 'verified';
 }
 
-// One-time schema migration guard — avoids per-request DDL that caused 504s.
+// One-time schema migration guard (file-based flag — no DB privileges needed).
 if (!function_exists('vpSchemaDone')) {
   function vpSchemaDone($con, $key) {
-    if (!($con instanceof mysqli)) { return false; }
-    $res = @$con->query("SELECT name FROM schema_migrations WHERE name = '" . $con->real_escape_string($key) . "' LIMIT 1");
-    return $res && $res->num_rows > 0;
+    static $cache = [];
+    if (isset($cache[$key])) return $cache[$key];
+    $flag = __DIR__ . '/schema_flags/' . preg_replace('/[^a-z0-9_]/i', '_', $key) . '.done';
+    $cache[$key] = @file_exists($flag);
+    return $cache[$key];
   }
 }
 if (!function_exists('vpMarkSchemaDone')) {
   function vpMarkSchemaDone($con, $key) {
-    if (!($con instanceof mysqli)) { return; }
-    @$con->query("CREATE TABLE IF NOT EXISTS schema_migrations (name VARCHAR(80) PRIMARY KEY, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-    @$con->query("INSERT INTO schema_migrations (name) VALUES ('" . $con->real_escape_string($key) . "') ON DUPLICATE KEY UPDATE name = name");
+    $dir = __DIR__ . '/schema_flags';
+    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+    $flag = $dir . '/' . preg_replace('/[^a-z0-9_]/i', '_', $key) . '.done';
+    @file_put_contents($flag, '1');
   }
 }
 
 // Ensure new guest_forms table exists for admin operations
-$adminSchemaChecked = isset($_SESSION['admin_schema_v1']);
-if (!$adminSchemaChecked && !vpSchemaDone($con, 'admin_v1')) {
+if (!vpSchemaDone($con, 'admin_v1')) {
   ensureGuestFormsTable($con);
   ensureGuestFormsWantsAmenityColumn($con);
   ensureGuestFormsAmenityColumns($con);
@@ -214,7 +216,6 @@ if (!$adminSchemaChecked && !vpSchemaDone($con, 'admin_v1')) {
   ensureReceiptAttemptsColumn($con);
   vpMarkSchemaDone($con, 'admin_v1');
 }
-if (vpSchemaDone($con, 'admin_v1')) { $_SESSION['admin_schema_v1'] = true; }
 
 // Handle AJAX request for user details (admin resident profile)
 if (isset($_GET['action']) && $_GET['action'] == 'get_user_details' && isset($_GET['id'])) {
@@ -1858,8 +1859,7 @@ function ensureNotificationsTable($con) {
 autoExpireReservations($con);
 
 // admin_v2 one-time schema migration guard
-$adminSchemaV2Checked = isset($_SESSION['admin_schema_v2']);
-if (!$adminSchemaV2Checked && !vpSchemaDone($con, 'admin_v2')) {
+if (!vpSchemaDone($con, 'admin_v2')) {
   ensureReservationStatusColumn($con);
   ensureIncidentTables($con);
   ensureReceiptUploadedAtColumn($con);
@@ -1872,7 +1872,6 @@ if (!$adminSchemaV2Checked && !vpSchemaDone($con, 'admin_v2')) {
   ensureNotificationsTable($con);
   vpMarkSchemaDone($con, 'admin_v2');
 }
-if (vpSchemaDone($con, 'admin_v2')) { $_SESSION['admin_schema_v2'] = true; }
 
 function notifyUser($con, $userId, $title, $message, $type = 'info') {
     if (!$userId) { return; }

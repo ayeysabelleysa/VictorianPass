@@ -16,24 +16,22 @@ if ($resetReservation) {
 // Unified reservation page for residents and visitors
 
 // ---------------------------------------------------------------------------
-// One-time schema migration guard
-// ---------------------------------------------------------------------------
-// Without this, the CREATE TABLE / ALTER TABLE / SHOW COLUMNS checks below ran
-// on EVERY page load of reserve.php. On shared Hostinger they acquired DDL locks
-// and blew past nginx's gateway timeout, producing 504 errors on reserve.php and
-// index.php. They now run exactly once for the whole site (persisted in the DB).
+// One-time schema migration guard (file-based flag).
 if (!function_exists('vpSchemaDone')) {
   function vpSchemaDone($con, $key) {
-    if (!($con instanceof mysqli)) { return false; }
-    $res = @$con->query("SELECT name FROM schema_migrations WHERE name = '" . $con->real_escape_string($key) . "' LIMIT 1");
-    return $res && $res->num_rows > 0;
+    static $cache = [];
+    if (isset($cache[$key])) return $cache[$key];
+    $flag = __DIR__ . '/schema_flags/' . preg_replace('/[^a-z0-9_]/i', '_', $key) . '.done';
+    $cache[$key] = @file_exists($flag);
+    return $cache[$key];
   }
 }
 if (!function_exists('vpMarkSchemaDone')) {
   function vpMarkSchemaDone($con, $key) {
-    if (!($con instanceof mysqli)) { return; }
-    @$con->query("CREATE TABLE IF NOT EXISTS schema_migrations (name VARCHAR(80) PRIMARY KEY, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-    @$con->query("INSERT INTO schema_migrations (name) VALUES ('" . $con->real_escape_string($key) . "') ON DUPLICATE KEY UPDATE name = name");
+    $dir = __DIR__ . '/schema_flags';
+    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+    $flag = $dir . '/' . preg_replace('/[^a-z0-9_]/i', '_', $key) . '.done';
+    @file_put_contents($flag, '1');
   }
 }
 
@@ -135,8 +133,7 @@ function ensureReservationPointColumns($con){
   }
 }
 
-$reserveSchemaChecked = isset($_SESSION['reserve_schema_checked']);
-if (!$reserveSchemaChecked && !vpSchemaDone($con, 'reserve_v1')) {
+if (!vpSchemaDone($con, 'reserve_v1')) {
   ensureReservationEntryPassColumn($con);
   ensureReservationsNullable($con);
   ensureReservationTimeAndDownpayment($con);
@@ -145,9 +142,6 @@ if (!$reserveSchemaChecked && !vpSchemaDone($con, 'reserve_v1')) {
   ensureTransactionHistoryTable($con);
   ensureReservationPointColumns($con);
   vpMarkSchemaDone($con, 'reserve_v1');
-}
-if (vpSchemaDone($con, 'reserve_v1')) {
-  $_SESSION['reserve_schema_checked'] = true;
 }
 
 /**
