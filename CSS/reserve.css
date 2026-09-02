@@ -210,7 +210,7 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
 }
 .amenity-change-icon{width:18px;height:18px;object-fit:contain;display:block}
 .reservation-left{display:flex;flex-direction:column;gap:12px;max-width:720px;margin:0 auto}
-.reservation-left #submitWrap{display:flex;justify-content:flex-end;margin-top:16px}
+.reservation-left #submitWrap{display:flex;justify-content:center;margin-top:16px}
 .reservation-right{display:flex;flex-direction:column;gap:12px}
 .summary-row{display:flex;justify-content:space-between;align-items:center;font-size:.9rem;color:#333;padding:8px 0;border-bottom:1px solid #e5e7eb}
 .summary-row:last-child{border-bottom:none}
@@ -261,12 +261,26 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
 .reservation-card p{margin:0;font-weight:500;color:#374151;line-height:1.5}
 .date-extra{margin-top:12px}
 
+.reservation-left .booking-mode-row{
+  max-width:720px;
+}
+.reservation-left .booking-mode-row .booking-mode-shell{
+  padding:12px;
+  gap:8px;
+}
+.reservation-left .booking-mode-row .booking-mode-card{
+  padding:10px;
+  gap:3px;
+}
+.reservation-left .booking-mode-row .booking-mode-title{
+  font-size:0.88rem;
+}
+
 @media (min-width:1024px){
   .reservation-left .res-item{
     max-width:420px;
   }
-  .reservation-left .price-row,
-  .reservation-left .booking-mode-row{
+  .reservation-left .price-row{
     max-width:720px;
   }
 }
@@ -287,11 +301,17 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
   background: #23412e;
   color: #fff;
   border: none;
-  padding: 14px 24px;
+  width: 170px;
+  height: 50px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 8px;
   cursor: pointer;
   font-weight: 600;
   font-size: 1rem;
+  line-height: 1;
   transition: transform 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
   box-shadow: 0 4px 12px rgba(35, 65, 46, 0.4);
 }
@@ -874,36 +894,108 @@ input:focus-visible {
   border: 1.5px solid #cfe6d4;
 }
 
+.dp-info {
+  display: block;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f0faf2;
+  border: 1.5px solid #cfe6d4;
+  color: #23412e;
+  font-weight: 600;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
 .nonrefundable {
   background: #fee2e2;
   color: #b30000;
   border: 1px solid #fecaca;
   border-radius: 8px;
-  padding: 12px;
+  padding: 9px 12px;
   font-weight: 700;
   margin-top: 10px;
   display: block;
-  font-size: 0.9rem;
+  font-size: 0.86rem;
+  line-height: 1.4;
   border-left: 4px solid #dc2626;
 }
 .price-row{
+  margin-top:10px;
+}
+.booking-mode-hint{
+  display:block;
   margin-top:8px;
+  font-size:0.84rem;
+  line-height:1.45;
+  color:#4b5563;
 }
 .price-box{
   background:#f9f9f9;
   border:1.5px solid #e5e7eb;
   border-radius:12px;
-  padding:14px 16px;
+  padding:12px 16px;
   display:grid;
   grid-template-columns:minmax(0,1fr) auto;
   align-items:center;
-  gap:8px 16px;
+  gap:4px 16px;
+}
+.price-label{
+  font-size:0.9rem;
+  color:#4b5563;
+  font-weight:600;
+  line-height:1.35;
+  min-width:0;
+}
+.price-amount{
+  font-size:1.45rem;
+  font-weight:800;
+  color:#0f172a;
+  white-space:nowrap;
+  justify-self:end;
+}
+.price-box .price-breakdown,
+.price-box #priceBreakdown{
+  grid-column:1 / -1;
+  margin-top:8px;
+  padding-top:8px;
+  border-top:1px solid #e5e7eb;
+  font-size:0.9rem;
+  color:#444;
+  line-height:1.8;
+}
+.bd-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  gap:12px;
+  line-height:1.8;
+}
+.bd-row > span:first-child{
+  flex:1;
+  min-width:0;
+}
+.bd-row > span:last-child{
+  white-space:nowrap;
+  flex-shrink:0;
+}
+.bd-reward{
+  color:#166534;
+}
+.bd-reward > span:last-child{
+  font-weight:600;
+}
+.bd-total{
+  border-top:1px solid #e5e7eb;
+  padding-top:6px;
+  margin-top:4px;
+  font-weight:700;
+  color:#374151;
 }
 .booking-mode-shell{
   display:flex;
   flex-direction:column;
-  gap:12px;
-  padding:16px;
+  gap:10px;
+  padding:14px;
   border:1px solid #e5e7eb;
   border-radius:14px;
   background:#f9fafb;
@@ -915,7 +1007,7 @@ input:focus-visible {
 }
 .booking-mode-grid{
   display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  grid-template-columns:1fr;
   gap:10px;
 }
 .booking-mode-card{
@@ -928,6 +1020,7 @@ input:focus-visible {
   flex-direction:column;
   gap:4px;
   cursor:pointer;
+  min-height:0;
   transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease;
 }
 .booking-mode-card:hover{
@@ -946,6 +1039,9 @@ input:focus-visible {
   letter-spacing:0.06em;
   color:#6b7280;
 }
+.booking-mode-card.is-active .booking-mode-label{
+  color:#166534;
+}
 .booking-mode-value{
   font-size:1rem;
   font-weight:800;
@@ -959,38 +1055,54 @@ input:focus-visible {
 .booking-mode-guide{
   display:flex;
   align-items:flex-start;
-  gap:10px;
-  padding:12px 14px;
-  border-radius:12px;
+  gap:8px;
+  padding:9px 12px;
+  border-radius:10px;
   background:#ecfdf5;
   border:1px solid #bbf7d0;
   color:#166534;
-  font-size:0.9rem;
+  font-size:0.86rem;
   font-weight:600;
-  line-height:1.55;
+  line-height:1.45;
 }
 .booking-mode-guide::before{
   content:"\1F4A1";
   flex-shrink:0;
-  font-size:1rem;
+  font-size:0.95rem;
   line-height:1.3;
 }
-.price-label{
+.redemption-info{
+  display:none;
   font-size:0.9rem;
-  color:#4b5563;
+}
+.redemption-note{
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  margin:0 0 8px 0;
+  padding:8px 10px;
+  border-radius:8px;
+  background:#d1fae5;
+  border:1px solid #34d399;
+  color:#065f46;
+  font-size:0.85rem;
   font-weight:600;
-  line-height:1.35;
+  line-height:1.4;
 }
-.price-amount{
-  font-size:1.8rem;
-  font-weight:800;
-  color:#0f172a;
-  white-space:nowrap;
-  justify-self:end;
+.redemption-note i{
+  flex-shrink:0;
+  margin-top:2px;
 }
-.price-box #priceBreakdown{
-  grid-column:1 / -1;
-  margin-top:0 !important;
+.redemption-line{
+  margin:4px 0;
+  line-height:1.5;
+}
+.redemption-line span{
+  color:#23412e;
+  font-weight:700;
+}
+.redemption-line:nth-child(5) span{
+  color:#166534;
 }
 .slot-btn {
   display: inline-flex;
@@ -1184,8 +1296,8 @@ input:focus-visible {
   .step-title{font-size:.9rem}
   .step-subtitle{font-size:.8rem}
   .reservation-right{position:static; top:auto}
-  .reservation-left #submitWrap{justify-content:stretch}
-  .btn-submit{width:100%}
+  .reservation-left #submitWrap{justify-content:center}
+  .btn-submit{width:170px;max-width:100%}
 }
 @media (min-width:769px) and (max-width:1023px){
   .layout{grid-template-columns:minmax(0,1fr)}
@@ -1236,6 +1348,26 @@ input:focus-visible {
   .selected-time-range,
   .selected-time-note{width:100%}
   .btn-link{width:100%; text-align:center}
+  .booking-mode-grid{grid-template-columns:1fr}
+  .rsv-time-attendees{
+    align-items:stretch;
+  }
+  .rsv-time-attendees > .date-extra,
+  .rsv-time-attendees > .right-col{
+    width:100%;
+  }
+  .reservation-left .price-row .price-box,
+  .reservation-left .booking-mode-row .booking-mode-shell{
+    width:100%;
+  }
+  .reservation-left .price-box{
+    min-height:100px;
+    align-content:center;
+  }
+  .reservation-left .booking-mode-card{
+    min-height:84px;
+    justify-content:center;
+  }
 }
 @media (max-width:480px){
   .brand-text p{display:none}

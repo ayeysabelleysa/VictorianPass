@@ -52,9 +52,31 @@ function ensureUserSchema($con){
   }
 }
 
-if (!isset($_SESSION['mainpage_schema_checked'])) {
+// One-time schema migration tracker: persists in the DB so the CREATE/ALTER
+// checks below run exactly once for the whole site instead of on every request
+// or every new session (which caused 504 Gateway Timeouts on shared Hostinger).
+if (!function_exists('vpSchemaDone')) {
+  function vpSchemaDone($con, $key) {
+    if (!($con instanceof mysqli)) { return false; }
+    $res = @$con->query("SELECT name FROM schema_migrations WHERE name = '" . $con->real_escape_string($key) . "' LIMIT 1");
+    return $res && $res->num_rows > 0;
+  }
+}
+if (!function_exists('vpMarkSchemaDone')) {
+  function vpMarkSchemaDone($con, $key) {
+    if (!($con instanceof mysqli)) { return; }
+    @$con->query("CREATE TABLE IF NOT EXISTS schema_migrations (name VARCHAR(80) PRIMARY KEY, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    @$con->query("INSERT INTO schema_migrations (name) VALUES ('" . $con->real_escape_string($key) . "') ON DUPLICATE KEY UPDATE name = name");
+  }
+}
+
+$mainpageSchemaChecked = isset($_SESSION['mainpage_schema_checked']);
+if (!$mainpageSchemaChecked && !vpSchemaDone($con, 'mainpage_v1')) {
   ensureEntryPassesTable($con);
   ensureUserSchema($con);
+  vpMarkSchemaDone($con, 'mainpage_v1');
+}
+if (vpSchemaDone($con, 'mainpage_v1')) {
   $_SESSION['mainpage_schema_checked'] = true;
 }
 
@@ -226,9 +248,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   <link rel="icon" type="image/png" href="images/logo.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
-  <?php $mainCssVer = @filemtime(__DIR__ . '/css/mainpage.css') ?: time(); $respCssVer = @filemtime(__DIR__ . '/css/responsive.css') ?: time(); ?>
-  <link rel="stylesheet" href="css/mainpage.css?v=<?php echo $mainCssVer; ?>">
-  <link rel="stylesheet" href="css/responsive.css?v=<?php echo $respCssVer; ?>">
+  <?php $mainCssVer = @filemtime(__DIR__ . '/CSS/mainpage.css') ?: time(); $respCssVer = @filemtime(__DIR__ . '/CSS/responsive.css') ?: time(); ?>
+  <link rel="stylesheet" href="CSS/mainpage.css?v=<?php echo $mainCssVer; ?>">
+  <link rel="stylesheet" href="CSS/responsive.css?v=<?php echo $respCssVer; ?>">
   
 </head>
 <body>

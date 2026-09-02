@@ -15,6 +15,28 @@ if ($resetReservation) {
 
 // Unified reservation page for residents and visitors
 
+// ---------------------------------------------------------------------------
+// One-time schema migration guard
+// ---------------------------------------------------------------------------
+// Without this, the CREATE TABLE / ALTER TABLE / SHOW COLUMNS checks below ran
+// on EVERY page load of reserve.php. On shared Hostinger they acquired DDL locks
+// and blew past nginx's gateway timeout, producing 504 errors on reserve.php and
+// index.php. They now run exactly once for the whole site (persisted in the DB).
+if (!function_exists('vpSchemaDone')) {
+  function vpSchemaDone($con, $key) {
+    if (!($con instanceof mysqli)) { return false; }
+    $res = @$con->query("SELECT name FROM schema_migrations WHERE name = '" . $con->real_escape_string($key) . "' LIMIT 1");
+    return $res && $res->num_rows > 0;
+  }
+}
+if (!function_exists('vpMarkSchemaDone')) {
+  function vpMarkSchemaDone($con, $key) {
+    if (!($con instanceof mysqli)) { return; }
+    @$con->query("CREATE TABLE IF NOT EXISTS schema_migrations (name VARCHAR(80) PRIMARY KEY, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    @$con->query("INSERT INTO schema_migrations (name) VALUES ('" . $con->real_escape_string($key) . "') ON DUPLICATE KEY UPDATE name = name");
+  }
+}
+
 // Ensure reservations has entry_pass_id column to link entry pass info
 function ensureReservationEntryPassColumn($con) {
   if (!($con instanceof mysqli)) { return; }
@@ -24,18 +46,20 @@ function ensureReservationEntryPassColumn($con) {
   }
 }
 
-ensureReservationEntryPassColumn($con);
-
 // Ensure reservations columns are nullable, supporting placeholder record before amenity selection
 function ensureReservationsNullable($con) {
   if (!($con instanceof mysqli)) { return; }
-  @$con->query("ALTER TABLE reservations MODIFY amenity VARCHAR(100) NULL");
-  @$con->query("ALTER TABLE reservations MODIFY start_date DATE NULL");
-  @$con->query("ALTER TABLE reservations MODIFY end_date DATE NULL");
-  @$con->query("ALTER TABLE reservations MODIFY persons INT NULL");
-  @$con->query("ALTER TABLE reservations MODIFY price DECIMAL(10,2) NULL");
+  $res = $con->query("SHOW COLUMNS FROM reservations WHERE Field IN ('amenity','start_date','end_date','persons','price')");
+  $nil = [];
+  if ($res) {
+    while ($row = $res->fetch_assoc()) { $nil[strtolower($row['Field'])] = (strtoupper($row['Null']) === 'YES'); }
+  }
+  if (!isset($nil['amenity'])   || !$nil['amenity'])   { @$con->query("ALTER TABLE reservations MODIFY amenity VARCHAR(100) NULL"); }
+  if (!isset($nil['start_date']) || !$nil['start_date']) { @$con->query("ALTER TABLE reservations MODIFY start_date DATE NULL"); }
+  if (!isset($nil['end_date'])  || !$nil['end_date'])  { @$con->query("ALTER TABLE reservations MODIFY end_date DATE NULL"); }
+  if (!isset($nil['persons'])   || !$nil['persons'])   { @$con->query("ALTER TABLE reservations MODIFY persons INT NULL"); }
+  if (!isset($nil['price'])     || !$nil['price'])     { @$con->query("ALTER TABLE reservations MODIFY price DECIMAL(10,2) NULL"); }
 }
-ensureReservationsNullable($con);
 
 // Ensure time and downpayment fields exist
 function ensureReservationTimeAndDownpayment($con){
@@ -47,7 +71,6 @@ function ensureReservationTimeAndDownpayment($con){
   $c3 = $con->query("SHOW COLUMNS FROM reservations LIKE 'downpayment'");
   if(!$c3 || $c3->num_rows===0){ @$con->query("ALTER TABLE reservations ADD COLUMN downpayment DECIMAL(10,2) NULL AFTER price"); }
 }
-ensureReservationTimeAndDownpayment($con);
 
 // Ensure common columns used by upsert exist (payment_status, account_type, receipt_path)
 function ensureReservationCommonColumns($con){
@@ -63,7 +86,6 @@ function ensureReservationCommonColumns($con){
     }
   }
 }
-ensureReservationCommonColumns($con);
 
 // Ensure users table has points column
 function ensurePointsColumn($con){
@@ -73,7 +95,6 @@ function ensurePointsColumn($con){
     $con->query("ALTER TABLE users ADD COLUMN points INT DEFAULT 0");
   }
 }
-ensurePointsColumn($con);
 
 // Ensure transaction history table exists
 function ensureTransactionHistoryTable($con){
@@ -100,7 +121,6 @@ function ensureTransactionHistoryTable($con){
     }
   }
 }
-ensureTransactionHistoryTable($con);
 
 // Ensure reservations table has point redemption columns
 function ensureReservationPointColumns($con){
@@ -114,7 +134,21 @@ function ensureReservationPointColumns($con){
     $con->query("ALTER TABLE reservations ADD COLUMN points_used INT DEFAULT 0");
   }
 }
-ensureReservationPointColumns($con);
+
+$reserveSchemaChecked = isset($_SESSION['reserve_schema_checked']);
+if (!$reserveSchemaChecked && !vpSchemaDone($con, 'reserve_v1')) {
+  ensureReservationEntryPassColumn($con);
+  ensureReservationsNullable($con);
+  ensureReservationTimeAndDownpayment($con);
+  ensureReservationCommonColumns($con);
+  ensurePointsColumn($con);
+  ensureTransactionHistoryTable($con);
+  ensureReservationPointColumns($con);
+  vpMarkSchemaDone($con, 'reserve_v1');
+}
+if (vpSchemaDone($con, 'reserve_v1')) {
+  $_SESSION['reserve_schema_checked'] = true;
+}
 
 /**
  * Single source of truth for a resident's VHEcoPoint balance.
@@ -932,7 +966,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
   <title>VictorianPass - Reserve</title>
   <link rel="icon" type="image/png" href="images/logo.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="CSS/reserve.css?v=12">
+  <link rel="stylesheet" href="CSS/reserve.css?v=<?php echo @filemtime(__DIR__ . '/CSS/reserve.css') ?: 12; ?>">
 </head>
 <body>
   <div id="notifyLayer" class="toast"></div>
@@ -1266,7 +1300,11 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                     <div id="dateError" class="time-error" style="display:none;"></div>
                     <input type="time" name="endTime" id="endTimeInput" min="08:00" max="23:00" style="display:none;">
                     <div id="timeError" class="time-error" style="display:none;"></div>
-                  <div class="date-extra">
+                  </div>
+                  </div>
+                    <div class="note">Reservations must be made at least 1 day in advance. Same-day bookings are not allowed.</div>
+                  <div class="rsv-time-attendees" style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start; width:100%;">
+                    <div class="date-extra" style="flex:1 1 340px; min-width:280px; margin-top:0;">
                     <input type="time" name="startTime" id="startTimeInput" min="08:00" max="23:00" style="display:none;">
                     <div class="res-label" id="hoursLabel" style="margin-top:8px; display:none;"><small>Number of Hours</small></div>
                     <div class="counter" id="hoursCounter" style="display:none;">
@@ -1284,9 +1322,49 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                     <div id="selectedTimeRange" class="selected-time-range" style="display:none;"></div>
                     <div id="selectedTimeNote" class="selected-time-note" style="display:none;">Note: This is the available time. Please leave by closing time.</div>
                     <div id="availabilityNotice" class="avail-notice" style="display:none;"></div>
+                    <!-- Points Redemption Toggle -->
+                    <?php if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident'): ?>
+                    <div class="res-item booking-mode-row">
+                      <div class="booking-mode-shell">
+                        <div class="booking-mode-title">Book with cash or redeem points</div>
+                        <div class="booking-mode-grid">
+                          <button type="button" class="booking-mode-card is-active" id="bookingModeCash">
+                            <span class="booking-mode-label">Cash</span>
+                            <span class="booking-mode-value">Pay online downpayment</span>
+                            <span class="booking-mode-meta">Use the regular VictorianPass booking flow.</span>
+                          </button>
+                          <button type="button" class="booking-mode-card" id="bookingModePoints">
+                            <span class="booking-mode-label">Redeem Points</span>
+                            <span class="booking-mode-value" id="bookingModePointsRequired">750 pts = 1 free hour</span>
+                            <span class="booking-mode-meta">Free 1-hour booking when you have enough VHEcoPoint points.</span>
+                          </button>
+                        </div>
+                        <input type="checkbox" id="use-points-toggle" style="display:none;">
+                        <div class="booking-mode-guide" id="bookingModeGuide">
+                          Choose an amenity to compare the cash amount and the point redemption requirement.
+                        </div>
+                        <div id="redemption-info" class="redemption-info">
+                          <p class="redemption-note">
+                            <i class="fa-solid fa-circle-check" aria-hidden="true"></i> <strong>1 free hour will be deducted from your selected duration.</strong>
+                          </p>
+                          <p class="redemption-line">Current balance: <span id="current-points-guide"><?php echo number_format($residentPoints); ?> pts</span></p>
+                          <p class="redemption-line">Points required (1 free hour): <span id="required-points"></span></p>
+                          <p class="redemption-line">Remaining balance: <span id="remaining-points"></span></p>
+                          <p class="redemption-line">Savings: <span id="savings-guide">Select an amenity first</span></p>
+                        </div>
+                      </div>
+                    </div>
+                    <?php endif; ?>
+                    <div class="res-item price-row">
+                      <div class="price-box">
+                        <div class="price-label">Total Price</div>
+                        <div id="price" class="price-amount">₱0.00</div>
+                        <div id="priceBreakdown" class="price-breakdown" style="display:none;"></div>
+                      </div>
+                    </div>
                   </div>
-                    <div class="note">Reservations must be made at least 1 day in advance. Same-day bookings are not allowed.</div>
-                    <div class="res-item persons">
+                    <div class="res-item right-col" style="flex:1 1 320px; min-width:280px; margin-top:0;">
+                    <div class="res-item persons" style="flex:1 1 320px; min-width:280px; margin-top:0;">
                     <div id="personsMaxNote" class="label-help"></div>
                       <?php if (!$isResident): ?>
                       <div class="res-label"><small>Total Participants</small></div>
@@ -1368,65 +1446,24 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                             </div>
                           </div>
                         </div>
-                      </div>
-                      <?php endif; ?>
                     </div>
-                    <div class="res-item price-row">
-                      <div class="price-box">
-                        <div class="price-label">Total Price</div>
-                        <div id="price" class="price-amount">₱0.00</div>
-                        <div id="priceBreakdown" style="display:none;margin-top:6px;font-size:0.9rem;color:#444;"></div>
-                      </div>
+                    <?php endif; ?>
                     </div>
                     <div class="res-item price-row">
                       <div class="price-box">
                         <div class="price-label">Downpayment (50% Online)</div>
-                        <div id="dpAmountText" class="price-amount">₱0</div>
+                        <div id="dpAmountText" class="price-amount">₱0.00</div>
                       </div>
                       <input type="hidden" name="downpayment" id="downpaymentInput" value="">
-                      <small class="dp-info" style="display:block;margin-top:8px;padding:10px 12px;border-radius:10px;background:#f0faf2;border:1.5px solid #cfe6d4;color:#23412e;font-weight:600;">This is a partial payment of 50% of the total price. The remaining balance can be paid onsite at the administration office.</small>
+                      <small class="dp-info">This is a partial payment of 50% of the total price. The remaining balance can be paid onsite at the administration office.</small>
                       <small class="nonrefundable">Downpayment is non-refundable.</small>
+                      <small class="booking-mode-hint" id="bookingModeHint"></small>
                     </div>
-
-                    <!-- Points Redemption Toggle -->
-                    <?php if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident'): ?>
-                    <div class="res-item booking-mode-row" style="margin-top:16px;">
-                      <div class="booking-mode-shell">
-                        <div class="booking-mode-title">Book with cash or redeem points</div>
-                        <div class="booking-mode-grid">
-                          <button type="button" class="booking-mode-card is-active" id="bookingModeCash">
-                            <span class="booking-mode-label">Cash</span>
-                            <span class="booking-mode-value">Pay online downpayment</span>
-                            <span class="booking-mode-meta">Use the regular VictorianPass booking flow.</span>
-                          </button>
-                          <button type="button" class="booking-mode-card" id="bookingModePoints">
-                            <span class="booking-mode-label">Redeem Points</span>
-                            <span class="booking-mode-value" id="bookingModePointsRequired">Select an amenity first</span>
-                            <span class="booking-mode-meta">Free 1-hour booking when you have enough VHEcoPoint points.</span>
-                          </button>
-                        </div>
-                        <input type="checkbox" id="use-points-toggle" style="display:none;">
-                        <div class="booking-mode-guide" id="bookingModeGuide">
-                          Choose an amenity to compare the cash amount and the point redemption requirement.
-                        </div>
-                        <div id="redemption-info" style="display:none;font-size:0.9rem;">
-                          <p style="margin:4px 0 8px 0; padding:8px 10px; border-radius:8px; background:#d1fae5; border:1px solid #34d399; color:#065f46; font-size:0.85rem; font-weight:600;">
-                            <i class="fa-solid fa-circle-check"></i> <strong>1 free hour will be deducted from your selected duration.</strong>
-                          </p>
-                          <p style="margin:4px 0;">Current balance: <span id="current-points-guide" style="color:#23412e;font-weight:700;"><?php echo number_format($residentPoints); ?> pts</span></p>
-                          <p style="margin:4px 0;">Points required (1 free hour): <span id="required-points" style="color:#23412e;font-weight:700;"></span></p>
-                          <p style="margin:4px 0;">Remaining balance: <span id="remaining-points" style="color:#23412e;font-weight:700;"></span></p>
-                          <p style="margin:4px 0;">Savings: <span id="savings-guide" style="color:#166534;font-weight:700;">Select an amenity first</span></p>
-                        </div>
-                      </div>
-                    </div>
-                    <?php endif; ?>
-
-                    <div id="submitWrap" class="res-item" style="margin-top:12px; display:none; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <div id="submitWrap" class="res-item submit-wrap">
                       <button id="submitBtn" class="btn-submit disabled" type="submit" disabled>Next</button>
                     </div>
-                  </div>
-                </div>
+                    </div>
+                    </div>
               </div>
             </div>
           </div>
@@ -1573,7 +1610,17 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     if (cashBtn) cashBtn.classList.toggle('is-active', !toggle || !toggle.checked);
     if (pointsBtn) pointsBtn.classList.toggle('is-active', !!(toggle && toggle.checked));
     if (pointsRequiredLabel) {
-      pointsRequiredLabel.textContent = amenity ? (pointsRequired.toLocaleString() + ' pts = 1 free hour') : 'Select an amenity first';
+      pointsRequiredLabel.textContent = amenity ? (pointsRequired.toLocaleString() + ' pts = 1 free hour') : '750 pts = 1 free hour';
+    }
+    const bookingModeHint = document.getElementById('bookingModeHint');
+    if (bookingModeHint) {
+      if (!amenity) {
+        bookingModeHint.textContent = 'Cash booking is active. You can switch to point redemption and get 1 free hour for 750 pts.';
+      } else if (toggle && toggle.checked) {
+        bookingModeHint.textContent = 'Point redemption is active. 1 free hour will be deducted from your selected duration.';
+      } else {
+        bookingModeHint.textContent = 'Cash booking is active. You can switch to point redemption and get 1 free hour for ' + pointsRequired.toLocaleString() + ' pts.';
+      }
     }
     if (guide) {
       if (!amenity) {
@@ -2598,8 +2645,8 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
   }
   function computeDynamicPrice(amen, residentsCount, guestsCount, hours){
     const h = parseInt(hours||'0',10);
-    const hoursCount = Number.isFinite(h) && h > 0 ? h : 1;
-    if(!isHourBasedAmenity(amen)){
+    const hoursCount = Number.isFinite(h) && h > 0 ? h : 0;
+    if(!isHourBasedAmenity(amen) || hoursCount <= 0){
       return 0;
     }
     return hoursCount * getHourlyRate(amen, isResidentSelfBooking());
@@ -2667,16 +2714,24 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
         const requiredPoints = getPointsRequired(amen);
         const hourlyRate = getHourlyRate(amen, isResidentSelfBooking());
         bd.style.display='block';
-        if(usePoints){
-          const discountVal = hourlyRate;
-          bd.innerHTML = '<div style="line-height:1.8;">' +
-            '<div style="display:flex;justify-content:space-between;"><span>Original Duration: ' + hours + ' hour' + (hours > 1 ? 's' : '') + '</span><span>₱' + fullBase.toFixed(2) + '</span></div>' +
-            '<div style="display:flex;justify-content:space-between;color:#166534;"><span>VHEcoPoint Reward: -1 Free Hour (' + requiredPoints.toLocaleString() + ' pts)</span><span>-₱' + discountVal.toFixed(2) + '</span></div>' +
-            '<div style="display:flex;justify-content:space-between;font-weight:600;color:#374151;"><span>Paid Duration: ' + paidHours + ' hour' + (paidHours !== 1 ? 's' : '') + '</span></div>' +
-            '<div style="display:flex;justify-content:space-between;border-top:1px solid #e5e7eb;padding-top:6px;margin-top:4px;font-weight:700;"><span>Final Amount</span><span>₱' + base.toFixed(2) + '</span></div>' +
-            '</div>';
+        if(hours > 0){
+          let rows = '';
+          rows += '<div class="bd-row"><span>Original Duration: ' + hours + ' hour' + (hours !== 1 ? 's' : '') + '</span><span>₱' + fullBase.toFixed(2) + '</span></div>';
+          if(usePoints){
+            const discountVal = hourlyRate;
+            rows += '<div class="bd-row bd-reward"><span>VHEcoPoint Reward: -1 Free Hour (' + requiredPoints.toLocaleString() + ' pts)</span><span>-₱' + discountVal.toFixed(2) + '</span></div>';
+          }else{
+            rows += '<div class="bd-row"><span>VHEcoPoint Reward: 0</span><span>₱0.00</span></div>';
+          }
+          rows += '<div class="bd-row"><span>Paid Duration: ' + paidHours + ' hour' + (paidHours !== 1 ? 's' : '') + '</span><span>₱' + base.toFixed(2) + '</span></div>';
+          rows += '<div class="bd-row bd-total"><span>Final Amount</span><span>₱' + base.toFixed(2) + '</span></div>';
+          bd.innerHTML = rows;
         }else{
-          bd.innerHTML='Cash mode active. You can also redeem ' + requiredPoints.toLocaleString() + ' pts for 1 free hour (save ₱' + hourlyRate.toFixed(2) + ').';
+          bd.innerHTML =
+            '<div class="bd-row"><span>Original Duration: 0 hours</span><span>₱0.00</span></div>' +
+            '<div class="bd-row"><span>VHEcoPoint Reward: 0</span><span>₱0.00</span></div>' +
+            '<div class="bd-row"><span>Paid Duration: 0 hours</span><span>₱0.00</span></div>' +
+            '<div class="bd-row bd-total"><span>Final Amount</span><span>₱0.00</span></div>';
         }
       }else{
         bd.style.display='none';

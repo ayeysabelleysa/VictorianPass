@@ -176,14 +176,14 @@ if ($loaded) {
 
 // 7. Test session status API shape (mock-resident via $_SESSION) -------------
 echo "[7] Session status API shape...\n";
-$sApi = __DIR__ . '/api_resident/ecopoint_session_status.php';
-$hApi = __DIR__ . '/api_hardware/qr_verify_and_create_session.php';
+$sApi = __DIR__ . '/api/ecopoint_session_status.php';
+$hApi = __DIR__ . '/api/qr_verify_and_create_session.php';
 check('resident session status API file exists', file_exists($sApi));
 check('hardware qr-verify API file exists', file_exists($hApi));
-check('hardware submit_waste_data exists', file_exists(__DIR__.'/api_hardware/submit_waste_data.php'));
-check('hardware complete_session exists', file_exists(__DIR__.'/api_hardware/complete_session.php'));
-check('hardware cancel_session exists', file_exists(__DIR__.'/api_hardware/cancel_session.php'));
-check('hardware error_session exists', file_exists(__DIR__.'/api_hardware/error_session.php'));
+check('hardware submit_waste_data exists', file_exists(__DIR__.'/api/submit_waste_data.php'));
+check('hardware complete_session exists', file_exists(__DIR__.'/api/complete_session.php'));
+check('hardware cancel_session exists', file_exists(__DIR__.'/api/cancel_session.php'));
+check('hardware error_session exists', file_exists(__DIR__.'/api/error_session.php'));
 echo "  -> done\n\n";
 
 // Summary --------------------------------------------------------------------

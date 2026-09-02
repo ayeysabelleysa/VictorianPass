@@ -58,7 +58,7 @@ VHEcoPoint solves these problems through a closed, backend-truthful incentive lo
 | **FR-05** | Daily/Weekly/Balance Cap Enforcement               | Before awarding, compute and enforce (a) daily point cap of 100 pts, (b) weekly point cap of 250 pts (Monday 12:00 AM reset), (c) maximum resident balance of 3,000 pts; cap the award to the lowest remaining headroom, record applied cap values on the session row, and award only `points_awarded` after capping. | High     |
 | **FR-06** | Atomic Points Posting & Double-Award Prevention    | On session COMPLETED, atomically (a) write exactly one `point_transactions` row tied via unique FK `ecopoint_session_id`, (b) increment `users.points` / `residents.ecopoint_balance`, (c) set `points_posted = 1` and `posted_transaction_id` on the session row; if any step fails, roll back so points are never awarded twice. | High     |
 | **FR-07** | Session State Machine & Audit Event Logging        | Enforce the lifecycle `WAITING → ACTIVE → PROCESSING → COMPLETED | CANCELLED | ERROR`; reject out-of-order transitions; log every state change and hardware payload to `ecopoint_session_events` as a JSON `event_payload` with timestamps, enabling full post-hoc session reconstruction. | High     |
-| **FR-08** | Resident EcoPoint Dashboard (via VictorianPass)    | Within the VictorianPass resident dashboard, display current EcoPoint balance, a paginated transaction history (transaction_type, material, weight_kg, amount, created_at, station/location), and near-real-time active-session status via polling `api_resident/ecopoint_session_status.php` or SSE; allow residents to redeem points during the VictorianPass amenity checkout flow. | High     |
+| **FR-08** | Resident EcoPoint Dashboard (via VictorianPass)    | Within the VictorianPass resident dashboard, display current EcoPoint balance, a paginated transaction history (transaction_type, material, weight_kg, amount, created_at, station/location), and near-real-time active-session status via polling `api/ecopoint_session_status.php` or SSE; allow residents to redeem points during the VictorianPass amenity checkout flow. | High     |
 | **FR-09** | Admin EcoPoint KPIs & Session Management          | Within the VictorianPass admin panel, render KPIs (stations total, stations online via 2-min heartbeat, active sessions now, points today, sessions today, points this week, sessions this week); display a stations grid with online/offline coloring, a live open-sessions list, searchable/paginated session history, and a session-detail modal with waste-items breakdown + full event log; allow admin to register/revoke station API keys. | Medium   |
 | **FR-10** | Session Timeout, Cancel, & Error Recovery          | Automatically timeout an ACTIVE/PROCESSING session to ERROR after `ECO_SESSION_TIMEOUT_SEC` (600 s = 10 min); expose explicit hardware endpoints to CANCEL or ERROR a session with a message; prevent any session in a final state (COMPLETED/CANCELLED/ERROR) from accepting new weight data or being re-opened. | High     |
 
@@ -71,7 +71,7 @@ VHEcoPoint solves these problems through a closed, backend-truthful incentive lo
 - The backend points-calculation pipeline (material + weight → cap checks → points awarded) shall complete in under 200 ms per session.
 - The VictorianPass-hosted resident EcoPoint dashboard page shall fully render (balance, recent transactions) within three (3) seconds on a 5 Mbps residential connection.
 - The admin EcoPoint KPI dashboard shall compute and display all 8 summary metrics (stations online, active sessions, pts today, sessions today, pts week, sessions week, etc.) in under one (1) second against a database of 100,000 historical sessions.
-- The `api_resident/ecopoint_session_status.php` polling endpoint shall respond in under 100 ms so the resident UI can refresh active-session progress smoothly.
+- The `api/ecopoint_session_status.php` polling endpoint shall respond in under 100 ms so the resident UI can refresh active-session progress smoothly.
 
 ### Security
 - The system shall store all EcoPoint station API keys using PHP's `password_hash(PASSWORD_BCRYPT)` only; plaintext keys shall never appear in any database, log file, configuration dump, or email. Verification shall use `password_verify` exclusively.
@@ -85,7 +85,7 @@ VHEcoPoint solves these problems through a closed, backend-truthful incentive lo
 - Resident dashboard shall show the current EcoPoint balance as a large, prominent card at the top; the last 10 transactions shall be visible without additional clicks or pagination.
 - Admin KPIs shall be displayed as color-coded metric cards (green = online, red = offline) so station-health status is understandable at a glance.
 - Hardware bridge error codes (AUTH_FAIL, SESSION_NOT_FOUND, SESSION_NOT_ACTIVE, WEIGHT_INVALID, CAP_EXCEEDED) shall be returned as human-readable `message` strings the kiosk UI can surface directly to residents.
-- Material selection on the station side (kiosk UI at [ecopoint-station/index_hardware.php](file:///C:/xampp/htdocs/VictorianPass/ecopoint-station/index_hardware.php)) shall require at most two taps to select the recyclable category.
+- Material selection on the station side shall be communicated from the resident's device to the backend via the `api/submit_waste_data.php` endpoint using the `material` parameter (Paper, Plastic, Glass, Metal, Cardboard).
 
 ### Reliability
 - The system shall achieve at least 99% monthly uptime for the EcoPoint API endpoints (excluding scheduled maintenance windows of ≤2 hours announced at least 48 hours in advance).
@@ -94,7 +94,7 @@ VHEcoPoint solves these problems through a closed, backend-truthful incentive lo
 - Station heartbeat-based offline detection (< 2 minutes since last_heartbeat_at = ONLINE else OFFLINE) shall be monotonic and self-healing when the station reconnects.
 
 ### Compatibility
-- The EcoPoint hardware bridge ([station_bridge.py](file:///C:/xampp/htdocs/VictorianPass/ecopoint-station/hardware/station_bridge.py)) shall be compatible with Python 3.8+ and run on both Windows (kiosk PC) and Linux single-board computers (Raspberry Pi 3+/4) over a local HTTP server on port 8080.
+- The EcoPoint hardware bridge shall be compatible with Python 3.8+ and communicate with the backend via HTTP on port 80.
 - The VictorianPass-hosted EcoPoint UI shall be compatible with the latest two stable releases of Chrome, Firefox, Edge, and Safari on desktop, plus Chrome Mobile and Safari Mobile on phones/tablets used by residents and guards.
 - All API payloads shall use JSON with UTF-8 encoding. Endpoints shall set `Content-Type: application/json` and accept standard HTTP methods (GET/POST) with CORS relaxed only for the station LAN origin.
 - The MySQL backend shall run on MySQL 5.7+ or MariaDB 10.3+ using InnoDB and utf8mb4_unicode_ci, consistent with the hosting environment.
