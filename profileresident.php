@@ -5056,7 +5056,7 @@ function replaceProof(reportId, proofId){
 </script>
   <script>
     (function(){
-      var sseUrl = '<?php echo rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/VictorianPass')), '/') . '/api_resident/ecopoint_sse.php'; ?>';
+      var sseUrl = '<?php echo rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/VictorianPass')), '/') . '/api/ecopoint_sse.php'; ?>';
       var statusEl = document.getElementById('ecopoint-live-status');
       var weightEl = document.getElementById('ecopoint-live-weight');
       var pointsEl = document.getElementById('ecopoint-live-points');
@@ -5139,7 +5139,7 @@ function replaceProof(reportId, proofId){
       }
 
       // 1) First snapshot immediately over regular fetch (avoid waiting for SSE first frame)
-      var firstSnapUrl = '<?php echo rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/VictorianPass')), '/') . '/api_resident/ecopoint_session_status.php'; ?>';
+      var firstSnapUrl = '<?php echo rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/VictorianPass')), '/') . '/api/ecopoint_session_status.php'; ?>';
       try {
         fetch(firstSnapUrl, { credentials: 'same-origin', cache: 'no-store' })
           .then(function(r){ return r.json(); })

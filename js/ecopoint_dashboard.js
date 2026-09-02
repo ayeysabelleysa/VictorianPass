@@ -20,8 +20,8 @@
   // Configuration
   // =====================================================================
   const CONFIG = {
-    SSE_ENDPOINT: '/VictorianPass/api_resident/ecopoint_sse.php',
-    POLL_ENDPOINT: '/VictorianPass/api_resident/ecopoint_session_status.php',
+    SSE_ENDPOINT: '/VictorianPass/api/ecopoint_sse.php',
+    POLL_ENDPOINT: '/VictorianPass/api/ecopoint_session_status.php',
     POLL_INTERVAL_MS: 5000, // fallback poll if SSE fails
     NOTIFICATION_DURATION_MS: 6000,
     UI_UPDATE_THROTTLE_MS: 200, // prevent excessive DOM updates

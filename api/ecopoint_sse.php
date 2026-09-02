@@ -13,7 +13,7 @@
  *   will have the latest state — no data loss!
  *
  * USAGE IN JS (dashboard):
- *   const es = new EventSource('/VictorianPass/api_resident/ecopoint_sse.php', { withCredentials: true });
+ *   const es = new EventSource('/VictorianPass/api/ecopoint_sse.php', { withCredentials: true });
  *   es.addEventListener('snapshot', ev => { const snap = JSON.parse(ev.data); render(snap); });
  *   es.onerror = () => { /* browser reconnects on its own * / };
  */
