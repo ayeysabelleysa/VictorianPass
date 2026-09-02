@@ -61,10 +61,9 @@ $profilePicUrl = $profilePicPath . '?t=' . time();
 // Change Password Handler
 $pwdMsg = '';
 $pwdOk = false;
-function ensurePasswordField($con){
-  if(!($con instanceof mysqli)) return;
+if (!vpSchemaDone($con, 'profile_v1') && ($con instanceof mysqli)) {
   $res = $con->query("SHOW COLUMNS FROM users LIKE 'password'");
-  if($res && ($row = $res->fetch_assoc())){
+  if ($res && ($row = $res->fetch_assoc())) {
     $type = strtolower($row['Type'] ?? '');
     if (strpos($type, 'varchar(255)') === false && strpos($type, 'text') === false) {
       @$con->query("ALTER TABLE users MODIFY COLUMN password VARCHAR(255)");
@@ -72,8 +71,8 @@ function ensurePasswordField($con){
   } else {
     @$con->query("ALTER TABLE users ADD COLUMN password VARCHAR(255)");
   }
+  vpMarkSchemaDone($con, 'profile_v1');
 }
-ensurePasswordField($con);
 function residentEcoPointMaterialLabel($materialType = '', $description = ''){
   $value = strtolower(trim((string)$materialType));
   $desc = strtolower((string)$description);
@@ -252,10 +251,14 @@ if (!$isAccountBlocked) {
         $qrRelPath = 'uploads/qr_resident_' . intval($user['id'] ?? $userId) . '.png';
     }
     $qrAbsPath = __DIR__ . '/' . $qrRelPath;
-    // Always ensure the cached QR encodes the current resident ID link
-    $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' . urlencode($qrLink);
-    $img = @file_get_contents($qrUrl);
-    if ($img !== false) { @file_put_contents($qrAbsPath, $img); } else { $qrRelPath = $qrUrl; }
+    if (file_exists($qrAbsPath) && filesize($qrAbsPath) > 100) {
+        $qrRelPath = $qrRelPath;
+    } else {
+        $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' . urlencode($qrLink);
+        $ctx = @stream_context_create(['http' => ['timeout' => 5]]);
+        $img = @file_get_contents($qrUrl, false, $ctx);
+        if ($img !== false) { @file_put_contents($qrAbsPath, $img); } else { $qrRelPath = $qrUrl; }
+    }
 }
 
 $allowedSections = ['panel-requests', 'panel-points-history', 'panel-guest-form', 'panel-my-guests', 'panel-history'];
@@ -269,35 +272,33 @@ if (!in_array($activeSection, $allowedSections, true)) {
 // (balance, weekly points, daily sessions, activity history, expiry) share ONE source of truth.
 $ecoPointTransactions = [];
 if ($con instanceof mysqli) {
+  $prevPTMode = function_exists('mysqli_report') ? mysqli_report(MYSQLI_REPORT_OFF) : null;
   try {
-    $tblChk = $con->query("SHOW TABLES LIKE 'point_transactions'");
-    if ($tblChk && $tblChk->num_rows > 0) {
-      $colQ = $con->query("SHOW COLUMNS FROM point_transactions LIKE 'ecopoint_session_id'");
-      $hasFk = ($colQ && $colQ->num_rows > 0);
-      if ($hasFk) {
-        $stmt = $con->prepare("SELECT id, transaction_type, amount, description, reservation_ref_code, material_type, weight_kg, created_at, ecopoint_session_id FROM point_transactions WHERE user_id = ? ORDER BY created_at DESC");
-      } else {
+      $stmt = $con->prepare("SELECT id, transaction_type, amount, description, reservation_ref_code, material_type, weight_kg, created_at, ecopoint_session_id FROM point_transactions WHERE user_id = ? ORDER BY created_at DESC");
+  } catch (Throwable $e) { $stmt = false; }
+  if (!$stmt) {
+      try {
         $stmt = $con->prepare("SELECT id, transaction_type, amount, description, reservation_ref_code, material_type, weight_kg, created_at, NULL AS ecopoint_session_id FROM point_transactions WHERE user_id = ? ORDER BY created_at DESC");
-      }
-      if ($stmt) {
-        $stmt->bind_param("i", $userId);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        while ($row = $res->fetch_assoc()) {
-          $desc = (string)($row['description'] ?? '');
-          $isEcoTx = (!empty($row['ecopoint_session_id']) && intval($row['ecopoint_session_id']) > 0)
-                   || (stripos($desc, 'VHEcoPoint') !== false)
-                   || (stripos($desc, 'recycling') !== false)
-                   || (stripos($desc, 'Redeemed points') !== false)
-                   || (stripos($desc, 'redeem') !== false && !empty($row['reservation_ref_code']));
-          if ($isEcoTx) {
-            $ecoPointTransactions[] = $row;
-          }
-        }
-        $stmt->close();
+      } catch (Throwable $e) { $stmt = false; }
+  }
+  if ($prevPTMode !== null && function_exists('mysqli_report')) { mysqli_report($prevPTMode); }
+  if ($stmt) {
+    $stmt->bind_param("i", $userId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($row = $res->fetch_assoc()) {
+      $desc = (string)($row['description'] ?? '');
+      $isEcoTx = (!empty($row['ecopoint_session_id']) && intval($row['ecopoint_session_id']) > 0)
+               || (stripos($desc, 'VHEcoPoint') !== false)
+               || (stripos($desc, 'recycling') !== false)
+               || (stripos($desc, 'Redeemed points') !== false)
+               || (stripos($desc, 'redeem') !== false && !empty($row['reservation_ref_code']));
+      if ($isEcoTx) {
+        $ecoPointTransactions[] = $row;
       }
     }
-  } catch (Throwable $e) { /* point_transactions may be missing; skip VHEcoPoint history */ }
+    $stmt->close();
+  }
 }
 
 // VHEcoPoint Current Balance = net of ONLY VHEcoPoint-sourced earn/redeem/adjustment transactions.
@@ -435,20 +436,20 @@ $reservationRefs = [];
 
 // 1. Reservations
 // Ensure start_time/end_time exist, if not use created_at or defaults
-$colsToCheck = [
-    'booking_for' => "VARCHAR(50) NULL",
-    'booked_by_role' => "VARCHAR(50) NULL",
-    'booked_by_name' => "VARCHAR(150) NULL",
-    'scanned_at' => "DATETIME NULL",
-    'updated_at' => "DATETIME NULL"
-];
-foreach ($colsToCheck as $col => $def) {
-    $check = $con->query("SHOW COLUMNS FROM reservations LIKE '$col'");
-    if ($check && $check->num_rows === 0) {
-        $con->query("ALTER TABLE reservations ADD COLUMN $col $def");
+if (!vpSchemaDone($con, 'profile_res_v1') && ($con instanceof mysqli)) {
+    $colsToCheck = [
+        'booking_for' => "VARCHAR(50) NULL",
+        'booked_by_role' => "VARCHAR(50) NULL",
+        'booked_by_name' => "VARCHAR(150) NULL",
+        'scanned_at' => "DATETIME NULL",
+        'updated_at' => "DATETIME NULL"
+    ];
+    foreach ($colsToCheck as $col => $def) {
+        $check = $con->query("SHOW COLUMNS FROM reservations LIKE '$col'");
+        if ($check && $check->num_rows === 0) {
+            $con->query("ALTER TABLE reservations ADD COLUMN $col $def");
+        }
     }
-}
-if ($con instanceof mysqli) {
     $check = $con->query("SHOW COLUMNS FROM reservations LIKE 'denial_reason'");
     if ($check && $check->num_rows === 0) {
         $con->query("ALTER TABLE reservations ADD COLUMN denial_reason TEXT NULL");
@@ -465,8 +466,15 @@ if ($con instanceof mysqli) {
     if ($check && $check->num_rows === 0) {
         $con->query("ALTER TABLE guest_forms ADD COLUMN scanned_at DATETIME NULL");
     }
+    vpMarkSchemaDone($con, 'profile_res_v1');
 }
-$stmt = $con->prepare("SELECT 'reservation' as type, r.amenity, r.start_date, r.end_date, r.start_time, r.end_time, r.status, r.approval_status, r.payment_status, r.denial_reason, r.created_at, r.updated_at, r.ref_code, r.booking_for, r.booked_by_role, r.booked_by_name, r.scanned_at, r.receipt_attempts, gf.id AS gf_id, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name FROM reservations r LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code WHERE r.user_id = ? AND r.status <> 'deleted' AND r.approval_status <> 'deleted' ORDER BY r.created_at DESC");
+$prevResMode = function_exists('mysqli_report') ? mysqli_report(MYSQLI_REPORT_OFF) : null;
+try {
+    $stmt = $con->prepare("SELECT 'reservation' as type, r.amenity, r.start_date, r.end_date, r.start_time, r.end_time, r.status, r.approval_status, r.payment_status, r.denial_reason, r.created_at, r.updated_at, r.ref_code, r.booking_for, r.booked_by_role, r.booked_by_name, r.scanned_at, r.receipt_attempts, gf.id AS gf_id, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name FROM reservations r LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code WHERE r.user_id = ? AND r.status <> 'deleted' AND r.approval_status <> 'deleted' ORDER BY r.created_at DESC");
+} catch (Throwable $e) {
+    $stmt = $con->prepare("SELECT 'reservation' as type, r.amenity, r.start_date, r.end_date, r.start_time, r.end_time, r.status, r.approval_status, r.payment_status, NULL as denial_reason, r.created_at, r.updated_at, r.ref_code, NULL as booking_for, NULL as booked_by_role, NULL as booked_by_name, NULL as scanned_at, 0 as receipt_attempts, gf.id AS gf_id, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name FROM reservations r LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code WHERE r.user_id = ? AND r.status <> 'deleted' AND r.approval_status <> 'deleted' ORDER BY r.created_at DESC");
+}
+if ($prevResMode !== null && function_exists('mysqli_report')) { mysqli_report($prevResMode); }
 if ($stmt) {
     $stmt->bind_param("i", $userId);
     $stmt->execute();
@@ -582,14 +590,29 @@ if ($stmt) {
 
 $hasGuestStartTime = false;
 $hasGuestEndTime = false;
-if ($con instanceof mysqli) {
-    $chk = $con->query("SHOW COLUMNS FROM guest_forms LIKE 'start_time'");
-    $hasGuestStartTime = $chk && $chk->num_rows > 0;
-    $chk = $con->query("SHOW COLUMNS FROM guest_forms LIKE 'end_time'");
-    $hasGuestEndTime = $chk && $chk->num_rows > 0;
+$guestAmenitySelectFull = "SELECT visitor_first_name, visitor_middle_name, visitor_last_name, amenity, start_date, end_date, start_time, end_time, approval_status, denial_reason, created_at, updated_at, ref_code, scanned_at FROM guest_forms WHERE resident_user_id = ? AND approval_status <> 'deleted' AND (wants_amenity = 1 OR amenity IS NOT NULL OR start_date IS NOT NULL OR end_date IS NOT NULL) ORDER BY created_at DESC";
+$guestAmenitySelectFallback = "SELECT visitor_first_name, visitor_middle_name, visitor_last_name, amenity, start_date, end_date, NULL as start_time, NULL as end_time, approval_status, denial_reason, created_at, updated_at, ref_code, scanned_at FROM guest_forms WHERE resident_user_id = ? AND approval_status <> 'deleted' AND (wants_amenity = 1 OR amenity IS NOT NULL OR start_date IS NOT NULL OR end_date IS NOT NULL) ORDER BY created_at DESC";
+$guestAmenitySelect = $guestAmenitySelectFull;
+$prevMode = null;
+if (function_exists('mysqli_report')) {
+    $prevMode = mysqli_report(MYSQLI_REPORT_OFF);
 }
-$guestAmenitySelect = "SELECT visitor_first_name, visitor_middle_name, visitor_last_name, amenity, start_date, end_date, " . ($hasGuestStartTime ? "start_time" : "NULL as start_time") . ", " . ($hasGuestEndTime ? "end_time" : "NULL as end_time") . ", approval_status, denial_reason, created_at, updated_at, ref_code, scanned_at FROM guest_forms WHERE resident_user_id = ? AND approval_status <> 'deleted' AND (wants_amenity = 1 OR amenity IS NOT NULL OR start_date IS NOT NULL OR end_date IS NOT NULL) ORDER BY created_at DESC";
-$stmt = $con->prepare($guestAmenitySelect);
+try {
+    $stmt = $con->prepare($guestAmenitySelect);
+} catch (Throwable $e) {
+    $stmt = false;
+}
+if (!$stmt) {
+    $guestAmenitySelect = $guestAmenitySelectFallback;
+    try {
+        $stmt = $con->prepare($guestAmenitySelect);
+    } catch (Throwable $e) {
+        $stmt = false;
+    }
+}
+if ($prevMode !== null && function_exists('mysqli_report')) {
+    mysqli_report($prevMode);
+}
 if ($stmt) {
     $stmt->bind_param("i", $userId);
     $stmt->execute();
@@ -663,17 +686,26 @@ if ($stmt) {
 }
 
 // 2. Incident Reports
-$colsToEnsure = [
-    'subject' => "VARCHAR(150) NULL",
-    'report_date' => "DATE NULL"
-];
-foreach ($colsToEnsure as $col => $def) {
-    $check = $con->query("SHOW COLUMNS FROM incident_reports LIKE '$col'");
-    if ($check && $check->num_rows === 0) {
-        $con->query("ALTER TABLE incident_reports ADD COLUMN $col $def");
+if (!vpSchemaDone($con, 'profile_ir_v1') && ($con instanceof mysqli)) {
+    $colsToEnsure = [
+        'subject' => "VARCHAR(150) NULL",
+        'report_date' => "DATE NULL"
+    ];
+    foreach ($colsToEnsure as $col => $def) {
+        $check = $con->query("SHOW COLUMNS FROM incident_reports LIKE '$col'");
+        if ($check && $check->num_rows === 0) {
+            $con->query("ALTER TABLE incident_reports ADD COLUMN $col $def");
+        }
     }
+    vpMarkSchemaDone($con, 'profile_ir_v1');
 }
-$stmt = $con->prepare("SELECT 'report' as type, subject, address, nature, other_concern, report_date, status, created_at, id FROM incident_reports WHERE user_id = ? ORDER BY created_at DESC");
+$prevIRMode = function_exists('mysqli_report') ? mysqli_report(MYSQLI_REPORT_OFF) : null;
+try {
+    $stmt = $con->prepare("SELECT 'report' as type, subject, address, nature, other_concern, report_date, status, created_at, id FROM incident_reports WHERE user_id = ? ORDER BY created_at DESC");
+} catch (Throwable $e) {
+    $stmt = $con->prepare("SELECT 'report' as type, subject, address, nature, other_concern, NULL as report_date, status, created_at, id FROM incident_reports WHERE user_id = ? ORDER BY created_at DESC");
+}
+if ($prevIRMode !== null && function_exists('mysqli_report')) { mysqli_report($prevIRMode); }
 if ($stmt) {
     $stmt->bind_param("i", $userId);
     $stmt->execute();
@@ -771,7 +803,10 @@ foreach ($activities as $act) {
 }
 
 
-ensureNotificationsTable($con);
+if (!vpSchemaDone($con, 'profile_notif_v1') && ($con instanceof mysqli)) {
+    ensureNotificationsTable($con);
+    vpMarkSchemaDone($con, 'profile_notif_v1');
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'mark_notifications_read') {
     header('Content-Type: application/json');
     if ($con instanceof mysqli) {

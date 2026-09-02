@@ -69,7 +69,11 @@ if ($con instanceof mysqli) {
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
-<?php echo file_get_contents('css/guestform.css') ?: '';?>
+<?php
+$gfCss = @file_get_contents(__DIR__ . '/CSS/guestform.css');
+if ($gfCss === false) { $gfCss = @file_get_contents('CSS/guestform.css'); }
+echo $gfCss !== false ? $gfCss : '';
+?>
 /* Inline warnings copied from signup style */
 .field-warning {
   color: #333;

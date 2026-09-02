@@ -18,21 +18,43 @@ if($entry_pass_id > 0){
 
 // Helpers and CSRF
 if (empty($_SESSION['csrf_token'])) { $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); }
-function ensureReservationsCommonColumns($con){ if(!($con instanceof mysqli)) return; $cols=['downpayment','receipt_path','payment_status','account_type','booking_for','receipt_uploaded_at','gcash_reference_number','pool_booking_type']; foreach($cols as $col){ $c=$con->query("SHOW COLUMNS FROM reservations LIKE '".$con->real_escape_string($col)."'"); if(!$c || $c->num_rows===0){ if($col==='downpayment'){ @$con->query("ALTER TABLE reservations ADD COLUMN downpayment DECIMAL(10,2) NULL"); } else if($col==='receipt_path'){ @$con->query("ALTER TABLE reservations ADD COLUMN receipt_path VARCHAR(255) NULL"); } else if($col==='payment_status'){ @$con->query("ALTER TABLE reservations ADD COLUMN payment_status ENUM('pending','submitted','verified') NULL"); } else if($col==='account_type'){ @$con->query("ALTER TABLE reservations ADD COLUMN account_type ENUM('visitor','resident') NULL"); } else if($col==='booking_for'){ @$con->query("ALTER TABLE reservations ADD COLUMN booking_for ENUM('resident','guest') NULL"); } else if($col==='receipt_uploaded_at'){ @$con->query("ALTER TABLE reservations ADD COLUMN receipt_uploaded_at DATETIME NULL"); } else if($col==='gcash_reference_number'){ @$con->query("ALTER TABLE reservations ADD COLUMN gcash_reference_number VARCHAR(30) NULL"); } else if($col==='pool_booking_type'){ @$con->query("ALTER TABLE reservations ADD COLUMN pool_booking_type ENUM('per_person','whole_pool') NULL"); } } } }
-ensureReservationsCommonColumns($con);
-
-function ensureReservationBookerColumns($con){
-    if(!($con instanceof mysqli)) return;
-    $c1 = $con->query("SHOW COLUMNS FROM reservations LIKE 'booked_by_role'");
-    if(!$c1 || $c1->num_rows===0){
-        @$con->query("ALTER TABLE reservations ADD COLUMN booked_by_role ENUM('resident','guest','co_owner') NULL AFTER booking_for");
-    }
-    $c2 = $con->query("SHOW COLUMNS FROM reservations LIKE 'booked_by_name'");
-    if(!$c2 || $c2->num_rows===0){
-        @$con->query("ALTER TABLE reservations ADD COLUMN booked_by_name VARCHAR(255) NULL AFTER booked_by_role");
-    }
+if (!function_exists('vpSchemaDone')) {
+  function vpSchemaDone($con, $key) {
+    $dir = __DIR__ . '/schema_flags';
+    if (!is_dir($dir)) return false;
+    $flag = $dir . '/' . preg_replace('/[^a-z0-9_]/i', '_', $key) . '.done';
+    return @file_exists($flag);
+  }
 }
-ensureReservationBookerColumns($con);
+if (!function_exists('vpMarkSchemaDone')) {
+  function vpMarkSchemaDone($con, $key) {
+    $dir = __DIR__ . '/schema_flags';
+    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+    $flag = $dir . '/' . preg_replace('/[^a-z0-9_]/i', '_', $key) . '.done';
+    @file_put_contents($flag, '1');
+  }
+}
+if (!vpSchemaDone($con, 'dp_v1') && ($con instanceof mysqli)) {
+  if (!function_exists('ensureReservationsCommonColumns')) {
+    function ensureReservationsCommonColumns($con){ if(!($con instanceof mysqli)) return; $cols=['downpayment','receipt_path','payment_status','account_type','booking_for','receipt_uploaded_at','gcash_reference_number','pool_booking_type']; foreach($cols as $col){ $c=$con->query("SHOW COLUMNS FROM reservations LIKE '".$con->real_escape_string($col)."'"); if(!$c || $c->num_rows===0){ if($col==='downpayment'){ @$con->query("ALTER TABLE reservations ADD COLUMN downpayment DECIMAL(10,2) NULL"); } else if($col==='receipt_path'){ @$con->query("ALTER TABLE reservations ADD COLUMN receipt_path VARCHAR(255) NULL"); } else if($col==='payment_status'){ @$con->query("ALTER TABLE reservations ADD COLUMN payment_status ENUM('pending','submitted','verified') NULL"); } else if($col==='account_type'){ @$con->query("ALTER TABLE reservations ADD COLUMN account_type ENUM('visitor','resident') NULL"); } else if($col==='booking_for'){ @$con->query("ALTER TABLE reservations ADD COLUMN booking_for ENUM('resident','guest') NULL"); } else if($col==='receipt_uploaded_at'){ @$con->query("ALTER TABLE reservations ADD COLUMN receipt_uploaded_at DATETIME NULL"); } else if($col==='gcash_reference_number'){ @$con->query("ALTER TABLE reservations ADD COLUMN gcash_reference_number VARCHAR(30) NULL"); } else if($col==='pool_booking_type'){ @$con->query("ALTER TABLE reservations ADD COLUMN pool_booking_type ENUM('per_person','whole_pool') NULL"); } } } }
+  }
+  ensureReservationsCommonColumns($con);
+  if (!function_exists('ensureReservationBookerColumns')) {
+    function ensureReservationBookerColumns($con){
+        if(!($con instanceof mysqli)) return;
+        $c1 = $con->query("SHOW COLUMNS FROM reservations LIKE 'booked_by_role'");
+        if(!$c1 || $c1->num_rows===0){
+            @$con->query("ALTER TABLE reservations ADD COLUMN booked_by_role ENUM('resident','guest','co_owner') NULL AFTER booking_for");
+        }
+        $c2 = $con->query("SHOW COLUMNS FROM reservations LIKE 'booked_by_name'");
+        if(!$c2 || $c2->num_rows===0){
+            @$con->query("ALTER TABLE reservations ADD COLUMN booked_by_name VARCHAR(255) NULL AFTER booked_by_role");
+        }
+    }
+  }
+  ensureReservationBookerColumns($con);
+  vpMarkSchemaDone($con, 'dp_v1');
+}
 // Pull pending reservation context
 $continue = isset($_GET['continue']) ? $_GET['continue'] : 'reserve';
 $userType = isset($_SESSION['user_type']) ? $_SESSION['user_type'] : '';

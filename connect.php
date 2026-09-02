@@ -85,4 +85,26 @@ if ($con) {
     // Try to set timezone using offset (works even if timezone tables are missing)
     $con->query("SET time_zone = '+08:00'");
 }
+
+// ---------------------------------------------------------------------------
+// File-based schema migration helpers (shared by all pages)
+// These run schema checks ONCE per flag key, then skip on every subsequent
+// request. This prevents SHOW TABLES/COLUMN overhead on every page load.
+// ---------------------------------------------------------------------------
+if (!function_exists('vpSchemaDone')) {
+  function vpSchemaDone($con, $key) {
+    $dir = __DIR__ . '/schema_flags';
+    if (!is_dir($dir)) return false;
+    $flag = $dir . '/' . preg_replace('/[^a-z0-9_]/i', '_', $key) . '.done';
+    return @file_exists($flag);
+  }
+}
+if (!function_exists('vpMarkSchemaDone')) {
+  function vpMarkSchemaDone($con, $key) {
+    $dir = __DIR__ . '/schema_flags';
+    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+    $flag = $dir . '/' . preg_replace('/[^a-z0-9_]/i', '_', $key) . '.done';
+    @file_put_contents($flag, '1');
+  }
+}
 ?>

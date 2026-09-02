@@ -1,23 +1,41 @@
 <?php
 include("connect.php");
 
-function ensureHouseRange($con){
-  if(!($con instanceof mysqli)) return;
-  @$con->begin_transaction();
-  @$con->query("DELETE FROM houses WHERE house_number NOT REGEXP '^VH-[0-9]{4}$' OR CAST(SUBSTRING(house_number,4) AS UNSIGNED) < 1 OR CAST(SUBSTRING(house_number,4) AS UNSIGNED) > 2220");
-  $stmt = $con->prepare("INSERT IGNORE INTO houses (house_number, address) VALUES (?, ?)");
-  if ($stmt) {
-    $addr = 'Victorian Heights Subdivision';
-    for ($i=1; $i<=2220; $i++){
-      $hn = 'VH-' . str_pad((string)$i, 4, '0', STR_PAD_LEFT);
-      $stmt->bind_param('ss', $hn, $addr);
-      $stmt->execute();
-    }
-    $stmt->close();
+if (!function_exists('vpSchemaDone')) {
+  function vpSchemaDone($con, $key) {
+    $dir = __DIR__ . '/schema_flags';
+    if (!is_dir($dir)) return false;
+    $flag = $dir . '/' . preg_replace('/[^a-z0-9_]/i', '_', $key) . '.done';
+    return @file_exists($flag);
   }
-  @$con->commit();
 }
-ensureHouseRange($con);
+if (!function_exists('vpMarkSchemaDone')) {
+  function vpMarkSchemaDone($con, $key) {
+    $dir = __DIR__ . '/schema_flags';
+    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+    $flag = $dir . '/' . preg_replace('/[^a-z0-9_]/i', '_', $key) . '.done';
+    @file_put_contents($flag, '1');
+  }
+}
+if (!vpSchemaDone($con, 'houses_v1') && ($con instanceof mysqli)) {
+  $countRow = $con->query("SELECT COUNT(*) AS c FROM houses");
+  $houseCount = $countRow ? intval($countRow->fetch_assoc()['c']) : 0;
+  if ($houseCount < 2220) {
+    @$con->begin_transaction();
+    $batch = [];
+    for ($i = 1; $i <= 2220; $i++) {
+      $hn = 'VH-' . str_pad((string)$i, 4, '0', STR_PAD_LEFT);
+      $batch[] = "('$hn','Victorian Heights Subdivision')";
+    }
+    $chunks = array_chunk($batch, 500);
+    foreach ($chunks as $chunk) {
+      $vals = implode(',', $chunk);
+      @$con->query("INSERT IGNORE INTO houses (house_number, address) VALUES $vals");
+    }
+    @$con->commit();
+  }
+  vpMarkSchemaDone($con, 'houses_v1');
+}
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
   $house_number = trim($_POST['house_number']);

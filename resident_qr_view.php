@@ -32,7 +32,7 @@ if ($con instanceof mysqli) {
   if (!empty($code) && stripos($code, 'VH-') === 0) {
     $residentCode = strtoupper($code);
   } elseif (!empty($code)) {
-    $stmt = $con->prepare("SELECT g.*, u.first_name as host_fname, u.last_name as host_lname, u.house_number as host_block, u.address as host_address 
+    $stmt = $con->prepare("SELECT g.*, u.first_name as host_fname, u.last_name as host_lname, u.house_number as host_block, u.address as host_address, u.phone as host_phone 
                            FROM guest_forms g 
                            LEFT JOIN users u ON g.resident_user_id = u.id 
                            WHERE g.ref_code = ?");
@@ -213,6 +213,9 @@ if ($isGuest && $guest) {
       <div class="id-body">
         <?php if($isGuest): ?>
         <div class="row"><div class="label">Host Resident</div><div class="value"><?php echo htmlspecialchars(trim(($guest['host_fname']??'').' '.($guest['host_lname']??''))); ?></div></div>
+        <?php if(!empty($guest['host_phone'])): ?>
+        <div class="row"><div class="label">Host Contact</div><div class="value"><?php echo htmlspecialchars($guest['host_phone']); ?></div></div>
+        <?php endif; ?>
         <div class="row"><div class="label">Destination</div><div class="value"><?php echo htmlspecialchars(($guest['host_block']??'').' '.$guest['host_address']); ?></div></div>
         <div class="row"><div class="label">Valid Date</div><div class="value"><?php echo date('m/d/y', strtotime($guest['visit_date'])); ?></div></div>
         <div class="row"><div class="label">Time</div><div class="value"><?php echo date('g:i A', strtotime($guest['visit_time'])); ?></div></div>

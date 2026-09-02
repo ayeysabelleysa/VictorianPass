@@ -2,8 +2,7 @@
 require_once __DIR__ . '/session_bootstrap.php';
 include 'connect.php';
 
-// Ensure scanned_at columns exist in relevant tables (Self-healing schema)
-function ensureScannedAtColumns($con) {
+if (!vpSchemaDone($con, 'qr_view_v1') && ($con instanceof mysqli)) {
     $tables = ['guest_forms', 'reservations', 'resident_reservations'];
     foreach ($tables as $tbl) {
         $res = $con->query("SHOW COLUMNS FROM $tbl LIKE 'scanned_at'");
@@ -11,9 +10,6 @@ function ensureScannedAtColumns($con) {
             $con->query("ALTER TABLE $tbl ADD COLUMN scanned_at DATETIME NULL");
         }
     }
-}
-ensureScannedAtColumns($con);
-if ($con instanceof mysqli) {
     $con->query("CREATE TABLE IF NOT EXISTS entry_scans (
         id INT AUTO_INCREMENT PRIMARY KEY,
         ref_code VARCHAR(50) NOT NULL,
@@ -29,6 +25,7 @@ if ($con instanceof mysqli) {
         INDEX idx_guard (scanned_by_guard_id),
         INDEX idx_scanned_at (scanned_at)
     ) ENGINE=InnoDB");
+    vpMarkSchemaDone($con, 'qr_view_v1');
 }
 
 function calculateAgeYears($birthRaw) {
@@ -233,7 +230,7 @@ if (empty($error)) {
 
     // 1. Check GUEST FORMS
     if (!$data) {
-        $stmtGF = $con->prepare("SELECT gf.*, u.house_number AS res_house_number, u.first_name AS res_first_name, u.last_name AS res_last_name FROM guest_forms gf LEFT JOIN users u ON gf.resident_user_id = u.id WHERE gf.ref_code = ?");
+        $stmtGF = $con->prepare("SELECT gf.*, u.house_number AS res_house_number, u.first_name AS res_first_name, u.last_name AS res_last_name, u.phone AS res_phone, u.email AS res_email FROM guest_forms gf LEFT JOIN users u ON gf.resident_user_id = u.id WHERE gf.ref_code = ?");
         $stmtGF->bind_param('s', $code);
         $stmtGF->execute();
         $resGF = $stmtGF->get_result();
@@ -255,13 +252,19 @@ if (empty($error)) {
             $birthRaw = $row['visitor_birthdate'] ?? null;
             $isAmenity = (!empty($row['amenity'])) || (isset($row['wants_amenity']) && intval($row['wants_amenity']) === 1);
             $guardianBlocked = requiresGuardianBlock($birthRaw, $isAmenity);
+            $contact = $row['visitor_contact'] ?? '';
+            $residentContact = $row['res_phone'] ?? '';
+            $residentEmail = $row['res_email'] ?? '';
             $data = [
                 'id' => $id,
                 'table' => $table,
                 'code' => $row['ref_code'],
                 'type_label' => "Guest",
                 'name' => $fullName ?: 'Guest',
+                'contact' => $contact,
                 'resident_name' => $residentName,
+                'resident_contact' => $residentContact,
+                'resident_email' => $residentEmail,
                 'house' => $row['res_house_number'] ?? 'N/A',
                 'pax' => isset($row['persons']) && $row['persons'] !== null ? (int)$row['persons'] : 1,
                 'status' => $statusVal,
@@ -273,7 +276,7 @@ if (empty($error)) {
 
     // 2. Check RESERVATIONS (Amenity)
     if (!$data) {
-        $stmtRes = $con->prepare("SELECT r.*, r.amenity AS amenity_name, u.house_number AS res_house_number, u.first_name AS res_first_name, u.last_name AS res_last_name, u.birthdate AS user_birthdate, e.birthdate AS ep_birthdate FROM reservations r LEFT JOIN users u ON r.user_id = u.id LEFT JOIN entry_passes e ON r.entry_pass_id = e.id WHERE r.ref_code = ?");
+        $stmtRes = $con->prepare("SELECT r.*, r.amenity AS amenity_name, u.house_number AS res_house_number, u.first_name AS res_first_name, u.last_name AS res_last_name, u.birthdate AS user_birthdate, u.phone AS res_phone, u.email AS res_email, e.birthdate AS ep_birthdate, e.contact AS ep_contact, e.email AS ep_email, e.full_name AS ep_full_name FROM reservations r LEFT JOIN users u ON r.user_id = u.id LEFT JOIN entry_passes e ON r.entry_pass_id = e.id WHERE r.ref_code = ?");
         $stmtRes->bind_param('s', $code);
         $stmtRes->execute();
         $resRes = $stmtRes->get_result();
@@ -331,12 +334,22 @@ if (empty($error)) {
             }
             $birthRaw = !empty($row['ep_birthdate']) ? $row['ep_birthdate'] : ($row['user_birthdate'] ?? null);
             $guardianBlocked = requiresGuardianBlock($birthRaw, true);
+            $contact = $row['ep_contact'] ?? '';
+            $residentName = trim(($row['res_first_name']??'') . ' ' . ($row['res_last_name']??''));
+            $residentContact = $row['res_phone'] ?? '';
+            $residentEmail = $row['res_email'] ?? '';
+            $visitorName = !empty($row['ep_full_name']) ? trim($row['ep_full_name']) : trim(($row['first_name']??'') . ' ' . ($row['last_name']??''));
             $data = [
                 'id' => $id,
                 'table' => $table,
                 'code' => $row['ref_code'],
                 'type_label' => "Amenity",
                 'name' => $fullName,
+                'visitor_name' => $visitorName,
+                'contact' => $contact,
+                'resident_name' => $residentName,
+                'resident_contact' => $residentContact,
+                'resident_email' => $residentEmail,
                 'amenity' => $row['amenity_name'] ?? 'Unknown',
                 'validity_label' => $validityLabel,
                 'schedule_date' => $validityLabel,
@@ -351,7 +364,7 @@ if (empty($error)) {
     
     // 3. Check RESIDENT RESERVATIONS (Amenity for Resident)
     if (!$data) {
-        $stmtRR = $con->prepare("SELECT rr.*, rr.amenity AS amenity_name, u.house_number AS res_house_number, u.first_name AS res_first_name, u.last_name AS res_last_name, u.birthdate AS user_birthdate FROM resident_reservations rr LEFT JOIN users u ON rr.user_id = u.id WHERE rr.ref_code = ?");
+        $stmtRR = $con->prepare("SELECT rr.*, rr.amenity AS amenity_name, u.house_number AS res_house_number, u.first_name AS res_first_name, u.last_name AS res_last_name, u.birthdate AS user_birthdate, u.phone AS res_phone, u.email AS res_email FROM resident_reservations rr LEFT JOIN users u ON rr.user_id = u.id WHERE rr.ref_code = ?");
         $stmtRR->bind_param('s', $code);
         $stmtRR->execute();
         $resRR = $stmtRR->get_result();
@@ -409,12 +422,17 @@ if (empty($error)) {
             }
             $birthRaw = $row['user_birthdate'] ?? null;
             $guardianBlocked = requiresGuardianBlock($birthRaw, true);
+            $residentContact = $row['res_phone'] ?? '';
+            $residentEmail = $row['res_email'] ?? '';
             $data = [
                 'id' => $id,
                 'table' => $table,
                 'code' => $row['ref_code'],
                 'type_label' => "Amenity",
                 'name' => $fullName,
+                'resident_name' => $fullName,
+                'resident_contact' => $residentContact,
+                'resident_email' => $residentEmail,
                 'amenity' => $row['amenity_name'] ?? 'Unknown',
                 'validity_label' => $validityLabel,
                 'schedule_date' => $validityLabel,
@@ -454,6 +472,7 @@ if (empty($error)) {
                 'type_label' => "Resident",
                 'name' => $fullName,
                 'house' => $row['house_number'],
+                'contact' => $row['phone'] ?? '',
                 'status' => $statusVal,
                 'scanned_at' => null // Users table doesn't have scanned_at usually, or we don't track it same way
             ];
@@ -812,6 +831,34 @@ if (empty($error)) {
                     <span class="label"><?php echo (isset($data['type_label']) && $data['type_label'] === 'Guest') ? 'Guest Name' : 'Name'; ?></span>
                     <span class="value"><?php echo htmlspecialchars($data['name']); ?></span>
                 </div>
+
+                <?php if (!empty($data['contact'])): ?>
+                <div class="detail-row">
+                    <span class="label">Contact No.</span>
+                    <span class="value"><?php echo htmlspecialchars($data['contact']); ?></span>
+                </div>
+                <?php endif; ?>
+
+                <?php if (!empty($data['visitor_name']) && $data['visitor_name'] !== $data['name']): ?>
+                <div class="detail-row">
+                    <span class="label">Visitor</span>
+                    <span class="value"><?php echo htmlspecialchars($data['visitor_name']); ?></span>
+                </div>
+                <?php endif; ?>
+
+                <?php if (!empty($data['resident_contact'])): ?>
+                <div class="detail-row">
+                    <span class="label">Resident Contact</span>
+                    <span class="value"><?php echo htmlspecialchars($data['resident_contact']); ?></span>
+                </div>
+                <?php endif; ?>
+
+                <?php if (!empty($data['resident_email'])): ?>
+                <div class="detail-row">
+                    <span class="label">Resident Email</span>
+                    <span class="value"><?php echo htmlspecialchars($data['resident_email']); ?></span>
+                </div>
+                <?php endif; ?>
 
                 <?php if (isset($data['type_label']) && $data['type_label'] === 'Guest'): ?>
                 <?php if (!empty($data['resident_name'])): ?>

@@ -55,20 +55,23 @@ if ($con instanceof mysqli) {
     INDEX idx_user_id (user_id),
     INDEX idx_escalated (escalated_to_admin)
   ) ENGINE=InnoDB");
-  $colsToCheck = [
-    'subject' => "VARCHAR(150) NULL",
-    'report_date' => "DATE NULL",
-    'escalated_to_admin' => "TINYINT(1) NOT NULL DEFAULT 0",
-    'escalated_by_guard_id' => "INT NULL",
-    'escalated_at' => "DATETIME NULL",
-    'handled_by_guard_id' => "INT NULL",
-    'handled_at' => "DATETIME NULL"
-  ];
-  foreach ($colsToCheck as $col => $def) {
-    $check = $con->query("SHOW COLUMNS FROM incident_reports LIKE '$col'");
-    if ($check && $check->num_rows === 0) {
-      $con->query("ALTER TABLE incident_reports ADD COLUMN $col $def");
+  if (!vpSchemaDone($con, 'report_ir_v1')) {
+    $colsToCheck = [
+      'subject' => "VARCHAR(150) NULL",
+      'report_date' => "DATE NULL",
+      'escalated_to_admin' => "TINYINT(1) NOT NULL DEFAULT 0",
+      'escalated_by_guard_id' => "INT NULL",
+      'escalated_at' => "DATETIME NULL",
+      'handled_by_guard_id' => "INT NULL",
+      'handled_at' => "DATETIME NULL"
+    ];
+    foreach ($colsToCheck as $col => $def) {
+      $check = $con->query("SHOW COLUMNS FROM incident_reports LIKE '$col'");
+      if ($check && $check->num_rows === 0) {
+        $con->query("ALTER TABLE incident_reports ADD COLUMN $col $def");
+      }
     }
+    vpMarkSchemaDone($con, 'report_ir_v1');
   }
   $stmtM = $con->prepare("SELECT id, subject, address, nature, other_concern, report_date, status, created_at, escalated_to_admin, handled_by_guard_id FROM incident_reports WHERE user_id = ? ORDER BY created_at DESC");
   if ($stmtM) {

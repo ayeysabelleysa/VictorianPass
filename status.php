@@ -6,39 +6,51 @@ header('Pragma: no-cache');
 header('Expires: 0');
 include 'connect.php';
 
-function ensureReservationsUpdatedAtColumn($con){
-    if (!($con instanceof mysqli)) return;
+if (!vpSchemaDone($con, 'status_v1') && ($con instanceof mysqli)) {
+    function ensureEnumHasValues($con, $table, $column, $enumValues, $defaultValue){
+        if (!($con instanceof mysqli)) return;
+        $res = $con->query("SHOW COLUMNS FROM $table LIKE '$column'");
+        if (!$res || $res->num_rows === 0) return;
+        $row = $res->fetch_assoc();
+        $type = $row['Type'] ?? '';
+        $needsChange = false;
+        foreach ($enumValues as $val) {
+            if (stripos($type, "'" . $val . "'") === false && stripos($type, $val) === false) {
+                $needsChange = true;
+                break;
+            }
+        }
+        if (!$needsChange) return;
+        $enumList = "'" . implode("','", $enumValues) . "'";
+        $con->query("ALTER TABLE $table MODIFY COLUMN $column ENUM($enumList) DEFAULT '$defaultValue'");
+    }
+    function ensureStatusEnums($con){
+        ensureEnumHasValues($con, 'reservations', 'approval_status', ['pending','approved','denied','cancelled','deleted','moved_to_history','permission_granted'], 'pending');
+        ensureEnumHasValues($con, 'reservations', 'status', ['pending','approved','rejected','expired','cancelled','deleted','moved_to_history','permission_granted'], 'pending');
+        ensureEnumHasValues($con, 'reservations', 'payment_status', ['pending','submitted','verified','rejected','pending_update'], 'pending');
+        ensureEnumHasValues($con, 'guest_forms', 'approval_status', ['pending','approved','denied','cancelled','deleted','moved_to_history','permission_granted'], 'pending');
+        ensureEnumHasValues($con, 'resident_reservations', 'approval_status', ['pending','approved','denied','cancelled','deleted','moved_to_history','permission_granted'], 'pending');
+    }
     $c = $con->query("SHOW COLUMNS FROM reservations LIKE 'updated_at'");
     if ($c && $c->num_rows === 0) { @$con->query("ALTER TABLE reservations ADD COLUMN updated_at TIMESTAMP NULL"); }
+    ensureStatusEnums($con);
+    $con->query("CREATE TABLE IF NOT EXISTS entry_scans (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ref_code VARCHAR(50) NOT NULL,
+    scanned_by_guard_id INT NULL,
+    scanned_by_name VARCHAR(150) NULL,
+    subject_name VARCHAR(150) NULL,
+    entry_type VARCHAR(50) NULL,
+    status VARCHAR(50) NULL,
+    start_date DATE NULL,
+    end_date DATE NULL,
+    scanned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_ref_code (ref_code),
+    INDEX idx_guard (scanned_by_guard_id),
+    INDEX idx_scanned_at (scanned_at)
+  ) ENGINE=InnoDB");
+    vpMarkSchemaDone($con, 'status_v1');
 }
-ensureReservationsUpdatedAtColumn($con);
-
-function ensureEnumHasValues($con, $table, $column, $enumValues, $defaultValue){
-    if (!($con instanceof mysqli)) return;
-    $res = $con->query("SHOW COLUMNS FROM $table LIKE '$column'");
-    if (!$res || $res->num_rows === 0) return;
-    $row = $res->fetch_assoc();
-    $type = $row['Type'] ?? '';
-    $needsChange = false;
-    foreach ($enumValues as $val) {
-        if (stripos($type, "'" . $val . "'") === false && stripos($type, $val) === false) {
-            $needsChange = true;
-            break;
-        }
-    }
-    if (!$needsChange) return;
-    $enumList = "'" . implode("','", $enumValues) . "'";
-    $con->query("ALTER TABLE $table MODIFY COLUMN $column ENUM($enumList) DEFAULT '$defaultValue'");
-}
-
-function ensureStatusEnums($con){
-    ensureEnumHasValues($con, 'reservations', 'approval_status', ['pending','approved','denied','cancelled','deleted','moved_to_history','permission_granted'], 'pending');
-    ensureEnumHasValues($con, 'reservations', 'status', ['pending','approved','rejected','expired','cancelled','deleted','moved_to_history','permission_granted'], 'pending');
-    ensureEnumHasValues($con, 'reservations', 'payment_status', ['pending','submitted','verified','rejected','pending_update'], 'pending');
-    ensureEnumHasValues($con, 'guest_forms', 'approval_status', ['pending','approved','denied','cancelled','deleted','moved_to_history','permission_granted'], 'pending');
-    ensureEnumHasValues($con, 'resident_reservations', 'approval_status', ['pending','approved','denied','cancelled','deleted','moved_to_history','permission_granted'], 'pending');
-}
-ensureStatusEnums($con);
 
 function resetPoolPersonsOnCancel($con, $code){
     if (!($con instanceof mysqli)) return;
@@ -71,25 +83,6 @@ function requiresGuardianBlock($birthRaw, $isAmenity){
     if (!$isAmenity) return false;
     $age = calculateAgeYears($birthRaw);
     return ($age !== null && $age < 16);
-}
-
-// Ensure scan logging table exists (idempotent)
-if ($con instanceof mysqli) {
-  $con->query("CREATE TABLE IF NOT EXISTS entry_scans (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ref_code VARCHAR(50) NOT NULL,
-    scanned_by_guard_id INT NULL,
-    scanned_by_name VARCHAR(150) NULL,
-    subject_name VARCHAR(150) NULL,
-    entry_type VARCHAR(50) NULL,
-    status VARCHAR(50) NULL,
-    start_date DATE NULL,
-    end_date DATE NULL,
-    scanned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_ref_code (ref_code),
-    INDEX idx_guard (scanned_by_guard_id),
-    INDEX idx_scanned_at (scanned_at)
-  ) ENGINE=InnoDB");
 }
 
 // Handle cancellation
@@ -850,7 +843,7 @@ if ($result && $result->num_rows > 0) {
         'email' => $email,
         'phone' => $phone,
         'address' => $address,
-        'contact' => $email,
+        'contact' => $phone ?: $email,
         'sex' => $sex,
         'birthdate' => $birthdate,
         'purpose' => isset($row['purpose']) ? $row['purpose'] : '',
@@ -976,7 +969,7 @@ if ($res2 && $res2->num_rows > 0) {
         'email' => $email,
         'phone' => $phone,
         'address' => $address,
-        'contact' => $email,
+        'contact' => $phone ?: $email,
         'sex' => $sex,
         'birthdate' => $birthdate,
         'purpose' => $row['notes'] ?? '',

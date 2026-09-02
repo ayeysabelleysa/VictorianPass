@@ -70,7 +70,8 @@ $stmt->close();
 }
 
 // Ensure incident tables and escalation columns exist
-$con->query("CREATE TABLE IF NOT EXISTS incident_reports (
+if (!vpSchemaDone($con, 'guard_v1') && ($con instanceof mysqli)) {
+  $con->query("CREATE TABLE IF NOT EXISTS incident_reports (
   id INT AUTO_INCREMENT PRIMARY KEY,
   complainant VARCHAR(150) NOT NULL,
   address VARCHAR(255) NOT NULL,
@@ -83,20 +84,17 @@ $con->query("CREATE TABLE IF NOT EXISTS incident_reports (
   INDEX idx_status (status),
   INDEX idx_user_id (user_id)
 ) ENGINE=InnoDB");
-$c1 = $con->query("SHOW COLUMNS FROM incident_reports LIKE 'escalated_to_admin'");
-if ($c1 && $c1->num_rows === 0) { $con->query("ALTER TABLE incident_reports ADD COLUMN escalated_to_admin TINYINT(1) NOT NULL DEFAULT 0 AFTER status"); }
-$c2 = $con->query("SHOW COLUMNS FROM incident_reports LIKE 'escalated_by_guard_id'");
-if ($c2 && $c2->num_rows === 0) { $con->query("ALTER TABLE incident_reports ADD COLUMN escalated_by_guard_id INT NULL AFTER escalated_to_admin"); }
-$c3 = $con->query("SHOW COLUMNS FROM incident_reports LIKE 'escalated_at'");
-if ($c3 && $c3->num_rows === 0) { $con->query("ALTER TABLE incident_reports ADD COLUMN escalated_at DATETIME NULL AFTER escalated_by_guard_id"); }
-// Track guard-handled incidents
-$c4 = $con->query("SHOW COLUMNS FROM incident_reports LIKE 'handled_by_guard_id'");
-if ($c4 && $c4->num_rows === 0) { $con->query("ALTER TABLE incident_reports ADD COLUMN handled_by_guard_id INT NULL AFTER escalated_at"); }
-$c5 = $con->query("SHOW COLUMNS FROM incident_reports LIKE 'handled_at'");
-if ($c5 && $c5->num_rows === 0) { $con->query("ALTER TABLE incident_reports ADD COLUMN handled_at DATETIME NULL AFTER handled_by_guard_id"); }
+  $c1 = $con->query("SHOW COLUMNS FROM incident_reports LIKE 'escalated_to_admin'");
+  if ($c1 && $c1->num_rows === 0) { $con->query("ALTER TABLE incident_reports ADD COLUMN escalated_to_admin TINYINT(1) NOT NULL DEFAULT 0 AFTER status"); }
+  $c2 = $con->query("SHOW COLUMNS FROM incident_reports LIKE 'escalated_by_guard_id'");
+  if ($c2 && $c2->num_rows === 0) { $con->query("ALTER TABLE incident_reports ADD COLUMN escalated_by_guard_id INT NULL AFTER escalated_to_admin"); }
+  $c3 = $con->query("SHOW COLUMNS FROM incident_reports LIKE 'escalated_at'");
+  if ($c3 && $c3->num_rows === 0) { $con->query("ALTER TABLE incident_reports ADD COLUMN escalated_at DATETIME NULL AFTER escalated_by_guard_id"); }
+  $c4 = $con->query("SHOW COLUMNS FROM incident_reports LIKE 'handled_by_guard_id'");
+  if ($c4 && $c4->num_rows === 0) { $con->query("ALTER TABLE incident_reports ADD COLUMN handled_by_guard_id INT NULL AFTER escalated_at"); }
+  $c5 = $con->query("SHOW COLUMNS FROM incident_reports LIKE 'handled_at'");
+  if ($c5 && $c5->num_rows === 0) { $con->query("ALTER TABLE incident_reports ADD COLUMN handled_at DATETIME NULL AFTER handled_by_guard_id"); }
 
-function ensureReservationColumnsForGuard($con){
-  if (!($con instanceof mysqli)) { return; }
   $cols = [
     'booking_for' => "ENUM('resident','guest') NULL",
     'account_type' => "ENUM('visitor','resident') NULL",
@@ -110,26 +108,23 @@ function ensureReservationColumnsForGuard($con){
       $con->query("ALTER TABLE reservations ADD COLUMN $col $def");
     }
   }
-}
-ensureReservationColumnsForGuard($con);
 
-// Ensure entry_scans table exists
-if ($con instanceof mysqli) {
   $con->query("CREATE TABLE IF NOT EXISTS entry_scans (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    ref_code VARCHAR(50) NOT NULL,
-    scanned_by_guard_id INT NULL,
-    scanned_by_name VARCHAR(150) NULL,
-    subject_name VARCHAR(150) NULL,
-    entry_type VARCHAR(50) NULL,
-    status VARCHAR(50) NULL,
-    start_date DATE NULL,
-    end_date DATE NULL,
-    scanned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_ref_code (ref_code),
-    INDEX idx_guard (scanned_by_guard_id),
-    INDEX idx_scanned_at (scanned_at)
-  ) ENGINE=InnoDB");
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  ref_code VARCHAR(50) NOT NULL,
+  scanned_by_guard_id INT NULL,
+  scanned_by_name VARCHAR(150) NULL,
+  subject_name VARCHAR(150) NULL,
+  entry_type VARCHAR(50) NULL,
+  status VARCHAR(50) NULL,
+  start_date DATE NULL,
+  end_date DATE NULL,
+  scanned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_ref_code (ref_code),
+  INDEX idx_guard (scanned_by_guard_id),
+  INDEX idx_scanned_at (scanned_at)
+) ENGINE=InnoDB");
+  vpMarkSchemaDone($con, 'guard_v1');
 }
 function ensureNotificationsTable($con) {
   if (!($con instanceof mysqli)) { return; }
@@ -419,27 +414,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'dismiss_notification' && isse
 if (isset($_GET['action']) && $_GET['action'] === 'list_today_scans') {
   header('Content-Type: application/json');
   $rows = [];
-  $hasGFVisitTime = false;
-  $chkGFVisitTime = $con->query("SHOW COLUMNS FROM guest_forms LIKE 'visit_time'");
-  if ($chkGFVisitTime && $chkGFVisitTime->num_rows > 0) { $hasGFVisitTime = true; }
-  $hasResStartTime = false;
-  $chkResStartTime = $con->query("SHOW COLUMNS FROM reservations LIKE 'start_time'");
-  if ($chkResStartTime && $chkResStartTime->num_rows > 0) { $hasResStartTime = true; }
-  $hasResEndTime = false;
-  $chkResEndTime = $con->query("SHOW COLUMNS FROM reservations LIKE 'end_time'");
-  if ($chkResEndTime && $chkResEndTime->num_rows > 0) { $hasResEndTime = true; }
-  $hasRRStartTime = false;
-  $chkRRStartTime = $con->query("SHOW COLUMNS FROM resident_reservations LIKE 'start_time'");
-  if ($chkRRStartTime && $chkRRStartTime->num_rows > 0) { $hasRRStartTime = true; }
-  $hasRREndTime = false;
-  $chkRREndTime = $con->query("SHOW COLUMNS FROM resident_reservations LIKE 'end_time'");
-  if ($chkRREndTime && $chkRREndTime->num_rows > 0) { $hasRREndTime = true; }
   $q = "SELECT e.ref_code, e.subject_name, e.entry_type, e.status, e.start_date, e.end_date, e.scanned_at, e.scanned_by_name, " .
-       ($hasGFVisitTime ? "gf.visit_time AS gf_start_time" : "NULL AS gf_start_time") . ", " .
-       ($hasResStartTime ? "r.start_time AS r_start_time" : "NULL AS r_start_time") . ", " .
-       ($hasResEndTime ? "r.end_time AS r_end_time" : "NULL AS r_end_time") . ", " .
-       ($hasRRStartTime ? "rr.start_time AS rr_start_time" : "NULL AS rr_start_time") . ", " .
-       ($hasRREndTime ? "rr.end_time AS rr_end_time" : "NULL AS rr_end_time") . ", " .
+       "gf.visit_time AS gf_start_time, " .
+       "r.start_time AS r_start_time, " .
+       "r.end_time AS r_end_time, " .
+       "rr.start_time AS rr_start_time, " .
+       "rr.end_time AS rr_end_time, " .
        "gf.amenity AS gf_amenity, r.amenity AS r_amenity, rr.amenity AS rr_amenity, r.booked_by_name AS r_booked_by, " .
        "u_gf.first_name AS gf_res_first, u_gf.middle_name AS gf_res_middle, u_gf.last_name AS gf_res_last
         FROM entry_scans e
@@ -454,6 +434,32 @@ if (isset($_GET['action']) && $_GET['action'] === 'list_today_scans') {
           GROUP BY ref_code
         ) t ON e.ref_code = t.ref_code AND e.scanned_at = t.ms
         ORDER BY e.scanned_at DESC";
+  $probeOk = false;
+  $prevModeP = function_exists('mysqli_report') ? mysqli_report(MYSQLI_REPORT_OFF) : null;
+  try { $probeOk = ($con->prepare($q) !== false); } catch (Throwable $e) { $probeOk = false; }
+  if ($prevModeP !== null) { mysqli_report($prevModeP); }
+  if (!$probeOk) {
+    $q = "SELECT e.ref_code, e.subject_name, e.entry_type, e.status, e.start_date, e.end_date, e.scanned_at, e.scanned_by_name, " .
+         "NULL AS gf_start_time, " .
+         "NULL AS r_start_time, " .
+         "NULL AS r_end_time, " .
+         "NULL AS rr_start_time, " .
+         "NULL AS rr_end_time, " .
+         "gf.amenity AS gf_amenity, r.amenity AS r_amenity, rr.amenity AS rr_amenity, r.booked_by_name AS r_booked_by, " .
+         "u_gf.first_name AS gf_res_first, u_gf.middle_name AS gf_res_middle, u_gf.last_name AS gf_res_last
+          FROM entry_scans e
+          LEFT JOIN guest_forms gf ON e.ref_code = gf.ref_code
+          LEFT JOIN users u_gf ON gf.resident_user_id = u_gf.id
+          LEFT JOIN reservations r ON e.ref_code = r.ref_code
+          LEFT JOIN resident_reservations rr ON e.ref_code = rr.ref_code
+          INNER JOIN (
+            SELECT ref_code, MAX(scanned_at) AS ms
+            FROM entry_scans
+            WHERE DATE(scanned_at) = CURDATE()
+            GROUP BY ref_code
+          ) t ON e.ref_code = t.ref_code AND e.scanned_at = t.ms
+          ORDER BY e.scanned_at DESC";
+  }
   $res = $con->query($q);
   if ($res) {
     while ($r = $res->fetch_assoc()) {
@@ -513,31 +519,15 @@ if (isset($_GET['action']) && $_GET['action'] === 'list_expected') {
     $ts = strtotime($v);
     return $ts ? date('Y-m-d',$ts) : null;
   };
-  $hasGFResDate = false;
-  $chkGFResDate = $con->query("SHOW COLUMNS FROM guest_forms LIKE 'reservation_date'");
-  if ($chkGFResDate && $chkGFResDate->num_rows > 0) { $hasGFResDate = true; }
-  $hasResDate = false;
-  $chkResDate = $con->query("SHOW COLUMNS FROM reservations LIKE 'reservation_date'");
-  if ($chkResDate && $chkResDate->num_rows > 0) { $hasResDate = true; }
-  $hasRRResDate = false;
-  $chkRRResDate = $con->query("SHOW COLUMNS FROM resident_reservations LIKE 'reservation_date'");
-  if ($chkRRResDate && $chkRRResDate->num_rows > 0) { $hasRRResDate = true; }
-  $hasGFVisitTime = false;
-  $chkGFVisitTime = $con->query("SHOW COLUMNS FROM guest_forms LIKE 'visit_time'");
-  if ($chkGFVisitTime && $chkGFVisitTime->num_rows > 0) { $hasGFVisitTime = true; }
-  $hasResStartTime = false;
-  $chkResStartTime = $con->query("SHOW COLUMNS FROM reservations LIKE 'start_time'");
-  if ($chkResStartTime && $chkResStartTime->num_rows > 0) { $hasResStartTime = true; }
-  $hasResEndTime = false;
-  $chkResEndTime = $con->query("SHOW COLUMNS FROM reservations LIKE 'end_time'");
-  if ($chkResEndTime && $chkResEndTime->num_rows > 0) { $hasResEndTime = true; }
-  $hasRRStartTime = false;
-  $chkRRStartTime = $con->query("SHOW COLUMNS FROM resident_reservations LIKE 'start_time'");
-  if ($chkRRStartTime && $chkRRStartTime->num_rows > 0) { $hasRRStartTime = true; }
-  $hasRREndTime = false;
-  $chkRREndTime = $con->query("SHOW COLUMNS FROM resident_reservations LIKE 'end_time'");
-  if ($chkRREndTime && $chkRREndTime->num_rows > 0) { $hasRREndTime = true; }
-  $resGF = $con->query("SELECT gf.ref_code, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name, gf.visit_date, gf.start_date, gf.end_date, gf.amenity, " . ($hasGFResDate ? "gf.reservation_date" : "NULL AS reservation_date") . ", " . ($hasGFVisitTime ? "gf.visit_time AS start_time" : "NULL AS start_time") . ", NULL AS end_time, TRIM(gf.approval_status) AS approval_status, gf.approval_date, u.first_name AS res_first_name, u.middle_name AS res_middle_name, u.last_name AS res_last_name FROM guest_forms gf LEFT JOIN users u ON gf.resident_user_id = u.id WHERE LOWER(TRIM(gf.approval_status))='approved'");
+  $qGF = "SELECT gf.ref_code, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name, gf.visit_date, gf.start_date, gf.end_date, gf.amenity, gf.reservation_date, gf.visit_time AS start_time, NULL AS end_time, TRIM(gf.approval_status) AS approval_status, gf.approval_date, u.first_name AS res_first_name, u.middle_name AS res_middle_name, u.last_name AS res_last_name FROM guest_forms gf LEFT JOIN users u ON gf.resident_user_id = u.id WHERE LOWER(TRIM(gf.approval_status))='approved'";
+  $gfOk = false;
+  $prevModeGF = function_exists('mysqli_report') ? mysqli_report(MYSQLI_REPORT_OFF) : null;
+  try { $gfOk = ($con->prepare($qGF) !== false); } catch (Throwable $e) { $gfOk = false; }
+  if ($prevModeGF !== null) { mysqli_report($prevModeGF); }
+  if (!$gfOk) {
+    $qGF = "SELECT gf.ref_code, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name, gf.visit_date, gf.start_date, gf.end_date, gf.amenity, NULL AS reservation_date, NULL AS start_time, NULL AS end_time, TRIM(gf.approval_status) AS approval_status, gf.approval_date, u.first_name AS res_first_name, u.middle_name AS res_middle_name, u.last_name AS res_last_name FROM guest_forms gf LEFT JOIN users u ON gf.resident_user_id = u.id WHERE LOWER(TRIM(gf.approval_status))='approved'";
+  }
+  $resGF = $con->query($qGF);
   if ($resGF) {
     while ($r = $resGF->fetch_assoc()) {
       $nm = trim(($r['visitor_first_name'] ?? '').' '.($r['visitor_middle_name'] ?? '').' '.($r['visitor_last_name'] ?? ''));
@@ -560,7 +550,15 @@ if (isset($_GET['action']) && $_GET['action'] === 'list_expected') {
       ];
     }
   }
-  $resR = $con->query("SELECT r.ref_code, r.start_date, r.end_date, r.amenity, " . ($hasResDate ? "r.reservation_date" : "NULL AS reservation_date") . ", " . ($hasResStartTime ? "r.start_time" : "NULL AS start_time") . ", " . ($hasResEndTime ? "r.end_time" : "NULL AS end_time") . ", r.approval_date, TRIM(COALESCE(r.approval_status, r.status)) AS status, r.entry_pass_id, r.booking_for, r.account_type, r.guest_id, r.guest_ref_code, e.full_name AS ep_full_name, u.first_name, u.middle_name, u.last_name, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name FROM reservations r LEFT JOIN entry_passes e ON r.entry_pass_id = e.id LEFT JOIN users u ON r.user_id = u.id LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code WHERE LOWER(TRIM(COALESCE(r.approval_status, r.status)))='approved'");
+  $qR = "SELECT r.ref_code, r.start_date, r.end_date, r.amenity, r.reservation_date, r.start_time, r.end_time, r.approval_date, TRIM(COALESCE(r.approval_status, r.status)) AS status, r.entry_pass_id, r.booking_for, r.account_type, r.guest_id, r.guest_ref_code, e.full_name AS ep_full_name, u.first_name, u.middle_name, u.last_name, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name FROM reservations r LEFT JOIN entry_passes e ON r.entry_pass_id = e.id LEFT JOIN users u ON r.user_id = u.id LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code WHERE LOWER(TRIM(COALESCE(r.approval_status, r.status)))='approved'";
+  $rOk = false;
+  $prevModeR = function_exists('mysqli_report') ? mysqli_report(MYSQLI_REPORT_OFF) : null;
+  try { $rOk = ($con->prepare($qR) !== false); } catch (Throwable $e) { $rOk = false; }
+  if ($prevModeR !== null) { mysqli_report($prevModeR); }
+  if (!$rOk) {
+    $qR = "SELECT r.ref_code, r.start_date, r.end_date, r.amenity, NULL AS reservation_date, NULL AS start_time, NULL AS end_time, r.approval_date, TRIM(COALESCE(r.approval_status, r.status)) AS status, r.entry_pass_id, r.booking_for, r.account_type, r.guest_id, r.guest_ref_code, e.full_name AS ep_full_name, u.first_name, u.middle_name, u.last_name, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name FROM reservations r LEFT JOIN entry_passes e ON r.entry_pass_id = e.id LEFT JOIN users u ON r.user_id = u.id LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code WHERE LOWER(TRIM(COALESCE(r.approval_status, r.status)))='approved'";
+  }
+  $resR = $con->query($qR);
   if ($resR) {
     while ($r = $resR->fetch_assoc()) {
       $sd = $normalize($r['start_date'] ?? '') ?: $normalize($r['reservation_date'] ?? '') ?: ($r['approval_date'] ? date('Y-m-d', strtotime($r['approval_date'])) : null);

@@ -153,16 +153,20 @@ if (!vpSchemaDone($con, 'reserve_v1')) {
  */
 function reserveCalcVHEcoBalance(mysqli $con, int $userId): int {
     if ($userId <= 0) return 0;
-    try {
-        $tblChk = $con->query("SHOW TABLES LIKE 'point_transactions'");
-        if (!$tblChk || $tblChk->num_rows === 0) return 0;
-        $colQ = $con->query("SHOW COLUMNS FROM point_transactions LIKE 'ecopoint_session_id'");
-        $hasFk = ($colQ && $colQ->num_rows > 0);
-        if ($hasFk) {
-            $stmt = $con->prepare("SELECT id, transaction_type, amount, description, ecopoint_session_id FROM point_transactions WHERE user_id = ?");
-        } else {
-            $stmt = $con->prepare("SELECT id, transaction_type, amount, description, NULL AS ecopoint_session_id FROM point_transactions WHERE user_id = ?");
+    static $hasFkCache = null;
+    if ($hasFkCache === null) {
+        try {
+            $tblChk = $con->query("SHOW TABLES LIKE 'point_transactions'");
+            if (!$tblChk || $tblChk->num_rows === 0) { $hasFkCache = false; return 0; }
+            $colQ = $con->query("SHOW COLUMNS FROM point_transactions LIKE 'ecopoint_session_id'");
+            $hasFkCache = ($colQ && $colQ->num_rows > 0);
+        } catch (Throwable $e) {
+            $hasFkCache = false;
         }
+    }
+    if (!$hasFkCache) return 0;
+    try {
+        $stmt = $con->prepare("SELECT id, transaction_type, amount, description, ecopoint_session_id FROM point_transactions WHERE user_id = ?");
         if (!$stmt) return 0;
         $stmt->bind_param('i', $userId);
         $stmt->execute();
@@ -676,11 +680,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_dates') {
   };
   try {
     if (!($con instanceof mysqli)) { throw new Exception('DB unavailable'); }
-    $stmt1 = $con->prepare("SELECT start_date, end_date FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history'))");
+    $stmt1 = $con->prepare("SELECT start_date, end_date FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history')) AND (end_date IS NULL OR end_date >= CURDATE()) AND (start_date IS NULL OR start_date <= DATE_ADD(CURDATE(), INTERVAL 6 MONTH))");
     $stmt1->bind_param("s", $amenity); $stmt1->execute(); $collect($stmt1->get_result()); $stmt1->close();
-    $stmt2 = $con->prepare("SELECT start_date, end_date FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved')");
+    $stmt2 = $con->prepare("SELECT start_date, end_date FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved') AND (end_date IS NULL OR end_date >= CURDATE()) AND (start_date IS NULL OR start_date <= DATE_ADD(CURDATE(), INTERVAL 6 MONTH))");
     $stmt2->bind_param("s", $amenity); $stmt2->execute(); $collect($stmt2->get_result()); $stmt2->close();
-    $stmt3 = $con->prepare("SELECT start_date, end_date FROM guest_forms WHERE amenity = ? AND approval_status IN ('pending','approved')");
+    $stmt3 = $con->prepare("SELECT start_date, end_date FROM guest_forms WHERE amenity = ? AND approval_status IN ('pending','approved') AND (end_date IS NULL OR end_date >= CURDATE()) AND (start_date IS NULL OR start_date <= DATE_ADD(CURDATE(), INTERVAL 6 MONTH))");
     $stmt3->bind_param("s", $amenity); $stmt3->execute(); $collect($stmt3->get_result()); $stmt3->close();
   } catch (Throwable $e) {
     error_log('reserve.php booked_dates error: ' . $e->getMessage());

@@ -39,7 +39,7 @@ function ensureVisitorSchema($con){
     }
   }
 }
-ensureVisitorSchema($con);
+if (!vpSchemaDone($con, 'signup_v1')) { ensureVisitorSchema($con); vpMarkSchemaDone($con, 'signup_v1'); }
 
 // AJAX endpoint: check email availability
 if (isset($_GET['action']) && $_GET['action'] === 'check_email') {

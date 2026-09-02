@@ -12,19 +12,26 @@ $user_id = $_SESSION['user_id'];
 $user_data = [];
 
 if ($con) {
-    $hasSuspension = false;
-    $chk = $con->query("SHOW COLUMNS FROM users LIKE 'suspension_reason'");
-    if ($chk && $chk->num_rows > 0) { $hasSuspension = true; }
-    $selectCols = "first_name, last_name, email, phone, sex, birthdate, status";
-    if ($hasSuspension) { $selectCols .= ", suspension_reason"; }
-    $stmt = $con->prepare("SELECT ".$selectCols." FROM users WHERE id = ?");
-    $stmt->bind_param("i", $user_id);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    if ($res && $res->num_rows > 0) {
-        $user_data = $res->fetch_assoc();
+    $prevMode = function_exists('mysqli_report') ? mysqli_report(MYSQLI_REPORT_OFF) : null;
+    $selectCols = "first_name, last_name, email, phone, sex, birthdate, status, suspension_reason";
+    try {
+        $stmt = $con->prepare("SELECT ".$selectCols." FROM users WHERE id = ?");
+    } catch (Throwable $e) { $stmt = false; }
+    if (!$stmt) {
+        try {
+            $stmt = $con->prepare("SELECT first_name, last_name, email, phone, sex, birthdate, status FROM users WHERE id = ?");
+        } catch (Throwable $e) { $stmt = false; }
     }
-    $stmt->close();
+    if ($prevMode !== null) { mysqli_report($prevMode); }
+    if ($stmt) {
+        $stmt->bind_param("i", $user_id);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        if ($res && $res->num_rows > 0) {
+            $user_data = $res->fetch_assoc();
+        }
+        $stmt->close();
+    }
 }
 $firstName = $user_data['first_name'] ?? 'Visitor';
 $fullName = trim(($user_data['first_name'] ?? '') . ' ' . ($user_data['last_name'] ?? ''));
@@ -42,8 +49,7 @@ if ($flashNotice !== '') {
 // Change Password Handler
 $pwdMsg = '';
 $pwdOk = false;
-function ensurePasswordField($con){
-    if(!($con instanceof mysqli)) return;
+if (!vpSchemaDone($con, 'dv_v1') && ($con instanceof mysqli)) {
     $res = $con->query("SHOW COLUMNS FROM users LIKE 'password'");
     if($res && ($row = $res->fetch_assoc())){
         $type = strtolower($row['Type'] ?? '');
@@ -53,8 +59,24 @@ function ensurePasswordField($con){
     } else {
         @$con->query("ALTER TABLE users ADD COLUMN password VARCHAR(255)");
     }
+    $check = $con->query("SHOW COLUMNS FROM reservations LIKE 'denial_reason'");
+    if ($check && $check->num_rows === 0) {
+        $con->query("ALTER TABLE reservations ADD COLUMN denial_reason TEXT NULL");
+    }
+    $check = $con->query("SHOW COLUMNS FROM reservations LIKE 'receipt_attempts'");
+    if ($check && $check->num_rows === 0) {
+        $con->query("ALTER TABLE reservations ADD COLUMN receipt_attempts INT NULL DEFAULT 0");
+    }
+    $check = $con->query("SHOW COLUMNS FROM reservations LIKE 'scanned_at'");
+    if ($check && $check->num_rows === 0) {
+        $con->query("ALTER TABLE reservations ADD COLUMN scanned_at DATETIME NULL");
+    }
+    if (!vpSchemaDone($con, 'dv_notif_v1')) {
+        ensureNotificationsTable($con);
+        vpMarkSchemaDone($con, 'dv_notif_v1');
+    }
+    vpMarkSchemaDone($con, 'dv_v1');
 }
-ensurePasswordField($con);
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
     $current = $_POST['current_password'] ?? '';
     $newPass = $_POST['new_password'] ?? '';
@@ -164,7 +186,10 @@ function getUserUnreadNotificationCount($con, $userId) {
     return $count;
 }
 
-ensureNotificationsTable($con);
+if (!vpSchemaDone($con, 'dv_notif2_v1')) {
+    ensureNotificationsTable($con);
+    vpMarkSchemaDone($con, 'dv_notif2_v1');
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'mark_notifications_read') {
     header('Content-Type: application/json');
     if ($con instanceof mysqli) {
@@ -183,21 +208,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 $activities = [];
 
 // Reservations
-if ($con instanceof mysqli) {
-    $check = $con->query("SHOW COLUMNS FROM reservations LIKE 'denial_reason'");
-    if ($check && $check->num_rows === 0) {
-        $con->query("ALTER TABLE reservations ADD COLUMN denial_reason TEXT NULL");
-    }
-    $check = $con->query("SHOW COLUMNS FROM reservations LIKE 'receipt_attempts'");
-    if ($check && $check->num_rows === 0) {
-        $con->query("ALTER TABLE reservations ADD COLUMN receipt_attempts INT NULL DEFAULT 0");
-    }
-    $check = $con->query("SHOW COLUMNS FROM reservations LIKE 'scanned_at'");
-    if ($check && $check->num_rows === 0) {
-        $con->query("ALTER TABLE reservations ADD COLUMN scanned_at DATETIME NULL");
-    }
+$prevDvResMode = function_exists('mysqli_report') ? mysqli_report(MYSQLI_REPORT_OFF) : null;
+try {
+    $stmt = $con->prepare("SELECT 'reservation' as type, amenity, start_date, end_date, start_time, end_time, status, approval_status, payment_status, denial_reason, receipt_attempts, created_at, ref_code, scanned_at FROM reservations WHERE user_id = ? AND status <> 'deleted' AND approval_status <> 'deleted' ORDER BY created_at DESC");
+} catch (Throwable $e) {
+    $stmt = $con->prepare("SELECT 'reservation' as type, amenity, start_date, end_date, start_time, end_time, status, approval_status, payment_status, NULL as denial_reason, 0 as receipt_attempts, created_at, ref_code, NULL as scanned_at FROM reservations WHERE user_id = ? AND status <> 'deleted' AND approval_status <> 'deleted' ORDER BY created_at DESC");
 }
-$stmt = $con->prepare("SELECT 'reservation' as type, amenity, start_date, end_date, start_time, end_time, status, approval_status, payment_status, denial_reason, receipt_attempts, created_at, ref_code, scanned_at FROM reservations WHERE user_id = ? AND status <> 'deleted' AND approval_status <> 'deleted' ORDER BY created_at DESC");
+if ($prevDvResMode !== null && function_exists('mysqli_report')) { mysqli_report($prevDvResMode); }
 if ($stmt) {
     $stmt->bind_param("i", $user_id);
     $stmt->execute();
