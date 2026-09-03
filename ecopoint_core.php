@@ -407,15 +407,18 @@ function eco_create_session(mysqli $con, array $station, array $resident, string
             'success' => false,
             'message' => 'Daily session limit reached (max ' . ECO_DAILY_SESSION_CAP . ' per day)',
             'cap'     => $capState,
-        ], 403);
-    }
+///------------------------------------------------------/for Active  Status---------
+//        ], 403);
+//    }
+//
+//  if (strtolower((string)($resident['status'] ?? '')) !== 'active') {
+//      eco_json_response([
+//          'success' => false,
+//          'message' => 'Resident account is not active (status: ' . ($resident['status'] ?? 'unknown') . ')',
+//      ], 403);
+//  }
+////-----------------------------------------------------------------------------------
 
-    if (strtolower((string)($resident['status'] ?? '')) !== 'active') {
-        eco_json_response([
-            'success' => false,
-            'message' => 'Resident account is not active (status: ' . ($resident['status'] ?? 'unknown') . ')',
-        ], 403);
-    }
 
     $token     = eco_generate_session_token();
     $stationId = (int)$station['station_id'];
