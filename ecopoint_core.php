@@ -407,15 +407,17 @@ function eco_create_session(mysqli $con, array $station, array $resident, string
             'success' => false,
             'message' => 'Daily session limit reached (max ' . ECO_DAILY_SESSION_CAP . ' per day)',
             'cap'     => $capState,
-        ], 403);
-    }
+         ], 403);
+     }
+//--------------------For Active Status ---------------------------------------------
+//  if (strtolower((string)($resident['status'] ?? '')) !== 'active') {
+//      eco_json_response([
+//          'success' => false,
+//          'message' => 'Resident account is not active (status: ' . ($resident['status'] ?? 'unknown') . ')',
+//      ], 403);
+//  }
+////-----------------------------------------------------------------------------------
 
-    if (strtolower((string)($resident['status'] ?? '')) !== 'active') {
-        eco_json_response([
-            'success' => false,
-            'message' => 'Resident account is not active (status: ' . ($resident['status'] ?? 'unknown') . ')',
-        ], 403);
-    }
 
     $token     = eco_generate_session_token();
     $stationId = (int)$station['station_id'];
@@ -427,15 +429,21 @@ function eco_create_session(mysqli $con, array $station, array $resident, string
             (session_token, station_id, user_id, qr_ref_code, status, applied_daily_cap, applied_weekly_cap, applied_max_balance)
             VALUES (?, ?, ?, ?, 'ACTIVE', ?, ?, ?)
         ");
+
+        $dailyCap = ECO_DAILY_POINT_CAP;	
+        $weeklyCap = ECO_WEEKLY_POINT_CAP;
+        $maxBalance = ECO_MAX_BALANCE;
+
         $stmt->bind_param(
-            'siisiii',
-            $token,
-            $stationId,
-            $userId,
-            $qrRefCode,
-            ECO_DAILY_POINT_CAP,
-            ECO_WEEKLY_POINT_CAP,
-            ECO_MAX_BALANCE
+           'siisiii',
+           $token,
+           $stationId,
+           $userId,
+           $qrRefCode,
+           $dailyCap,
+           $weeklyCap,
+           $maxBalance
+
         );
         $stmt->execute();
         $sessionId = (int)$con->insert_id;
