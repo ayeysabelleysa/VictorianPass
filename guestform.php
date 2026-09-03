@@ -70,8 +70,8 @@ if ($con instanceof mysqli) {
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
 <?php
-$gfCss = @file_get_contents(__DIR__ . '/CSS/guestform.css');
-if ($gfCss === false) { $gfCss = @file_get_contents('CSS/guestform.css'); }
+$gfCss = @file_get_contents(__DIR__ . '/css/guestform.css'); 
+  if ($gfCss === false) { $gfCss = @file_get_contents('css/guestform.css'); }
 echo $gfCss !== false ? $gfCss : '';
 ?>
 /* Inline warnings copied from signup style */
