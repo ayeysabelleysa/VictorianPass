@@ -2,6 +2,21 @@
 require_once __DIR__ . '/session_bootstrap.php';
 require_once 'connect.php';
 if (!defined('ECO_WEEKLY_POINT_CAP')) { define('ECO_WEEKLY_POINT_CAP', 250); }
+$__t0 = microtime(true);
+$__marks = [];
+function __pm($label) {
+  global $__t0, $__marks;
+  $__marks[] = $label . '=' . round((microtime(true) - $__t0) * 1000, 1) . 'ms';
+}
+if (!function_exists('__prfLog')) {
+  function __prfLog($marks) {
+    @file_put_contents(__DIR__ . '/profresident_perf.log', date('Y-m-d H:i:s') . ' :: ' . implode(' | ', $marks) . PHP_EOL, FILE_APPEND);
+  }
+}
+register_shutdown_function(function() use (&$__marks, &$__t0) {
+  $__marks[] = 'TOTAL=' . round((microtime(true) - $__t0) * 1000, 1) . 'ms';
+  __prfLog($__marks);
+});
 
 // Redirect to login if not authenticated
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'resident') {
@@ -25,7 +40,7 @@ if ($con) {
     mysqli_stmt_close($stmt);
   }
 }
-
+__pm('user_fetch');
 if (!$user) {
   header('Location: mainpage.php');
   exit;
@@ -260,6 +275,7 @@ if (!$isAccountBlocked) {
         if ($img !== false) { @file_put_contents($qrAbsPath, $img); } else { $qrRelPath = $qrUrl; }
     }
 }
+__pm('qr_setup');
 
 $allowedSections = ['panel-requests', 'panel-points-history', 'panel-guest-form', 'panel-my-guests', 'panel-history'];
 $activeSection = $_GET['section'] ?? 'panel-requests';
@@ -316,6 +332,7 @@ foreach ($ecoPointTransactions as $tx) {
     }
 }
 $currentPoints = max(0, $currentPoints);
+__pm('point_transactions');
 
 $ecoPointWeeklyCap = 250;
 $ecoPointDailySessionsMax = 3;
@@ -889,8 +906,9 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
 <title>Resident Dashboard - Victorian Heights</title>
 <link rel="icon" type="image/png" href="images/logo.svg">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/dashboard.css">
-<link rel="stylesheet" href="css/guestform.css">
+<?php $_dashCss = @filemtime(__DIR__ . '/CSS/dashboard.css') ?: 1; $_gfCss = @filemtime(__DIR__ . '/CSS/guestform.css') ?: 1; ?>
+<link rel="stylesheet" href="CSS/dashboard.css?v=<?php echo $_dashCss; ?>">
+<link rel="stylesheet" href="CSS/guestform.css?v=<?php echo $_gfCss; ?>">
 <!-- FontAwesome for icons -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>

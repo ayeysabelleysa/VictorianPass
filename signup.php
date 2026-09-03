@@ -246,7 +246,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   <link rel="icon" type="image/png" href="images/logo.svg">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="css/signup.css">
+  <?php $_signupCss = @filemtime(__DIR__ . '/CSS/signup.css') ?: 1; ?>
+<link rel="stylesheet" href="CSS/signup.css?v=<?php echo $_signupCss; ?>">
   <style>
     .success-banner {
       background: #e6ffed;
