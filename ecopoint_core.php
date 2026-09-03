@@ -407,10 +407,9 @@ function eco_create_session(mysqli $con, array $station, array $resident, string
             'success' => false,
             'message' => 'Daily session limit reached (max ' . ECO_DAILY_SESSION_CAP . ' per day)',
             'cap'     => $capState,
-///------------------------------------------------------/for Active  Status---------
-//        ], 403);
-//    }
-//
+         ], 403);
+     }
+//--------------------For Active Status ---------------------------------------------
 //  if (strtolower((string)($resident['status'] ?? '')) !== 'active') {
 //      eco_json_response([
 //          'success' => false,
