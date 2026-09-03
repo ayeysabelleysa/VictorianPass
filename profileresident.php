@@ -906,9 +906,9 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
 <title>Resident Dashboard - Victorian Heights</title>
 <link rel="icon" type="image/png" href="images/logo.svg">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<?php $_dashCss = @filemtime(__DIR__ . '/CSS/dashboard.css') ?: 1; $_gfCss = @filemtime(__DIR__ . '/CSS/guestform.css') ?: 1; ?>
-<link rel="stylesheet" href="CSS/dashboard.css?v=<?php echo $_dashCss; ?>">
-<link rel="stylesheet" href="CSS/guestform.css?v=<?php echo $_gfCss; ?>">
+<?php $_dashCss = @filemtime(__DIR__ . '/css/dashboard.css') ?: 1; $_gfCss = @filemtime(__DIR__ . '/css/guestform.css') ?: 1; ?>
+<link rel="stylesheet" href="css/dashboard.css?v=<?php echo $_dashCss; ?>">
+<link rel="stylesheet" href="css/guestform.css?v=<?php echo $_gfCss; ?>">
 <!-- FontAwesome for icons -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>

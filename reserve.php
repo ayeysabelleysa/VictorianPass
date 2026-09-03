@@ -964,7 +964,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
   <title>VictorianPass - Reserve</title>
   <link rel="icon" type="image/png" href="images/logo.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="CSS/reserve.css?v=<?php echo @filemtime(__DIR__ . '/CSS/reserve.css') ?: 12; ?>">
+  <link rel="stylesheet" href="css/reserve.css?v=<?php echo @filemtime(__DIR__ . '/css/reserve.css') ?: 12; ?>">
 </head>
 <body>
   <div id="notifyLayer" class="toast"></div>

@@ -19,3 +19,6 @@ Options -Indexes
 <IfModule mod_php.c>
   # Override any per-directory PHP settings here if needed.
 </IfModule>
+
+# Ensure CSS files are served with correct MIME type
+AddType text/css .css

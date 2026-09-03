@@ -250,9 +250,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   <link rel="icon" type="image/png" href="images/logo.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
-  <?php $mainCssVer = @filemtime(__DIR__ . '/CSS/mainpage.css') ?: time(); $respCssVer = @filemtime(__DIR__ . '/CSS/responsive.css') ?: time(); ?>
-  <link rel="stylesheet" href="CSS/mainpage.css?v=<?php echo $mainCssVer; ?>">
-  <link rel="stylesheet" href="CSS/responsive.css?v=<?php echo $respCssVer; ?>">
+  <?php $mainCssVer = @filemtime(__DIR__ . '/css/mainpage.css') ?: time(); $respCssVer = @filemtime(__DIR__ . '/css/responsive.css') ?: time(); ?>
+  <link rel="stylesheet" href="css/mainpage.css?v=<?php echo $mainCssVer; ?>">
+  <link rel="stylesheet" href="css/responsive.css?v=<?php echo $respCssVer; ?>">
   
 </head>
 <body>
