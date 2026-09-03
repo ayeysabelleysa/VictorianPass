@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Scroll Probe Multi-Width</title></head>
+<body>
+<pre id="out"></pre>
+<script>
+function run(width, label){
+  return new Promise(function(resolve){
+    var iframe = document.createElement('iframe');
+    iframe.src = 'http://127.0.0.1/VictorianPass/mainpage.php';
+    iframe.style.width = width + 'px';
+    iframe.style.height = '700px';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+    setTimeout(function(){
+      try {
+        var d = iframe.contentDocument;
+        var htmlOv = getComputedStyle(d.documentElement).overflowY;
+        var bodyOv = getComputedStyle(d.body).overflowY;
+        var htmlScrollable = d.documentElement.scrollHeight > d.documentElement.clientHeight + 1;
+        var bodyScrollable = d.body.scrollHeight > d.body.clientHeight + 1;
+        // horizontal check
+        var bodyScrollW = d.body.scrollWidth;
+        var bodyClientW = d.body.clientWidth;
+        var htmlScrollW = d.documentElement.scrollWidth;
+        var htmlClientW = d.documentElement.clientWidth;
+        iframe.remove();
+        resolve(label + ': htmlOv=' + htmlOv + ' bodyOv=' + bodyOv +
+          ' | htmlScrollable=' + htmlScrollable + ' bodyScrollable=' + bodyScrollable +
+          ' | body hscroll=' + (bodyScrollW>bodyClientW) + '('+bodyScrollW+'/'+bodyClientW+')' +
+          ' html hscroll=' + (htmlScrollW>htmlClientW) + '('+htmlScrollW+'/'+htmlClientW+')');
+      } catch(e){ iframe.remove(); resolve(label + ': ERR ' + e.message); }
+    }, 2500);
+  });
+}
+(async function(){
+  var out = document.getElementById('out');
+  var desktop = await run(1280, 'DESKTOP(1280)');
+  out.textContent += desktop + '\n';
+  var tablet = await run(768, 'TABLET(768)');
+  out.textContent += tablet + '\n';
+  var mobile = await run(375, 'MOBILE(375)');
+  out.textContent += mobile + '\n';
+})();
+</script>
+</body>
+</html>

@@ -2,7 +2,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap');
 
 html { scroll-behavior: smooth; }
-body { overflow-x: hidden; }
+/* Prevent horizontal overflow without creating a duplicate vertical scrollbar.
+   Setting overflow-x on body turns body into its own scroll container
+   (overflow-y computes to auto), which combined with html scrolling shows
+   two vertical scrollbars. Apply overflow-x on html so the page keeps a
+   single scrollbar. */
+html { overflow-x: hidden; }
 
 /* Containers */
 .container, .page-wrap { max-width: 1200px; margin: 0 auto; padding: 0 16px; }

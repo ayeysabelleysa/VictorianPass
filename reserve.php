@@ -1,7 +1,14 @@
 <?php
 ob_start(); // Prevents header issues on redirect
+$__t0 = microtime(true);
+$__marks = [];
+function __perf($label) {
+  global $__t0, $__marks;
+  $__marks[] = $label . '=' . round((microtime(true) - $__t0) * 1000, 1) . 'ms';
+}
 require_once __DIR__ . '/session_bootstrap.php';
 include 'connect.php';
+__perf('include_connect');
 $generatedCode = '';
 $errorMsg = '';
 $canSubmit = true;
@@ -143,6 +150,7 @@ if (!vpSchemaDone($con, 'reserve_v1')) {
   ensureReservationPointColumns($con);
   vpMarkSchemaDone($con, 'reserve_v1');
 }
+__perf('schema_guard');
 
 /**
  * Single source of truth for a resident's VHEcoPoint balance.
@@ -956,6 +964,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     }
   }
 }
+__perf('before_html_total');
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -4463,6 +4472,11 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 </script>
+
+<?php
+// Temporary performance debugging
+@file_put_contents(__DIR__ . '/reserve_perf.log', date('Y-m-d H:i:s') . ' total=' . round((microtime(true) - $__t0) * 1000, 1) . 'ms :: ' . implode(' | ', $__marks) . PHP_EOL, FILE_APPEND);
+?>
 
 </body>
 </html>

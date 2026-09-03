@@ -386,7 +386,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
           </div>
           <?php endif; ?>          <p class="section-subtitle ecopoint-description">VHEcoPoint is Victorian Heights Subdivision’s Smart Waste Segregation Station that automatically sorts recyclables and rewards you with points redeemable for free amenity bookings. Scan your VictorianPass QR code, deposit recyclables, and points are credited to your account instantly.</p>
             <?php if ($isResident): ?>
-            <p style="background:#dbeafe; border:1px solid #7dd3fc; border-radius:8px; padding:10px 12px; color:#0c4a6e; font-weight:600;"><strong><i class="fa-solid fa-lightbulb" style="margin-right:6px;"></i>Tip:</strong> You can view your personal QR code on your <a href="profileresident.php" style="color:#0369a1; text-decoration:underline;">profile dashboard</a> page.</p>
+            <p style="background:#d1fae5; border:1px solid #34d399; border-radius:8px; padding:10px 12px; color:#065f46; font-weight:600; display:flex; align-items:center; gap:10px; flex-wrap:wrap;"><span><strong><i class="fa-solid fa-lightbulb" style="margin-right:6px;"></i>Tip:</strong> You can view your personal QR code on your profile dashboard page.</span><a href="profileresident.php" class="btn-change" style="display:inline-block; padding:8px 16px; border-radius:8px; text-decoration:none; font-weight:700; font-size:0.9rem; white-space:nowrap;">My Profile Dashboard</a></p>
             <?php endif; ?>
             <h3 class="ecopoint-card-title">How It Works</h3>
             <div class="ecopoint-step-list">

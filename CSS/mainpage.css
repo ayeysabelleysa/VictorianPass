@@ -1655,7 +1655,11 @@ html { scroll-behavior: smooth; }
    MOBILE OPTIMIZATION 320-430px
    Does not affect desktop
 ========================= */
-html, body { max-width:100%; overflow-x:hidden; }
+/* Prevent horizontal overflow WITHOUT creating a duplicate vertical scrollbar.
+   Setting overflow-x on BOTH html and body makes both elements independent
+   scroll containers (overflow-y computes to auto), producing two vertical
+   scrollbars. Apply to html only so the page keeps a single scrollbar. */
+html { max-width:100%; overflow-x:hidden; }
 
 @media (max-width:430px){
   /* Prevent any element from forcing horizontal scroll */
