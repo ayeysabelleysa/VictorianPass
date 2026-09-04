@@ -18,43 +18,21 @@ if($entry_pass_id > 0){
 
 // Helpers and CSRF
 if (empty($_SESSION['csrf_token'])) { $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); }
-if (!function_exists('vpSchemaDone')) {
-  function vpSchemaDone($con, $key) {
-    $dir = __DIR__ . '/schema_flags';
-    if (!is_dir($dir)) return false;
-    $flag = $dir . '/' . preg_replace('/[^a-z0-9_]/i', '_', $key) . '.done';
-    return @file_exists($flag);
-  }
-}
-if (!function_exists('vpMarkSchemaDone')) {
-  function vpMarkSchemaDone($con, $key) {
-    $dir = __DIR__ . '/schema_flags';
-    if (!is_dir($dir)) @mkdir($dir, 0755, true);
-    $flag = $dir . '/' . preg_replace('/[^a-z0-9_]/i', '_', $key) . '.done';
-    @file_put_contents($flag, '1');
-  }
-}
-if (!vpSchemaDone($con, 'dp_v1') && ($con instanceof mysqli)) {
-  if (!function_exists('ensureReservationsCommonColumns')) {
-    function ensureReservationsCommonColumns($con){ if(!($con instanceof mysqli)) return; $cols=['downpayment','receipt_path','payment_status','account_type','booking_for','receipt_uploaded_at','gcash_reference_number','pool_booking_type']; foreach($cols as $col){ $c=$con->query("SHOW COLUMNS FROM reservations LIKE '".$con->real_escape_string($col)."'"); if(!$c || $c->num_rows===0){ if($col==='downpayment'){ @$con->query("ALTER TABLE reservations ADD COLUMN downpayment DECIMAL(10,2) NULL"); } else if($col==='receipt_path'){ @$con->query("ALTER TABLE reservations ADD COLUMN receipt_path VARCHAR(255) NULL"); } else if($col==='payment_status'){ @$con->query("ALTER TABLE reservations ADD COLUMN payment_status ENUM('pending','submitted','verified') NULL"); } else if($col==='account_type'){ @$con->query("ALTER TABLE reservations ADD COLUMN account_type ENUM('visitor','resident') NULL"); } else if($col==='booking_for'){ @$con->query("ALTER TABLE reservations ADD COLUMN booking_for ENUM('resident','guest') NULL"); } else if($col==='receipt_uploaded_at'){ @$con->query("ALTER TABLE reservations ADD COLUMN receipt_uploaded_at DATETIME NULL"); } else if($col==='gcash_reference_number'){ @$con->query("ALTER TABLE reservations ADD COLUMN gcash_reference_number VARCHAR(30) NULL"); } else if($col==='pool_booking_type'){ @$con->query("ALTER TABLE reservations ADD COLUMN pool_booking_type ENUM('per_person','whole_pool') NULL"); } } } }
-  }
-  ensureReservationsCommonColumns($con);
-  if (!function_exists('ensureReservationBookerColumns')) {
-    function ensureReservationBookerColumns($con){
-        if(!($con instanceof mysqli)) return;
-        $c1 = $con->query("SHOW COLUMNS FROM reservations LIKE 'booked_by_role'");
-        if(!$c1 || $c1->num_rows===0){
-            @$con->query("ALTER TABLE reservations ADD COLUMN booked_by_role ENUM('resident','guest','co_owner') NULL AFTER booking_for");
-        }
-        $c2 = $con->query("SHOW COLUMNS FROM reservations LIKE 'booked_by_name'");
-        if(!$c2 || $c2->num_rows===0){
-            @$con->query("ALTER TABLE reservations ADD COLUMN booked_by_name VARCHAR(255) NULL AFTER booked_by_role");
-        }
+function ensureReservationsCommonColumns($con){ if(!($con instanceof mysqli)) return; $cols=['downpayment','receipt_path','payment_status','account_type','booking_for','receipt_uploaded_at','gcash_reference_number','pool_booking_type']; foreach($cols as $col){ $c=$con->query("SHOW COLUMNS FROM reservations LIKE '".$con->real_escape_string($col)."'"); if(!$c || $c->num_rows===0){ if($col==='downpayment'){ @$con->query("ALTER TABLE reservations ADD COLUMN downpayment DECIMAL(10,2) NULL"); } else if($col==='receipt_path'){ @$con->query("ALTER TABLE reservations ADD COLUMN receipt_path VARCHAR(255) NULL"); } else if($col==='payment_status'){ @$con->query("ALTER TABLE reservations ADD COLUMN payment_status ENUM('pending','submitted','verified') NULL"); } else if($col==='account_type'){ @$con->query("ALTER TABLE reservations ADD COLUMN account_type ENUM('visitor','resident') NULL"); } else if($col==='booking_for'){ @$con->query("ALTER TABLE reservations ADD COLUMN booking_for ENUM('resident','guest') NULL"); } else if($col==='receipt_uploaded_at'){ @$con->query("ALTER TABLE reservations ADD COLUMN receipt_uploaded_at DATETIME NULL"); } else if($col==='gcash_reference_number'){ @$con->query("ALTER TABLE reservations ADD COLUMN gcash_reference_number VARCHAR(30) NULL"); } else if($col==='pool_booking_type'){ @$con->query("ALTER TABLE reservations ADD COLUMN pool_booking_type ENUM('per_person','whole_pool') NULL"); } } } }
+ensureReservationsCommonColumns($con);
+
+function ensureReservationBookerColumns($con){
+    if(!($con instanceof mysqli)) return;
+    $c1 = $con->query("SHOW COLUMNS FROM reservations LIKE 'booked_by_role'");
+    if(!$c1 || $c1->num_rows===0){
+        @$con->query("ALTER TABLE reservations ADD COLUMN booked_by_role ENUM('resident','guest','co_owner') NULL AFTER booking_for");
     }
-  }
-  ensureReservationBookerColumns($con);
-  vpMarkSchemaDone($con, 'dp_v1');
+    $c2 = $con->query("SHOW COLUMNS FROM reservations LIKE 'booked_by_name'");
+    if(!$c2 || $c2->num_rows===0){
+        @$con->query("ALTER TABLE reservations ADD COLUMN booked_by_name VARCHAR(255) NULL AFTER booked_by_role");
+    }
 }
+ensureReservationBookerColumns($con);
 // Pull pending reservation context
 $continue = isset($_GET['continue']) ? $_GET['continue'] : 'reserve';
 $userType = isset($_SESSION['user_type']) ? $_SESSION['user_type'] : '';
@@ -88,7 +66,7 @@ $user_id = isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : null;
 $pending = isset($_SESSION['pending_reservation']) ? $_SESSION['pending_reservation'] : null;
 
 if ((!is_array($pending) || empty($pending)) && $ref_code !== '' && ($con instanceof mysqli)) {
-    $stmtC = $con->prepare("SELECT amenity, start_date, end_date, start_time, end_time, persons, price, downpayment, entry_pass_id, booking_for, use_points, points_used FROM reservations WHERE ref_code = ? LIMIT 1");
+    $stmtC = $con->prepare("SELECT amenity, start_date, end_date, start_time, end_time, persons, price, downpayment, entry_pass_id, booking_for FROM reservations WHERE ref_code = ? LIMIT 1");
     $stmtC->bind_param('s', $ref_code);
     $stmtC->execute();
     $resC = $stmtC->get_result();
@@ -103,9 +81,7 @@ if ((!is_array($pending) || empty($pending)) && $ref_code !== '' && ($con instan
             'price' => isset($rwC['price']) ? floatval($rwC['price']) : null,
             'downpayment' => isset($rwC['downpayment']) ? floatval($rwC['downpayment']) : null,
             'entry_pass_id' => isset($rwC['entry_pass_id']) ? intval($rwC['entry_pass_id']) : null,
-            'booking_for' => $rwC['booking_for'] ?? null,
-            'use_points' => isset($rwC['use_points']) ? intval($rwC['use_points']) : 0,
-            'points_used' => isset($rwC['points_used']) ? intval($rwC['points_used']) : 0
+            'booking_for' => $rwC['booking_for'] ?? null
         ];
         $_SESSION['pending_reservation'] = $pending;
         if ($entry_pass_id <= 0 && !empty($pending['entry_pass_id'])) { $entry_pass_id = intval($pending['entry_pass_id']); }
@@ -149,12 +125,15 @@ function normalizeEndTimeFromHours($startTime, $hours, $amenity){
 }
 
 // HANDLE FORM SUBMISSION
+$msg = '';
 if($_SERVER['REQUEST_METHOD'] === 'POST'){
     $tokenPosted = isset($_POST['csrf_token']) ? $_POST['csrf_token'] : '';
     $ref_code = isset($_POST['ref_code']) ? trim($_POST['ref_code']) : '';
     $gcashReferenceNumber = isset($_POST['gcashreferencenumber']) ? trim($_POST['gcashreferencenumber']) : '';
-    if ($gcashReferenceNumber === '' || !preg_match('/^\d{13}$/', $gcashReferenceNumber) || preg_match('/^(\d)\1{12}$/', $gcashReferenceNumber)) {
-      $msg = 'Invalid GCash reference number.';
+    if ($gcashReferenceNumber === '') {
+      $msg = 'Please enter your GCash reference number before confirming.';
+    } else if (!preg_match('/^\d{13}$/', $gcashReferenceNumber) || preg_match('/^(\d)\1{12}$/', $gcashReferenceNumber)) {
+      $msg = 'Invalid GCash reference number. It must contain 13 digits.';
     }
     $continue_post = isset($_POST['continue']) ? $_POST['continue'] : $continue;
     $entry_pass_id_post_form = isset($_POST['entry_pass_id']) ? intval($_POST['entry_pass_id']) : $entry_pass_id;
@@ -286,7 +265,6 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
       }
       $_SESSION['pending_reservation'] = null;
       if(empty($msg)){
-        $msg = 'Receipt uploaded. Payment submitted for review.';
         $_SESSION['flash_notice'] = 'Request submitted, waiting for approval';
         unset($_SESSION['flash_ref_code']);
       }
@@ -319,12 +297,13 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
       if ($full_name === '') { $full_name = 'Guest'; }
 
     }
-    if (($continue_post ?? $continue) === 'reserve_resident') {
+    $residentPaymentFlow = (($continue_post ?? $continue) === 'reserve_resident' || $userType === 'resident');
+    if (empty($msg) && $residentPaymentFlow) {
       header('Location: profileresident.php');
-    } else {
+    } else if (empty($msg)) {
       header('Location: dashboardvisitor.php');
     }
-    exit;
+    if (empty($msg)) { exit; }
 }
 ?>
 
@@ -361,21 +340,43 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     .toast{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:#23412e;color:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 8px 18px rgba(0,0,0,.12);font-size:.9rem;z-index:1000}
     .upload-area{border:1.5px dashed #d1d5db;background:#f9fafb;padding:18px;border-radius:12px;margin-top:16px;display:flex;flex-direction:column;gap:10px}
     .upload-area .label{color:#111827;font-weight:600;font-size:.95rem}
-    #receiptInput{padding:10px 12px;border:1.5px solid #d1d5db;border-radius:8px;background:#fff;color:#111827;font-size:.95rem;font-family:'Poppins',sans-serif}
+    #receiptInput{padding:6px 10px;border:1.5px solid #d1d5db;border-radius:8px;background:#fff;color:#111827;font-size:.82rem;font-family:'Poppins',sans-serif;max-width:280px}
     #receiptInput:focus{border-color:#23412e;box-shadow:0 0 0 3px rgba(35,65,46,0.1);outline:none}
+    #receiptInput::file-selector-button{padding:4px 12px;border:1px solid #d1d5db;border-radius:6px;background:#e5e7eb;color:#111827;font-size:.78rem;font-weight:600;font-family:'Poppins',sans-serif;cursor:pointer;transition:background .2s}
+    #receiptInput::file-selector-button:hover{background:#d1d5db}
     .field-label{color:#111827;font-weight:600;font-size:.95rem;display:block;margin-top:6px}
+    .field-label .ref-note{display:block;font-weight:400;font-size:.78rem;color:#6b7280;margin-top:2px}
     .field-input{width:100%;padding:.75rem;border:1px solid #ccc;border-radius:8px;font-size:.95rem;background:#fff;color:#111827;font-family:'Poppins',sans-serif;box-sizing:border-box;margin-top:6px}
     .field-input:focus{border-color:#23412e;box-shadow:0 0 0 3px rgba(35,65,46,0.1);outline:none}
-    .field-input.invalid{border-color:#dc2626;box-shadow:0 0 0 3px rgba(220,38,38,0.08)}
-    .field-input.valid{border-color:#16a34a}
-    .ref-hint{display:none;align-items:flex-start;gap:6px;margin-top:6px;font-size:.85rem;font-weight:600;line-height:1.45}
-    .ref-hint.error{display:flex;color:#b30000}
-    .ref-hint.success{display:flex;color:#166534}
-    .ref-hint i{margin-top:2px}
+    .ref-warning{display:none;align-items:center;gap:6px;background:#fee2e2;color:#b30000;border:1px solid #fecaca;border-radius:8px;padding:6px 10px;font-size:.8rem;font-weight:600;margin-top:8px}
+    .ref-warning i{font-size:.85rem}
+    .field-warning{display:none;align-items:flex-start;gap:8px;margin-top:6px;padding:8px 10px;background:#fff;border-left:4px solid #c0392b;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.12);color:#333;font-size:.85rem}
+    .field-warning.is-visible{display:flex}
+    .field-warning .warn-icon{width:18px;height:18px;border-radius:50%;background:#c0392b;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;flex-shrink:0;line-height:1}
+    #removeFileBtn{padding:5px 14px;font-size:.78rem;border-radius:6px;align-self:flex-start;line-height:1.4}
     #confirmBtn{padding:12px 20px;font-size:1rem;margin-top:8px;align-self:flex-end}
-    .upload-preview{display:flex;flex-direction:column;gap:8px;align-items:flex-start;justify-content:flex-start;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:10px}
-    .upload-preview img{max-width:100%;height:auto;border-radius:8px}
-    .upload-preview .file-name{color:#111827;font-weight:600;font-size:.9rem}
+    .upload-preview{display:flex;flex-direction:column;gap:6px;align-items:flex-start;justify-content:flex-start;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:8px;max-width:180px}
+    .upload-preview img{width:100%;max-width:160px;height:auto;border-radius:6px;cursor:pointer;transition:opacity .2s;border:1px solid #e5e7eb}
+    .upload-preview img:hover{opacity:.85}
+    .upload-preview .file-name{color:#111827;font-weight:600;font-size:.78rem;word-break:break-all}
+    @keyframes modalPop{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}
+    @keyframes modalClose{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(0.92)}}
+    @keyframes modalFadeOut{from{opacity:1}to{opacity:0}}
+    #imgModal{display:none;position:fixed;z-index:2000;left:0;top:0;width:100%;height:100%;background:rgba(15,23,42,0.55);backdrop-filter:blur(5px);align-items:center;justify-content:center}
+    #imgModal.open{display:flex}
+    #imgModal.closing{animation:modalFadeOut 0.25s ease-in forwards}
+    #imgModal .modal-content{background:#ffffff;border-radius:18px;padding:16px;position:relative;transform-origin:center;animation:modalPop 0.28s cubic-bezier(0.2,0.8,0.2,1);box-shadow:0 24px 70px rgba(15,23,42,0.35);border:1px solid #e5e7eb;max-width:92vw;max-height:90vh;display:flex;align-items:center;justify-content:center}
+    #imgModal.closing .modal-content{animation:modalClose 0.25s ease-in forwards}
+    #imgModal .modal-content img{max-width:88vw;max-height:82vh;object-fit:contain;border-radius:10px}
+    #imgModal .modal-close{position:absolute;top:12px;right:12px;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:#eef2f0;color:#23412e;border:none;font-size:16px;cursor:pointer;line-height:1;z-index:2}
+    #warningModal{display:none;position:fixed;z-index:9999;left:0;top:0;width:100%;height:100%;background-color:rgba(0,0,0,0.5);opacity:0;visibility:hidden;pointer-events:none;transition:opacity 0.22s ease,visibility 0.22s ease}
+    #warningModal.is-visible{display:flex;align-items:center;justify-content:center;opacity:1;visibility:visible;pointer-events:auto}
+    #warningModal .modal-content{background:#fff;padding:28px 24px;border-radius:12px;width:90%;max-width:380px;text-align:center;position:relative;box-shadow:0 12px 30px rgba(0,0,0,0.18);transform:translateY(8px) scale(0.98);transition:transform 0.22s ease}
+    #warningModal.is-visible .modal-content{transform:translateY(0) scale(1)}
+    #warningModal .modal-close{position:absolute;right:12px;top:10px;background:transparent;border:0;font-size:22px;cursor:pointer;color:#666;line-height:1}
+    #warningModal .modal-title{font-size:1.15rem;font-weight:700;color:#c0392b;margin:0 0 10px}
+    #warningModal .modal-message{color:#444;font-size:0.95rem;margin:0 0 18px;line-height:1.5}
+    #warningModal .modal-btn{border:0;background:#23412e;color:#fff;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:600;width:100%;font-family:'Poppins',sans-serif}
     .nonrefundable{background:#fee2e2;color:#b30000;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;font-weight:700;margin-top:10px;display:block;font-size:.9rem;border-left:4px solid #dc2626}
     body.modal-open{overflow:hidden}
     .proceed-modal{display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);align-items:center;justify-content:center;z-index:2000}
@@ -400,6 +401,14 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
       .card{padding:18px}
       .pay-callout{flex-direction:column;align-items:flex-start}
       .pay-callout .num{margin-left:0;margin-top:4px}
+      #receiptInput{max-width:100%}
+      .upload-preview{max-width:140px;padding:6px}
+      .upload-preview img{max-width:130px}
+      #imgModal .modal-content{max-width:96vw;padding:10px}
+      #imgModal .modal-content img{max-width:94vw;max-height:80vh}
+      #imgModal .modal-close{top:8px;right:8px;width:28px;height:28px;font-size:15px}
+      #warningModal .modal-content{padding:24px 18px;max-width:96vw}
+      #warningModal .modal-close{top:8px;right:8px;font-size:20px}
     }
   </style>
   </head>
@@ -411,8 +420,6 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     $downpayment = isset($pending['downpayment']) ? floatval($pending['downpayment']) : null;
     $isHourBased = in_array($amenity, ['Basketball Court','Tennis Court','Clubhouse','Multi-Purpose Building'], true);
     $isPersonBased = in_array($amenity, [], true);
-    $booking_for = isset($pending['booking_for']) ? trim($pending['booking_for']) : '';
-    if ($booking_for === '') { $booking_for = 'resident'; }
     if ($downpayment === null || $downpayment <= 0) { $downpayment = round($price * 0.5, 2); }
     $remaining = max(0, round($price - $downpayment, 2));
     $durationText = '--';
@@ -477,38 +484,21 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
           }
           $persons = isset($pending['persons']) ? intval($pending['persons']) : 1;
         ?>
-        <?php
-          $st = $pending['start_time'] ?? '';
-          $et = $pending['end_time'] ?? '';
-          $timeDisplay = ($st && $et) ? (format_time_ap($st) . ' – ' . format_time_ap($et)) : '--';
-        ?>
-        <div class="row"><span class="label">Time</span><span class="amount"><?php echo htmlspecialchars($timeDisplay); ?></span></div>
-        <div class="row"><span class="label">Duration</span><span class="amount"><?php echo htmlspecialchars($timeDisplay); ?> (<?php echo intval($hours); ?> hour<?php echo intval($hours) !== 1 ? 's' : ''; ?>)</span></div>
+        <div class="row"><span class="label">Time</span><span class="amount">
+          <?php
+            $st = $pending['start_time'] ?? '';
+            $et = $pending['end_time'] ?? '';
+            echo ($st && $et) ? (format_time_ap($st) . ' – ' . format_time_ap($et)) : '--';
+          ?>
+        </span></div>
+        <div class="row"><span class="label">Duration</span><span class="amount"><?php echo htmlspecialchars($durationText); ?></span></div>
         <div class="row"><span class="label">Persons</span><span class="amount"><?php echo intval($persons); ?></span></div>
-        <?php
-          $usePoints = isset($pending['use_points']) ? intval($pending['use_points']) : 0;
-          $pointsUsed = isset($pending['points_used']) ? intval($pending['points_used']) : 0;
-          if ($usePoints && $pointsUsed > 0 && $hours > 0) {
-            $amenityRate = 0;
-            if (in_array($amenity, ['Basketball Court','Tennis Court'], true)) $amenityRate = ($booking_for === 'resident') ? 100 : 150;
-            elseif ($amenity === 'Clubhouse') $amenityRate = ($booking_for === 'resident') ? 300 : 450;
-            elseif ($amenity === 'Multi-Purpose Building') $amenityRate = ($booking_for === 'resident') ? 200 : 300;
-            $fullPrice = $hours * $amenityRate;
-            $discountAmount = $amenityRate;
-            $paidHours = max(0, $hours - 1);
-        ?>
-        <div class="row" style="background:#d1fae5; border-radius:6px; padding:8px 12px; margin:4px 0;"><span class="label" style="font-weight:600; color:#065f46;"><i class="fa-solid fa-leaf" style="margin-right:4px;"></i>VHEcoPoint Discount</span><span class="amount" style="font-weight:600; color:#065f46;">1 Free Hour</span></div>
-        <div class="row"><span class="label">VHEcoPoint Points Used</span><span class="amount" style="color:#991b1b; font-weight:600;">-<?php echo number_format($pointsUsed); ?> pts</span></div>
-        <div class="row"><span class="label">Discount</span><span class="amount" style="color:#166534; font-weight:600;">-₱<?php echo number_format($discountAmount, 2); ?></span></div>
-        <div class="row"><span class="label">Original Duration</span><span class="amount"><?php echo intval($hours); ?> hour<?php echo intval($hours) !== 1 ? 's' : ''; ?></span></div>
-        <div class="row"><span class="label">Paid Duration</span><span class="amount" style="font-weight:600;"><?php echo $paidHours; ?> hour<?php echo $paidHours !== 1 ? 's' : ''; ?></span></div>
-        <?php } ?>
-        <div class="row"><span class="label">Final Amount</span><span class="amount">₱<?php echo number_format($price, 2); ?></span></div>
+        <div class="row"><span class="label">Total Price</span><span class="amount">₱<?php echo number_format($price, 2); ?></span></div>
         <div class="row"><span class="label">Online Payment (Partial)</span><span class="amount">₱<?php echo number_format($downpayment, 2); ?></span></div>
-        <div class="row"><span class="label">Onsite Payment (Remaining Balance)</span><span class="amount">₱<?php echo number_format($remaining, 2); ?></span></div>
+        <div class="row"><span class="label">Onsite Payment (Remaining)</span><span class="amount">₱<?php echo number_format($remaining, 2); ?></span></div>
         <div class="row"><span class="label">QR Reference Code</span><span class="amount"><?php echo htmlspecialchars($ref_code ?: 'N/A'); ?></span></div>
       </div>
-      <form method="POST" enctype="multipart/form-data" style="margin-top:12px; display:flex; flex-direction:column; gap:10px;">
+      <form method="POST" enctype="multipart/form-data" novalidate style="margin-top:12px; display:flex; flex-direction:column; gap:10px;">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
         <input type="hidden" name="ref_code" value="<?php echo htmlspecialchars($ref_code); ?>">
         <input type="hidden" name="continue" value="<?php echo htmlspecialchars($continue); ?>">
@@ -518,12 +508,21 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
           <input type="file" name="receipt" id="receiptInput" accept="image/jpeg,image/png,.pdf" required>
           <div class="upload-preview" id="uploadPreview" style="display:none"></div>
           <button type="button" class="btn btn-outline" id="removeFileBtn" disabled>Remove Selected File</button>
+          <div class="field-warning" id="receiptWarning" role="alert"><span class="warn-icon">!</span><span class="msg"></span></div>
         </div>
-        <label for="gcashReferenceNumber" class="field-label">GCash Reference Number (from receipt)</label>
-        <input type="text" name="gcashreferencenumber" id="gcashReferenceNumber" class="field-input" placeholder="Enter the 13-digit GCash reference number" required inputmode="numeric" pattern="\d{13}" minlength="13" autocomplete="off">
-        <div class="ref-hint" id="refHint" aria-live="polite"></div>
-        <button type="submit" class="btn" id="confirmBtn" disabled>Confirm Payment</button>
+        <label for="gcashReferenceNumber" class="field-label">GCash Reference Number (from receipt)<span class="ref-note">A GCash transaction reference number has 13 digits.</span></label>
+        <input type="text" name="gcashreferencenumber" id="gcashReferenceNumber" class="field-input" placeholder="Enter the GCash reference number from your receipt" inputmode="numeric" maxlength="13" required>
+        <div class="field-warning" id="refWarning" role="alert"><span class="warn-icon">!</span><span class="msg"></span></div>
+        <button type="submit" class="btn" id="confirmBtn">Confirm Payment</button>
       </form>
+    </div>
+  </div>
+  <div class="login-modal" id="warningModal">
+    <div class="modal-content">
+      <button type="button" class="modal-close" id="warningCloseBtn" aria-label="Close">&times;</button>
+      <div class="modal-title" id="warningTitle">Please complete the required fields.</div>
+      <div class="modal-message" id="warningMsg"></div>
+      <button type="button" class="modal-btn" id="warningOkBtn">OK</button>
     </div>
   </div>
   <div class="proceed-modal" id="proceedModal">
@@ -547,10 +546,18 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
       </div>
     </div>
   </div>
+  <div class="modal" id="imgModal">
+    <div class="modal-content">
+      <button type="button" class="modal-close" id="imgModalClose" aria-label="Close">&times;</button>
+      <img id="imgModalSrc" src="" alt="Proof of Payment">
+    </div>
+  </div>
   <script>
     (function(){
       const input=document.getElementById('receiptInput');
       const refInput=document.getElementById('gcashReferenceNumber');
+      const receiptWarning=document.getElementById('receiptWarning');
+      const refWarning=document.getElementById('refWarning');
       const btn=document.getElementById('confirmBtn');
       const preview=document.getElementById('uploadPreview');
       const removeBtn=document.getElementById('removeFileBtn');
@@ -563,6 +570,12 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
       const backCancel=document.getElementById('backCancel');
       const backCloseBtn=document.getElementById('backCloseBtn');
       const proceedCloseBtn=document.getElementById('proceedCloseBtn');
+      const warningModal=document.getElementById('warningModal');
+      const warningTitle=document.getElementById('warningTitle');
+      const warningMsg=document.getElementById('warningMsg');
+      const warningCloseBtn=document.getElementById('warningCloseBtn');
+      const warningOkBtn=document.getElementById('warningOkBtn');
+      const serverMessage=<?php echo json_encode($msg, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT); ?>;
       let pendingSubmit=false;
       function renderPreview(file){
         if(!file){ preview.style.display='none'; preview.innerHTML=''; return; }
@@ -575,8 +588,10 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
         if(type.startsWith('image/')){
           const img=document.createElement('img');
           const reader=new FileReader();
-          reader.onload=function(e){ img.src=e.target.result; };
+          reader.onload=function(e){ img.src=e.target.result; img.setAttribute('data-full', e.target.result); };
           reader.readAsDataURL(file);
+          img.style.cursor='pointer';
+          img.addEventListener('click', function(){ openImgModal(img.getAttribute('data-full') || img.src); });
           preview.appendChild(img);
         } else {
           const note=document.createElement('div');
@@ -586,35 +601,49 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
         }
         preview.style.display='flex';
       }
-      function refState(){
-        const raw=((refInput && refInput.value)||'').trim();
-        if(!raw) return { state:'empty', msg:'' };
-        if(!/^\d+$/.test(raw)) return { state:'error', msg:'Numbers only — please remove any letters or symbols.' };
-        if(raw.length>13) return { state:'error', msg:'Too long — the GCash reference number must be exactly 13 digits (you entered '+raw.length+').' };
-        if(raw.length<13) return { state:'error', msg:'Too short — '+raw.length+' of 13 digits entered. The reference number must be exactly 13 digits.' };
-        if(/^(\d)\1{12}$/.test(raw)) return { state:'error', msg:'Invalid reference number — digits cannot all be the same.' };
-        return { state:'success', msg:'Valid 13-digit reference number.' };
-      }
-      function renderRefHint(st){
-        const hint=document.getElementById('refHint');
-        if(!hint) return;
-        hint.className='ref-hint'+(st.state==='error'?' error':st.state==='success'?' success':'');
-        if(st.state==='empty'){ hint.style.display='none'; hint.innerHTML=''; if(refInput){ refInput.classList.remove('invalid','valid'); } return; }
-        hint.style.display='flex';
-        const icon=st.state==='success' ? '<i class="fa-solid fa-circle-check"></i>' : '<i class="fa-solid fa-triangle-exclamation"></i>';
-        hint.innerHTML=icon+' <span>'+st.msg+'</span>';
-        if(refInput){
-          refInput.classList.toggle('invalid', st.state==='error');
-          refInput.classList.toggle('valid', st.state==='success');
-        }
-      }
       function update(){
         const hasFile=!!(input && input.files && input.files.length>0);
-        const st=refState();
-        renderRefHint(st);
-        btn.disabled=!(hasFile && st.state==='success');
         removeBtn.disabled=!hasFile;
         renderPreview(hasFile?input.files[0]:null);
+      }
+      function openWarning(title, msg){
+        if(!warningModal) return;
+        if(warningTitle) warningTitle.textContent=title;
+        if(warningMsg) warningMsg.textContent=msg;
+        warningModal.classList.add('is-visible');
+        document.body.classList.add('modal-open');
+      }
+      function closeWarning(){
+        if(!warningModal) return;
+        warningModal.classList.remove('is-visible');
+        document.body.classList.remove('modal-open');
+      }
+      function setInlineWarning(element, message){
+        if(!element) return;
+        const msg=element.querySelector('.msg');
+        if(msg) msg.textContent=message || '';
+        element.classList.toggle('is-visible', !!message);
+      }
+      function validateSubmission(){
+        const hasFile=!!(input && input.files && input.files.length>0);
+        const refVal=(refInput && (refInput.value||'').trim())||'';
+        const validRef=/^\d{13}$/.test(refVal) && !/^(\d)\1{12}$/.test(refVal);
+        setInlineWarning(receiptWarning, '');
+        setInlineWarning(refWarning, '');
+        if(!hasFile && !validRef){
+          setInlineWarning(receiptWarning, 'Please upload your Proof of Payment.');
+          setInlineWarning(refWarning, 'Please enter your GCash Reference Number.');
+          return false;
+        }
+        if(!hasFile){
+          setInlineWarning(receiptWarning, 'Please upload your Proof of Payment.');
+          return false;
+        }
+        if(!validRef){
+          setInlineWarning(refWarning, 'Please enter a valid 13-digit GCash Reference Number.');
+          return false;
+        }
+        return true;
       }
       function openProceed(){
         if(!proceedModal) return;
@@ -643,28 +672,22 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
           openBack();
         });
       }
-      if(input){ input.addEventListener('change', update); }
+      if(input){ input.addEventListener('change', function(){ update(); setInlineWarning(receiptWarning, ''); }); }
       if(refInput){
         refInput.addEventListener('input', function(){
-          const cleaned = (refInput.value || '').replace(/\D+/g, '');
+          const raw = (refInput.value || '').replace(/\D+/g, '');
+          const cleaned = raw.slice(0, 13);
           if (refInput.value !== cleaned) { refInput.value = cleaned; }
+          setInlineWarning(refWarning, '');
           update();
         });
-        refInput.addEventListener('blur', update);
       }
       if(removeBtn){ removeBtn.addEventListener('click', function(){ input.value=''; update(); }); }
       if(form){
         form.addEventListener('submit', function(e){
           if(pendingSubmit) return;
-          const st=refState();
-          if(st.state!=='success'){
-            e.preventDefault();
-            renderRefHint(st);
-            if(refInput){ refInput.focus(); }
-            return;
-          }
-          if(btn.disabled) return;
           e.preventDefault();
+          if(!validateSubmission()) return;
           openProceed();
         });
       }
@@ -691,6 +714,13 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
           if(e.target === proceedModal){ closeProceed(); }
         });
       }
+      if(warningCloseBtn){ warningCloseBtn.addEventListener('click', closeWarning); }
+      if(warningOkBtn){ warningOkBtn.addEventListener('click', closeWarning); }
+      if(warningModal){
+        warningModal.addEventListener('click', function(e){
+          if(e.target === warningModal){ closeWarning(); }
+        });
+      }
       if(backConfirm && backBtn){
         backConfirm.addEventListener('click', function(){
           try{ sessionStorage.removeItem('reserve_form'); }catch(_){}
@@ -713,7 +743,41 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
           if(e.target === backModal){ closeBack(); }
         });
       }
+      const imgModal=document.getElementById('imgModal');
+      const imgModalSrc=document.getElementById('imgModalSrc');
+      const imgModalClose=document.getElementById('imgModalClose');
+      function openImgModal(src){
+        if(!imgModal||!src)return;
+        imgModalSrc.src=src;
+        if(imgModal.classList.contains('closing')){ imgModal.classList.remove('closing'); }
+        imgModal.classList.add('open');
+        document.body.classList.add('modal-open');
+      }
+      function closeImgModal(){
+        if(!imgModal)return;
+        if(imgModal.classList.contains('closing'))return;
+        if(imgModal.classList.contains('open')||getComputedStyle(imgModal).display!=='none'){
+          imgModal.classList.remove('open');
+          imgModal.classList.add('closing');
+          setTimeout(function(){
+            imgModal.classList.remove('closing');
+            imgModal.style.display='none';
+            document.body.classList.remove('modal-open');
+            imgModalSrc.src='';
+          },260);
+        } else {
+          document.body.classList.remove('modal-open');
+          imgModalSrc.src='';
+        }
+      }
+      if(imgModalClose){imgModalClose.addEventListener('click',closeImgModal);}
+      if(imgModal){imgModal.addEventListener('click',function(e){if(e.target===imgModal)closeImgModal();});}
+      document.addEventListener('keydown',function(e){if(e.key==='Escape'&&imgModal&&imgModal.classList.contains('open'))closeImgModal();});
       update();
+      if(serverMessage){
+        if(/receipt|proof of payment/i.test(serverMessage)){ setInlineWarning(receiptWarning, serverMessage); }
+        if(/reference/i.test(serverMessage)){ setInlineWarning(refWarning, serverMessage); }
+      }
     })();
   </script>
 </body>

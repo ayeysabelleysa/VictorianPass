@@ -61,7 +61,18 @@ if ($isLocal) {
 }
 
 // Create connection
-$con = @new mysqli($host, $user, $pass, $db);
+// Timeout values prevent the DB handshake from hanging indefinitely on a
+// cold server start (a common cause of intermittent 504 before the DB is warm).
+mysqli_report(MYSQLI_REPORT_OFF);
+$con = @new mysqli($host, $user, $pass, $db, 3306, 10);
+if ($con && !$con->connect_error) {
+    // Keep individual queries from hanging; abort after 10s rather than spinning forever.
+    $con->query("SET SESSION wait_timeout = 600");
+    $con->options(MYSQLI_OPT_CONNECT_TIMEOUT, 10);
+    if (defined('MYSQLI_OPT_READ_TIMEOUT')) {
+        @$con->options(MYSQLI_OPT_READ_TIMEOUT, 60);
+    }
+}
 
 // Check connection
 if ($con->connect_error) {
