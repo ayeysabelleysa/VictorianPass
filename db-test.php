@@ -1,16 +1,12 @@
 <?php
-mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+require_once __DIR__ . '/connect.php';
 
-try {
-    $db = new mysqli(
-        "localhost",
-        "u785375633_VHEcoPoint_",
-        "YOUR_DATABASE_PASSWORD",
-        "u785375633_FLS_VHEcoPoint"
-    );
+$con->set_charset('utf8mb4');
+$result = $con->query('SELECT 1 AS connection_ok');
 
-    $db->set_charset("utf8mb4");
-    echo "Database connection successful.";
-} catch (Throwable $error) {
-    echo "Database connection failed.";
+if ($result && $result->fetch_assoc()['connection_ok'] == 1) {
+    echo 'Database connection successful.';
+} else {
+    http_response_code(500);
+    echo 'Database connection failed.';
 }
