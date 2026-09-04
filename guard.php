@@ -506,6 +506,24 @@ if (isset($_GET['action']) && $_GET['action'] === 'list_expected') {
   $start = $startParam ? date('Y-m-d', strtotime($startParam)) : date('Y-m-d');
   $end = $endParam ? date('Y-m-d', strtotime($endParam)) : date('Y-m-d', strtotime('+6 day'));
   $rows = [];
+  // Robust column-existence helper for schema variations across environments
+  $vpColExists = function($t, $c) use ($con) {
+    if (!($con instanceof mysqli)) return false;
+    $t = preg_replace('/[^a-zA-Z0-9_]/', '', $t);
+    $c = preg_replace('/[^a-zA-Z0-9_]/', '', $c);
+    $prev = function_exists('mysqli_report') ? @mysqli_report(MYSQLI_REPORT_OFF) : null;
+    $r = @$con->query("SHOW COLUMNS FROM `$t` LIKE '" . $con->real_escape_string($c) . "'");
+    if ($prev !== null) { @mysqli_report($prev); }
+    return ($r && $r->num_rows > 0);
+  };
+  $gfResDate = $vpColExists('guest_forms','reservation_date');
+  $gfStartTime = $vpColExists('guest_forms','visit_time');
+  $rResDate = $vpColExists('reservations','reservation_date');
+  $rStartTime = $vpColExists('reservations','start_time');
+  $rEndTime = $vpColExists('reservations','end_time');
+  $rrResDate = $vpColExists('resident_reservations','reservation_date');
+  $rrStartTime = $vpColExists('resident_reservations','start_time');
+  $rrEndTime = $vpColExists('resident_reservations','end_time');
   $normalize = function($v){
     if(!$v) return null;
     $formats = [
@@ -519,15 +537,13 @@ if (isset($_GET['action']) && $_GET['action'] === 'list_expected') {
     $ts = strtotime($v);
     return $ts ? date('Y-m-d',$ts) : null;
   };
-  $qGF = "SELECT gf.ref_code, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name, gf.visit_date, gf.start_date, gf.end_date, gf.amenity, gf.reservation_date, gf.visit_time AS start_time, NULL AS end_time, TRIM(gf.approval_status) AS approval_status, gf.approval_date, u.first_name AS res_first_name, u.middle_name AS res_middle_name, u.last_name AS res_last_name FROM guest_forms gf LEFT JOIN users u ON gf.resident_user_id = u.id WHERE LOWER(TRIM(gf.approval_status))='approved'";
-  $gfOk = false;
-  $prevModeGF = function_exists('mysqli_report') ? mysqli_report(MYSQLI_REPORT_OFF) : null;
-  try { $gfOk = ($con->prepare($qGF) !== false); } catch (Throwable $e) { $gfOk = false; }
-  if ($prevModeGF !== null) { mysqli_report($prevModeGF); }
-  if (!$gfOk) {
-    $qGF = "SELECT gf.ref_code, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name, gf.visit_date, gf.start_date, gf.end_date, gf.amenity, NULL AS reservation_date, NULL AS start_time, NULL AS end_time, TRIM(gf.approval_status) AS approval_status, gf.approval_date, u.first_name AS res_first_name, u.middle_name AS res_middle_name, u.last_name AS res_last_name FROM guest_forms gf LEFT JOIN users u ON gf.resident_user_id = u.id WHERE LOWER(TRIM(gf.approval_status))='approved'";
-  }
+  $qGF = "SELECT gf.ref_code, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name, gf.visit_date, gf.start_date, gf.end_date, gf.amenity, " . ($gfResDate ? "gf.reservation_date" : "NULL AS reservation_date") . ", " . ($gfStartTime ? "gf.visit_time AS start_time" : "NULL AS start_time") . ", NULL AS end_time, TRIM(gf.approval_status) AS approval_status, gf.approval_date, u.first_name AS res_first_name, u.middle_name AS res_middle_name, u.last_name AS res_last_name FROM guest_forms gf LEFT JOIN users u ON gf.resident_user_id = u.id WHERE (LOWER(TRIM(gf.approval_status)) LIKE '%approv%' OR LOWER(TRIM(gf.approval_status)) LIKE '%grant%')";
   $resGF = $con->query($qGF);
+  if ($resGF === false && !$gfResDate) {
+    // Last resort: query without reservation_date if the column truly is missing
+    $qGF = "SELECT gf.ref_code, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name, gf.visit_date, gf.start_date, gf.end_date, gf.amenity, NULL AS reservation_date, NULL AS start_time, NULL AS end_time, TRIM(gf.approval_status) AS approval_status, gf.approval_date, u.first_name AS res_first_name, u.middle_name AS res_middle_name, u.last_name AS res_last_name FROM guest_forms gf LEFT JOIN users u ON gf.resident_user_id = u.id WHERE (LOWER(TRIM(gf.approval_status)) LIKE '%approv%' OR LOWER(TRIM(gf.approval_status)) LIKE '%grant%')";
+  }
+  if ($resGF === false) { $resGF = $con->query($qGF); }
   if ($resGF) {
     while ($r = $resGF->fetch_assoc()) {
       $nm = trim(($r['visitor_first_name'] ?? '').' '.($r['visitor_middle_name'] ?? '').' '.($r['visitor_last_name'] ?? ''));
@@ -550,15 +566,13 @@ if (isset($_GET['action']) && $_GET['action'] === 'list_expected') {
       ];
     }
   }
-  $qR = "SELECT r.ref_code, r.start_date, r.end_date, r.amenity, r.reservation_date, r.start_time, r.end_time, r.approval_date, TRIM(COALESCE(r.approval_status, r.status)) AS status, r.entry_pass_id, r.booking_for, r.account_type, r.guest_id, r.guest_ref_code, e.full_name AS ep_full_name, u.first_name, u.middle_name, u.last_name, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name FROM reservations r LEFT JOIN entry_passes e ON r.entry_pass_id = e.id LEFT JOIN users u ON r.user_id = u.id LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code WHERE LOWER(TRIM(COALESCE(r.approval_status, r.status)))='approved'";
-  $rOk = false;
-  $prevModeR = function_exists('mysqli_report') ? mysqli_report(MYSQLI_REPORT_OFF) : null;
-  try { $rOk = ($con->prepare($qR) !== false); } catch (Throwable $e) { $rOk = false; }
-  if ($prevModeR !== null) { mysqli_report($prevModeR); }
-  if (!$rOk) {
-    $qR = "SELECT r.ref_code, r.start_date, r.end_date, r.amenity, NULL AS reservation_date, NULL AS start_time, NULL AS end_time, r.approval_date, TRIM(COALESCE(r.approval_status, r.status)) AS status, r.entry_pass_id, r.booking_for, r.account_type, r.guest_id, r.guest_ref_code, e.full_name AS ep_full_name, u.first_name, u.middle_name, u.last_name, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name FROM reservations r LEFT JOIN entry_passes e ON r.entry_pass_id = e.id LEFT JOIN users u ON r.user_id = u.id LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code WHERE LOWER(TRIM(COALESCE(r.approval_status, r.status)))='approved'";
-  }
+  $qR = "SELECT r.ref_code, r.start_date, r.end_date, r.amenity, " . ($rResDate ? "r.reservation_date" : "NULL AS reservation_date") . ", " . ($rStartTime ? "r.start_time" : "NULL AS start_time") . ", " . ($rEndTime ? "r.end_time" : "NULL AS end_time") . ", r.approval_date, TRIM(COALESCE(r.approval_status, r.status)) AS status, r.entry_pass_id, r.booking_for, r.account_type, r.guest_id, r.guest_ref_code, e.full_name AS ep_full_name, u.first_name, u.middle_name, u.last_name, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name FROM reservations r LEFT JOIN entry_passes e ON r.entry_pass_id = e.id LEFT JOIN users u ON r.user_id = u.id LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code WHERE (LOWER(TRIM(COALESCE(r.approval_status, r.status))) LIKE '%approv%' OR LOWER(TRIM(COALESCE(r.approval_status, r.status))) LIKE '%grant%') AND NOT (LOWER(TRIM(COALESCE(r.approval_status, r.status))) LIKE '%deny%' OR LOWER(TRIM(COALESCE(r.approval_status, r.status))) LIKE '%reject%' OR LOWER(TRIM(COALESCE(r.approval_status, r.status))) LIKE '%cancel%')";
   $resR = $con->query($qR);
+  if ($resR === false) {
+    // Fallback if any referenced column is missing in this environment
+    $qR = "SELECT r.ref_code, r.start_date, r.end_date, r.amenity, NULL AS reservation_date, NULL AS start_time, NULL AS end_time, r.approval_date, TRIM(COALESCE(r.approval_status, r.status)) AS status, r.entry_pass_id, r.booking_for, r.account_type, r.guest_id, r.guest_ref_code, e.full_name AS ep_full_name, u.first_name, u.middle_name, u.last_name, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name FROM reservations r LEFT JOIN entry_passes e ON r.entry_pass_id = e.id LEFT JOIN users u ON r.user_id = u.id LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code WHERE (LOWER(TRIM(COALESCE(r.approval_status, r.status))) LIKE '%approv%' OR LOWER(TRIM(COALESCE(r.approval_status, r.status))) LIKE '%grant%') AND NOT (LOWER(TRIM(COALESCE(r.approval_status, r.status))) LIKE '%deny%' OR LOWER(TRIM(COALESCE(r.approval_status, r.status))) LIKE '%reject%' OR LOWER(TRIM(COALESCE(r.approval_status, r.status))) LIKE '%cancel%')";
+    $resR = $con->query($qR);
+  }
   if ($resR) {
     while ($r = $resR->fetch_assoc()) {
       $sd = $normalize($r['start_date'] ?? '') ?: $normalize($r['reservation_date'] ?? '') ?: ($r['approval_date'] ? date('Y-m-d', strtotime($r['approval_date'])) : null);
@@ -583,7 +597,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'list_expected') {
       ];
     }
   }
-  $resRR = $con->query("SELECT rr.ref_code, rr.start_date, rr.end_date, rr.amenity, " . ($hasRRResDate ? "rr.reservation_date" : "NULL AS reservation_date") . ", " . ($hasRRStartTime ? "rr.start_time" : "NULL AS start_time") . ", " . ($hasRREndTime ? "rr.end_time" : "NULL AS end_time") . ", rr.approval_date, rr.approval_status, u.first_name, u.middle_name, u.last_name, r2.booking_for, r2.account_type, r2.guest_id, r2.guest_ref_code, r2.entry_pass_id, gf2.visitor_first_name, gf2.visitor_middle_name, gf2.visitor_last_name FROM resident_reservations rr LEFT JOIN users u ON rr.user_id = u.id LEFT JOIN reservations r2 ON rr.ref_code = r2.ref_code LEFT JOIN guest_forms gf2 ON rr.ref_code = gf2.ref_code WHERE LOWER(TRIM(rr.approval_status))='approved'");
+  $resRR = $con->query("SELECT rr.ref_code, rr.start_date, rr.end_date, rr.amenity, " . ($rrResDate ? "rr.reservation_date" : "NULL AS reservation_date") . ", " . ($rrStartTime ? "rr.start_time" : "NULL AS start_time") . ", " . ($rrEndTime ? "rr.end_time" : "NULL AS end_time") . ", rr.approval_date, rr.approval_status, u.first_name, u.middle_name, u.last_name, r2.booking_for, r2.account_type, r2.guest_id, r2.guest_ref_code, r2.entry_pass_id, gf2.visitor_first_name, gf2.visitor_middle_name, gf2.visitor_last_name FROM resident_reservations rr LEFT JOIN users u ON rr.user_id = u.id LEFT JOIN reservations r2 ON rr.ref_code = r2.ref_code LEFT JOIN guest_forms gf2 ON rr.ref_code = gf2.ref_code WHERE (LOWER(TRIM(rr.approval_status)) LIKE '%approv%' OR LOWER(TRIM(rr.approval_status)) LIKE '%grant%')");
   if ($resRR) {
     while ($r = $resRR->fetch_assoc()) {
       $sd = $normalize($r['start_date'] ?? '') ?: $normalize($r['reservation_date'] ?? '') ?: ($r['approval_date'] ? date('Y-m-d', strtotime($r['approval_date'])) : null);
@@ -894,30 +908,37 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-main); }
     cursor: pointer;
     position: relative;
     color: rgba(255,255,255,0.9);
-    transition: var(--transition);
+    transition: background 0.2s ease, transform 0.15s ease;
     padding: 6px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
 }
-.notif-btn:hover { background: rgba(255,255,255,0.2); color: #fff; }
+.notif-btn:hover { background: rgba(255,255,255,0.2); color: #fff; transform: scale(1.08); }
+.notif-btn:active { transform: scale(0.95); }
 .notif-btn img { width: 20px; height: 20px; display: block; }
 .notif-badge {
     position: absolute;
-    top: -3px;
-    right: -3px;
-    background: var(--danger);
+    top: -4px;
+    right: -4px;
+    background: #ef4444;
     color: #fff;
     border-radius: 50%;
-    min-width: 19px;
-    height: 19px;
-    font-size: 0.66rem;
+    min-width: 20px;
+    height: 20px;
+    font-size: 0.68rem;
     display: flex;
     align-items: center;
     justify-content: center;
     border: 2px solid #2b2623;
     font-weight: 700;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3);
+    animation: badgePulse 2s ease-in-out infinite;
+}
+@keyframes badgePulse {
+    0%, 100% { box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3); }
+    50% { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15); }
 }
 .notif-badge.pulse { animation: pulse 1s; }
 @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.5); } 100% { transform: scale(1); } }
@@ -928,46 +949,63 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-main); }
     margin-top: 0;
     width: 340px;
     max-height: 450px;
-    background: var(--bg-surface);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-lg);
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.15), 0 4px 12px rgba(0,0,0,0.08);
     overflow-y: auto;
     z-index: 200;
-    border: 1px solid var(--border);
-    display: none;
+    border: 1px solid #e2e8f0;
+    opacity: 0;
+    transform: translateY(-10px) scale(0.97);
+    pointer-events: none;
+    visibility: hidden;
+    transition: opacity 0.25s cubic-bezier(0.22, 1, 0.36, 1), transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), visibility 0.25s;
+}
+.notif-panel.open {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+    visibility: visible;
 }
 .notif-panel-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 14px;
-    border-bottom: 1px solid var(--border-light);
+    padding: 14px 16px;
+    border-bottom: 2px solid #e2e8f0;
     position: sticky;
     top: 0;
-    background: var(--bg-surface);
+    background: #f8fafc;
     z-index: 1;
+    border-radius: var(--radius) var(--radius) 0 0;
 }
-.notif-panel-title { font-size: 0.88rem; font-weight: 600; color: var(--text-main); }
+.notif-panel-title { font-size: 0.92rem; font-weight: 700; color: #1e293b; }
 .notif-panel-close {
     border: none;
-    background: transparent;
-    color: var(--text-muted);
+    background: #f1f5f9;
+    color: #475569;
     font-size: 1rem;
     cursor: pointer;
     line-height: 1;
-    padding: 0;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.notif-panel-close:hover {
+    background: #e2e8f0;
+    color: #1e293b;
 }
 .notif-panel-body { padding: 6px 0; }
 .notif-item {
     padding: 12px 14px;
-    border-bottom: 1px solid var(--border-light);
+    border-bottom: 1px solid #f1f5f9;
     display: flex;
     gap: 12px;
-    transition: var(--transition);
+    transition: background 0.15s ease;
     position: relative;
     align-items: flex-start;
 }
-.notif-item:hover { background: var(--bg-body); }
+.notif-item:hover { background: #f0fdf4; }
 .notif-item:last-child { border-bottom: none; }
 .notif-item-link {
     display: flex;
@@ -983,11 +1021,11 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-main); }
     cursor: pointer;
 }
 .notif-type {
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
-    background: var(--primary-light);
-    color: var(--primary);
+    background: #dcfce7;
+    color: #166534;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -996,38 +1034,59 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-main); }
     flex-shrink: 0;
 }
 .notif-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.notif-meta strong { font-weight: 600; font-size: 0.88rem; color: var(--text-main); }
-.notif-meta div { font-size: 0.82rem; color: var(--text-secondary); line-height: 1.35; word-wrap: break-word; overflow-wrap: anywhere; white-space: normal; hyphens: auto; }
-.notif-item-time { font-size: 0.74rem; color: var(--text-muted); margin-top: 4px; }
+.notif-meta strong { font-weight: 600; font-size: 0.88rem; color: #1e293b; }
+.notif-meta div { font-size: 0.84rem; color: #475569; line-height: 1.4; word-wrap: break-word; overflow-wrap: anywhere; white-space: normal; hyphens: auto; }
+.notif-item-time { font-size: 0.76rem; color: #64748b; margin-top: 4px; font-weight: 500; }
 .notif-dismiss {
     position: absolute;
     top: 8px;
     right: 8px;
-    background: transparent;
+    background: #f1f5f9;
     border: none;
-    color: var(--text-muted);
-    font-size: 0.95rem;
+    color: #475569;
+    font-size: 0.85rem;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
     cursor: pointer;
     opacity: 0;
-    transition: var(--transition);
+    transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 .notif-item:hover .notif-dismiss { opacity: 1; }
-.notif-dismiss:hover { color: var(--danger); }
+.notif-dismiss:hover { background: #fee2e2; color: #dc2626; }
 .notif-unread-dot {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    background: var(--danger);
+    background: #ef4444;
     display: inline-block;
     margin-left: 6px;
+    vertical-align: middle;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
 }
-.notif-empty { padding: 10px 14px; font-size: 0.82rem; color: var(--text-muted); }
+.notif-empty { padding: 16px 14px; font-size: 0.88rem; color: #64748b; text-align: center; font-weight: 500; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 @keyframes slideInLeft { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes dashboardEntry { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes highlightRow { 0% { background-color: var(--warning-bg); } 100% { background-color: var(--primary-light); } }
 .row-highlight { animation: highlightRow 2s ease-out; background-color: var(--primary-light) !important; }
+.fade-row { animation: fadeRow 0.3s ease both; }
+@keyframes fadeRow {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes toastIn {
+    from { opacity: 0; transform: translateX(20px) scale(0.95); }
+    to { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes modalPop {
+    from { opacity: 0; transform: scale(0.95) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
 
 body.sidebar-collapsed .sidebar { width: 72px; }
 body.sidebar-collapsed .brand { justify-content: center; padding: 16px 12px; }
@@ -1074,7 +1133,7 @@ body.sidebar-collapsed .sidebar-footer .text-muted-link { padding: 10px; width: 
     margin-bottom: 10px;
 }
 
-.page-header h2 { font-size: 1.5rem; color: var(--text-main); }
+.page-header h2 { font-size: 1.5rem; color: var(--text-main); transition: opacity 0.2s ease, transform 0.2s ease; }
 
 /* Dashboard Widgets & Panels */
 .dashboard-grid {
@@ -1194,7 +1253,7 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
     transform: translateY(-1px);
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
-.action-btn:active, .btn:active { transform: translateY(0); box-shadow: none; }
+.action-btn:active, .btn:active { transform: translateY(0) scale(0.97); box-shadow: none; }
 .action-btn:focus-visible, .btn:focus-visible { box-shadow: 0 0 0 3px rgba(35, 65, 46, 0.2); }
 .btn-view { background: var(--info); color: #fff; }
 .btn-view:hover { background: #2563eb; }
@@ -1205,7 +1264,14 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
 }
 
 /* Guard Specific Adapters */
-.section.hidden { display: none; }
+.section.hidden { display: none !important; }
+.section:not(.hidden) {
+    animation: sectionEnter 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes sectionEnter {
+    from { opacity: 0; transform: translateY(12px) scale(0.995); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
 .dashboard { display: grid; grid-template-columns: 1fr; gap: 24px; padding: 0 30px; margin-bottom: 30px; }
 
 /* Toast */
@@ -1218,14 +1284,18 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
     border-left: 5px solid var(--primary);
     box-shadow: var(--shadow-lg);
     border-radius: 8px;
-    padding: 16px;
+    padding: 16px 20px;
     width: min(96vw, 380px);
     z-index: 2000;
     opacity: 0;
-    transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
-    color: var(--text-main);
-    flex-direction: column;
-    gap: 8px;
+    transform: translateY(12px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.92rem;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
     max-height: 40vh;
     overflow-y: auto;
     word-wrap: break-word;
@@ -1233,7 +1303,17 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
     white-space: normal;
     hyphens: auto;
 }
-.toast.show { display: flex; opacity: 1; transform: translateY(0); animation: slideInLeft 0.3s; }
+.toast.toast-success {
+    background: #1a3c2a;
+    border-left-color: #22c55e;
+    color: #fff;
+}
+.toast.toast-error {
+    background: #7f1d1d;
+    border-left-color: #ef4444;
+    color: #fff;
+}
+.toast.show { display: flex; opacity: 1; transform: translateY(0) scale(1); animation: toastIn 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
 
 .nav-item {
     transition: var(--transition);
@@ -1467,12 +1547,21 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
     transform: translateY(-1px);
 }
 .qr-scanner-panel{
-    margin-top:12px;
-    padding:12px;
+    margin-top:0;
+    padding:0 12px;
     border:1px solid var(--border);
     border-radius:16px;
     background:var(--bg-surface);
-    display:none;
+    max-height:0;
+    opacity:0;
+    overflow:hidden;
+    transition: max-height 0.35s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease, padding 0.3s ease, margin-top 0.3s ease;
+}
+.qr-scanner-panel.open{
+    max-height:500px;
+    opacity:1;
+    padding:12px;
+    margin-top:12px;
 }
 .qr-scanner-head{
     display:flex;
@@ -1540,10 +1629,10 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
 .logout-btn:hover { background: #a93226; color: #fff; }
 .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); backdrop-filter: blur(4px); align-items: center; justify-content: center; }
 .modal.modal-top { z-index: 3000; }
-.modal-content { background-color: var(--bg-surface); margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-lg); position: relative; display: flex; flex-direction: column; gap: 12px; width: min(92vw, 640px); aspect-ratio: auto; max-height: 90vh; overflow: hidden; animation: slideIn 0.3s ease-out; }
-.modal-content h3 { padding: 12px 16px; border-bottom: 1px solid var(--border-light); margin: 0; font-size: 1.05rem; background: var(--bg-surface); position: sticky; top: 0; z-index: 10; color: #23412e; font-weight: 700; }
+.modal-content { background-color: var(--bg-surface); margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-lg); position: relative; display: flex; flex-direction: column; gap: 12px; width: min(92vw, 640px); aspect-ratio: auto; max-height: 90vh; overflow: hidden; animation: modalPop 0.3s cubic-bezier(0.22, 1, 0.36, 1); }
+.modal-content h3 { padding: 14px 18px; border-bottom: 2px solid #e2e8f0; margin: 0; font-size: 1.08rem; background: #f8fafc; position: sticky; top: 0; z-index: 10; color: #1a3c2a; font-weight: 700; }
 .modal.closing { animation: fadeIn 0.2s ease-out reverse; }
-.modal.closing .modal-content { animation: slideIn 0.2s ease-out reverse; }
+.modal.closing .modal-content { animation: modalPop 0.2s cubic-bezier(0.22, 1, 0.36, 1) reverse; }
 .modal-close {
     position: absolute;
     top: 12px;
@@ -1567,7 +1656,9 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
 .modal-close:hover { filter: brightness(0.95); transform: scale(1.05); }
 .modal-header { display: flex; justify-content: space-between; align-items: center; }
 .incident-details-content { overflow-y: auto; flex: 1; padding: 18px 20px 22px; }
-.details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.details-grid strong { display: block; font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.details-grid div { font-size: 0.9rem; color: #1e293b; font-weight: 500; }
 .proofs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .proofs img { width: 120px; height: 90px; object-fit: cover; border: 1px solid var(--border); border-radius: 6px; cursor: zoom-in; transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s ease, border-color 0.2s ease; }
 .proofs img:hover { transform: translateY(-1px) scale(1.02); border-color: #cbd5e1; box-shadow: 0 6px 14px rgba(15, 23, 42, 0.12); }
@@ -1599,6 +1690,181 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
     .panel h3{ font-size: 1rem; }
     .page-header{ padding: 14px 14px 4px; }
     .panel, .card, .card-box{ margin: 0 12px 18px 12px; padding: 16px; }
+}
+
+/* =========================================================
+   MOBILE-FIRST OPTIMIZATIONS — Primary target: phones (QR scanning)
+   ========================================================= */
+
+/* Prevent horizontal overflow at all sizes */
+html, body { max-width: 100%; overflow-x: hidden; }
+.app { width: 100%; min-width: 0; }
+.main { min-width: 0; }
+
+/* Keep fixed header fully contained on mobile */
+@media (max-width: 900px) {
+    .top-header { padding-top: max(10px, env(safe-area-inset-top)); }
+    .main { padding-top: calc(var(--header-height) + env(safe-area-inset-top)); }
+}
+
+/* Ensure header actions don't wrap oddly on narrow screens */
+@media (max-width: 480px) {
+    .header-brand-text .header-title { font-size: 1rem; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .header-brand-text .header-subtitle { max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+/* ---------- Scanner-first layout on phones ---------- */
+/* On phones, show the Scan QR button as a large, full-width, primary CTA */
+@media (max-width: 768px) {
+    /* Scan input grows full width */
+    .scan-input { width: 100%; }
+    .scan-search { font-size: 1rem; padding: 14px 16px; }
+
+    /* Buttons become large stacked tap targets instead of cramped 3-col grid */
+    .scan-actions {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    .scan-actions .btn {
+        width: 100%;
+        min-height: 52px;
+        padding: 12px 14px;
+        font-size: 1rem;
+        white-space: normal;
+    }
+    /* Most prominent action: Scan QR (dark) — make it stand out */
+    #scanQrBtn {
+        font-size: 1.1rem;
+        min-height: 56px;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    }
+    .scan-actions .btn-approve { background: var(--primary); }
+}
+
+/* ---------- Large, centered, uncropped QR scanner on mobile ---------- */
+@media (max-width: 768px) {
+    .qr-scanner-panel {
+        margin: 14px 0 0;
+        padding: 0;
+        border-radius: 18px;
+    }
+    .qr-scanner-panel.open {
+        max-height: 80vh;
+        padding: 16px;
+        margin-top: 14px;
+        position: relative;
+        z-index: 40;
+    }
+    .qr-scanner-head { margin-bottom: 12px; }
+    .qr-scanner-title { font-size: 1.05rem; }
+    .qr-video {
+        width: 100%;
+        max-height: none;
+        aspect-ratio: 4 / 3;
+        object-fit: cover;
+        border-radius: 14px;
+        display: block;
+    }
+    .qr-scanner-close {
+        padding: 12px 18px;
+        font-size: 0.95rem;
+        border-radius: 10px;
+        min-height: 44px;
+        min-width: 72px;
+    }
+    .qr-scanner-msg { font-size: 1rem; text-align: center; padding: 4px 0; }
+}
+
+/* ---------- Toast: centered, full-width-friendly on mobile ---------- */
+@media (max-width: 768px) {
+    .toast {
+        left: 12px;
+        right: 12px;
+        width: auto;
+        bottom: calc(16px + env(safe-area-inset-bottom));
+        font-size: 1rem;
+        padding: 18px 20px;
+        text-align: center;
+        justify-content: center;
+    }
+}
+
+/* ---------- Notification panel on mobile ---------- */
+@media (max-width: 768px) {
+    .notif-panel {
+        right: 12px;
+        left: 12px;
+        width: auto;
+        max-height: 60vh;
+    }
+}
+
+/* ---------- Modals fully responsive on mobile ---------- */
+@media (max-width: 640px) {
+    .modal { padding: 12px; align-items: center; }
+    .modal-content {
+        width: 96vw;
+        max-width: 100%;
+        margin: 0;
+        max-height: 88vh;
+    }
+    .modal-close {
+        width: 40px;
+        height: 40px;
+        font-size: 1.2rem;
+        top: 10px;
+        right: 10px;
+    }
+    .incident-details-content { padding: 16px 16px 20px; }
+    .details-grid { grid-template-columns: 1fr; gap: 12px; }
+    .details-grid div { font-size: 0.95rem; }
+    .image-modal .modal-content { padding: 0; }
+    .image-modal img { border-radius: 12px; }
+    .proofs img { width: 100px; height: 80px; }
+}
+
+/* ---------- Tables on mobile: clean horizontal scroll ---------- */
+@media (max-width: 768px) {
+    .panel, .card, .card-box { overflow-x: auto; }
+    .table-responsive-wrapper { -webkit-overflow-scrolling: touch; }
+    th, td { white-space: nowrap; }
+    /* Ensure tables never cause page-level horizontal scroll */
+    .table-responsive-wrapper table { min-width: 600px; }
+}
+
+/* ---------- Quick filters & custom range on mobile ---------- */
+@media (max-width: 768px) {
+    .expected-controls { margin: 0 16px 12px; }
+    .quick-filters { grid-template-columns: 1fr; gap: 8px; }
+    .quick-filters .btn { min-height: 46px; font-size: 0.9rem; }
+    .custom-range { gap: 8px; }
+    .custom-range label, .custom-range span { font-size: 0.9rem; }
+}
+
+/* ---------- Section headings & spacing on small screens ---------- */
+@media (max-width: 480px) {
+    .page-header { flex-wrap: wrap; gap: 6px; }
+    .page-header h2 { font-size: 1.2rem; }
+    .panel h3 { font-size: 1.05rem; padding-bottom: 12px; }
+    .nav-item { min-height: 48px; }
+    .sidebar { width: min(86vw, 300px); }
+}
+
+/* ---------- Scan action buttons: clear, large, tappable ---------- */
+.scan-actions .btn { gap: 8px; }
+.scan-btn-qr {
+    background: #111827 !important;
+    border: 2px solid rgba(255,255,255,0.15);
+    box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+}
+.scan-btn-qr i, .scan-btn-manual i, .scan-btn-card i { font-size: 1.05em; }
+
+/* ---------- Landscape phone support for the scanner ---------- */
+@media (max-height: 520px) and (orientation: landscape) {
+    .qr-scanner-panel.open { max-height: 92vh; }
+    .qr-video { max-height: 50vh; }
+    .modal-content { max-height: 92vh; }
 }
 </style>
 </head>
@@ -1638,7 +1904,7 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
         <button id="notifToggle" class="notif-btn" aria-label="Notifications" title="Notifications">
           <img alt="Notifications" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4a1.5 1.5 0 10-3 0v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z' fill='%23fff'/></svg>" />
         </button>
-        <div id="notifPanel" class="notif-panel" style="display:none"></div>
+        <div id="notifPanel" class="notif-panel" aria-hidden="true"></div>
       </div>
       <button type="button" class="icon-btn" aria-label="Profile" title="Profile">
         <img src="images/mainpage/profile'.jpg" alt="Profile">
@@ -1657,9 +1923,9 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
              <input id="scanCode" type="text" class="scan-search" placeholder="Enter reference code for manual scanning">
         </div>
         <div class="scan-actions">
-            <button class="btn btn-approve" onclick="scanCode()">Scan</button>
-            <button class="btn" id="scanQrBtn" style="background:#111827;color:#fff"><i class="fas fa-camera"></i> Scan QR Code</button>
-            <button class="btn" onclick="openStatusCard()" style="background:#23412e;color:#fff">Open QR Card</button>
+            <button class="btn btn-approve scan-btn-manual" onclick="scanCode()"><i class="fas fa-keyboard"></i> Scan</button>
+            <button class="btn scan-btn-qr" id="scanQrBtn" style="background:#111827;color:#fff"><i class="fas fa-camera"></i> Scan QR Code</button>
+            <button class="btn scan-btn-card" onclick="openStatusCard()" style="background:#23412e;color:#fff"><i class="fas fa-qrcode"></i> Open QR Card</button>
         </div>
       </div>
       <div id="qrScannerPanel" class="qr-scanner-panel">
@@ -1829,7 +2095,13 @@ function setActiveSection(sectionKey){
   const activeItem = Array.from(navItems).find(i=>i.dataset.section === sectionKey);
   if(activeItem){
     activeItem.classList.add('active');
-    pageTitle.textContent = activeItem.querySelector('span').textContent;
+    pageTitle.style.opacity = '0';
+    pageTitle.style.transform = 'translateY(-4px)';
+    setTimeout(function(){
+      pageTitle.textContent = activeItem.querySelector('span').textContent;
+      pageTitle.style.opacity = '1';
+      pageTitle.style.transform = 'translateY(0)';
+    }, 150);
   }
   const target = document.getElementById(sectionKey+'Section');
   if(target) target.classList.remove('hidden');
@@ -1924,33 +2196,33 @@ function refreshNotifications(){
   fetch('guard.php?action=get_notifications').then(r=>r.json()).then(data=>{
     notifItems = Array.isArray(data.items) ? data.items : [];
     updateNotifBadge(getVisibleNotifs().length);
-    if(notifPanel && notifPanel.style.display === 'block'){ renderNotifPanel(); }
+    if(notifPanel && notifPanel.classList.contains('open')){ renderNotifPanel(); }
   }).catch(_=>{});
 }
 if(notifToggle && notifPanel){
   notifToggle.addEventListener('click', function(e){
     e.stopPropagation();
-    const isOpen = notifPanel.style.display === 'block';
+    const isOpen = notifPanel.classList.contains('open');
     if(isOpen){
-      notifPanel.style.display = 'none';
       notifPanel.classList.remove('open');
+      notifPanel.setAttribute('aria-hidden', 'true');
       return;
     }
     renderNotifPanel();
-    notifPanel.style.display = 'block';
     notifPanel.classList.add('open');
+    notifPanel.setAttribute('aria-hidden', 'false');
   });
   document.addEventListener('click', function(e){
-    if(notifPanel.style.display !== 'block') return;
+    if(!notifPanel.classList.contains('open')) return;
     if(notifPanel.contains(e.target) || notifToggle.contains(e.target)) return;
-    notifPanel.style.display = 'none';
     notifPanel.classList.remove('open');
+    notifPanel.setAttribute('aria-hidden', 'true');
   });
   notifPanel.addEventListener('click', function(e){
     const closeBtn = e.target.closest('.notif-panel-close');
     if(closeBtn){
-      notifPanel.style.display = 'none';
       notifPanel.classList.remove('open');
+      notifPanel.setAttribute('aria-hidden', 'true');
       return;
     }
     const dismissBtn = e.target.closest('.notif-dismiss');
@@ -1974,28 +2246,40 @@ if(notifToggle && notifPanel){
       const itemEl = itemBtn.closest('.notif-item');
       const key = itemEl ? itemEl.getAttribute('data-key') : '';
       if(key && notifMap[key]){ handleNotifClick(notifMap[key]); }
-      notifPanel.style.display = 'none';
       notifPanel.classList.remove('open');
+      notifPanel.setAttribute('aria-hidden', 'true');
     }
   });
 }
 function showToast(message, type){
   const toast = document.getElementById('toast');
   if(!toast){ return; }
-  toast.textContent = message;
-  toast.style.background = type === 'error' ? "var(--status-rejected)" : "var(--status-approved)";
+  toast.textContent = '';
+  var icon = document.createElement('span');
+  icon.style.cssText = 'font-size:1.1rem;line-height:1;flex-shrink:0;';
+  if(type === 'error'){
+    icon.textContent = '\u2716';
+    toast.className = 'toast toast-error';
+  } else {
+    icon.textContent = '\u2714';
+    toast.className = 'toast toast-success';
+  }
+  var txt = document.createElement('span');
+  txt.textContent = message;
+  txt.style.cssText = 'flex:1;min-width:0;';
+  toast.appendChild(icon);
+  toast.appendChild(txt);
+  toast.style.display = 'flex';
   toast.classList.remove('show');
-  toast.style.display = 'block';
-  requestAnimationFrame(() => {
-    toast.classList.add('show');
-  });
+  void toast.offsetWidth;
+  toast.classList.add('show');
   if(toastTimer){ clearTimeout(toastTimer); }
   toastTimer = setTimeout(() => {
     toast.classList.remove('show');
     setTimeout(() => {
       toast.style.display = 'none';
-    }, 220);
-  }, 2500);
+    }, 300);
+  }, 3000);
 }
 const guardConfirmMsg = <?php echo json_encode($guardConfirmRef !== '' ? ('Confirmed entry of code number ' . $guardConfirmRef) : ''); ?>;
 if(guardConfirmMsg){ showToast(guardConfirmMsg); }
@@ -2012,7 +2296,7 @@ function setQrMessage(msg, isError){
 }
 function startQrScanner(){
   const panel = document.getElementById('qrScannerPanel');
-  if(panel){ panel.style.display = 'block'; }
+  if(panel){ panel.classList.add('open'); }
   const video = document.getElementById('qrVideo');
   if(!video){ setQrMessage('Camera view unavailable.', true); return; }
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
@@ -2080,7 +2364,7 @@ function stopQrScanner(){
   const video = document.getElementById('qrVideo');
   if(video){ video.pause(); video.srcObject = null; }
   const panel = document.getElementById('qrScannerPanel');
-  if(panel){ panel.style.display = 'none'; }
+  if(panel){ panel.classList.remove('open'); }
   setQrMessage('', false);
 }
 function scanCode(){
@@ -2128,7 +2412,7 @@ function scanCode(){
 const scanQrBtn = document.getElementById('scanQrBtn');
 if(scanQrBtn){ scanQrBtn.addEventListener('click', startQrScanner); }
 window.addEventListener('beforeunload', stopQrScanner);
-function renderDashboardEntries(rows){ const tbl=document.getElementById('entryTable'); if(!tbl) return; const header=tbl.querySelector('tr'); const rowsToRemove=Array.from(tbl.querySelectorAll('tr')).slice(1); rowsToRemove.forEach(tr=>tr.remove()); if(!rows||rows.length===0){ const tr=document.createElement('tr'); tr.id='emptyRow'; tr.innerHTML=`<td colspan="5" style="text-align:center;color:#6b6b6b">Awaiting scans...</td>`; tbl.appendChild(tr); return; } rows.forEach(r=>{ const tr=document.createElement('tr'); const scheduleDisplay=formatScheduleRow(r); const amenityDisplay=r.amenity||'-'; const statusDisplay=formatEntryStatus(r.status); tr.innerHTML=`<td>${r.code||'-'}</td><td>${r.type||'-'}</td><td>${amenityDisplay}</td><td>${scheduleDisplay}</td><td>${statusDisplay}</td>`; tbl.appendChild(tr); }); }
+function renderDashboardEntries(rows){ const tbl=document.getElementById('entryTable'); if(!tbl) return; const header=tbl.querySelector('tr'); const rowsToRemove=Array.from(tbl.querySelectorAll('tr')).slice(1); rowsToRemove.forEach(tr=>tr.remove()); if(!rows||rows.length===0){ const tr=document.createElement('tr'); tr.id='emptyRow'; tr.innerHTML=`<td colspan="5" style="text-align:center;color:#6b6b6b">Awaiting scans...</td>`; tbl.appendChild(tr); return; } rows.forEach(r=>{ const tr=document.createElement('tr'); tr.classList.add('fade-row'); const scheduleDisplay=formatScheduleRow(r); const amenityDisplay=r.amenity||'-'; const statusDisplay=formatEntryStatus(r.status); tr.innerHTML=`<td>${r.code||'-'}</td><td>${r.type||'-'}</td><td>${amenityDisplay}</td><td>${scheduleDisplay}</td><td>${statusDisplay}</td>`; tbl.appendChild(tr); }); }
 function loadDashboardEntries(){ fetch('guard.php?action=list_today_scans').then(r=>r.json()).then(data=>{ if(data&&data.success){ renderDashboardEntries(data.entries||[]); } }).catch(_=>{}); }
   function openStatusCard(){ const code=(document.getElementById('scanCode').value||'').trim(); if(!code){ showToast('Enter a code first','error'); return; } window.open(`qr_view.php?code=${encodeURIComponent(code)}`,'_blank'); }
 // Incident listing & escalation
@@ -2154,6 +2438,7 @@ function renderIncidents(rows){
     const isNew = !lastIncidentIds.has(r.id);
     lastIncidentIds.add(r.id);
     const tr = document.createElement('tr');
+    tr.classList.add('fade-row');
     const desc = (r.nature||'').trim();
     const dt = r.created_at ? new Date(r.created_at) : null;
     const dstr = dt ? formatMDY(dt) : '';
@@ -2228,7 +2513,7 @@ function formatEntryStatus(s){
   const cleaned=raw.replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim();
   return cleaned.replace(/\b\w/g,function(m){return m.toUpperCase();});
 }
-function renderTodayEntries(rows){ const tbody=document.getElementById('todayEntriesBody'); if(!tbody) return; tbody.innerHTML=''; if(!rows||rows.length===0){ const tr=document.createElement('tr'); tr.id='todayEmpty'; tr.innerHTML=`<td colspan="5" style="text-align:center;color:#6b6b6b">No scans today</td>`; tbody.appendChild(tr); return; } rows.forEach(r=>{ const tr=document.createElement('tr'); const scheduleDisplay=formatScheduleRow(r); const amenityDisplay=r.amenity||'-'; const statusDisplay=formatEntryStatus(r.status); tr.innerHTML=`<td>${r.code||'-'}</td><td>${r.type||'-'}</td><td>${amenityDisplay}</td><td>${scheduleDisplay}</td><td>${statusDisplay}</td>`; tbody.appendChild(tr); }); }
+function renderTodayEntries(rows){ const tbody=document.getElementById('todayEntriesBody'); if(!tbody) return; tbody.innerHTML=''; if(!rows||rows.length===0){ const tr=document.createElement('tr'); tr.id='todayEmpty'; tr.innerHTML=`<td colspan="5" style="text-align:center;color:#6b6b6b">No scans today</td>`; tbody.appendChild(tr); return; } rows.forEach(r=>{ const tr=document.createElement('tr'); tr.classList.add('fade-row'); const scheduleDisplay=formatScheduleRow(r); const amenityDisplay=r.amenity||'-'; const statusDisplay=formatEntryStatus(r.status); tr.innerHTML=`<td>${r.code||'-'}</td><td>${r.type||'-'}</td><td>${amenityDisplay}</td><td>${scheduleDisplay}</td><td>${statusDisplay}</td>`; tbody.appendChild(tr); }); }
 function formatMDY(ymd){ try{ const d=new Date(ymd); return `${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getDate().toString().padStart(2,'0')}/${String(d.getFullYear()).slice(-2)}`; }catch(e){ return ymd; } }
 function formatDateTime(dt){ try{ const d=new Date(dt); const mm=(d.getMonth()+1).toString().padStart(2,'0'); const dd=d.getDate().toString().padStart(2,'0'); const yy=String(d.getFullYear()).slice(-2); let h=d.getHours(); const mi=d.getMinutes().toString().padStart(2,'0'); const ap=h>=12?'PM':'AM'; h=h%12; if(h===0) h=12; return `${mm}/${dd}/${yy} ${h}:${mi} ${ap}`; }catch(e){ return dt; } }
 function formatDateValue(v){ if(!v) return ''; try{ const d=new Date(v); if(isNaN(d.getTime())) return v; const mm=(d.getMonth()+1).toString().padStart(2,'0'); const dd=d.getDate().toString().padStart(2,'0'); const yy=String(d.getFullYear()).slice(-2); const hasTime=String(v).match(/\d{1,2}:\d{2}/); if(hasTime){ let h=d.getHours(); const mi=d.getMinutes().toString().padStart(2,'0'); const ap=h>=12?'PM':'AM'; h=h%12; if(h===0) h=12; return `${mm}/${dd}/${yy} ${h}:${mi} ${ap}`; } return `${mm}/${dd}/${yy}`; }catch(e){ return v; } }
@@ -2261,7 +2546,7 @@ function formatScheduleRow(r){
 }
 function isApprovedStatus(s){
   const v=String(s||'').toLowerCase();
-  return v.indexOf('approv')!==-1;
+  return (v.indexOf('approv')!==-1 || v.indexOf('grant')!==-1) && v.indexOf('deny')===-1 && v.indexOf('reject')===-1 && v.indexOf('cancel')===-1;
 }
 function renderExpected(rows){
   const tbody=document.getElementById('expectedBody'); if(!tbody) return;
@@ -2281,6 +2566,7 @@ function renderExpected(rows){
   } else {
     otherRows.forEach(r=>{
       const tr=document.createElement('tr');
+      tr.classList.add('fade-row');
       const scheduleDisplay=formatScheduleRow(r||{});
       const st=String(r.status||'').replace(/[_-]+/g,' ');
       const sts=st.replace(/\b\w/g,function(m){return m.toUpperCase();});
@@ -2298,6 +2584,7 @@ function renderExpected(rows){
   }
   guestRows.forEach(r=>{
     const tr=document.createElement('tr');
+    tr.classList.add('fade-row');
     const st=String(r.status||'').replace(/[_-]+/g,' ');
     const sts=st.replace(/\b\w/g,function(m){return m.toUpperCase();});
     const addedBy=r.added_by||'-';
