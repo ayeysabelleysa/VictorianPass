@@ -7,10 +7,15 @@ require_once 'connect.php';
 $now = time();
 $last = intval($_SESSION['staff_last_activity'] ?? 0);
 $timeout = intval($_SESSION['staff_session_timeout'] ?? $staffInactivityLimit);
+$loginHistoryAvailable = false;
+$loginHistoryTable = $con->query("SHOW TABLES LIKE 'login_history'");
+if ($loginHistoryTable) {
+  $loginHistoryAvailable = $loginHistoryTable->num_rows > 0;
+  $loginHistoryTable->free();
+}
 if ($last > 0 && $timeout > 0 && ($now - $last) > $timeout) {
-  $con->query("CREATE TABLE IF NOT EXISTS login_history (id INT AUTO_INCREMENT PRIMARY KEY, staff_id INT NOT NULL, login_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, logout_time DATETIME NULL, INDEX idx_staff_id (staff_id)) ENGINE=InnoDB");
   $loginId = intval($_SESSION['login_history_id'] ?? 0);
-  if ($loginId > 0) {
+  if ($loginHistoryAvailable && $loginId > 0) {
     $stmt = $con->prepare('UPDATE login_history SET logout_time = NOW() WHERE id = ? AND logout_time IS NULL');
     $stmt->bind_param('i', $loginId);
     $stmt->execute();
@@ -49,9 +54,8 @@ if (!empty($_SESSION['guard_confirmed_ref'])) {
   }
   unset($_SESSION['guard_confirmed_ref'], $_SESSION['guard_confirmed_time']);
 }
-$con->query("CREATE TABLE IF NOT EXISTS login_history (id INT AUTO_INCREMENT PRIMARY KEY, staff_id INT NOT NULL, login_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, logout_time DATETIME NULL, INDEX idx_staff_id (staff_id)) ENGINE=InnoDB");
 $currentLogin = null;
-if ($currentLoginId > 0) {
+if ($loginHistoryAvailable && $currentLoginId > 0) {
   $stmt = $con->prepare('SELECT id, staff_id, login_time, logout_time FROM login_history WHERE id = ? LIMIT 1');
   $stmt->bind_param('i', $currentLoginId);
   $stmt->execute();
@@ -60,7 +64,7 @@ if ($currentLoginId > 0) {
   $stmt->close();
 }
 $history = [];
-if ($staffId > 0) {
+if ($loginHistoryAvailable && $staffId > 0) {
   $stmt = $con->prepare('SELECT id, login_time, logout_time FROM login_history WHERE staff_id = ? ORDER BY login_time DESC LIMIT 10');
   $stmt->bind_param('i', $staffId);
   $stmt->execute();

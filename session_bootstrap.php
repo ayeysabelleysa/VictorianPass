@@ -26,7 +26,15 @@ if (is_dir($sessionDir) && is_writable($sessionDir)) {
 }
 
 @ini_set('session.use_strict_mode', '1');
+@ini_set('session.use_cookies', '1');
+@ini_set('session.use_only_cookies', '1');
 @ini_set('session.cookie_httponly', '1');
 @ini_set('session.cookie_samesite', 'Lax');
+
+$sessionCookieParams = session_get_cookie_params();
+$sessionCookieParams['secure'] = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off');
+$sessionCookieParams['httponly'] = true;
+$sessionCookieParams['samesite'] = 'Lax';
+session_set_cookie_params($sessionCookieParams);
 
 session_start();

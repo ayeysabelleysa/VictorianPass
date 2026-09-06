@@ -19,6 +19,12 @@ if (in_array($activeRole, ['admin', 'guard'], true) || in_array($activeAdminRole
     $loginErrorMessage = 'You are already logged in. Please log out before signing in to another account.';
 }
 
+  function redirectAfterLogin($location) {
+    session_write_close();
+    header('Location: ' . $location, true, 303);
+    exit;
+  }
+
 if ($_SERVER["REQUEST_METHOD"] == "POST" && !$staffSessionActive) {
     if (isset($_POST['vp_account']) && isset($_POST['password'])) {
         $email = trim($_POST['vp_account']);
@@ -50,36 +56,29 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && !$staffSessionActive) {
         if ($result_staff->num_rows > 0) {
             $row = $result_staff->fetch_assoc();
 
-            if ($password === $row['password']) {
+            $storedStaffPassword = (string)($row['password'] ?? '');
+            $staffPasswordValid = password_verify($password, $storedStaffPassword) || hash_equals($storedStaffPassword, $password);
+            if ($staffPasswordValid) {
+              session_regenerate_id(true);
                 $_SESSION['email'] = $row['email'];
-                $_SESSION['role']  = $row['role'];
+              $_SESSION['role']  = strtolower(trim((string)$row['role']));
                 $_SESSION['staff_id'] = $row['id'];
 
-                if ($row['role'] === "admin") {
-                    session_regenerate_id(true);
+              if ($_SESSION['role'] === "admin") {
                     $_SESSION['staff_last_activity'] = time();
                     $_SESSION['staff_session_timeout'] = $staffInactivityLimit;
-                    $loginSuccessMessage = 'Login successful!';
-                    $loginRedirect = 'admin.php';
-                } elseif ($row['role'] === "guard") {
-                    session_regenerate_id(true);
+                redirectAfterLogin('admin.php');
+              } elseif ($_SESSION['role'] === "guard") {
                     $_SESSION['staff_last_activity'] = time();
                     $_SESSION['staff_session_timeout'] = $staffInactivityLimit;
-                    $con->query("CREATE TABLE IF NOT EXISTS login_history (id INT AUTO_INCREMENT PRIMARY KEY, staff_id INT NOT NULL, login_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, logout_time DATETIME NULL, INDEX idx_staff_id (staff_id)) ENGINE=InnoDB");
-                    $stmtLog = $con->prepare("INSERT INTO login_history (staff_id) VALUES (?)");
-                    $stmtLog->bind_param('i', $_SESSION['staff_id']);
-                    $stmtLog->execute();
-                    $_SESSION['login_history_id'] = $stmtLog->insert_id;
-                    $stmtLog->close();
-                    $local = explode('@', $_SESSION['email'])[0] ?? '';
+                $local = explode('@', (string)$_SESSION['email'])[0] ?? '';
                     $s = $local;
                     if (strpos($local, '_') !== false) { $parts = explode('_', $local); $s = end($parts); }
                     if (substr($s, -3) === 'gar') { $s = substr($s, 0, -3); }
                     $s = preg_replace('/[^a-zA-Z]/', '', $s);
                     $s = strlen($s) ? ucfirst(strtolower($s)) : 'Guard';
                     $_SESSION['guard_surname'] = $s;
-                    $loginSuccessMessage = 'Login successful!';
-                    $loginRedirect = 'guard.php';
+                redirectAfterLogin('guard.php');
                 }
                 $skipUserCheck = true;
             } else {
@@ -118,20 +117,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && !$staffSessionActive) {
                             $loginErrorMessage = 'Your account has been suspended by the admin.';
                         }
                     } else {
+                      session_regenerate_id(true);
                         $_SESSION['user_id']   = $row['id'];
                         $_SESSION['email']     = $row['email'];
-                        $_SESSION['user_type'] = $row['user_type'];
-                        $_SESSION['role']      = $row['user_type'];
+                      $_SESSION['user_type'] = strtolower(trim((string)$row['user_type']));
+                      $_SESSION['role']      = $_SESSION['user_type'];
 
-                        if ($row['user_type'] === 'resident') {
-                            $loginSuccessMessage = 'Login successful!';
-                            $loginRedirect = 'profileresident.php';
+                      if ($_SESSION['user_type'] === 'resident') {
+                        redirectAfterLogin('profileresident.php');
                         } else {
-                            $loginSuccessMessage = 'Login successful!';
-                            $loginRedirect = 'mainpage.php';
+                        redirectAfterLogin('dashboardvisitor.php');
                         }
-                        $_SESSION['login_failure_count'] = 0;
-                        unset($_SESSION['login_cooldown_until']);
                     }
                 } else {
                     $loginError = 'invalid_password';
