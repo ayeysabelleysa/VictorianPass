@@ -2,6 +2,8 @@ import time
 import requests
 import os
 
+from offline_queue import init_db, save_transaction
+
 from qr_scanner import (
     start_scanner,
     read_qr,
@@ -64,7 +66,7 @@ CAMERA_TIMEOUT = 0.5
 # Resident session timeout.
 # If no item is placed for 2 minutes,
 # only the resident session ends.
-IDLE_TIMEOUT = 120
+IDLE_TIMEOUT = 90
 
 REMOVAL_CHECK_INTERVAL = 0.15
 
@@ -270,41 +272,25 @@ def cancel_api_session(
 # =========================================================
 # WAIT FOR ITEM
 # =========================================================
-
 def wait_for_item():
-
     start_time = time.monotonic()
-
     while True:
-
-        # -------------------------------------------------
-        # Read HX711
-        # -------------------------------------------------
-
         weight = get_weight(1)
+        metal = metal_detected()
 
-        if weight >= MIN_WEIGHT:
+        status = "METAL DETECTED" if metal else "Waiting for item..."
+        print(f"\r[ WEIGHT ] {weight:.1f} g | {status}", end="", flush=True)
 
+        if weight >= MIN_WEIGHT or metal:
+            print()
             return weight
 
-        # -------------------------------------------------
-        # EXACT 2-MINUTE IDLE CHECK
-        # -------------------------------------------------
-
-        elapsed = (
-            time.monotonic()
-            - start_time
-        )
-
-        if elapsed >= IDLE_TIMEOUT:
-
+        if time.monotonic() - start_time >= IDLE_TIMEOUT:
+            print()
             return None
 
-        time.sleep(
-            REMOVAL_CHECK_INTERVAL
-        )
-
-
+        time.sleep(REMOVAL_CHECK_INTERVAL)
+       
 # =========================================================
 # WEIGHT STABILITY
 # =========================================================
@@ -584,8 +570,9 @@ def process_item():
 
 scanner = None
 
-try:
+init_db()
 
+try:
     # =====================================================
     # START HARDWARE
     # =====================================================
@@ -797,6 +784,9 @@ try:
             )
 
             total_points += points
+
+            transaction_id = f"{session_token}-{sessions + 1}"
+
             sessions += 1
 
             # =================================================

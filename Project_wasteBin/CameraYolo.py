@@ -30,6 +30,7 @@ mixed_material = False
 material_percent = {}
 
 lock = threading.Lock()
+yolo_lock = threading.Lock()
 
 print("Loading YOLO...")
 model = YOLO(MODEL)
@@ -93,12 +94,13 @@ def detect():
             interpolation=cv2.INTER_AREA
         )
 
-        results = model(
-            small,
-            imgsz=YOLO_SIZE,
-            conf=CONFIDENCE,
-            verbose=False
-        )
+        with yolo_lock:
+            results = model(
+                small,
+                imgsz=YOLO_SIZE,
+                conf=CONFIDENCE,
+                verbose=False
+            )
 
         areas = {
             "Plastic": 0,
