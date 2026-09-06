@@ -7623,7 +7623,9 @@ function showReservationDetails(reservationId, expectedType){
   if(c){ c.innerHTML = '<div style="padding:20px;text-align:center;">Loading...</div>'; }
   var m = document.getElementById('reservationModal');
   if(m){ m.style.display = 'flex'; }
-  fetch('api/reservation_details.php?id=' + encodeURIComponent(reservationId), { credentials: 'same-origin', cache: 'no-store' })
+  var controller = typeof AbortController === 'function' ? new AbortController() : null;
+  var timeout = setTimeout(function(){ if(controller){ controller.abort(); } }, 10000);
+  fetch('api/reservation_details.php?id=' + encodeURIComponent(reservationId), { credentials: 'same-origin', cache: 'no-store', signal: controller ? controller.signal : undefined })
     .then(r => {
       if(!r.ok){ throw new Error('Request failed (' + r.status + ')'); }
       return r.json();
@@ -7725,7 +7727,9 @@ function showReservationDetails(reservationId, expectedType){
     })
     .catch(err => {
       console.error(err);
-      if(c){ c.innerHTML = '<div style="padding:20px;text-align:center;color:red;">Unable to load reservation details. Please try again.</div>'; }
+      if(c){ c.innerHTML = '<div style="padding:20px;text-align:center;color:#a33;">Unable to load reservation details right now. Please close this window and try again.</div>'; }
+    })
+    .finally(function(){ clearTimeout(timeout); });
     });
 }
 
@@ -7758,10 +7762,13 @@ function fmtDuration(st, et){ if(!st || !et) return ''; var m1=String(st).match(
 function fmtDateTime(dt){ try{ var d=new Date(dt); var mm=String(d.getMonth()+1).padStart(2,'0'); var dd=String(d.getDate()).padStart(2,'0'); var yy=String(d.getFullYear()).slice(-2); var hh=d.getHours(); var m=String(d.getMinutes()).padStart(2,'0'); var ap=hh>=12?'PM':'AM'; var h=hh%12; if(h===0) h=12; return (mm+"."+dd+"."+yy+" "+h+":"+m+" "+ap); }catch(e){ return String(dt); } }
 function fmtDateTimeSec(dt){ try{ var d=new Date(dt); var mm=String(d.getMonth()+1).padStart(2,'0'); var dd=String(d.getDate()).padStart(2,'0'); var yy=String(d.getFullYear()).slice(-2); var hh=d.getHours(); var m=String(d.getMinutes()).padStart(2,'0'); var s=String(d.getSeconds()).padStart(2,'0'); var ap=hh>=12?'PM':'AM'; var h=hh%12; if(h===0) h=12; return (mm+"."+dd+"."+yy+" "+h+":"+m+":"+s+" "+ap); }catch(e){ return String(dt); } }
 function showResidentReservationDetails(rrId){
-  document.getElementById('residentReservationDetailsContent').innerHTML = '<div style="padding:20px;text-align:center;">Loading...</div>';
+  var c = document.getElementById('residentReservationDetailsContent');
+  if(c){ c.innerHTML = '<div style="padding:20px;text-align:center;">Loading...</div>'; }
   document.getElementById('residentReservationModal').style.display = 'flex';
+  var controller = typeof AbortController === 'function' ? new AbortController() : null;
+  var timeout = setTimeout(function(){ if(controller){ controller.abort(); } }, 10000);
   
-  fetch('api/reservation_details.php?id=' + encodeURIComponent(rrId), { credentials: 'same-origin', cache: 'no-store' })
+  fetch('api/reservation_details.php?id=' + encodeURIComponent(rrId), { credentials: 'same-origin', cache: 'no-store', signal: controller ? controller.signal : undefined })
     .then(r => r.json())
     .then(data => {
       if(!data.success){ 
@@ -7878,7 +7885,12 @@ function showResidentReservationDetails(rrId){
     .catch(err => { 
       console.error(err); 
       document.getElementById('residentReservationDetailsContent').innerHTML = '<div style="padding:20px;text-align:center;color:red;">Error loading details.</div>';
-    });
+    })
+    .catch(function(err){
+      console.error(err);
+      if(c){ c.innerHTML = '<div style="padding:20px;text-align:center;color:#a33;">Unable to load reservation details right now. Please close this window and try again.</div>'; }
+    })
+    .finally(function(){ clearTimeout(timeout); });
 }
 
 function showReservationDetailsByRef(ref){

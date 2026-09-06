@@ -93,20 +93,23 @@ if (!$isLocal) {
 // Timeout values prevent the DB handshake from hanging indefinitely on a
 // cold server start (a common cause of intermittent 504 before the DB is warm).
 mysqli_report(MYSQLI_REPORT_OFF);
-$con = @new mysqli($host, $user, $pass, $db, $port);
-if ($con && !$con->connect_error) {
-    // Keep individual queries from hanging; abort after 10s rather than spinning forever.
-    $con->query("SET SESSION wait_timeout = 600");
-    $con->options(MYSQLI_OPT_CONNECT_TIMEOUT, 10);
+$con = @mysqli_init();
+if ($con instanceof mysqli) {
+    // These options must be set before real_connect(); setting them after a
+    // connection is established does not protect the initial handshake.
+    @$con->options(MYSQLI_OPT_CONNECT_TIMEOUT, 10);
     if (defined('MYSQLI_OPT_READ_TIMEOUT')) {
         @$con->options(MYSQLI_OPT_READ_TIMEOUT, 60);
     }
+    @$con->options(MYSQLI_INIT_COMMAND, "SET SESSION wait_timeout = 600, time_zone = '+08:00'");
+    @$con->real_connect($host, $user, $pass, $db, $port);
 }
 
 // Check connection
-if ($con->connect_error) {
+if (!($con instanceof mysqli) || $con->connect_error) {
     // Log the real cause server-side but never echo DB details to the user.
-    @error_log("[DB] Connection failed: " . $con->connect_error . " (host=$host db=$db)");
+    $connectionError = ($con instanceof mysqli) ? $con->connect_error : 'mysqli_init failed';
+    @error_log("[DB] Connection failed: " . $connectionError . " (host=$host db=$db)");
     if (defined('VP_JSON_ERROR_RESPONSE') && VP_JSON_ERROR_RESPONSE === true) {
         http_response_code(503);
         header('Content-Type: application/json; charset=utf-8');
@@ -123,13 +126,6 @@ if ($con->connect_error) {
        . '<h1>Service temporarily unavailable.</h1>'
        . '<p>We could not reach the database right now. Please try again in a moment.</p></div></body></html>';
     exit;
-}
-
-// Set MySQL session timezone to UTC+8 to match PHP
-// This ensures TIMESTAMP columns are retrieved in Manila time
-if ($con) {
-    // Try to set timezone using offset (works even if timezone tables are missing)
-    $con->query("SET time_zone = '+08:00'");
 }
 
 // ---------------------------------------------------------------------------

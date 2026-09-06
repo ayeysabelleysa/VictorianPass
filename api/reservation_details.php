@@ -1,4 +1,5 @@
 <?php
+$requestStartedAt = microtime(true);
 require_once __DIR__ . '/../session_bootstrap.php';
 
 header('Content-Type: application/json; charset=utf-8');
@@ -9,6 +10,10 @@ if (($_SESSION['role'] ?? '') !== 'admin') {
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
     exit;
 }
+
+// Do not hold the shared PHP session file lock while waiting for MySQL.
+// Dashboard polling can otherwise make the first Details click wait behind it.
+session_write_close();
 
 $reservationId = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT, [
     'options' => ['min_range' => 1],
@@ -21,12 +26,14 @@ if (!$reservationId) {
 
 // Use the same connection/configuration as login.php and the admin dashboard.
 define('VP_JSON_ERROR_RESPONSE', true);
+$dbStartedAt = microtime(true);
 require_once __DIR__ . '/../connect.php';
 if (!($con instanceof mysqli) || $con->connect_errno) {
     http_response_code(503);
     echo json_encode(['success' => false, 'message' => 'Database temporarily unavailable']);
     exit;
 }
+$dbConnectedAt = microtime(true);
 
 $query = "SELECT r.id, r.user_id, r.ref_code, r.amenity, r.start_date, r.end_date,
                  r.start_time, r.end_time, r.persons, r.purpose, r.created_at,
@@ -46,6 +53,7 @@ $query = "SELECT r.id, r.user_id, r.ref_code, r.amenity, r.start_date, r.end_dat
 
 $stmt = $con->prepare($query);
 if (!$stmt) {
+    error_log('[ViewDetails] prepare failed total_ms=' . round((microtime(true) - $requestStartedAt) * 1000, 1));
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Unable to prepare reservation lookup']);
     exit;
@@ -53,6 +61,7 @@ if (!$stmt) {
 
 $stmt->bind_param('i', $reservationId);
 if (!$stmt->execute()) {
+    error_log('[ViewDetails] execute failed db_connect_ms=' . round(($dbConnectedAt - $dbStartedAt) * 1000, 1) . ' total_ms=' . round((microtime(true) - $requestStartedAt) * 1000, 1));
     $stmt->close();
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Unable to load reservation details']);
@@ -62,6 +71,8 @@ if (!$stmt->execute()) {
 $result = $stmt->get_result();
 $row = $result ? $result->fetch_assoc() : null;
 $stmt->close();
+
+error_log('[ViewDetails] reservation_id=' . $reservationId . ' db_connect_ms=' . round(($dbConnectedAt - $dbStartedAt) * 1000, 1) . ' query_ms=' . round((microtime(true) - $dbConnectedAt) * 1000, 1) . ' total_ms=' . round((microtime(true) - $requestStartedAt) * 1000, 1));
 
 if (!$row) {
     http_response_code(404);

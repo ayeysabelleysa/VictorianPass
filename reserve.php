@@ -9,8 +9,12 @@ if (empty($_SESSION['csrf_token'])) {
   $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 $resetReservation = isset($_GET['reset_reservation']) && $_GET['reset_reservation'] === '1';
+$isReserveApiRequest = $_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && in_array($_GET['action'], ['booked_dates', 'booked_times', 'check_points'], true);
 if ($resetReservation) {
   unset($_SESSION['pending_reservation'], $_SESSION['dp_ref_code'], $_SESSION['flash_ref_code'], $_SESSION['reservation_submitted']);
+}
+if ($isReserveApiRequest) {
+  session_write_close();
 }
 
 // Unified reservation page for residents and visitors
@@ -133,7 +137,7 @@ function ensureReservationPointColumns($con){
   }
 }
 
-if (!vpSchemaDone($con, 'reserve_v1')) {
+if (!$isReserveApiRequest && !vpSchemaDone($con, 'reserve_v1')) {
   ensureReservationEntryPassColumn($con);
   ensureReservationsNullable($con);
   ensureReservationTimeAndDownpayment($con);
@@ -1552,6 +1556,17 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
   let bookedTimesCache=new Map();
   let bookedTimesRequests=new Map();
   let availabilityToken=0;
+  async function reserveFetchJson(url){
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = setTimeout(function(){ if(controller){ controller.abort(); } }, 10000);
+    try {
+      const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store', signal: controller ? controller.signal : undefined });
+      if(!response.ok){ throw new Error('Reserve request failed (' + response.status + ')'); }
+      return await response.json();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
   let selectedAmenity=document.getElementById('amenityField').value||'';
   let usePoints = false;
 
@@ -1928,8 +1943,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
             if(cacheKey.indexOf(`${amen}|`) === 0) bookedTimesCache.delete(cacheKey);
           });
         }
-        const res = await fetch(`reserve.php?action=booked_times&amenity=${encodeURIComponent(amen)}&start_date=${startDs}&end_date=${endDs}`);
-        const data = await res.json();
+        const data = await reserveFetchJson(`reserve.php?action=booked_times&amenity=${encodeURIComponent(amen)}&start_date=${startDs}&end_date=${endDs}`);
         const byDate = buildDayIndex(data.times||[], startDs, endDs);
         cached = { data, byDate };
         availabilityCache.set(key, cached);
@@ -2640,8 +2654,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     const key = `${selectedAmenity}|${date}`;
     if(bookedTimesCache.has(key)) return bookedTimesCache.get(key);
     if(bookedTimesRequests.has(key)) return bookedTimesRequests.get(key);
-    const request = fetch(`reserve.php?action=booked_times&amenity=${encodeURIComponent(selectedAmenity)}&date=${encodeURIComponent(date)}`)
-      .then(res=>res.json())
+    const request = reserveFetchJson(`reserve.php?action=booked_times&amenity=${encodeURIComponent(selectedAmenity)}&date=${encodeURIComponent(date)}`)
       .then(data=>{ const result=data||{times:[], persons_total:0, capacity:0}; bookedTimesCache.set(key,result); return result; })
       .catch(_=>({times:[], persons_total:0, capacity:0}))
       .finally(()=>bookedTimesRequests.delete(key));
@@ -2651,8 +2664,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
 
   async function fetchLivePointsBalance() {
     try {
-      const res = await fetch('reserve.php?action=check_points');
-      const data = await res.json();
+      const data = await reserveFetchJson('reserve.php?action=check_points');
       if (data.ok && typeof data.balance === 'number') {
         return data.balance;
       }
