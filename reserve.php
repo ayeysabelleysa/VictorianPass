@@ -1,7 +1,11 @@
 <?php
 ob_start(); // Prevents header issues on redirect
 require_once __DIR__ . '/session_bootstrap.php';
-include 'connect.php';
+$isReserveApiRequest = $_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && in_array($_GET['action'], ['booked_dates', 'booked_times', 'check_points'], true);
+if ($isReserveApiRequest) {
+  define('VP_JSON_ERROR_RESPONSE', true);
+}
+require_once __DIR__ . '/connect.php';
 $generatedCode = '';
 $errorMsg = '';
 $canSubmit = true;
@@ -9,192 +13,35 @@ if (empty($_SESSION['csrf_token'])) {
   $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 $resetReservation = isset($_GET['reset_reservation']) && $_GET['reset_reservation'] === '1';
-$isReserveApiRequest = $_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && in_array($_GET['action'], ['booked_dates', 'booked_times', 'check_points'], true);
+$refFromQuery = isset($_GET['ref_code']) ? trim($_GET['ref_code']) : '';
 if ($resetReservation) {
   unset($_SESSION['pending_reservation'], $_SESSION['dp_ref_code'], $_SESSION['flash_ref_code'], $_SESSION['reservation_submitted']);
 }
 if ($isReserveApiRequest) {
   session_write_close();
+} elseif ($_SERVER['REQUEST_METHOD'] !== 'POST' && $refFromQuery === '') {
+  session_write_close();
 }
 
-// Unified reservation page for residents and visitors
+// Unified reservation page for residents and visitors. Schema changes belong in
+// setup/migrate_reserve.php and never run during a user request.
 
-// ---------------------------------------------------------------------------
-// One-time schema migration guard (file-based flag).
-if (!function_exists('vpSchemaDone')) {
-  function vpSchemaDone($con, $key) {
-    static $cache = [];
-    if (isset($cache[$key])) return $cache[$key];
-    $flag = __DIR__ . '/schema_flags/' . preg_replace('/[^a-z0-9_]/i', '_', $key) . '.done';
-    $cache[$key] = @file_exists($flag);
-    return $cache[$key];
-  }
-}
-if (!function_exists('vpMarkSchemaDone')) {
-  function vpMarkSchemaDone($con, $key) {
-    $dir = __DIR__ . '/schema_flags';
-    if (!is_dir($dir)) @mkdir($dir, 0755, true);
-    $flag = $dir . '/' . preg_replace('/[^a-z0-9_]/i', '_', $key) . '.done';
-    @file_put_contents($flag, '1');
-  }
-}
-
-// Ensure reservations has entry_pass_id column to link entry pass info
-function ensureReservationEntryPassColumn($con) {
-  if (!($con instanceof mysqli)) { return; }
-  $col = $con->query("SHOW COLUMNS FROM reservations LIKE 'entry_pass_id'");
-  if (!$col || $col->num_rows === 0) {
-    $con->query("ALTER TABLE reservations ADD COLUMN entry_pass_id INT NULL");
-  }
-}
-
-// Ensure reservations columns are nullable, supporting placeholder record before amenity selection
-function ensureReservationsNullable($con) {
-  if (!($con instanceof mysqli)) { return; }
-  $res = $con->query("SHOW COLUMNS FROM reservations WHERE Field IN ('amenity','start_date','end_date','persons','price')");
-  $nil = [];
-  if ($res) {
-    while ($row = $res->fetch_assoc()) { $nil[strtolower($row['Field'])] = (strtoupper($row['Null']) === 'YES'); }
-  }
-  if (!isset($nil['amenity'])   || !$nil['amenity'])   { @$con->query("ALTER TABLE reservations MODIFY amenity VARCHAR(100) NULL"); }
-  if (!isset($nil['start_date']) || !$nil['start_date']) { @$con->query("ALTER TABLE reservations MODIFY start_date DATE NULL"); }
-  if (!isset($nil['end_date'])  || !$nil['end_date'])  { @$con->query("ALTER TABLE reservations MODIFY end_date DATE NULL"); }
-  if (!isset($nil['persons'])   || !$nil['persons'])   { @$con->query("ALTER TABLE reservations MODIFY persons INT NULL"); }
-  if (!isset($nil['price'])     || !$nil['price'])     { @$con->query("ALTER TABLE reservations MODIFY price DECIMAL(10,2) NULL"); }
-}
-
-// Ensure time and downpayment fields exist
-function ensureReservationTimeAndDownpayment($con){
-  if (!($con instanceof mysqli)) { return; }
-  $c1 = $con->query("SHOW COLUMNS FROM reservations LIKE 'start_time'");
-  if(!$c1 || $c1->num_rows===0){ @$con->query("ALTER TABLE reservations ADD COLUMN start_time TIME NULL AFTER start_date"); }
-  $c2 = $con->query("SHOW COLUMNS FROM reservations LIKE 'end_time'");
-  if(!$c2 || $c2->num_rows===0){ @$con->query("ALTER TABLE reservations ADD COLUMN end_time TIME NULL AFTER end_date"); }
-  $c3 = $con->query("SHOW COLUMNS FROM reservations LIKE 'downpayment'");
-  if(!$c3 || $c3->num_rows===0){ @$con->query("ALTER TABLE reservations ADD COLUMN downpayment DECIMAL(10,2) NULL AFTER price"); }
-}
-
-// Ensure common columns used by upsert exist (payment_status, account_type, receipt_path)
-function ensureReservationCommonColumns($con){
-  if (!($con instanceof mysqli)) { return; }
-  $cols=['payment_status','account_type','receipt_path','booking_for'];
-  foreach($cols as $col){
-    $c=$con->query("SHOW COLUMNS FROM reservations LIKE '".$con->real_escape_string($col)."'");
-    if(!$c || $c->num_rows===0){
-      if($col==='payment_status'){@$con->query("ALTER TABLE reservations ADD COLUMN payment_status ENUM('pending','submitted','verified') NULL");}
-      else if($col==='account_type'){@$con->query("ALTER TABLE reservations ADD COLUMN account_type ENUM('visitor','resident') NULL");}
-      else if($col==='receipt_path'){@$con->query("ALTER TABLE reservations ADD COLUMN receipt_path VARCHAR(255) NULL");}
-      else if($col==='booking_for'){@$con->query("ALTER TABLE reservations ADD COLUMN booking_for ENUM('resident','guest') NULL");}
-    }
-  }
-}
-
-// Ensure users table has points column
-function ensurePointsColumn($con){
-  if (!($con instanceof mysqli)) { return; }
-  $c=$con->query("SHOW COLUMNS FROM users LIKE 'points'");
-  if(!$c || $c->num_rows===0){
-    $con->query("ALTER TABLE users ADD COLUMN points INT DEFAULT 0");
-  }
-}
-
-// Ensure transaction history table exists
-function ensureTransactionHistoryTable($con){
-  if (!($con instanceof mysqli)) { return; }
-  $exists = $con->query("SHOW TABLES LIKE 'point_transactions'");
-  if (!$exists || $exists->num_rows === 0) {
-    $con->query("
-      CREATE TABLE point_transactions (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
-        transaction_type ENUM('earn', 'redeem') NOT NULL,
-        amount INT NOT NULL,
-        description TEXT NOT NULL,
-        reservation_ref_code VARCHAR(20),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB
-    ");
-  } else {
-    // Ensure reservation_ref_code exists if not already there
-    $col = $con->query("SHOW COLUMNS FROM point_transactions LIKE 'reservation_ref_code'");
-    if (!$col || $col->num_rows === 0) {
-      $con->query("ALTER TABLE point_transactions ADD COLUMN reservation_ref_code VARCHAR(20) AFTER description");
-    }
-  }
-}
-
-// Ensure reservations table has point redemption columns
-function ensureReservationPointColumns($con){
-  if (!($con instanceof mysqli)) { return; }
-  $col1 = $con->query("SHOW COLUMNS FROM reservations LIKE 'use_points'");
-  if (!$col1 || $col1->num_rows === 0) {
-    $con->query("ALTER TABLE reservations ADD COLUMN use_points TINYINT(1) DEFAULT 0");
-  }
-  $col2 = $con->query("SHOW COLUMNS FROM reservations LIKE 'points_used'");
-  if (!$col2 || $col2->num_rows === 0) {
-    $con->query("ALTER TABLE reservations ADD COLUMN points_used INT DEFAULT 0");
-  }
-}
-
-if (!$isReserveApiRequest && !vpSchemaDone($con, 'reserve_v1')) {
-  ensureReservationEntryPassColumn($con);
-  ensureReservationsNullable($con);
-  ensureReservationTimeAndDownpayment($con);
-  ensureReservationCommonColumns($con);
-  ensurePointsColumn($con);
-  ensureTransactionHistoryTable($con);
-  ensureReservationPointColumns($con);
-  vpMarkSchemaDone($con, 'reserve_v1');
-}
-
-/**
- * Single source of truth for a resident's VHEcoPoint balance.
- * Matches profileresident.php exactly: only transactions that are
- * provably VHEcoPoint-sourced (ecopoint_session_id FK set, or
- * description mentions "VHEcoPoint"/"recycling") are included.
- * Net = earn − redeem + adjustment (adjustments are signed).
- */
 function reserveCalcVHEcoBalance(mysqli $con, int $userId): int {
     if ($userId <= 0) return 0;
-    static $hasFkCache = null;
-    if ($hasFkCache === null) {
-        try {
-            $tblChk = $con->query("SHOW TABLES LIKE 'point_transactions'");
-            if (!$tblChk || $tblChk->num_rows === 0) { $hasFkCache = false; return 0; }
-            $colQ = $con->query("SHOW COLUMNS FROM point_transactions LIKE 'ecopoint_session_id'");
-            $hasFkCache = ($colQ && $colQ->num_rows > 0);
-        } catch (Throwable $e) {
-            $hasFkCache = false;
-        }
+    $condition = "(description LIKE '%VHEcoPoint%' OR description LIKE '%recycling%' OR description LIKE '%Redeemed points%' OR (LOWER(TRIM(transaction_type)) = 'redeem' AND reservation_ref_code IS NOT NULL AND reservation_ref_code <> ''))";
+    $query = "SELECT COALESCE(SUM(CASE WHEN LOWER(TRIM(transaction_type)) = 'redeem' THEN -amount ELSE amount END), 0) AS balance FROM point_transactions WHERE user_id = ? AND ($condition OR ecopoint_session_id IS NOT NULL)";
+    $stmt = $con->prepare($query);
+    if (!$stmt) {
+      $query = "SELECT COALESCE(SUM(CASE WHEN LOWER(TRIM(transaction_type)) = 'redeem' THEN -amount ELSE amount END), 0) AS balance FROM point_transactions WHERE user_id = ? AND $condition";
+      $stmt = $con->prepare($query);
     }
-    if (!$hasFkCache) return 0;
-    try {
-        $stmt = $con->prepare("SELECT id, transaction_type, amount, description, ecopoint_session_id FROM point_transactions WHERE user_id = ?");
-        if (!$stmt) return 0;
-        $stmt->bind_param('i', $userId);
-        $stmt->execute();
-        $res = $stmt->get_result();
-    } catch (Throwable $e) {
-        return 0;
-    }
-    $balance = 0;
-    while ($row = $res->fetch_assoc()) {
-        $desc = (string)($row['description'] ?? '');
-        $isEcoTx = (!empty($row['ecopoint_session_id']) && intval($row['ecopoint_session_id']) > 0)
-                 || (stripos($desc, 'VHEcoPoint') !== false)
-                 || (stripos($desc, 'recycling') !== false)
-                 || (stripos($desc, 'Redeemed points') !== false)
-                 || (strtolower(trim((string)($row['transaction_type'] ?? ''))) === 'redeem' && !empty($row['reservation_ref_code']));
-        if (!$isEcoTx) continue;
-        $txType = strtolower(trim((string)($row['transaction_type'] ?? 'earn')));
-        $amt = intval($row['amount'] ?? 0);
-        if ($txType === 'earn')              $balance += $amt;
-        elseif ($txType === 'redeem')        $balance -= $amt;
-        elseif ($txType === 'adjustment')    $balance += $amt;
-    }
+    if (!$stmt) return 0;
+    $stmt->bind_param('i', $userId);
+    if (!$stmt->execute()) { $stmt->close(); return 0; }
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
     $stmt->close();
-    return max(0, $balance);
+    return max(0, intval($row['balance'] ?? 0));
 }
 
 // Downpayment moved on-page: do not force redirect; users can pay via GCash from the form
@@ -259,6 +106,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($guestResidentId) { $entry_pass_id = NULL; }
     $user_id = $guestResidentId ?: (isset($_SESSION['user_id']) ? $_SESSION['user_id'] : NULL);
     $acct = ($guestResidentId || (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && (empty($entry_pass_id)))) ? 'resident' : 'visitor';
+    // All session reads needed for validation are complete. Do not hold the
+    // session lock while availability and payment queries run.
+    session_write_close();
     $booking_for = $booking_for_post;
     if ($booking_for === '') {
       if ($guestResidentId) {
@@ -355,8 +205,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $period = new DatePeriod($startDateObj, new DateInterval('P1D'), (clone $endDateObj)->modify('+1 day'));
             $hasRRRef = false;
             $hasGFRef = false;
-            $chkRRRef = $con->query("SHOW COLUMNS FROM resident_reservations LIKE 'ref_code'"); if ($chkRRRef && $chkRRRef->num_rows>0) { $hasRRRef = true; }
-            $chkGFRef = $con->query("SHOW COLUMNS FROM guest_forms LIKE 'ref_code'"); if ($chkGFRef && $chkGFRef->num_rows>0) { $hasGFRef = true; }
+            $hasRRRef = true;
+            $hasGFRef = true;
             foreach ($period as $d) {
               $ds = $d->format('Y-m-d');
               $total = 0;
@@ -367,8 +217,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               $total += ($r1 && ($rw=$r1->fetch_assoc())) ? intval($rw['total']) : 0;
               $s1->close();
               $hasRPersons = false; $hasGPersons = false;
-              $chkR = $con->query("SHOW COLUMNS FROM resident_reservations LIKE 'persons'"); if ($chkR && $chkR->num_rows>0) { $hasRPersons = true; }
-              $chkG = $con->query("SHOW COLUMNS FROM guest_forms LIKE 'persons'"); if ($chkG && $chkG->num_rows>0) { $hasGPersons = true; }
+              $hasRPersons = true;
+              $hasGPersons = true;
               if ($hasRPersons) {
                 if ($hasRRRef) {
                   $s2 = $con->prepare("SELECT COALESCE(SUM(persons),0) AS total FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved') AND ? BETWEEN start_date AND end_date AND ref_code NOT IN (SELECT ref_code FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history')) AND ? BETWEEN start_date AND end_date AND ref_code IS NOT NULL AND ref_code <> '')");
@@ -401,23 +251,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               $check1 = $con->prepare("SELECT COUNT(*) AS c FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history')) AND ? BETWEEN start_date AND end_date AND (TIME(?) < end_time AND TIME(?) > start_time)");
             $check1->bind_param("ssss", $amenity, $start, $startTime, $endTime);
             $check1->execute(); $r1 = $check1->get_result(); $cnt += ($r1 && ($rw=$r1->fetch_assoc())) ? intval($rw['c']) : 0; $check1->close();
-            $hasRt = $con->query("SHOW COLUMNS FROM resident_reservations LIKE 'start_time'");
-            $hasRe = $con->query("SHOW COLUMNS FROM resident_reservations LIKE 'end_time'");
-            if ($hasRt && $hasRt->num_rows>0 && $hasRe && $hasRe->num_rows>0) {
-              $check2 = $con->prepare("SELECT COUNT(*) AS c FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved') AND ? BETWEEN start_date AND end_date AND (TIME(?) < end_time AND TIME(?) > start_time)");
-              $check2->bind_param("ssss", $amenity, $start, $startTime, $endTime);
-            } else {
-              $check2 = $con->prepare("SELECT 0 AS c");
-            }
+            $check2 = $con->prepare("SELECT COUNT(*) AS c FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved') AND ? BETWEEN start_date AND end_date AND (TIME(?) < end_time AND TIME(?) > start_time)");
+            $check2->bind_param("ssss", $amenity, $start, $startTime, $endTime);
             $check2->execute(); $r2 = $check2->get_result(); $cnt += ($r2 && ($rw=$r2->fetch_assoc())) ? intval($rw['c']) : 0; $check2->close();
-            $hasGt = $con->query("SHOW COLUMNS FROM guest_forms LIKE 'start_time'");
-            $hasGe = $con->query("SHOW COLUMNS FROM guest_forms LIKE 'end_time'");
-            if ($hasGt && $hasGt->num_rows>0 && $hasGe && $hasGe->num_rows>0) {
-              $check3 = $con->prepare("SELECT COUNT(*) AS c FROM guest_forms WHERE amenity = ? AND ? BETWEEN start_date AND end_date AND (approval_status IN ('pending','approved')) AND (TIME(?) < end_time AND TIME(?) > start_time)");
-              $check3->bind_param("ssss", $amenity, $start, $startTime, $endTime);
-            } else {
-              $check3 = $con->prepare("SELECT 0 AS c");
-            }
+            $check3 = $con->prepare("SELECT COUNT(*) AS c FROM guest_forms WHERE amenity = ? AND ? BETWEEN start_date AND end_date AND (approval_status IN ('pending','approved')) AND (TIME(?) < end_time AND TIME(?) > start_time)");
+            $check3->bind_param("ssss", $amenity, $start, $startTime, $endTime);
             $check3->execute(); $r3 = $check3->get_result(); $cnt += ($r3 && ($rw=$r3->fetch_assoc())) ? intval($rw['c']) : 0; $check3->close();
           } else {
             $hourBased = in_array($amenity, ['Basketball Court','Tennis Court','Clubhouse','Multi-Purpose Building'], true);
@@ -455,16 +293,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               $q1->close();
 
               // resident_reservations (may not have time columns)
-              $hasRt = $con->query("SHOW COLUMNS FROM resident_reservations LIKE 'start_time'");
-              $hasRe = $con->query("SHOW COLUMNS FROM resident_reservations LIKE 'end_time'");
-              if ($hasRt && $hasRt->num_rows > 0 && $hasRe && $hasRe->num_rows > 0) {
-                $q2 = $con->prepare("SELECT start_time, end_time FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved') AND ? BETWEEN start_date AND end_date");
-              } else {
-                $q2 = $con->prepare("SELECT NULL AS start_time, NULL AS end_time WHERE 0=1");
-              }
-              if ($hasRt && $hasRt->num_rows > 0 && $hasRe && $hasRe->num_rows > 0) {
-                $q2->bind_param('ss', $amenity, $ds);
-              }
+              $q2 = $con->prepare("SELECT start_time, end_time FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved') AND ? BETWEEN start_date AND end_date");
+              $q2->bind_param('ss', $amenity, $ds);
               $q2->execute();
               $res2 = $q2->get_result();
               while ($row = $res2->fetch_assoc()) {
@@ -480,14 +310,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               $q2->close();
 
               // guest_forms (may not have time columns)
-              $hasGt = $con->query("SHOW COLUMNS FROM guest_forms LIKE 'start_time'");
-              $hasGe = $con->query("SHOW COLUMNS FROM guest_forms LIKE 'end_time'");
-              if ($hasGt && $hasGt->num_rows > 0 && $hasGe && $hasGe->num_rows > 0) {
-                $q3 = $con->prepare("SELECT start_time, end_time FROM guest_forms WHERE amenity = ? AND (approval_status IN ('pending','approved')) AND ? BETWEEN start_date AND end_date");
-                $q3->bind_param('ss', $amenity, $ds);
-              } else {
-                $q3 = $con->prepare("SELECT NULL AS start_time, NULL AS end_time WHERE 0=1");
-              }
+              $q3 = $con->prepare("SELECT start_time, end_time FROM guest_forms WHERE amenity = ? AND (approval_status IN ('pending','approved')) AND ? BETWEEN start_date AND end_date");
+              $q3->bind_param('ss', $amenity, $ds);
               $q3->execute();
               $res3 = $q3->get_result();
               while ($row = $res3->fetch_assoc()) {
@@ -575,6 +399,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               $etObj = DateTime::createFromFormat('H:i', $endTime);
             }
 
+            // Reopen only for the short state write after all slow validation work.
+            session_start();
             // Store reservation info in session for confirmation/debugging if needed
             $_SESSION['pending_reservation'] = [
               'amenity' => $amenity,
@@ -699,7 +525,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_dates') {
 }
 
 // Submission gate: require payment before submission for visitors
-$refFromQuery = isset($_GET['ref_code']) ? trim($_GET['ref_code']) : '';
 if ($refFromQuery !== '') {
 try {
   if (!($con instanceof mysqli)) { throw new Exception('DB unavailable'); }
@@ -778,7 +603,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_times') {
       }
 
       // Query 2: resident_reservations table (may not have time columns)
-      $sql2 = "SELECT start_date, end_date, approval_status, ref_code FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved')" . $dateFilter;
+      $sql2 = "SELECT rr.start_date, rr.end_date, rr.approval_status, rr.ref_code,
+              r.start_time, r.end_time, r.persons, r.use_points
+           FROM resident_reservations rr
+           LEFT JOIN reservations r ON r.ref_code = rr.ref_code
+           WHERE rr.amenity = ? AND rr.approval_status IN ('pending','approved')" . $dateFilter;
       $stmt2 = $con->prepare($sql2);
       if ($stmt2) {
         $stmt2->bind_param("sss", $amenity, $endDate, $startDate);
@@ -1712,21 +1541,6 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
         updateBookingModeCards();
       });
     }
-
-    // Show popup and overlay
-    overlay.classList.add('open');
-    popup.classList.add('open');
-  }
-
-  function lockHoursControls(lock) {
-    // Hours counter
-    const hoursCounter = document.getElementById('hoursCounter');
-    const minusBtn = hoursCounter ? hoursCounter.querySelector('button[onclick*="changeHours(-1)"]') : null;
-    const plusBtn = hoursCounter ? hoursCounter.querySelector('button[onclick*="changeHours(1)"]') : null;
-    if (minusBtn) minusBtn.disabled = lock;
-    if (plusBtn) plusBtn.disabled = lock;
-
-    // Hours select
     const hoursSelect = document.getElementById('hoursSelect');
     if (hoursSelect) hoursSelect.disabled = lock;
 
@@ -2313,7 +2127,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
         const maxH=parseInt(hrs.max.split(':')[0],10);
         inner+=`<p class="inline-meta"><strong>Hours:</strong> ${formatTimeSlot(minH)} – ${formatTimeSlot(maxH)}</p>`;
       }
-    }catch(_){}
+    }catch(_){ }
     if(info.days){ inner+=`<p class="inline-meta"><strong>Availability:</strong> ${info.days}</p>`; }
     const rateLabel=getAmenityPriceLabel(info.value);
     if(rateLabel){ inner+=`<p class="inline-meta"><strong>Rate:</strong> ${rateLabel}</p>`; }
