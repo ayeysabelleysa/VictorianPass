@@ -17,6 +17,14 @@ $refFromQuery = isset($_GET['ref_code']) ? trim($_GET['ref_code']) : '';
 if ($resetReservation) {
   unset($_SESSION['pending_reservation'], $_SESSION['dp_ref_code'], $_SESSION['flash_ref_code'], $_SESSION['reservation_submitted']);
 }
+
+// Copy every session value this request may need into local variables BEFORE
+// releasing the session lock. Nothing below may read $_SESSION after the lock
+// is closed unless the session was explicitly reopened (POST booking flow).
+$sessionCsrfToken = isset($_SESSION['csrf_token']) ? $_SESSION['csrf_token'] : '';
+$sessionUserId    = isset($_SESSION['user_id'])    ? $_SESSION['user_id']    : null;
+$sessionUserType  = isset($_SESSION['user_type'])  ? $_SESSION['user_type']  : null;
+
 if ($isReserveApiRequest) {
   session_write_close();
 } elseif ($_SERVER['REQUEST_METHOD'] !== 'POST' && $refFromQuery === '') {
@@ -26,18 +34,50 @@ if ($isReserveApiRequest) {
 // Unified reservation page for residents and visitors. Schema changes belong in
 // setup/migrate_reserve.php and never run during a user request.
 
+/**
+ * Emit a JSON-only API response. Discards any accidentally buffered output
+ * (e.g. a PHP notice in dev mode) so the payload is always valid JSON and no
+ * warning text can leak into the response.
+ */
+function reserveJsonResponse(array $payload, int $status = 200): void {
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+    http_response_code($status);
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store, no-cache, must-revalidate');
+    echo json_encode($payload);
+    exit;
+}
+
+/**
+ * Log an error server-side and return a safe JSON error to the browser.
+ * Never echoes the raw exception message or any credentials.
+ */
+function reserveJsonError(string $logMessage, string $safeMessage = 'Server error.'): void {
+    @error_log($logMessage);
+    reserveJsonResponse(['error' => $safeMessage], 500);
+}
+
 function reserveCalcVHEcoBalance(mysqli $con, int $userId): int {
     if ($userId <= 0) return 0;
     $condition = "(description LIKE '%VHEcoPoint%' OR description LIKE '%recycling%' OR description LIKE '%Redeemed points%' OR (LOWER(TRIM(transaction_type)) = 'redeem' AND reservation_ref_code IS NOT NULL AND reservation_ref_code <> ''))";
     $query = "SELECT COALESCE(SUM(CASE WHEN LOWER(TRIM(transaction_type)) = 'redeem' THEN -amount ELSE amount END), 0) AS balance FROM point_transactions WHERE user_id = ? AND ($condition OR ecopoint_session_id IS NOT NULL)";
     $stmt = $con->prepare($query);
     if (!$stmt) {
+      error_log('reserveCalcVHEcoBalance primary prepare failed: ' . $con->error);
       $query = "SELECT COALESCE(SUM(CASE WHEN LOWER(TRIM(transaction_type)) = 'redeem' THEN -amount ELSE amount END), 0) AS balance FROM point_transactions WHERE user_id = ? AND $condition";
       $stmt = $con->prepare($query);
     }
-    if (!$stmt) return 0;
+    if (!$stmt) {
+      error_log('reserveCalcVHEcoBalance fallback prepare failed: ' . $con->error);
+      return 0;
+    }
     $stmt->bind_param('i', $userId);
-    if (!$stmt->execute()) { $stmt->close(); return 0; }
+    if (!$stmt->execute()) {
+      error_log('reserveCalcVHEcoBalance execute failed: ' . $stmt->error);
+      $stmt->close(); return 0;
+    }
     $result = $stmt->get_result();
     $row = $result ? $result->fetch_assoc() : null;
     $stmt->close();
@@ -66,7 +106,7 @@ function generateUniqueRefCode($con){
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $tokenPosted = isset($_POST['csrf_token']) ? $_POST['csrf_token'] : '';
-  if (!is_string($tokenPosted) || !hash_equals($_SESSION['csrf_token'] ?? '', $tokenPosted)) {
+  if (!is_string($tokenPosted) || !hash_equals($sessionCsrfToken, $tokenPosted)) {
     $errorMsg = 'Invalid form submission.';
   } else {
     $use_points_post = isset($_POST['use_points']) ? intval($_POST['use_points']) : 0;
@@ -104,8 +144,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
     }
     if ($guestResidentId) { $entry_pass_id = NULL; }
-    $user_id = $guestResidentId ?: (isset($_SESSION['user_id']) ? $_SESSION['user_id'] : NULL);
-    $acct = ($guestResidentId || (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && (empty($entry_pass_id)))) ? 'resident' : 'visitor';
+    $user_id = $guestResidentId ?: $sessionUserId;
+    $acct = ($guestResidentId || ($sessionUserType === 'resident' && (empty($entry_pass_id)))) ? 'resident' : 'visitor';
     // All session reads needed for validation are complete. Do not hold the
     // session lock while availability and payment queries run.
     session_write_close();
@@ -192,62 +232,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errorMsg = 'Selected time is outside operating hours.';
       }
     }
-    $visitorFlow = (!isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'resident');
+    $visitorFlow = ($sessionUserType === null || $sessionUserType !== 'resident');
       if (!$errorMsg) {
         $cnt = 0;
         $singleDay = ($start && $end && $start === $end && $startTime && $endTime);
         try {
           if (!($con instanceof mysqli)) { throw new Exception('DB unavailable'); }
-          if (false) {
-            $startDateObj = DateTime::createFromFormat('Y-m-d', $start);
-            $endDateObj = DateTime::createFromFormat('Y-m-d', $end);
-            if (!$startDateObj || !$endDateObj) { throw new Exception('Invalid date range'); }
-            $period = new DatePeriod($startDateObj, new DateInterval('P1D'), (clone $endDateObj)->modify('+1 day'));
-            $hasRRRef = false;
-            $hasGFRef = false;
-            $hasRRRef = true;
-            $hasGFRef = true;
-            foreach ($period as $d) {
-              $ds = $d->format('Y-m-d');
-              $total = 0;
-              $s1 = $con->prepare("SELECT COALESCE(SUM(persons),0) AS total FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history')) AND ? BETWEEN start_date AND end_date");
-              $s1->bind_param('ss', $amenity, $ds);
-              $s1->execute();
-              $r1 = $s1->get_result();
-              $total += ($r1 && ($rw=$r1->fetch_assoc())) ? intval($rw['total']) : 0;
-              $s1->close();
-              $hasRPersons = false; $hasGPersons = false;
-              $hasRPersons = true;
-              $hasGPersons = true;
-              if ($hasRPersons) {
-                if ($hasRRRef) {
-                  $s2 = $con->prepare("SELECT COALESCE(SUM(persons),0) AS total FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved') AND ? BETWEEN start_date AND end_date AND ref_code NOT IN (SELECT ref_code FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history')) AND ? BETWEEN start_date AND end_date AND ref_code IS NOT NULL AND ref_code <> '')");
-                  $s2->bind_param('ssss', $amenity, $ds, $amenity, $ds);
-                } else {
-                  $s2 = $con->prepare("SELECT COALESCE(SUM(persons),0) AS total FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved') AND ? BETWEEN start_date AND end_date");
-                  $s2->bind_param('ss', $amenity, $ds);
-                }
-                $s2->execute();
-                $r2 = $s2->get_result();
-                $total += ($r2 && ($rw=$r2->fetch_assoc())) ? intval($rw['total']) : 0;
-                $s2->close();
-              }
-              if ($hasGPersons) {
-                if ($hasGFRef) {
-                  $s3 = $con->prepare("SELECT COALESCE(SUM(persons),0) AS total FROM guest_forms WHERE amenity = ? AND approval_status IN ('pending','approved') AND ? BETWEEN start_date AND end_date AND ref_code NOT IN (SELECT ref_code FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history')) AND ? BETWEEN start_date AND end_date AND ref_code IS NOT NULL AND ref_code <> '')");
-                  $s3->bind_param('ssss', $amenity, $ds, $amenity, $ds);
-                } else {
-                  $s3 = $con->prepare("SELECT COALESCE(SUM(persons),0) AS total FROM guest_forms WHERE amenity = ? AND approval_status IN ('pending','approved') AND ? BETWEEN start_date AND end_date");
-                  $s3->bind_param('ss', $amenity, $ds);
-                }
-                $s3->execute();
-                $r3 = $s3->get_result();
-                $total += ($r3 && ($rw=$r3->fetch_assoc())) ? intval($rw['total']) : 0;
-                $s3->close();
-              }
-              if ($total + $persons > $cap) { $cnt = 1; break; }
-            }
-          } else if ($singleDay) {
+          if ($singleDay) {
               $check1 = $con->prepare("SELECT COUNT(*) AS c FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history')) AND ? BETWEEN start_date AND end_date AND (TIME(?) < end_time AND TIME(?) > start_time)");
             $check1->bind_param("ssss", $amenity, $start, $startTime, $endTime);
             $check1->execute(); $r1 = $check1->get_result(); $cnt += ($r1 && ($rw=$r1->fetch_assoc())) ? intval($rw['c']) : 0; $check1->close();
@@ -270,63 +261,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $cnt = 0; // count of fully booked days in range
 
-            foreach ($period as $d) {
-              $ds = $d->format('Y-m-d');
-              $reservedHours = 0;
-              $marked = [];
+            // Bounded availability check: one query per table covers the whole
+            // requested range (instead of a per-day query per table), then each
+            // booking is attributed to every overlapping day in PHP. This marks
+            // the same hours as the previous day-by-day checks.
+            $periodDays = [];
+            foreach ($period as $d) { $periodDays[] = $d->format('Y-m-d'); }
+            $periodBlocks = [];
+            foreach ($periodDays as $ds) { $periodBlocks[$ds] = []; }
+            $markOverlaps = function($res) use (&$periodBlocks, $periodDays, $hourBased, $minH, $maxH) {
+              if (!$res) { return; }
+              while ($row = $res->fetch_assoc()) {
+                $st = !empty($row['start_time']) ? $row['start_time'] : '00:00:00';
+                $et = !empty($row['end_time']) ? $row['end_time'] : '23:59:59';
+                if ($hourBased && (empty($row['start_time']) || empty($row['end_time']))) { continue; }
+                $bS = intval(substr($st, 0, 2));
+                $bE = intval(substr($et, 0, 2));
+                if ($bE <= $bS) { continue; }
+                foreach ($periodDays as $ds) {
+                  if ($ds >= $row['start_date'] && $ds <= $row['end_date']) {
+                    for ($h = $bS; $h < $bE; $h++) {
+                      if ($h >= $minH && $h < $maxH) { $periodBlocks[$ds][$h] = true; }
+                    }
+                  }
+                }
+              }
+            };
 
-              // reservations with time overlap on this date
-              $q1 = $con->prepare("SELECT start_time, end_time FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history')) AND ? BETWEEN start_date AND end_date");
-              $q1->bind_param('ss', $amenity, $ds);
+            // reservations (have start_time/end_time)
+            $q1 = $con->prepare("SELECT start_date, end_date, start_time, end_time FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history')) AND start_date <= ? AND end_date >= ?");
+            if ($q1) {
+              $q1->bind_param('sss', $amenity, $end, $start);
               $q1->execute();
-              $res1 = $q1->get_result();
-              while ($row = $res1->fetch_assoc()) {
-                $st = !empty($row['start_time']) ? $row['start_time'] : '00:00:00';
-                $et = !empty($row['end_time']) ? $row['end_time'] : '23:59:59';
-                if ($hourBased && (empty($row['start_time']) || empty($row['end_time']))) { continue; }
-                $bS = intval(substr($st, 0, 2));
-                $bE = intval(substr($et, 0, 2));
-                for ($h = $bS; $h < $bE; $h++) {
-                  if ($h >= $minH && $h < $maxH) { if (!isset($marked[$h])) { $marked[$h] = true; $reservedHours++; } }
-                }
-              }
+              $markOverlaps($q1->get_result());
               $q1->close();
+            }
 
-              // resident_reservations (may not have time columns)
-              $q2 = $con->prepare("SELECT start_time, end_time FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved') AND ? BETWEEN start_date AND end_date");
-              $q2->bind_param('ss', $amenity, $ds);
+            // resident_reservations (may not have time columns)
+            $q2 = $con->prepare("SELECT start_date, end_date, start_time, end_time FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved') AND start_date <= ? AND end_date >= ?");
+            if ($q2) {
+              $q2->bind_param('sss', $amenity, $end, $start);
               $q2->execute();
-              $res2 = $q2->get_result();
-              while ($row = $res2->fetch_assoc()) {
-                $st = !empty($row['start_time']) ? $row['start_time'] : '00:00:00';
-                $et = !empty($row['end_time']) ? $row['end_time'] : '23:59:59';
-                if ($hourBased && (empty($row['start_time']) || empty($row['end_time']))) { continue; }
-                $bS = intval(substr($st, 0, 2));
-                $bE = intval(substr($et, 0, 2));
-                for ($h = $bS; $h < $bE; $h++) {
-                  if ($h >= $minH && $h < $maxH) { if (!isset($marked[$h])) { $marked[$h] = true; $reservedHours++; } }
-                }
-              }
+              $markOverlaps($q2->get_result());
               $q2->close();
+            }
 
-              // guest_forms (may not have time columns)
-              $q3 = $con->prepare("SELECT start_time, end_time FROM guest_forms WHERE amenity = ? AND (approval_status IN ('pending','approved')) AND ? BETWEEN start_date AND end_date");
-              $q3->bind_param('ss', $amenity, $ds);
+            // guest_forms (may not have time columns)
+            $q3 = $con->prepare("SELECT start_date, end_date, start_time, end_time FROM guest_forms WHERE amenity = ? AND (approval_status IN ('pending','approved')) AND start_date <= ? AND end_date >= ?");
+            if ($q3) {
+              $q3->bind_param('sss', $amenity, $end, $start);
               $q3->execute();
-              $res3 = $q3->get_result();
-              while ($row = $res3->fetch_assoc()) {
-                $st = !empty($row['start_time']) ? $row['start_time'] : '00:00:00';
-                $et = !empty($row['end_time']) ? $row['end_time'] : '23:59:59';
-                if ($hourBased && (empty($row['start_time']) || empty($row['end_time']))) { continue; }
-                $bS = intval(substr($st, 0, 2));
-                $bE = intval(substr($et, 0, 2));
-                for ($h = $bS; $h < $bE; $h++) {
-                  if ($h >= $minH && $h < $maxH) { if (!isset($marked[$h])) { $marked[$h] = true; $reservedHours++; } }
-                }
-              }
+              $markOverlaps($q3->get_result());
               $q3->close();
+            }
 
-              if ($reservedHours >= $totalHours) { $cnt++; break; }
+            foreach ($periodDays as $ds) {
+              if (count($periodBlocks[$ds]) >= $totalHours) { $cnt++; break; }
             }
           }
         } catch (Throwable $e) {
@@ -359,7 +349,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Check if using points and validate
             $use_points_post = isset($_POST['use_points']) ? intval($_POST['use_points']) : 0;
             $points_required = 0;
-            if ($use_points_post && $acct === 'resident' && isset($_SESSION['user_id'])) {
+            if ($use_points_post && $acct === 'resident' && $sessionUserId !== null) {
               // Points cover 1 free hour; remaining hours are paid in cash.
               // Calculate points required (always for 1 hour regardless of total duration).
               switch ($amenity) {
@@ -377,7 +367,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   $errorMsg = "Invalid amenity for point redemption.";
               }
               if (!$errorMsg) {
-                $current_points = reserveCalcVHEcoBalance($con, intval($_SESSION['user_id']));
+                $current_points = reserveCalcVHEcoBalance($con, intval($sessionUserId));
                 if ($current_points < $points_required) {
                   $errorMsg = "Insufficient VHEcoPoint Balance: You need " . $points_required . " pts to redeem 1 free hour for this amenity, but your current VHEcoPoint ledger balance is " . $current_points . " pts. Earn more points by recycling eligible materials at the VHEcoPoint Smart Waste Segregation Station.";
                 }
@@ -435,14 +425,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   
                   // Deduct points
                   $stmtDeduct = $con->prepare("UPDATE users SET points = points - ? WHERE id = ?");
-                  $stmtDeduct->bind_param('ii', $points_required, $_SESSION['user_id']);
+                  $stmtDeduct->bind_param('ii', $points_required, $sessionUserId);
                   $stmtDeduct->execute();
                   $stmtDeduct->close();
                   
                   // Record transaction in point_transactions
                   $txnDescription = "Redeemed points for 1 free hour of " . htmlspecialchars($amenity) . " booking (Ref: " . $newRef . ")";
                   $stmtTxn = $con->prepare("INSERT INTO point_transactions (user_id, transaction_type, amount, description, reservation_ref_code) VALUES (?, 'redeem', ?, ?, ?)");
-                  $stmtTxn->bind_param('iiss', $_SESSION['user_id'], $points_required, $txnDescription, $newRef);
+                  $stmtTxn->bind_param('iiss', $sessionUserId, $points_required, $txnDescription, $newRef);
                   $stmtTxn->execute();
                   $stmtTxn->close();
                   
@@ -495,10 +485,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Lightweight endpoint to return booked dates for the selected amenity
 if (isset($_GET['action']) && $_GET['action'] === 'booked_dates') {
-  header('Content-Type: application/json');
   $amenity = isset($_GET['amenity']) ? trim($_GET['amenity']) : '';
   $dates = [];
-  if ($amenity === '') { echo json_encode(['dates' => []]); exit; }
+  if ($amenity === '') { reserveJsonResponse(['dates' => []]); }
   $collect = function($res) use (&$dates) {
     while ($row = $res->fetch_assoc()) {
       if (empty($row['start_date']) || empty($row['end_date'])) continue;
@@ -517,11 +506,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_dates') {
     $stmt3 = $con->prepare("SELECT start_date, end_date FROM guest_forms WHERE amenity = ? AND approval_status IN ('pending','approved') AND (end_date IS NULL OR end_date >= CURDATE()) AND (start_date IS NULL OR start_date <= DATE_ADD(CURDATE(), INTERVAL 6 MONTH))");
     $stmt3->bind_param("s", $amenity); $stmt3->execute(); $collect($stmt3->get_result()); $stmt3->close();
   } catch (Throwable $e) {
-    error_log('reserve.php booked_dates error: ' . $e->getMessage());
-    $dates = [];
+    reserveJsonError('reserve.php booked_dates error: ' . $e->getMessage());
   }
-  echo json_encode(['dates' => array_values(array_unique($dates))]);
-  exit;
+  reserveJsonResponse(['dates' => array_values(array_unique($dates))]);
 }
 
 // Submission gate: require payment before submission for visitors
@@ -535,7 +522,7 @@ $stmtGate = $con->prepare("SELECT payment_status, amenity, start_date FROM reser
   if ($resGate && ($rw = $resGate->fetch_assoc())) {
     if (!empty($rw['amenity']) && !empty($rw['start_date'])) {
       $_SESSION['flash_notice'] = 'A reservation already exists for this QR reference code. Please wait for email notification.';
-      if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident') {
+      if ($sessionUserType === 'resident') {
         header('Location: profileresident.php');
       } else {
         header('Location: mainpage.php');
@@ -554,13 +541,12 @@ $stmtGate = $con->prepare("SELECT payment_status, amenity, start_date FROM reser
 }
 }
 // Enforce gate for visitors (no resident session or entry_pass_id provided)
-if ((!isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'resident') && (!isset($_GET['entry_pass_id']) || $_GET['entry_pass_id'] === '')) {
+if (($sessionUserType === null || $sessionUserType !== 'resident') && (!isset($_GET['entry_pass_id']) || $_GET['entry_pass_id'] === '')) {
   if ($refFromQuery === '') { $canSubmit = false; }
 }
 
 // Endpoint: booked_times for a specific date and amenity
 if (isset($_GET['action']) && $_GET['action'] === 'booked_times') {
-  header('Content-Type: application/json');
   $amenity = isset($_GET['amenity']) ? trim($_GET['amenity']) : '';
   $date = $_GET['date'] ?? '';
   $startDate = $_GET['start_date'] ?? $date;
@@ -602,7 +588,10 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_times') {
         $stmt1->close();
       }
 
-      // Query 2: resident_reservations table (may not have time columns)
+      // Query 2: resident_reservations joined to reservations.
+      // The join already supplies start_time/end_time/persons/use_points for
+      // the matched reservations row (ref_code is unique), so no per-row
+      // subquery is needed.
       $sql2 = "SELECT rr.start_date, rr.end_date, rr.approval_status, rr.ref_code,
               r.start_time, r.end_time, r.persons, r.use_points
            FROM resident_reservations rr
@@ -614,41 +603,18 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_times') {
         $stmt2->execute();
         $res2 = $stmt2->get_result();
         while ($row = $res2->fetch_assoc()) {
-          $hasTime = false;
-          if (!empty($row['ref_code']) && ($con instanceof mysqli)) {
-            $stmt2b = $con->prepare("SELECT start_time, end_time, persons, use_points FROM reservations WHERE ref_code = ? LIMIT 1");
-            if ($stmt2b) {
-              $stmt2b->bind_param("s", $row['ref_code']);
-              $stmt2b->execute();
-              $res2b = $stmt2b->get_result();
-              if ($res2b && ($r2b = $res2b->fetch_assoc())) {
-                $hasTime = !empty($r2b['start_time']) && !empty($r2b['end_time']);
-                $times[] = [
-                  'start_date' => $row['start_date'],
-                  'end_date'   => $row['end_date'],
-                  'start'      => $hasTime ? $r2b['start_time'] : null,
-                  'end'        => $hasTime ? $r2b['end_time'] : null,
-                  'has_time'   => $hasTime ? 1 : 0,
-                  'persons'    => intval($r2b['persons'] ?? 0),
-                  'use_points' => intval($r2b['use_points'] ?? 0),
-                ];
-                if (!empty($r2b['persons'])) {
-                  $personsTotal += intval($r2b['persons']);
-                }
-              }
-              $stmt2b->close();
-            }
-          }
-          if (!$hasTime) {
-            $times[] = [
-              'start_date' => $row['start_date'],
-              'end_date'   => $row['end_date'],
-              'start'      => null,
-              'end'        => null,
-              'has_time'   => 0,
-              'persons'    => 0,
-              'use_points' => 0,
-            ];
+          $hasTime = !empty($row['start_time']) && !empty($row['end_time']);
+          $times[] = [
+            'start_date' => $row['start_date'],
+            'end_date'   => $row['end_date'],
+            'start'      => $hasTime ? $row['start_time'] : null,
+            'end'        => $hasTime ? $row['end_time'] : null,
+            'has_time'   => $hasTime ? 1 : 0,
+            'persons'    => intval($row['persons'] ?? 0),
+            'use_points' => intval($row['use_points'] ?? 0),
+          ];
+          if (!empty($row['persons'])) {
+            $personsTotal += intval($row['persons']);
           }
         }
         $stmt2->close();
@@ -679,39 +645,31 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_times') {
       }
 
     } catch (Throwable $e) {
-      error_log('reserve.php booked_times error: ' . $e->getMessage());
-      $times = [];
-      $personsTotal = 0;
-      $capacity = 0;
-      $slotBookings = [];
+      reserveJsonError('reserve.php booked_times error: ' . $e->getMessage());
     }
   }
-  echo json_encode(['times' => $times, 'persons_total' => $personsTotal, 'capacity' => $capacity, 'persons_by_date' => $personsByDate, 'slot_bookings' => $slotBookings]);
-  exit;
+  reserveJsonResponse(['times' => $times, 'persons_total' => $personsTotal, 'capacity' => $capacity, 'persons_by_date' => $personsByDate, 'slot_bookings' => $slotBookings]);
 }
 
 if (isset($_GET['action']) && $_GET['action'] === 'check_points') {
-  header('Content-Type: application/json');
-  if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'resident') {
-    echo json_encode(['ok' => false, 'balance' => 0, 'error' => 'Not authenticated as resident.']);
-    exit;
+  if ($sessionUserType !== 'resident' || $sessionUserId === null) {
+    reserveJsonResponse(['ok' => false, 'balance' => 0, 'error' => 'Not authenticated as resident.'], 401);
   }
-  $uid = intval($_SESSION['user_id']);
+  $uid = intval($sessionUserId);
   $balance = reserveCalcVHEcoBalance($con, $uid);
-  echo json_encode(['ok' => true, 'balance' => $balance]);
-  exit;
+  reserveJsonResponse(['ok' => true, 'balance' => $balance]);
 }
-if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident') {
+if ($sessionUserType === 'resident') {
   $accountLink = 'profileresident.php';
-} elseif (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'visitor') {
+} elseif ($sessionUserType === 'visitor') {
   $accountLink = 'dashboardvisitor.php';
 } else {
   $accountLink = 'mainpage.php';
 }
 
 $residentGuests = [];
-if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && isset($_SESSION['user_id']) && ($con instanceof mysqli)) {
-  $rid = intval($_SESSION['user_id']);
+if ($sessionUserType === 'resident' && $sessionUserId !== null && ($con instanceof mysqli)) {
+  $rid = intval($sessionUserId);
   $stmtRG = $con->prepare("SELECT id, visitor_first_name, visitor_middle_name, visitor_last_name, visitor_email, visitor_contact, ref_code FROM guest_forms WHERE resident_user_id = ? AND approval_status = 'approved' ORDER BY created_at DESC");
   if ($stmtRG) {
     $stmtRG->bind_param('i', $rid);
@@ -726,8 +684,8 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
 $currentResident = null;
 $residentPoints = 0;
 $householdResidents = [];
-if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && isset($_SESSION['user_id']) && ($con instanceof mysqli)) {
-  $rid = intval($_SESSION['user_id']);
+if ($sessionUserType === 'resident' && $sessionUserId !== null && ($con instanceof mysqli)) {
+  $rid = intval($sessionUserId);
   
   // Get resident info including points (VHEcoPoint-ONLY ledger — matches profileresident.php)
   $stmtU = $con->prepare("SELECT id, first_name, middle_name, last_name, house_number, points FROM users WHERE id = ? LIMIT 1");
@@ -825,7 +783,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
         <button type="button" id="accountBackBtn" class="btn-secondary back-account-btn" aria-label="Back" onclick="window.location.href='<?php echo htmlspecialchars($accountLink, ENT_QUOTES); ?>'"><i class="fa-solid fa-arrow-left"></i></button>
       </div>
       
-      <?php $isResident = (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident'); ?>
+      <?php $isResident = ($sessionUserType === 'resident'); ?>
 
       <?php if ($isResident): ?>
         <!-- View Rewards Modal -->
@@ -924,7 +882,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
         </div>
       <?php endif; ?>
 
-      <?php if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident'): ?>
+      <?php if ($sessionUserType === 'resident'): ?>
       <div class="points-tracker" id="pointsTracker">
         <div class="points-tracker-header">
           <span class="points-tracker-label">Your Points:</span>
@@ -1052,14 +1010,14 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
             <?php if (!empty($errorMsg)) { ?><div class="alert-error"><?php echo htmlspecialchars($errorMsg); ?></div><?php } ?>
             <form method="POST">
           <input type="hidden" name="purpose" value="Amenity Reservation">
-          <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">
+          <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($sessionCsrfToken); ?>">
           <input type="hidden" name="entry_pass_id" value="<?php echo (isset($_GET['entry_pass_id']) && $_GET['entry_pass_id'] !== '') ? intval($_GET['entry_pass_id']) : ''; ?>">
           <input type="hidden" name="ref_code" id="refCodeField" value="<?php echo htmlspecialchars($_GET['ref_code'] ?? ''); ?>">
           <input type="hidden" name="booking_for" id="bookingForField" value="<?php echo $isResident ? 'resident' : 'guest'; ?>">
           <input type="hidden" name="guest_id" id="guestIdField" value="">
           <input type="hidden" name="guest_ref_code" id="guestRefField" value="">
-          <input type="hidden" name="residents_count" id="residentsCountInput" value="<?php echo (isset($_SESSION['user_type']) && $_SESSION['user_type']==='resident') ? '1' : '0'; ?>">
-          <input type="hidden" name="guests_count" id="guestsCountInput" value="<?php echo (isset($_SESSION['user_type']) && $_SESSION['user_type']==='resident') ? '0' : '1'; ?>">
+          <input type="hidden" name="residents_count" id="residentsCountInput" value="<?php echo ($sessionUserType === 'resident') ? '1' : '0'; ?>">
+          <input type="hidden" name="guests_count" id="guestsCountInput" value="<?php echo ($sessionUserType === 'resident') ? '0' : '1'; ?>">
           <input type="hidden" id="submitAllowed" value="1">
           <input type="hidden" name="use_points" id="use-points-input" value="0">
             <div class="reservation-card" id="reservationCard" style="display:none;">
@@ -1154,7 +1112,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                     <div id="selectedTimeNote" class="selected-time-note" style="display:none;">Note: This is the available time. Please leave by closing time.</div>
                     <div id="availabilityNotice" class="avail-notice" style="display:none;"></div>
                     <!-- Points Redemption Toggle -->
-                    <?php if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident'): ?>
+<?php if ($sessionUserType === 'resident'): ?>
                     <div class="res-item booking-mode-row">
                       <div class="booking-mode-shell">
                         <div class="booking-mode-title">Book with cash or redeem points</div>
@@ -1261,7 +1219,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
                               <div style="font-weight:600; color:#23412e; margin-bottom:6px;">Residents</div>
                               <div class="counter">
                                 <button type="button" onclick="changeResidents(-1)">-</button>
-                                <span id="residentsCountText"><?php echo (isset($_SESSION['user_type']) && $_SESSION['user_type']==='resident') ? '1' : '0'; ?></span>
+                                <span id="residentsCountText"><?php echo ($sessionUserType === 'resident') ? '1' : '0'; ?></span>
                                 <button type="button" onclick="changeResidents(1)">+</button>
                               </div>
                               <small class="label-help">33.33% discount per resident</small>
@@ -1376,7 +1334,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
   const todayStr=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
   const minDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
   const minDateStr = `${minDate.getFullYear()}-${String(minDate.getMonth()+1).padStart(2,'0')}-${String(minDate.getDate()).padStart(2,'0')}`;
-  const currentUserType="<?php echo isset($_SESSION['user_type']) ? htmlspecialchars($_SESSION['user_type'], ENT_QUOTES) : ''; ?>";
+  const currentUserType="<?php echo $sessionUserType !== null ? htmlspecialchars($sessionUserType, ENT_QUOTES) : ''; ?>";
   const residentPoints = <?php echo isset($residentPoints) ? intval($residentPoints) : 0; ?>;
   let selectedStart=null,selectedEnd=null;
   let endDateRangeError=false;
@@ -3363,7 +3321,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
           return;
         }
         var bookingForField = document.getElementById('bookingForField');
-        var userType = "<?php echo isset($_SESSION['user_type']) ? htmlspecialchars($_SESSION['user_type'], ENT_QUOTES) : ''; ?>";
+        var userType = "<?php echo $sessionUserType !== null ? htmlspecialchars($sessionUserType, ENT_QUOTES) : ''; ?>";
         if (bookingForField) {
           if (userType === 'resident') {
             var wrap = document.getElementById('participantWrap');

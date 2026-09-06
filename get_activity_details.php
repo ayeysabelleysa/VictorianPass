@@ -2,6 +2,8 @@
 require_once __DIR__ . '/session_bootstrap.php';
 include 'connect.php';
 
+session_write_close();
+
 $code = isset($_GET['code']) ? trim($_GET['code']) : '';
 if ($code === '') { 
     echo '<div style="color:red;padding:20px;">Error: Reference code is required.</div>';
@@ -367,7 +369,6 @@ if (!$data) {
 
 <div class="activity-details-container">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
         .activity-details-container {
             font-family: 'Poppins', sans-serif;
             color: #333;

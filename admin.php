@@ -7,8 +7,12 @@ include 'connect.php';
 $isReservationDetailsAjax = isset($_GET['action']) && in_array($_GET['action'], [
   'get_reservation_details',
   'get_resident_reservation_details',
-  'get_visitor_details'
-], true) && isset($_GET['id']);
+  'get_visitor_details',
+  'get_user_details',
+  'get_reservation_details_by_ref',
+  'get_notifications',
+  'dismiss_notification'
+], true);
 
 $now = time();
 $last = intval($_SESSION['staff_last_activity'] ?? 0);
@@ -29,6 +33,8 @@ if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') {
         $_SESSION['staff_session_timeout'] = $staffInactivityLimit;
     }
 }
+
+if ($isReservationDetailsAjax) { session_write_close(); }
 
 function admin_status_link($code){ $scheme=(isset($_SERVER['HTTPS'])&&$_SERVER['HTTPS']==='on')?'https':'http'; $host=$_SERVER['HTTP_HOST']??'localhost'; $basePath=rtrim(dirname($_SERVER['SCRIPT_NAME']??'/VictorianPass'),'/'); return $scheme.'://'.$host.$basePath.'/qr_view.php?code='.urlencode($code); }
 function admin_send_email($to,$subject,$body){
@@ -225,6 +231,11 @@ if (!$isReservationDetailsAjax && !vpSchemaDone($con, 'admin_v1')) {
 
 // Handle AJAX request for user details (admin resident profile)
 if (isset($_GET['action']) && $_GET['action'] == 'get_user_details' && isset($_GET['id'])) {
+    if (($_SESSION['role'] ?? '') !== 'admin') {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+        exit;
+    }
     $user_id = intval($_GET['id']);
     $stmt = $con->prepare("SELECT id, first_name, middle_name, last_name, email, phone, sex, birthdate, house_number, address, valid_id_path, created_at, user_type, IFNULL(status,'active') as status FROM users WHERE id = ?");
     $stmt->bind_param('i', $user_id);
@@ -241,6 +252,11 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_user_details' && isset($_G
 
 // Handle AJAX request for visitor details (guest_forms first, legacy fallback)
 if (isset($_GET['action']) && $_GET['action'] == 'get_visitor_details' && isset($_GET['id'])) {
+    if (($_SESSION['role'] ?? '') !== 'admin') {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+        exit;
+    }
     $id = intval($_GET['id']);
     $source = isset($_GET['source']) ? $_GET['source'] : '';
 
@@ -346,6 +362,11 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_visitor_details' && isset(
 // Handle AJAX request for resident reservation details
 if (isset($_GET['action']) && $_GET['action'] == 'get_resident_reservation_details' && isset($_GET['id'])) {
     header('Content-Type: application/json');
+    if (($_SESSION['role'] ?? '') !== 'admin') {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+        exit;
+    }
     $id = intval($_GET['id']);
     $stmt = $con->prepare("SELECT r.id, r.user_id, r.ref_code, r.amenity, r.start_date, r.end_date, r.start_time, r.end_time, r.persons, r.purpose,
                                     r.created_at, r.approval_status, r.approved_by, r.approval_date,
@@ -426,6 +447,11 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_reservation_details' && is
 // Handle AJAX request to fetch reservation by ref_code
 if (isset($_GET['action']) && $_GET['action'] == 'get_reservation_details_by_ref' && isset($_GET['ref'])) {
     header('Content-Type: application/json');
+    if (($_SESSION['role'] ?? '') !== 'admin') {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+        exit;
+    }
     $ref = trim($_GET['ref']);
     $stmt = $con->prepare("SELECT r.*, u.user_type, gf.id AS gf_id FROM reservations r LEFT JOIN users u ON r.user_id = u.id LEFT JOIN guest_forms gf ON gf.ref_code = r.ref_code WHERE r.ref_code = ? ORDER BY r.id DESC LIMIT 1");
     $stmt->bind_param('s', $ref);
@@ -463,6 +489,11 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_resident_reservation_detai
 }
 
 if (isset($_GET['action']) && $_GET['action'] === 'get_notifications') {
+    if (($_SESSION['role'] ?? '') !== 'admin') {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+        exit;
+    }
     $payments = getPendingPaymentCount($con);
     $awaiting = getAmenityAwaitingPaymentCount($con);
     $ready = getAmenityReadyForApprovalCount($con);
@@ -552,6 +583,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_notifications') {
 }
 
 if (isset($_GET['action']) && $_GET['action'] === 'dismiss_notification' && isset($_GET['id'])) {
+    if (($_SESSION['role'] ?? '') !== 'admin') {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+        exit;
+    }
     $nid = intval($_GET['id']);
     $stmt = $con->prepare("UPDATE notifications SET is_read = 1 WHERE id = ?");
     $stmt->bind_param('i', $nid);

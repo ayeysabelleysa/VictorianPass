@@ -4,6 +4,11 @@ ini_set('session.gc_maxlifetime', (string)$staffInactivityLimit);
 require_once __DIR__ . '/session_bootstrap.php';
 require_once 'connect.php';
 
+$isGuardApiAction = (
+  (isset($_GET['action']) && in_array($_GET['action'], ['list_incidents', 'incident_details', 'get_notifications', 'dismiss_notification', 'list_today_scans', 'list_expected'], true))
+  || (isset($_POST['action']) && in_array($_POST['action'], ['escalate', 'handle', 'resolve'], true))
+);
+
 $now = time();
 $last = intval($_SESSION['staff_last_activity'] ?? 0);
 $timeout = intval($_SESSION['staff_session_timeout'] ?? $staffInactivityLimit);
@@ -33,6 +38,7 @@ if (isset($_SESSION['role']) && $_SESSION['role'] === 'guard') {
     $_SESSION['staff_session_timeout'] = $staffInactivityLimit;
   }
 }
+if ($isGuardApiAction) { session_write_close(); }
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'guard') { header('Location: login.php'); exit; }
 $email = $_SESSION['email'] ?? '';
 $local = explode('@', $email)[0] ?? '';
@@ -44,33 +50,35 @@ $surname = strlen($s) ? ucfirst(strtolower($s)) : 'Guard';
 $staffId = intval($_SESSION['staff_id'] ?? 0);
 $currentLoginId = intval($_SESSION['login_history_id'] ?? 0);
 $guardConfirmRef = '';
-if (!empty($_SESSION['guard_confirmed_ref'])) {
-  $age = time() - intval($_SESSION['guard_confirmed_time'] ?? 0);
-  if ($age >= 0 && $age < 120) {
-    $guardConfirmRef = (string)$_SESSION['guard_confirmed_ref'];
+if (!$isGuardApiAction) {
+  if (!empty($_SESSION['guard_confirmed_ref'])) {
+    $age = time() - intval($_SESSION['guard_confirmed_time'] ?? 0);
+    if ($age >= 0 && $age < 120) {
+      $guardConfirmRef = (string)$_SESSION['guard_confirmed_ref'];
+    }
+    unset($_SESSION['guard_confirmed_ref'], $_SESSION['guard_confirmed_time']);
   }
-  unset($_SESSION['guard_confirmed_ref'], $_SESSION['guard_confirmed_time']);
-}
-$currentLogin = null;
-if ($currentLoginId > 0) {
-  $stmt = $con->prepare('SELECT id, staff_id, login_time, logout_time FROM login_history WHERE id = ? LIMIT 1');
-  if ($stmt) {
-    $stmt->bind_param('i', $currentLoginId);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    if ($res && $res->num_rows === 1) { $currentLogin = $res->fetch_assoc(); }
-    $stmt->close();
+  $currentLogin = null;
+  if ($currentLoginId > 0) {
+    $stmt = $con->prepare('SELECT id, staff_id, login_time, logout_time FROM login_history WHERE id = ? LIMIT 1');
+    if ($stmt) {
+      $stmt->bind_param('i', $currentLoginId);
+      $stmt->execute();
+      $res = $stmt->get_result();
+      if ($res && $res->num_rows === 1) { $currentLogin = $res->fetch_assoc(); }
+      $stmt->close();
+    }
   }
-}
-$history = [];
-if ($staffId > 0) {
-  $stmt = $con->prepare('SELECT id, login_time, logout_time FROM login_history WHERE staff_id = ? ORDER BY login_time DESC LIMIT 10');
-  if ($stmt) {
-    $stmt->bind_param('i', $staffId);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    while ($res && ($row = $res->fetch_assoc())) { $history[] = $row; }
-    $stmt->close();
+  $history = [];
+  if ($staffId > 0) {
+    $stmt = $con->prepare('SELECT id, login_time, logout_time FROM login_history WHERE staff_id = ? ORDER BY login_time DESC LIMIT 10');
+    if ($stmt) {
+      $stmt->bind_param('i', $staffId);
+      $stmt->execute();
+      $res = $stmt->get_result();
+      while ($res && ($row = $res->fetch_assoc())) { $history[] = $row; }
+      $stmt->close();
+    }
   }
 }
 
@@ -296,7 +304,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'resolve' && isset($_POST['r
 }
 if (isset($_GET['action']) && $_GET['action'] === 'get_notifications') {
   header('Content-Type: application/json');
-  ensureNotificationsTable($con);
+  if (!vpSchemaDone($con, 'guard_notif_v1')) { ensureNotificationsTable($con); vpMarkSchemaDone($con, 'guard_notif_v1'); }
   $items = [];
   $incidentCount = 0;
   $ir = $con->query("SELECT id, status, created_at, UNIX_TIMESTAMP(created_at) AS epoch FROM incident_reports WHERE COALESCE(escalated_to_admin,0) = 0 AND (status IS NULL OR LOWER(TRIM(status)) <> 'cancelled') ORDER BY created_at DESC LIMIT 12");
@@ -402,7 +410,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_notifications') {
 }
 if (isset($_GET['action']) && $_GET['action'] === 'dismiss_notification' && isset($_GET['id'])) {
   header('Content-Type: application/json');
-  ensureNotificationsTable($con);
+  if (!vpSchemaDone($con, 'guard_notif_v1')) { ensureNotificationsTable($con); vpMarkSchemaDone($con, 'guard_notif_v1'); }
   $nid = intval($_GET['id']);
   if ($nid > 0) {
     $stmt = $con->prepare("UPDATE notifications SET is_read = 1 WHERE id = ?");

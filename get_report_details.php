@@ -2,6 +2,8 @@
 require_once __DIR__ . '/session_bootstrap.php';
 require_once 'connect.php';
 
+session_write_close();
+
 $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 if ($id <= 0) {
   echo '<div style="color:red;padding:20px;">Error: Report ID is required.</div>';
@@ -43,7 +45,6 @@ function fmt_dt($d){
 <html>
 <head>
   <meta charset="UTF-8">
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     body {
       margin: 0;
