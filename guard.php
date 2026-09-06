@@ -7,19 +7,16 @@ require_once 'connect.php';
 $now = time();
 $last = intval($_SESSION['staff_last_activity'] ?? 0);
 $timeout = intval($_SESSION['staff_session_timeout'] ?? $staffInactivityLimit);
-$loginHistoryAvailable = false;
-$loginHistoryTable = $con->query("SHOW TABLES LIKE 'login_history'");
-if ($loginHistoryTable) {
-  $loginHistoryAvailable = $loginHistoryTable->num_rows > 0;
-  $loginHistoryTable->free();
-}
+$loginHistoryAvailable = true;
 if ($last > 0 && $timeout > 0 && ($now - $last) > $timeout) {
   $loginId = intval($_SESSION['login_history_id'] ?? 0);
-  if ($loginHistoryAvailable && $loginId > 0) {
+  if ($loginId > 0) {
     $stmt = $con->prepare('UPDATE login_history SET logout_time = NOW() WHERE id = ? AND logout_time IS NULL');
-    $stmt->bind_param('i', $loginId);
-    $stmt->execute();
-    $stmt->close();
+    if ($stmt) {
+      $stmt->bind_param('i', $loginId);
+      $stmt->execute();
+      $stmt->close();
+    }
   }
   $_SESSION = [];
   if (ini_get('session.use_cookies')) {
@@ -55,22 +52,26 @@ if (!empty($_SESSION['guard_confirmed_ref'])) {
   unset($_SESSION['guard_confirmed_ref'], $_SESSION['guard_confirmed_time']);
 }
 $currentLogin = null;
-if ($loginHistoryAvailable && $currentLoginId > 0) {
+if ($currentLoginId > 0) {
   $stmt = $con->prepare('SELECT id, staff_id, login_time, logout_time FROM login_history WHERE id = ? LIMIT 1');
-  $stmt->bind_param('i', $currentLoginId);
-  $stmt->execute();
-  $res = $stmt->get_result();
-  if ($res && $res->num_rows === 1) { $currentLogin = $res->fetch_assoc(); }
-  $stmt->close();
+  if ($stmt) {
+    $stmt->bind_param('i', $currentLoginId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    if ($res && $res->num_rows === 1) { $currentLogin = $res->fetch_assoc(); }
+    $stmt->close();
+  }
 }
 $history = [];
-if ($loginHistoryAvailable && $staffId > 0) {
+if ($staffId > 0) {
   $stmt = $con->prepare('SELECT id, login_time, logout_time FROM login_history WHERE staff_id = ? ORDER BY login_time DESC LIMIT 10');
-  $stmt->bind_param('i', $staffId);
-  $stmt->execute();
-  $res = $stmt->get_result();
-  while ($res && ($row = $res->fetch_assoc())) { $history[] = $row; }
-$stmt->close();
+  if ($stmt) {
+    $stmt->bind_param('i', $staffId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($res && ($row = $res->fetch_assoc())) { $history[] = $row; }
+    $stmt->close();
+  }
 }
 
 // Ensure incident tables and escalation columns exist

@@ -107,6 +107,12 @@ if ($con && !$con->connect_error) {
 if ($con->connect_error) {
     // Log the real cause server-side but never echo DB details to the user.
     @error_log("[DB] Connection failed: " . $con->connect_error . " (host=$host db=$db)");
+    if (defined('VP_JSON_ERROR_RESPONSE') && VP_JSON_ERROR_RESPONSE === true) {
+        http_response_code(503);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['success' => false, 'message' => 'Database temporarily unavailable']);
+        exit;
+    }
     http_response_code(500);
     echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Service Unavailable</title>'
        . '<style>body{font-family:system-ui,sans-serif;background:#fafbfc;color:#222;display:flex;'

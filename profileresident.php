@@ -4838,7 +4838,7 @@ body.qr-modal-open{ overflow:hidden }
       })["catch"](function(){});
   }
   refreshStatuses();
-  setInterval(refreshStatuses,3000);
+  setInterval(refreshStatuses,15000);
 })();
 </script>
 

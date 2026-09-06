@@ -5586,7 +5586,7 @@ body.modal-open { overflow: hidden; }
           }
           function poll(){ fetch('admin.php?action=get_notifications').then(function(r){ return r.json(); }).then(handleData).catch(function(){}); }
           poll();
-          var pollMs = 2000; var timer = setInterval(poll, pollMs);
+          var pollMs = 10000; var timer = setInterval(poll, pollMs);
           document.addEventListener('visibilitychange', function(){ if(document.hidden){ clearInterval(timer); timer = setInterval(poll, 5000); } else { clearInterval(timer); timer = setInterval(poll, pollMs); poll(); } });
           function dismissItem(e){ var btn=e.target.closest('.notif-dismiss'); if(!btn) return; var item=btn.closest('.notif-item'); if(!item) return; var k=[item.getAttribute('data-type')||'', item.getAttribute('data-ref')||'', item.getAttribute('data-time')||''].join('|'); var nid=item.getAttribute('data-id'); if(nid){ fetch('admin.php?action=dismiss_notification&id='+nid).catch(function(){}); } dismissed.add(k); item.remove(); }
           if(p){ p.addEventListener('click', dismissItem); }
@@ -7623,7 +7623,7 @@ function showReservationDetails(reservationId, expectedType){
   if(c){ c.innerHTML = '<div style="padding:20px;text-align:center;">Loading...</div>'; }
   var m = document.getElementById('reservationModal');
   if(m){ m.style.display = 'flex'; }
-  fetch('admin.php?action=get_reservation_details&id=' + reservationId)
+  fetch('api/reservation_details.php?id=' + encodeURIComponent(reservationId), { credentials: 'same-origin', cache: 'no-store' })
     .then(r => {
       if(!r.ok){ throw new Error('Request failed (' + r.status + ')'); }
       return r.json();
@@ -7761,7 +7761,7 @@ function showResidentReservationDetails(rrId){
   document.getElementById('residentReservationDetailsContent').innerHTML = '<div style="padding:20px;text-align:center;">Loading...</div>';
   document.getElementById('residentReservationModal').style.display = 'flex';
   
-  fetch('admin.php?action=get_resident_reservation_details&id=' + rrId)
+  fetch('api/reservation_details.php?id=' + encodeURIComponent(rrId), { credentials: 'same-origin', cache: 'no-store' })
     .then(r => r.json())
     .then(data => {
       if(!data.success){ 

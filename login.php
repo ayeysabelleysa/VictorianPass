@@ -46,7 +46,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && !$staffSessionActive) {
 
         if (!$cooldownActive) {
         // Step 1: Check if account exists in staff (admin/guard)
-        $sql_staff = "SELECT * FROM staff WHERE email = ?";
+        $sql_staff = "SELECT id, email, password, role FROM staff WHERE email = ? LIMIT 1";
         $stmt_staff = $con->prepare($sql_staff);
         $stmt_staff->bind_param("s", $email);
         $stmt_staff->execute();
@@ -97,7 +97,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && !$staffSessionActive) {
 
         // ✅ Step 2: Check if account exists in users (resident/visitor)
         if (!$skipUserCheck) {
-            $sql_user = "SELECT * FROM users WHERE email = ?";
+            $sql_user = "SELECT id, email, password, user_type, status, suspension_reason FROM users WHERE email = ? LIMIT 1";
             $stmt_user = $con->prepare($sql_user);
             $stmt_user->bind_param("s", $email);
             $stmt_user->execute();

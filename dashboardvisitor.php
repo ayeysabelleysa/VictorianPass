@@ -1402,7 +1402,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
   }
   
   refreshStatuses();
-  setInterval(refreshStatuses,3000);
+  setInterval(refreshStatuses,15000);
   
   // Modal Logic
   var cancelModal=document.getElementById('cancelModal');
