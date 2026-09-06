@@ -4,6 +4,12 @@ ini_set('session.gc_maxlifetime', (string)$staffInactivityLimit);
 require_once __DIR__ . '/session_bootstrap.php';
 include 'connect.php';
 
+$isReservationDetailsAjax = isset($_GET['action']) && in_array($_GET['action'], [
+  'get_reservation_details',
+  'get_resident_reservation_details',
+  'get_visitor_details'
+], true) && isset($_GET['id']);
+
 $now = time();
 $last = intval($_SESSION['staff_last_activity'] ?? 0);
 $timeout = intval($_SESSION['staff_session_timeout'] ?? $staffInactivityLimit);
@@ -203,7 +209,7 @@ if (!function_exists('vpMarkSchemaDone')) {
 }
 
 // Ensure new guest_forms table exists for admin operations
-if (!vpSchemaDone($con, 'admin_v1')) {
+if (!$isReservationDetailsAjax && !vpSchemaDone($con, 'admin_v1')) {
   ensureGuestFormsTable($con);
   ensureGuestFormsWantsAmenityColumn($con);
   ensureGuestFormsAmenityColumns($con);
@@ -365,24 +371,56 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_resident_reservation_detai
 
 // Handle AJAX request for standard amenity reservation details
 if (isset($_GET['action']) && $_GET['action'] == 'get_reservation_details' && isset($_GET['id'])) {
-    $reservation_id = intval($_GET['id']);
-    $query = "SELECT r.*, u.first_name, u.middle_name, u.last_name, u.email, u.phone, u.house_number, u.user_type,
-                     gf.id AS gf_id, gf.visitor_first_name AS guest_first_name, gf.visitor_middle_name AS guest_middle_name,
-                     gf.visitor_last_name AS guest_last_name, gf.visitor_email AS guest_email, gf.visitor_contact AS guest_contact
-              FROM reservations r
-              LEFT JOIN users u ON r.user_id = u.id
-              LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code
-              WHERE r.id = ? AND (r.entry_pass_id IS NULL OR r.entry_pass_id = 0)";
-    $stmt = $con->prepare($query);
-    $stmt->bind_param('i', $reservation_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    if ($result && $row = $result->fetch_assoc()) {
-        echo json_encode(['success' => true, 'details' => $row]);
-    } else {
-        echo json_encode(['success' => false, 'message' => 'Reservation details not found']);
-    }
+  header('Content-Type: application/json; charset=utf-8');
+  if (($_SESSION['role'] ?? '') !== 'admin') {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => 'Unauthorized']);
     exit;
+  }
+  $reservationId = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+  if (!$reservationId || !($con instanceof mysqli)) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Invalid reservation ID']);
+    exit;
+  }
+  $query = "SELECT r.id, r.user_id, r.ref_code, r.amenity, r.start_date, r.end_date,
+           r.start_time, r.end_time, r.persons, r.purpose, r.created_at,
+           r.approval_status, r.approved_by, r.approval_date, r.price,
+           r.downpayment, r.payment_status, r.receipt_path, r.receipt_attempts,
+           r.denial_reason, r.booking_for, r.booked_by_role, r.booked_by_name,
+           r.entry_pass_id, u.first_name, u.middle_name, u.last_name,
+           u.email, u.phone, u.house_number, u.user_type,
+           gf.id AS gf_id, gf.visitor_first_name AS guest_first_name,
+           gf.visitor_middle_name AS guest_middle_name, gf.visitor_last_name AS guest_last_name,
+           gf.visitor_email AS guest_email, gf.visitor_contact AS guest_contact
+        FROM reservations r
+        LEFT JOIN users u ON u.id = r.user_id
+        LEFT JOIN guest_forms gf ON gf.ref_code = r.ref_code
+        WHERE r.id = ?
+        LIMIT 1";
+  $stmt = $con->prepare($query);
+  if (!$stmt) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => 'Unable to prepare reservation lookup']);
+    exit;
+  }
+  $stmt->bind_param('i', $reservationId);
+  if (!$stmt->execute()) {
+    $stmt->close();
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => 'Unable to load reservation details']);
+    exit;
+  }
+  $result = $stmt->get_result();
+  $row = $result ? $result->fetch_assoc() : null;
+  $stmt->close();
+  if ($row) {
+    echo json_encode(['success' => true, 'details' => $row]);
+  } else {
+    http_response_code(404);
+    echo json_encode(['success' => false, 'message' => 'Reservation details not found']);
+  }
+  exit;
 }
 
 // Handle AJAX request to fetch reservation by ref_code
@@ -7586,7 +7624,10 @@ function showReservationDetails(reservationId, expectedType){
   var m = document.getElementById('reservationModal');
   if(m){ m.style.display = 'flex'; }
   fetch('admin.php?action=get_reservation_details&id=' + reservationId)
-    .then(r => r.json())
+    .then(r => {
+      if(!r.ok){ throw new Error('Request failed (' + r.status + ')'); }
+      return r.json();
+    })
     .then(data => {
       if(!data.success){ alert('Error loading reservation details: ' + (data.message||'Unknown error')); return; }
       const d = data.details || {};
@@ -7682,7 +7723,10 @@ function showReservationDetails(reservationId, expectedType){
       document.getElementById('reservationDetailsContent').innerHTML = content;
       document.getElementById('reservationModal').style.display = 'flex';
     })
-    .catch(err => { console.error(err); alert('Error loading reservation details'); });
+    .catch(err => {
+      console.error(err);
+      if(c){ c.innerHTML = '<div style="padding:20px;text-align:center;color:red;">Unable to load reservation details. Please try again.</div>'; }
+    });
 }
 
 function closeReservationModal(){

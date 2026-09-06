@@ -1549,6 +1549,8 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
   let endDateRangeError=false;
   let bookedDates=new Set();
   let availabilityCache=new Map();
+  let bookedTimesCache=new Map();
+  let bookedTimesRequests=new Map();
   let availabilityToken=0;
   let selectedAmenity=document.getElementById('amenityField').value||'';
   let usePoints = false;
@@ -1857,7 +1859,9 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
   async function loadBookedDates(forceRefresh){
     if(!selectedAmenity){ bookedDates=new Set(); renderCalendar(currentMonth,currentYear,forceRefresh); computeAvailability(); return; }
     bookedDates=new Set();
-    renderCalendar(currentMonth,currentYear,forceRefresh); computeAvailability();
+    const availabilityPromise = renderCalendar(currentMonth,currentYear,forceRefresh);
+    await availabilityPromise;
+    computeAvailability();
   }
 
   function renderCalendar(month,year,forceRefresh){
@@ -1884,7 +1888,7 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
       }
       calendarBody.appendChild(row);
     }
-    evaluateCalendarAvailability(forceRefresh);
+    return evaluateCalendarAvailability(forceRefresh);
   }
 
   function toDateString(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
@@ -1919,11 +1923,25 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
       const token = ++availabilityToken;
       let cached = availabilityCache.get(key);
       if(!cached || forceRefresh){
+        if(forceRefresh){
+          Array.from(bookedTimesCache.keys()).forEach(function(cacheKey){
+            if(cacheKey.indexOf(`${amen}|`) === 0) bookedTimesCache.delete(cacheKey);
+          });
+        }
         const res = await fetch(`reserve.php?action=booked_times&amenity=${encodeURIComponent(amen)}&start_date=${startDs}&end_date=${endDs}`);
         const data = await res.json();
         const byDate = buildDayIndex(data.times||[], startDs, endDs);
         cached = { data, byDate };
         availabilityCache.set(key, cached);
+        cells.forEach(function(cell){
+          const ds = cell.getAttribute('data-date');
+          if(!ds) return;
+          bookedTimesCache.set(`${amen}|${ds}`, {
+            times: byDate[ds] || [],
+            persons_total: data.persons_total || 0,
+            capacity: data.capacity || 0
+          });
+        });
       }
       if(token !== availabilityToken) return;
       const data = cached.data || {};
@@ -2338,6 +2356,8 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     selectedAmenity=info.value;
     document.getElementById('amenityField').value=info.value;
     availabilityCache.clear();
+    bookedTimesCache.clear();
+    bookedTimesRequests.clear();
     
     document.querySelectorAll('.amenity-card').forEach(c=>c.classList.remove('selected'));
     const card=document.querySelector(`.amenity-card[data-key="${key}"]`);
@@ -2615,7 +2635,19 @@ if (isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'resident' && is
     updateBookingSummary();
   }
 
-  async function fetchBookedTimesFor(date){ if(!document.getElementById('amenityField').value) return {times:[], persons_total:0, capacity:0}; try{ const res=await fetch(`reserve.php?action=booked_times&amenity=${encodeURIComponent(selectedAmenity)}&date=${encodeURIComponent(date)}`); const data=await res.json(); return data||{times:[], persons_total:0, capacity:0}; }catch(_){ return {times:[], persons_total:0, capacity:0}; } }
+  async function fetchBookedTimesFor(date){
+    if(!document.getElementById('amenityField').value) return {times:[], persons_total:0, capacity:0};
+    const key = `${selectedAmenity}|${date}`;
+    if(bookedTimesCache.has(key)) return bookedTimesCache.get(key);
+    if(bookedTimesRequests.has(key)) return bookedTimesRequests.get(key);
+    const request = fetch(`reserve.php?action=booked_times&amenity=${encodeURIComponent(selectedAmenity)}&date=${encodeURIComponent(date)}`)
+      .then(res=>res.json())
+      .then(data=>{ const result=data||{times:[], persons_total:0, capacity:0}; bookedTimesCache.set(key,result); return result; })
+      .catch(_=>({times:[], persons_total:0, capacity:0}))
+      .finally(()=>bookedTimesRequests.delete(key));
+    bookedTimesRequests.set(key, request);
+    return request;
+  }
 
   async function fetchLivePointsBalance() {
     try {

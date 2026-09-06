@@ -38,3 +38,8 @@ $sessionCookieParams['samesite'] = 'Lax';
 session_set_cookie_params($sessionCookieParams);
 
 session_start();
+
+// Authenticated pages must never be restored from browser history after logout.
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');

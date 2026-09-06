@@ -2,24 +2,13 @@
 require_once __DIR__ . '/session_bootstrap.php';
 $confirmed = isset($_GET['confirm']) && $_GET['confirm'] === 'yes';
 if ($confirmed) {
-  require_once 'connect.php';
-  $loginId = intval($_SESSION['login_history_id'] ?? 0);
-  $loginHistoryTable = $con->query("SHOW TABLES LIKE 'login_history'");
-  $loginHistoryAvailable = $loginHistoryTable && $loginHistoryTable->num_rows > 0;
-  if ($loginHistoryTable) { $loginHistoryTable->free(); }
-  if ($loginHistoryAvailable && $loginId > 0) {
-    $stmt = $con->prepare('UPDATE login_history SET logout_time = NOW() WHERE id = ? AND logout_time IS NULL');
-    $stmt->bind_param('i', $loginId);
-    $stmt->execute();
-    $stmt->close();
-  }
   $_SESSION = [];
   if (ini_get('session.use_cookies')) {
     $params = session_get_cookie_params();
     setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
   }
   session_destroy();
-  header('Location: mainpage.php');
+  header('Location: login.php', true, 303);
   exit;
 }
 $back = isset($_SERVER['HTTP_REFERER']) && $_SERVER['HTTP_REFERER'] !== '' ? $_SERVER['HTTP_REFERER'] : 'mainpage.php';
