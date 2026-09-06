@@ -26,12 +26,12 @@ while True:
 
     frame_count += 1
 
-    # Print status every 30 frames
     if frame_count % 30 == 0:
         elapsed = time.time() - start_time
 
         if elapsed > 0:
             fps = frame_count / elapsed
+
             print(
                 f"Receiving video: "
                 f"{frame_count} frames | "
