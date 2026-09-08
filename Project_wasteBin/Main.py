@@ -1,6 +1,7 @@
 import time
 import requests
 import os
+import subprocess
 
 from offline_queue import init_db, save_transaction
 
@@ -32,10 +33,23 @@ from inductive import (
 
 CAMERA_URL = "http://127.0.0.1:5000/status"
 
+camera_process = subprocess.Popen(
+    ["python3", "CameraYolo.py"],
+    stdout=subprocess.DEVNULL,
+    stderr=subprocess.DEVNULL
+)
+
 API_BASE_URL = "https://deeppink-wren-292489.hostingersite.com/api"
 
 QR_API = (
     f"{API_BASE_URL}/qr_verify_and_create_session.php"
+)
+SUBMIT_WASTE_API = (
+    f"{API_BASE_URL}/submit_waste_data.php"
+)
+
+COMPLETE_API = (
+    f"{API_BASE_URL}/complete_session.php"
 )
 
 CANCEL_API = (
@@ -55,11 +69,11 @@ API_HEADERS = {
 
 MIN_WEIGHT = 20.0
 
-WEIGHT_STABLE_TIME = 3.0
-METAL_STABLE_TIME = 3.0
+WEIGHT_STABLE_TIME = 1
+METAL_STABLE_TIME = 0.5
 
 MAX_SESSIONS = 3
-DAILY_POINT_CAP = 250
+DAILY_POINT_CAP = 100
 
 CAMERA_TIMEOUT = 0.5
 
@@ -228,7 +242,93 @@ def create_api_session(qr_code):
         "session_token": session_token,
         "resident": resident
     }
+# =========================================================
+# SUBMIT WASTE DATA
+# =========================================================
+def submit_waste_data(session_token, material, weight):
+    result = api_post(
+        SUBMIT_WASTE_API,
+        {
+            "session_token": session_token,
+            "material": material.capitalize(),
+            "weight_kg": weight / 1000,
+            "raw_hardware_data": {
+                "station_id": STATION_ID
+            }
+        }
+    )
 
+    if not result:
+        print("No response from waste submission API.")
+        return None
+
+    if not result.get("success"):
+        print(
+            "Waste submission failed:",
+            result.get("message", "Unknown error")
+        )
+        return None
+
+    print("Waste data submitted successfully.")
+
+    return result
+
+
+# =========================================================
+# COMPLETE HOSTINGER SESSION
+# =========================================================
+def complete_api_session(
+    session_token,
+    material=None,
+    weight=None
+):
+    print()
+    print("Completing Hostinger session...")
+
+    data = {
+        "session_token": session_token
+    }
+
+    if material is not None:
+        data["final_material"] = material.capitalize()
+
+    if weight is not None:
+        data["final_weight_kg"] = weight / 1000
+
+    data["raw_hardware_data"] = {
+        "station_id": STATION_ID
+    }
+
+    result = api_post(
+        COMPLETE_API,
+        data
+    )
+
+    if not result:
+        print("No response from session completion API.")
+        return None
+
+    if not result.get("success"):
+        print(
+            "Session completion failed:",
+            result.get(
+                "message",
+                "Unknown error"
+            )
+        )
+        return None
+
+    print("Hostinger session completed.")
+    print(
+        "Points awarded:",
+        result.get("points_awarded", 0)
+    )
+    print(
+        "New balance:",
+        result.get("new_balance", 0)
+    )
+
+    return result
 
 # =========================================================
 # CANCEL HOSTINGER SESSION
@@ -269,19 +369,24 @@ def cancel_api_session(
         )
 
 
-# =========================================================
+## =========================================================
 # WAIT FOR ITEM
 # =========================================================
+
 def wait_for_item():
+
     start_time = time.monotonic()
+
     while True:
+
         weight = get_weight(1)
         metal = metal_detected()
 
         status = "METAL DETECTED" if metal else "Waiting for item..."
         print(f"\r[ WEIGHT ] {weight:.1f} g | {status}", end="", flush=True)
 
-        if weight >= MIN_WEIGHT or metal:
+        # Weight must be present before an item can start
+        if weight >= MIN_WEIGHT:
             print()
             return weight
 
@@ -290,7 +395,6 @@ def wait_for_item():
             return None
 
         time.sleep(REMOVAL_CHECK_INTERVAL)
-       
 # =========================================================
 # WEIGHT STABILITY
 # =========================================================
@@ -336,14 +440,6 @@ def wait_for_weight_stable():
 def get_camera_material():
 
     while True:
-
-        # Item must still be on HX711
-
-        weight = get_weight(1)
-
-        if weight < MIN_WEIGHT:
-
-            return None
 
         data = camera_status()
 
@@ -414,9 +510,7 @@ def wait_for_removal():
 # =========================================================
 # PROCESS ONE ITEM
 # =========================================================
-
 def process_item():
-
     print()
     print("Ready for next item.")
     print(
@@ -425,101 +519,55 @@ def process_item():
     )
 
     # =====================================================
-    # HX711 FIRST
+    # WAIT FOR WEIGHT FIRST
     # =====================================================
 
     weight = wait_for_item()
 
     if weight is None:
-
         return "IDLE"
 
-    print(
-        "Item detected. "
-        "Hold still for 3 seconds..."
-    )
+    print("Item detected. Checking material...")
 
-    # =====================================================
-    # WEIGHT STABILITY
-    # =====================================================
+    metal = metal_detected()
+    print("DEBUG - Metal sensor:", metal)
 
-    weight = wait_for_weight_stable()
+    if metal:
+        print("Metal detected. Verifying...")
 
-    print(
-        "Weight stable. "
-        "Checking material..."
-    )
-
-    # =====================================================
-    # METAL
-    # =====================================================
-
-    if metal_detected():
-
-        print(
-            "Metal detected. "
-            "Verifying..."
-        )
-
-        if not wait_for_metal_stable(
-            METAL_STABLE_TIME
-        ):
-
-            print(
-                "Metal verification failed."
-            )
-
+        if not wait_for_metal_stable(METAL_STABLE_TIME):
+            print("Metal verification failed.")
             wait_for_removal()
-
             return "REJECTED"
 
         material = "aluminum"
 
-    # =====================================================
-    # PLASTIC / PAPER
-    # =====================================================
-
     else:
+        # =================================================
+        # CAMERA FOR PLASTIC / PAPER
+        # =================================================
 
-        print(
-            "Identifying material..."
-        )
+        print("Checking camera...")
 
         material = get_camera_material()
 
-        if material is None:
-
-            print(
-                "Item removed. "
-                "Please try again."
-            )
-
-            return "REJECTED"
-
         if material == "Mixed":
-
-            print(
-                "Mixed material. "
-                "Item rejected."
-            )
-
+            print("Mixed material. Item rejected.")
             wait_for_removal()
-
             return "REJECTED"
 
+        print("Camera confirmed.")
+
     # =====================================================
-    # FINAL HX711 CHECK
+    # STABILIZE WEIGHT
     # =====================================================
 
-    weight = get_weight(1)
+    print("Measuring weight...")
 
-    if weight < MIN_WEIGHT:
+    weight = wait_for_weight_stable()
 
-        print(
-            "Item removed. "
-            "Please try again."
-        )
-
+    if weight is None:
+        print("Item removed. Please try again.")
         return "REJECTED"
 
     # =====================================================
@@ -527,28 +575,20 @@ def process_item():
     # =====================================================
 
     if material == "aluminum":
-
         if not metal_detected():
-
             print(
                 "Metal verification lost."
             )
-
             wait_for_removal()
-
             return "REJECTED"
 
     else:
-
         if metal_detected():
-
             print(
                 "Metal detected. "
                 "Item rejected."
             )
-
             wait_for_removal()
-
             return "REJECTED"
 
     # =====================================================
@@ -562,7 +602,6 @@ def process_item():
     )
 
     return weight, points, material
-
 
 # =========================================================
 # MAIN
@@ -768,7 +807,21 @@ try:
             # =================================================
 
             weight, points, material = result
+	   # =================================================
+	   # SUBMIT WASTE DATA TO HOSTINGER
+	   # =================================================
 
+            submitted = submit_waste_data(
+                session_token,
+                material,
+                weight
+            )
+
+            if submitted is None:
+                print("Failed to submit waste data.")
+                print("Item will not be counted.")
+                wait_for_removal()
+                continue
             # =================================================
             # LOCAL DAILY POINT CAP
             # =================================================
@@ -824,6 +877,30 @@ try:
             # =================================================
 
             wait_for_removal()
+
+        # =================================================
+        # COMPLETE HOSTINGER SESSION
+        # =================================================
+        if sessions > 0:
+            completed = complete_api_session(
+                session_token
+            )
+
+        if completed:
+            print(
+                "Points awarded:",
+                completed.get(
+                    "points_awarded",
+                    0
+                )
+            )
+            print(
+                "New balance:",
+                completed.get(
+                    "new_balance",
+                    0
+                )
+            )
 
         # =================================================
         # RESIDENT SESSION FINISHED

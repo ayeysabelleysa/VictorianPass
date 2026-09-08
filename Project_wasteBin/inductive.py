@@ -10,8 +10,11 @@ def start_inductive():
     global _sensor
 
     _sensor = lgpio.gpiochip_open(0)
-    lgpio.gpio_claim_input(_sensor, SENSOR_GPIO)
-
+    lgpio.gpio_claim_input(
+    	_sensor,
+        SENSOR_GPIO,
+        lgpio.SET_PULL_UP
+)
     print("Inductive sensor ready.")
 
 
