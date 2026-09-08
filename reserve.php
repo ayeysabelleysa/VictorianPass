@@ -348,7 +348,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $periodBlocks = [];
             foreach ($periodDays as $ds) { $periodBlocks[$ds] = []; }
             $markOverlaps = function($res) use (&$periodBlocks, $periodDays, $hourBased, $minH, $maxH) {
-              if (!$res) { return; }
+              if (!$res || !($res instanceof mysqli_result)) { return; }
               while ($row = $res->fetch_assoc()) {
                 $st = !empty($row['start_time']) ? $row['start_time'] : '00:00:00';
                 $et = !empty($row['end_time']) ? $row['end_time'] : '23:59:59';
@@ -418,8 +418,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
           }
         } catch (Throwable $e) {
-          error_log('reserve.php POST error: ' . $e->getMessage());
-          $errorMsg = 'Server error. Please try again later.';
+          $conErr = ($con instanceof mysqli) ? ('errno=' . $con->errno . ' ' . $con->error) : 'no-db';
+          error_log('reserve.php availability error (booking continued): ' . $e->getMessage() . ' | con: ' . $conErr . ' | amenity=' . $amenity . ' start=' . $start . ' end=' . $end . ' singleDay=' . ($singleDay ? 'yes' : 'no'));
         }
         vpMark('availability_end');
         if (!$errorMsg && $cnt > 0) {
