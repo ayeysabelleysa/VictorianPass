@@ -171,4 +171,11 @@ reserveSetupEnsureIndex($con, 'reservations', 'idx_reserve_amenity_status_dates'
 reserveSetupEnsureIndex($con, 'resident_reservations', 'idx_rr_reserve_amenity_status_dates', 'amenity, approval_status, start_date, end_date');
 reserveSetupEnsureIndex($con, 'guest_forms', 'idx_gf_reserve_amenity_status_dates', 'amenity, approval_status, start_date, end_date');
 
+// Account-page history/ledger indexes: ORDER BY created_at on one user's rows
+// (booking history 1/2, guest forms list, per-user point balance). All additive.
+reserveSetupEnsureIndex($con, 'reservations', 'idx_reserve_user_created', 'user_id, created_at');
+reserveSetupEnsureIndex($con, 'resident_reservations', 'idx_rr_user_created', 'user_id, created_at');
+reserveSetupEnsureIndex($con, 'guest_forms', 'idx_gf_resident_status', 'resident_user_id, approval_status, created_at');
+reserveSetupEnsureIndex($con, 'point_transactions', 'idx_pt_user_type', 'user_id, transaction_type');
+
 echo "Reserve schema setup complete.\n";

@@ -1747,3 +1747,125 @@ body {
     margin-top: 0;
     margin-left: 0;
 }
+
+/* Shared My Requests styling for resident and visitor dashboards */
+#panel-requests,
+#panel-history {
+    color: #20342b;
+}
+
+#panel-requests .activity-list-header,
+#panel-history .activity-list-header {
+    color: #20342b;
+    font-size: 1.35rem;
+    margin-bottom: 16px;
+}
+
+#panel-requests .search-bar,
+#panel-history .search-bar {
+    width: min(300px, 100%);
+    min-height: 42px;
+    border-color: #cfdbd6;
+    border-radius: 24px;
+    box-shadow: 0 2px 8px rgba(31, 65, 46, 0.04);
+}
+
+#panel-requests .search-bar i,
+#panel-history .search-bar i {
+    color: #647b71;
+}
+
+#panel-requests .list-item,
+#panel-history .list-item {
+    min-height: 70px;
+    padding: 16px;
+    border-color: #e3ece8;
+    border-radius: 12px;
+    box-shadow: 0 3px 12px rgba(31, 65, 46, 0.06);
+    transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+#panel-requests .list-item:hover,
+#panel-history .list-item:hover,
+#panel-requests .list-item.expanded,
+#panel-history .list-item.expanded {
+    border-color: #c5d9cf;
+    box-shadow: 0 7px 18px rgba(31, 65, 46, 0.1);
+}
+
+#panel-requests .item-icon,
+#panel-history .item-icon {
+    width: 34px;
+    height: 34px;
+    margin-right: 14px;
+    color: #174b3b;
+    background: #f2f7f4;
+    border-color: #d5e4dc;
+}
+
+#panel-requests .item-amenity,
+#panel-history .item-amenity,
+#panel-requests .item-title,
+#panel-history .item-title {
+    color: #20342b;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+#panel-requests .item-created,
+#panel-history .item-created {
+    color: #718a7e;
+    font-size: 0.78rem;
+}
+
+#panel-requests .status-badge,
+#panel-history .status-badge {
+    margin-right: 3px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    letter-spacing: 0.01em;
+}
+
+#panel-requests .status-pending,
+#panel-history .status-pending {
+    background: #fff1d8;
+    color: #ec7814;
+}
+
+#panel-requests .status-approved,
+#panel-history .status-approved,
+#panel-requests .status-access-granted,
+#panel-history .status-access-granted {
+    background: #dff3e8;
+    color: #21734e;
+}
+
+#panel-requests .item-extra,
+#panel-history .item-extra {
+    margin-left: 0;
+    margin-top: 14px;
+    padding: 14px;
+    border: 1px solid #d9e8e0;
+    border-radius: 9px;
+    background: #f5faf7;
+}
+
+@media (max-width: 600px) {
+    #panel-requests .activity-list-header,
+    #panel-history .activity-list-header {
+        font-size: 1.15rem;
+    }
+
+    #panel-requests .item-row,
+    #panel-history .item-row {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    #panel-requests .item-created,
+    #panel-history .item-created {
+        margin-left: 0;
+        text-align: left;
+    }
+}

@@ -933,7 +933,9 @@ vpMark('household');
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VictorianPass - Reserve</title>
   <link rel="icon" type="image/png" href="images/logo.svg">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
   <link rel="stylesheet" href="css/reserve.css?v=<?php echo @filemtime(__DIR__ . '/css/reserve.css') ?: 12; ?>">
 </head>
 <body>
@@ -1202,40 +1204,16 @@ vpMark('household');
             <div class="reservation-card" id="reservationCard" style="display:none;">
             <input type="hidden" name="amenity" id="amenityField" value="">
             <div class="reservation-grid">
-              <style>
-                .calendar table { width:100%; border-collapse:separate; border-spacing:6px; }
-                .calendar td { padding:10px; text-align:center; border-radius:10px; border:1.5px solid #e5e7eb; cursor:pointer; font-weight:600; }
-                .calendar td.available { background:#d1fae5; border:2px solid #16a34a; color:#14532d; box-shadow:inset 0 0 0 2px rgba(22,163,74,0.18); }
-                .calendar td.partly { background:#ffe7cc; border-color:#f5b575; color:#b45309; }
-                .calendar td.fully-booked { background:#dc2626; border-color:#b91c1c; color:#ffffff; }
-                .calendar td.disabled { cursor:not-allowed; opacity:0.95; }
-                .calendar td.today { outline:2px solid #345c40; }
-                .calendar td.active { background:#ffffff; border:2px solid #16a34a; color:#0f172a; box-shadow:none; }
-                .calendar td.active-start,
-                .calendar td.active-end { background:#ffffff !important; color:#23412e; font-weight:800; border:2px solid #23412e; box-shadow:inset 0 0 0 2px rgba(35,65,46,0.15); }
-                .calendar td.range-highlight {
-                  background: #fde68a !important;
-                  border-color: #f59e0b !important;
-                  color: #78350f !important;
-                  box-shadow: inset 0 0 0 2px rgba(245, 158, 11, 0.2) !important;
-                }
-                .calendar td.range-highlight.active-start,
-                .calendar td.range-highlight.active-end {
-                  background: #fde68a !important;
-                  border-color: #23412e !important;
-                  color: #23412e !important;
-                }
-              </style>
               <div class="calendar" style="width:100%">
                 <div class="calendar-header">
-                  <button type="button" id="prevMonth">&lt;</button>
+                  <button type="button" id="prevMonth" aria-label="Previous month">&#8249;</button>
                   <h3 id="monthAndYear"></h3>
-                  <button type="button" id="nextMonth">&gt;</button>
+                  <button type="button" id="nextMonth" aria-label="Next month">&#8250;</button>
                 </div>
-                <table>
-                  <thead><tr><th>Su</th><th>Mo</th><th>Tu</th><th>We</th><th>Th</th><th>Fr</th><th>Sa</th></tr></thead>
-                  <tbody id="calendar-body"></tbody>
-                </table>
+                <div class="calendar-weekdays" aria-hidden="true">
+                  <div class="cal-weekday">Su</div><div class="cal-weekday">Mo</div><div class="cal-weekday">Tu</div><div class="cal-weekday">We</div><div class="cal-weekday">Th</div><div class="cal-weekday">Fr</div><div class="cal-weekday">Sa</div>
+                </div>
+                <div class="calendar-grid" id="calendar-body"></div>
               </div>
               <div class="amenity-preview" id="amenityPreview" style="display:none;">
                 <img src="" alt="" id="amenityPreviewImg" class="amenity-preview-img">
@@ -1850,24 +1828,26 @@ vpMark('household');
     let firstDay=(new Date(year,month)).getDay();
     let daysInMonth=32-new Date(year,month,32).getDate();
     monthAndYear.textContent=monthNames[month]+" "+year;
-    let date=1;
-    for(let i=0;i<6;i++){
-      let row=document.createElement("tr");
-      for(let j=0;j<7;j++){
-        if(i===0&&j<firstDay){row.appendChild(document.createElement("td"));}
-        else if(date>daysInMonth){break;}
-        else{
-          let cell=document.createElement("td");
-          cell.textContent=date;
-          let ds=`${year}-${String(month+1).padStart(2,'0')}-${String(date).padStart(2,'0')}`;
-          cell.setAttribute('data-date', ds);
-          if(ds < minDateStr) { cell.classList.add('disabled'); }
-          cell.addEventListener('click',()=>handleDateClick(cell,ds));
-          if(date===today.getDate()&&year===today.getFullYear()&&month===today.getMonth()) cell.classList.add('today');
-          row.appendChild(cell);date++;
-        }
+    const totalCells=firstDay+daysInMonth;
+    const gridCells=Math.max(35,Math.ceil(totalCells/7)*7);
+    for(let i=0;i<gridCells;i++){
+      const dayNum=i-firstDay+1;
+      if(dayNum<1||dayNum>daysInMonth){
+        const empty=document.createElement("div");
+        empty.className="cal-empty";
+        calendarBody.appendChild(empty);
+        continue;
       }
-      calendarBody.appendChild(row);
+      const cell=document.createElement("button");
+      cell.type="button";
+      cell.className="cal-cell";
+      cell.textContent=dayNum;
+      const ds=`${year}-${String(month+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
+      cell.setAttribute('data-date', ds);
+      if(ds < minDateStr) { cell.classList.add('disabled'); }
+      cell.addEventListener('click',()=>handleDateClick(cell,ds));
+      if(dayNum===today.getDate()&&year===today.getFullYear()&&month===today.getMonth()) cell.classList.add('today');
+      calendarBody.appendChild(cell);
     }
     return evaluateCalendarAvailability(forceRefresh);
   }
@@ -1896,7 +1876,7 @@ vpMark('household');
     try{
       const amen=document.getElementById('amenityField').value;
       if(!amen){ return; }
-      const cells=Array.from(document.querySelectorAll('.calendar td')).filter(c=>c.hasAttribute('data-date'));
+      const cells=Array.from(document.querySelectorAll('.calendar .cal-cell')).filter(c=>c.hasAttribute('data-date'));
       if(cells.length === 0) return;
       const startDs = cells[0].getAttribute('data-date');
       const endDs = cells[cells.length-1].getAttribute('data-date');
@@ -1968,7 +1948,7 @@ vpMark('household');
     var forceStart = false;
     if(singleActive){
       if(isSameAsStart && isSameAsEnd){
-        document.querySelectorAll('.calendar td').forEach(td=>td.classList.remove('active'));
+        document.querySelectorAll('.calendar .cal-cell').forEach(td=>td.classList.remove('active'));
         clearStartDate();
 
         return;
@@ -2000,13 +1980,13 @@ vpMark('household');
         return;
       }
       if(isSameAsEnd){
-        document.querySelectorAll('.calendar td').forEach(td=>td.classList.remove('active'));
+        document.querySelectorAll('.calendar .cal-cell').forEach(td=>td.classList.remove('active'));
         clearEndDate();
 
         return;
       }
     }
-    document.querySelectorAll('.calendar td').forEach(td=>{ td.classList.remove('active'); td.classList.remove('active-start'); td.classList.remove('active-end'); });
+    document.querySelectorAll('.calendar .cal-cell').forEach(td=>{ td.classList.remove('active'); td.classList.remove('active-start'); td.classList.remove('active-end'); });
     cell.classList.add('active');
     function setStart(ds, ignoreEnd){
       const eVal=document.getElementById('endDateInput').value||'';
@@ -2058,7 +2038,7 @@ vpMark('household');
   }
 
   function updateSelectedDateRangeHighlight(){
-    const cells=Array.from(document.querySelectorAll('.calendar td[data-date]'));
+    const cells=Array.from(document.querySelectorAll('.calendar .cal-cell[data-date]'));
     cells.forEach(function(td){
       const ds=td.getAttribute('data-date');
       td.classList.remove('active','active-start','active-end','in-range');
@@ -2081,7 +2061,7 @@ vpMark('household');
     document.getElementById('startDateInput').value='';
     const single = document.getElementById('singleDayToggle')?.checked;
     if(single){ selectedEnd=null; document.getElementById('endDate').textContent='--'; document.getElementById('endDateInput').value=''; endDateRangeError=false; }
-    document.querySelectorAll('.calendar td').forEach(td=>{ td.classList.remove('active'); td.classList.remove('active-start'); td.classList.remove('active-end'); });
+    document.querySelectorAll('.calendar .cal-cell').forEach(td=>{ td.classList.remove('active'); td.classList.remove('active-start'); td.classList.remove('active-end'); });
     evaluateCalendarAvailability();
     computeAvailability();
     renderTimeSlotButtons();
@@ -2097,7 +2077,7 @@ vpMark('household');
     document.getElementById('endDate').textContent='--';
     document.getElementById('endDateInput').value='';
     endDateRangeError=false;
-    document.querySelectorAll('.calendar td').forEach(td=>{ td.classList.remove('active'); td.classList.remove('active-start'); td.classList.remove('active-end'); });
+    document.querySelectorAll('.calendar .cal-cell').forEach(td=>{ td.classList.remove('active'); td.classList.remove('active-start'); td.classList.remove('active-end'); });
     updateSelectedDateRangeHighlight();
     evaluateCalendarAvailability();
     computeAvailability();
@@ -2357,7 +2337,7 @@ vpMark('household');
   function resetReservationForm(){
     try{
       selectedStart=null; selectedEnd=null;
-      document.querySelectorAll('.calendar td').forEach(function(td){ td.classList.remove('active','active-start','active-end','in-range'); });
+      document.querySelectorAll('.calendar .cal-cell').forEach(function(td){ td.classList.remove('active','active-start','active-end','in-range'); });
       const ids=['startDateInput','endDateInput','startTimeInput','endTimeInput'];
       ids.forEach(function(id){ const el=document.getElementById(id); if(el){ el.value=''; } });
       const sd=document.getElementById('startDate'); if(sd){ sd.textContent='--'; }
@@ -3813,8 +3793,16 @@ vpMark('household');
     if(document.getElementById('startDateInput').value){ checkTimeAvailability(); }
   }
   document.addEventListener('DOMContentLoaded',function(){ restoreFormFromSession(); updateActionStates(); updateDisplayedPrice(); updateDownpaymentSuggestion(); updateBookingSummary(); initSingleDayToggle(); updateHoursSelectEnabled(); try{ document.getElementById('reservationCard').style.display='none'; document.getElementById('reservationTitle').textContent='Reserve an Amenity'; document.getElementById('reservationHint').textContent='Select an amenity to continue'; }catch(_){} });
-  window.addEventListener('pageshow',function(){ refreshAvailabilityFromServer(); });
-  window.addEventListener('focus',function(){ refreshAvailabilityFromServer(); });
+  let lastAvailabilityRefresh=0;
+  function refreshAvailabilityDebounced(force){
+    const now=Date.now();
+    if(force || (now - lastAvailabilityRefresh) > 30000){
+      lastAvailabilityRefresh=now;
+      refreshAvailabilityFromServer();
+    }
+  }
+  window.addEventListener('pageshow',function(e){ refreshAvailabilityDebounced(e && e.persisted); });
+  window.addEventListener('focus',function(){ refreshAvailabilityDebounced(false); });
   window.addEventListener('storage',function(e){
     try{
       if(!e || !e.key) return;

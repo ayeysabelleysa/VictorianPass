@@ -487,9 +487,9 @@ if (!vpSchemaDone($con, 'profile_res_v1') && ($con instanceof mysqli)) {
 }
 $prevResMode = function_exists('mysqli_report') ? mysqli_report(MYSQLI_REPORT_OFF) : null;
 try {
-    $stmt = $con->prepare("SELECT 'reservation' as type, r.amenity, r.start_date, r.end_date, r.start_time, r.end_time, r.status, r.approval_status, r.payment_status, r.denial_reason, r.created_at, r.updated_at, r.ref_code, r.booking_for, r.booked_by_role, r.booked_by_name, r.scanned_at, r.receipt_attempts, gf.id AS gf_id, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name FROM reservations r LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code WHERE r.user_id = ? AND r.status <> 'deleted' AND r.approval_status <> 'deleted' ORDER BY r.created_at DESC");
+    $stmt = $con->prepare("SELECT 'reservation' as type, r.amenity, r.start_date, r.end_date, r.start_time, r.end_time, r.status, r.approval_status, r.payment_status, r.denial_reason, r.created_at, r.updated_at, r.ref_code, r.booking_for, r.booked_by_role, r.booked_by_name, r.scanned_at, r.receipt_attempts, r.price, r.downpayment, r.receipt_path, r.receipt_uploaded_at, r.persons, r.use_points, r.points_used, gf.id AS gf_id, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name FROM reservations r LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code WHERE r.user_id = ? AND r.status <> 'deleted' AND r.approval_status <> 'deleted' ORDER BY r.created_at DESC");
 } catch (Throwable $e) {
-    $stmt = $con->prepare("SELECT 'reservation' as type, r.amenity, r.start_date, r.end_date, r.start_time, r.end_time, r.status, r.approval_status, r.payment_status, NULL as denial_reason, r.created_at, r.updated_at, r.ref_code, NULL as booking_for, NULL as booked_by_role, NULL as booked_by_name, NULL as scanned_at, 0 as receipt_attempts, gf.id AS gf_id, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name FROM reservations r LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code WHERE r.user_id = ? AND r.status <> 'deleted' AND r.approval_status <> 'deleted' ORDER BY r.created_at DESC");
+    $stmt = $con->prepare("SELECT 'reservation' as type, r.amenity, r.start_date, r.end_date, r.start_time, r.end_time, r.status, r.approval_status, r.payment_status, NULL as denial_reason, r.created_at, r.updated_at, r.ref_code, NULL as booking_for, NULL as booked_by_role, NULL as booked_by_name, NULL as scanned_at, 0 as receipt_attempts, NULL as price, NULL as downpayment, NULL as receipt_path, NULL as receipt_uploaded_at, NULL as persons, 0 as use_points, 0 as points_used, gf.id AS gf_id, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name FROM reservations r LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code WHERE r.user_id = ? AND r.status <> 'deleted' AND r.approval_status <> 'deleted' ORDER BY r.created_at DESC");
 }
 if ($prevResMode !== null && function_exists('mysqli_report')) { mysqli_report($prevResMode); }
 if ($stmt) {
@@ -548,28 +548,7 @@ if ($stmt) {
         if (stripos($statusVal ?? '', 'cancel') !== false) {
             $resTitle .= ' - Cancelled';
         }
-        $reservedBy = '';
-        $bookedRole = $row['booked_by_role'] ?? '';
-        $bookedName = trim((string)($row['booked_by_name'] ?? ''));
-        if ($bookedRole === 'guest' || $bookedRole === 'co_owner') {
-            if ($bookedName !== '') {
-                $reservedBy = 'Booked by: ' . $bookedName;
-            }
-        }
-        if ($reservedBy === '' && (string)($row['booking_for'] ?? '') === 'guest') {
-            if ($bookedName !== '') {
-                $reservedBy = 'Booked by: ' . $bookedName;
-            }
-        } else if ($reservedBy === '' && !empty($row['gf_id'])) {
-            $guestNameParts = [];
-            if (!empty($row['visitor_first_name'])) { $guestNameParts[] = $row['visitor_first_name']; }
-            if (!empty($row['visitor_middle_name'])) { $guestNameParts[] = $row['visitor_middle_name']; }
-            if (!empty($row['visitor_last_name'])) { $guestNameParts[] = $row['visitor_last_name']; }
-            $guestName = trim(implode(' ', $guestNameParts));
-            if ($guestName !== '') {
-                $reservedBy = 'Booked by: ' . $guestName;
-            }
-        }
+        $reservedBy = 'Resident';
         $refCodeVal = $row['ref_code'] ?? 'RES';
         $reservationRefs[$refCodeVal] = true;
         $details = trim($dateText);
@@ -599,7 +578,15 @@ if ($stmt) {
             'start_date_raw' => $row['start_date'] ?? '',
             'end_date_raw' => $row['end_date'] ?? '',
             'start_time_raw' => $row['start_time'] ?? '',
-            'end_time_raw' => $row['end_time'] ?? ''
+            'end_time_raw' => $row['end_time'] ?? '',
+            'amenity' => $row['amenity'] ?? '',
+            'price' => isset($row['price']) && $row['price'] !== null && $row['price'] !== '' ? (float)$row['price'] : null,
+            'downpayment' => isset($row['downpayment']) && $row['downpayment'] !== null && $row['downpayment'] !== '' ? (float)$row['downpayment'] : null,
+            'receipt_path' => $row['receipt_path'] ?? '',
+            'receipt_uploaded_at' => $row['receipt_uploaded_at'] ?? null,
+            'persons' => isset($row['persons']) && $row['persons'] !== null && $row['persons'] !== '' ? (int)$row['persons'] : null,
+            'use_points' => intval($row['use_points'] ?? 0),
+            'points_used' => intval($row['points_used'] ?? 0)
         ];
     }
     $stmt->close();
@@ -676,7 +663,7 @@ if ($stmt) {
         if (!empty($row['visitor_middle_name'])) { $guestNameParts[] = $row['visitor_middle_name']; }
         if (!empty($row['visitor_last_name'])) { $guestNameParts[] = $row['visitor_last_name']; }
         $guestName = trim(implode(' ', $guestNameParts));
-        $reservedBy = $guestName !== '' ? 'Booked for: ' . $guestName : '';
+        $reservedBy = 'Resident';
         $endTs = $end ? strtotime($end . ' 23:59:59') : ($start ? strtotime($start . ' 23:59:59') : time());
         $actionDate = $row['created_at'];
         if ((strpos($statusLower, 'cancel') !== false || strpos($statusLower, 'moved_to_history') !== false || strpos($statusLower, 'deleted') !== false) && !empty($row['updated_at'])) {
@@ -696,7 +683,15 @@ if ($stmt) {
             'start_date_raw' => $row['start_date'] ?? '',
             'end_date_raw' => $row['end_date'] ?? '',
             'start_time_raw' => $row['start_time'] ?? '',
-            'end_time_raw' => $row['end_time'] ?? ''
+            'end_time_raw' => $row['end_time'] ?? '',
+            'amenity' => $row['amenity'] ?? '',
+            'price' => null,
+            'downpayment' => null,
+            'receipt_path' => '',
+            'receipt_uploaded_at' => null,
+            'persons' => null,
+            'use_points' => 0,
+            'points_used' => 0
         ];
     }
     $stmt->close();
@@ -1608,6 +1603,667 @@ body.qr-modal-open{ overflow:hidden }
 .item-extra-link.item-extra-move-history{background:#e5e7eb;color:#6b7280!important;border:1px solid #d1d5db!important;padding:8px 16px;border-radius:50px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;font-weight:500;text-decoration:none;line-height:1;margin-top:0!important;box-sizing:border-box}
 .item-extra-link.item-extra-move-history:hover{background:#d1d5db;color:#6b7280!important;transform:translateY(-2px);box-shadow:0 4px 6px rgba(0,0,0,0.12);text-decoration:none}
 .item-extra-schedule.status-neutral{background:#ffffff;color:#111827;border:1px solid #e5e7eb;border-radius:12px;padding:12px}
+
+/* Amenity Booking Details only */
+.rst-section:first-of-type {
+  background: #f2faf6;
+  border: 1px solid #d7e9df;
+  border-radius: 14px;
+  padding: 20px;
+  color: #20342b;
+}
+.rst-section:first-of-type .rst-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #d7e9df;
+  color: #174b3b;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.rst-section:first-of-type .rst-title::before {
+  content: "\f1ad";
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  font-size: 0.95rem;
+}
+.rst-section:first-of-type .rst-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 24px;
+  row-gap: 20px;
+  position: relative;
+}
+.rst-section:first-of-type .rst-grid::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: #d7e9df;
+  transform: translateX(-12px);
+}
+.rst-section:first-of-type .rst-col {
+  min-width: 0;
+}
+.rst-section:first-of-type .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
+.rst-section:first-of-type .rst-col:nth-child(2) { grid-column: 1; grid-row: 2; }
+.rst-section:first-of-type .rst-col:nth-child(3) { grid-column: 1; grid-row: 3; }
+.rst-section:first-of-type .rst-col:nth-child(4) { grid-column: 1; grid-row: 4; }
+.rst-section:first-of-type .rst-col:nth-child(5) { grid-column: 2; grid-row: 1; }
+.rst-section:first-of-type .rst-col:nth-child(6) { grid-column: 2; grid-row: 2; }
+.rst-section:first-of-type .rst-col:nth-child(7) { grid-column: 2; grid-row: 3; }
+.rst-section:first-of-type .rst-col:nth-child(8) { grid-column: 2; grid-row: 4; }
+.rst-section:first-of-type .rst-key {
+  margin-bottom: 4px;
+  color: #718078;
+  font-size: 0.84rem;
+  line-height: 1.3;
+}
+.rst-section:first-of-type .rst-val {
+  color: #1f2f28;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.rst-section:first-of-type .rst-col:nth-child(7) .rst-val,
+.rst-section:first-of-type .rst-col:nth-child(8) .rst-val {
+  display: inline-flex;
+  max-width: 100%;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: normal;
+}
+.rst-section:first-of-type .rst-col:nth-child(7) .rst-val {
+  background: #dff3e8;
+  color: #21734e;
+}
+.rst-section:first-of-type .rst-col:nth-child(8) .rst-val {
+  background: #fff1d8;
+  color: #a86212;
+}
+
+/* Resident request-card header only */
+#panel-requests .list-item {
+  min-height: 106px;
+  padding: 28px;
+  align-items: flex-start;
+  border: 1px solid #e3e9e6;
+  border-radius: 16px;
+  box-shadow: 0 5px 16px rgba(31, 65, 46, 0.07);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+#panel-requests .list-item:hover {
+  border-color: #d4e0db;
+  box-shadow: 0 8px 20px rgba(31, 65, 46, 0.1);
+}
+#panel-requests .item-icon {
+  width: 50px;
+  height: 50px;
+  margin-right: 20px;
+  margin-top: 0;
+  flex: 0 0 50px;
+  align-self: flex-start;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d7e1dd;
+  border-radius: 50%;
+  background: #f4f7f5;
+  color: #20342b;
+}
+#panel-requests .list-item .item-content .fa-chevron-right,
+#panel-requests .list-item .item-content .fa-chevron-down {
+  display: none !important;
+}
+#panel-requests .list-item .fa-chevron-right,
+#panel-requests .list-item .fa-chevron-down {
+  display: none !important;
+}
+#panel-requests .list-item > .request-toggle .fa-chevron-right {
+  display: inline-block !important;
+}
+#panel-requests .list-item > .item-icon:not(.request-toggle),
+#panel-requests .list-item > :not(.request-toggle):not(.item-content) {
+  display: none !important;
+}
+#panel-requests .list-item::before,
+#panel-requests .list-item::after,
+#panel-requests .list-item > i,
+#panel-requests .list-item > .fa-chevron-right,
+#panel-requests .list-item > .fa-chevron-down,
+#panel-requests .list-item > .item-icon:not(:first-child) {
+  display: none !important;
+  content: none !important;
+}
+#panel-requests .item-icon i {
+  font-size: 25px;
+  transform: rotate(0deg);
+  transition: transform 0.2s ease;
+}
+#panel-requests .list-item.expanded > .item-icon i {
+  transform: rotate(90deg);
+}
+#panel-requests .list-item > .item-icon ~ .item-icon {
+  display: none;
+}
+#panel-requests .item-content {
+  min-width: 0;
+}
+#panel-requests .item-row {
+  align-items: center !important;
+  gap: 12px;
+  margin-bottom: 0 !important;
+}
+#panel-requests .item-left {
+  min-width: 0;
+  gap: 8px;
+}
+#panel-requests .item-amenity,
+#panel-requests .item-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+#panel-requests .item-created {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: #718078;
+  font-size: 0.95rem;
+}
+#panel-requests .status-badge {
+  padding: 9px 14px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+}
+#panel-requests .item-amenity,
+#panel-requests .item-title {
+  color: #20342b;
+  font-size: 1.08rem;
+  font-weight: 700;
+}
+#panel-requests .item-reserved-by {
+  display: none !important;
+}
+
+/* Expanded amenity reservation details only */
+#panel-requests .list-item.expanded[data-type="reservation"] .item-extra,
+#panel-requests .list-item.expanded[data-type="reservation"] .item-extra-section,
+#panel-requests .list-item.expanded[data-type="reservation"] .item-extra-body,
+#panel-requests .list-item.expanded[data-type="reservation"] .item-extra-info-only {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type {
+  order: 1;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(2) {
+  order: 3;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(3) {
+  order: 4;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(3) ~ .item-extra-note {
+  order: 2;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(3) ~ .item-extra-status,
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(3) ~ .item-reason,
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(3) ~ .item-extra-summary {
+  order: 5;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .item-actions {
+  order: 6;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-section {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0 0 14px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type {
+  margin-bottom: 14px;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(2),
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(3) {
+  padding: 18px 20px;
+  border: 1px solid #d7e9df;
+  border-radius: 14px;
+  background: #fbfdfc;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(2) .rst-title,
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(3) .rst-title {
+  margin: 0 0 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e5eee9;
+  color: #174b3b;
+  font-size: 0.98rem;
+  font-weight: 700;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(2) .rst-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(2) .rst-col {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 18px;
+  min-width: 0;
+  padding: 2px 0;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(2) .rst-key {
+  color: #718078;
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(2) .rst-val {
+  margin-left: auto;
+  color: #20342b;
+  font-size: 0.98rem;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: right;
+  white-space: nowrap;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(2) .rst-col:first-child .rst-val {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(2) .rst-col:nth-child(3) .rst-val {
+  color: #21734e;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-paynote-balance {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-left: 3px solid #21734e;
+  border-radius: 6px;
+  background: #eef8f1;
+  color: #245b40;
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 2px 0;
+  overflow: hidden;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-thumb {
+  display: block;
+  width: 170px;
+  max-width: 100%;
+  height: 115px;
+  max-height: 130px;
+  object-fit: contain;
+  border: 1px solid #d5e4dc;
+  border-radius: 9px;
+  background: #f4f8f6;
+  overflow: hidden;
+  cursor: zoom-in;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 14px;
+  min-width: 0;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-file {
+  min-width: 0;
+  color: #20342b;
+  font-size: 0.9rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-time {
+  min-width: 0;
+  color: #718078;
+  font-size: 0.78rem;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-meta .view-proof-btn {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  margin: 0;
+  white-space: nowrap;
+}
+#residentProofModal {
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+}
+#residentProofModal .resident-proof-modal-content {
+  position: relative;
+  width: min(92vw, 900px);
+  max-width: 100%;
+  max-height: 92vh;
+  margin: 0;
+  padding: 42px 18px 18px;
+  border-radius: 14px;
+  overflow: auto;
+  text-align: center;
+}
+#residentProofModal .resident-proof-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: #eef2f0;
+  color: #23412e;
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+}
+#residentProofModal .resident-proof-modal-image {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: calc(92vh - 80px);
+  margin: 0 auto;
+  object-fit: contain;
+}
+
+/* Downpayment proof-preview design reused for My Requests */
+@keyframes modalPop{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}
+@keyframes modalClose{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(0.92)}}
+@keyframes modalFadeOut{from{opacity:1}to{opacity:0}}
+body.modal-open{overflow:hidden}
+#imgModal{display:none;position:fixed;z-index:2000;left:0;top:0;width:100%;height:100%;background:rgba(15,23,42,0.55);backdrop-filter:blur(5px);align-items:center;justify-content:center}
+#imgModal.open{display:flex}
+#imgModal.closing{animation:modalFadeOut 0.25s ease-in forwards}
+#imgModal .modal-content{background:#ffffff;border-radius:18px;padding:16px;position:relative;transform-origin:center;animation:modalPop 0.28s cubic-bezier(0.2,0.8,0.2,1);box-shadow:0 24px 70px rgba(15,23,42,0.35);border:1px solid #e5e7eb;max-width:92vw;max-height:90vh;display:flex;align-items:center;justify-content:center}
+#imgModal.closing .modal-content{animation:modalClose 0.25s ease-in forwards}
+#imgModal .modal-content img{max-width:88vw;max-height:82vh;object-fit:contain;border-radius:10px}
+#imgModal .modal-close{position:absolute;top:12px;right:12px;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:#eef2f0;color:#23412e;border:none;font-size:16px;cursor:pointer;line-height:1;z-index:2}
+@media (max-width:640px){
+  #imgModal .modal-content{max-width:96vw;padding:10px}
+  #imgModal .modal-content img{max-width:94vw;max-height:80vh}
+  #imgModal .modal-close{top:8px;right:8px;width:28px;height:28px;font-size:15px}
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(3) ~ .item-extra-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  box-sizing: border-box;
+  border: 1px solid #f2d79b;
+  border-radius: 10px;
+  background: #fff7df;
+  color: #805b16;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(3) ~ .item-extra-note::before {
+  content: "\f05a";
+  flex: 0 0 auto;
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  color: #b7791f;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .item-actions {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+@media (max-width: 768px) {
+  #panel-requests .list-item {
+    min-height: 86px;
+    padding: 18px 16px;
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+  }
+  #panel-requests .item-icon {
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
+    margin-right: 12px;
+  }
+  #panel-requests .item-icon i {
+    font-size: 22px;
+  }
+  #panel-requests .item-row {
+    gap: 8px;
+  }
+  #panel-requests .item-left {
+    gap: 6px;
+  }
+  #panel-requests .item-created {
+    font-size: 0.78rem;
+  }
+  #panel-requests .status-badge {
+    padding: 7px 10px;
+    font-size: 0.68rem;
+  }
+  #panel-requests .item-amenity,
+  #panel-requests .item-title {
+    font-size: 0.95rem;
+  }
+  .rst-section:first-of-type {
+    padding: 16px;
+  }
+  .rst-section:first-of-type .rst-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 18px;
+  }
+  .rst-section:first-of-type .rst-grid::before {
+    display: none;
+  }
+  .rst-section:first-of-type .rst-col:nth-child(n) {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type {
+    width: calc(100% - 4px);
+    margin-left: auto;
+    margin-right: auto;
+    padding: 12px;
+    border-radius: 12px;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-title {
+    margin-bottom: 9px;
+    padding-bottom: 8px;
+    font-size: 0.9rem;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-grid {
+    row-gap: 11px;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-key {
+    margin-bottom: 2px;
+    font-size: 0.76rem;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-val {
+    font-size: 0.9rem;
+    line-height: 1.25;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-col:nth-child(7) .rst-val,
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-col:nth-child(8) .rst-val {
+    padding: 4px 8px;
+    font-size: 0.72rem;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .item-extra {
+    width: calc(100% + 62px);
+    max-width: calc(100% + 62px);
+    margin-left: -62px;
+    margin-right: 0;
+    padding: 8px;
+    overflow-x: hidden;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 10px;
+    row-gap: 10px;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-grid::before {
+    display: block;
+    left: 50%;
+    transform: translateX(-5px);
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-col:nth-child(2) { grid-column: 1; grid-row: 2; }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-col:nth-child(3) { grid-column: 1; grid-row: 3; }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-col:nth-child(4) { grid-column: 1; grid-row: 4; }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-col:nth-child(5) { grid-column: 2; grid-row: 1; }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-col:nth-child(6) { grid-column: 2; grid-row: 2; }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-col:nth-child(7) { grid-column: 2; grid-row: 3; }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-col:nth-child(8) { grid-column: 2; grid-row: 4; }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(2) .rst-grid {
+    gap: 5px;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(2) .rst-col {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
+    padding: 1px 0;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(2) .rst-key {
+    font-size: 0.74rem;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(2) .rst-val {
+    margin-left: auto;
+    font-size: 0.8rem;
+    text-align: right;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof {
+    grid-template-columns: 110px minmax(0, 1fr);
+    gap: 10px;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-thumb {
+    width: 110px;
+    height: 78px;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-file {
+    font-size: 0.76rem;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-time {
+    font-size: 0.68rem;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(3) ~ .item-extra-note {
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    font-size: 0.72rem;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .item-actions {
+    gap: 6px;
+    margin-top: 0;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .item-actions .item-extra-link {
+    min-height: 38px;
+    padding: 8px 12px;
+    font-size: 0.76rem;
+  }
+  #panel-requests .item-row {
+    align-items: flex-start !important;
+  }
+  #panel-requests .item-created {
+    margin-left: 0;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(2),
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(3) {
+    padding: 16px;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(2) .rst-col {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(2) .rst-val {
+    margin-left: 0;
+    text-align: left;
+    white-space: normal;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-thumb {
+    width: min(170px, 100%);
+    height: 115px;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 7px;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-meta .view-proof-btn {
+    width: 100%;
+    min-height: 42px;
+  }
+  #residentProofModal {
+    padding: 10px;
+  }
+  #residentProofModal .resident-proof-modal-content {
+    width: 100%;
+    max-height: 94vh;
+    padding: 42px 10px 10px;
+  }
+}
+@media (max-width: 380px) {
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type {
+    width: 100%;
+    padding: 10px;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-grid {
+    row-gap: 9px;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-key {
+    font-size: 0.72rem;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-val {
+    font-size: 0.84rem;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-grid {
+    column-gap: 12px;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-val {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof {
+    grid-template-columns: 92px minmax(0, 1fr);
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-thumb {
+    width: 92px;
+    height: 70px;
+  }
+}
 </style>
 </head>
 <body class="<?php echo $isAccountBlocked ? 'account-blocked' : ''; ?>">
@@ -1862,8 +2518,8 @@ body.qr-modal-open{ overflow:hidden }
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
-              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>"<?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; } ?>>
-                 <div class="item-icon"><i class="fa-solid fa-chevron-right"></i></div>
+              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($act['amenity'] ?? ''); ?>" data-price="<?php echo ($act['price'] ?? null) !== null ? number_format((float)$act['price'], 2, '.', '') : ''; ?>" data-downpayment="<?php echo ($act['downpayment'] ?? null) !== null ? number_format((float)$act['downpayment'], 2, '.', '') : ''; ?>" data-receipt-path="<?php echo htmlspecialchars($act['receipt_path'] ?? ''); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars($act['receipt_uploaded_at'] ?? ''); ?>" data-persons="<?php echo ($act['persons'] ?? null) !== null ? intval($act['persons']) : ''; ?>"><?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; } ?>>
+                 <div class="item-icon request-toggle"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
                      <div class="item-left">
@@ -1890,11 +2546,6 @@ body.qr-modal-open{ overflow:hidden }
                      <span><?php echo htmlspecialchars($act['ref_code']); ?></span>
                    </div>
                    <?php endif; ?>
-                  <?php if (($act['type'] ?? '') === 'reservation' && !empty($act['reserved_by'])): ?>
-                  <div style="font-size:0.8rem; color:#6b7280; margin-left: 48px;" class="item-reserved-by">
-                    <?php echo htmlspecialchars($act['reserved_by']); ?>
-                  </div>
-                  <?php endif; ?>
                    <div class="item-extra" data-loaded="0"></div>
                  </div>
               </div>
@@ -2128,8 +2779,8 @@ body.qr-modal-open{ overflow:hidden }
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
-              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>"<?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; } ?>>
-                 <div class="item-icon"><i class="fa-solid fa-chevron-right"></i></div>
+              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($act['amenity'] ?? ''); ?>" data-price="<?php echo ($act['price'] ?? null) !== null ? number_format((float)$act['price'], 2, '.', '') : ''; ?>" data-downpayment="<?php echo ($act['downpayment'] ?? null) !== null ? number_format((float)$act['downpayment'], 2, '.', '') : ''; ?>" data-receipt-path="<?php echo htmlspecialchars($act['receipt_path'] ?? ''); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars($act['receipt_uploaded_at'] ?? ''); ?>" data-persons="<?php echo ($act['persons'] ?? null) !== null ? intval($act['persons']) : ''; ?>"><?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; } ?>>
+                 <div class="item-icon request-toggle"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
                      <div class="item-left">
@@ -2154,11 +2805,6 @@ body.qr-modal-open{ overflow:hidden }
                  <?php if ((($act['type'] ?? '') !== 'guest_form') && (($act['type'] ?? '') !== 'report')): ?>
                   <div style="font-size:0.8rem; color:#999; margin-left: 48px;" class="item-ref">
                     <span><?php echo htmlspecialchars($act['ref_code']); ?></span>
-                  </div>
-                  <?php endif; ?>
-                  <?php if (($act['type'] ?? '') === 'reservation' && !empty($act['reserved_by'])): ?>
-                  <div style="font-size:0.8rem; color:#6b7280; margin-left: 48px;" class="item-reserved-by">
-                    <?php echo htmlspecialchars($act['reserved_by']); ?>
                   </div>
                   <?php endif; ?>
                    <div class="item-extra" data-loaded="0"></div>
@@ -2417,6 +3063,12 @@ body.qr-modal-open{ overflow:hidden }
     <div class="modal-content">
       <span class="close">&times;</span>
       <div id="activityModalBody"></div>
+    </div>
+  </div>
+  <div class="modal" id="imgModal">
+    <div class="modal-content">
+      <button type="button" class="modal-close" id="imgModalClose" aria-label="Close">&times;</button>
+      <img id="imgModalSrc" src="" alt="Proof of Payment">
     </div>
   </div>
   
@@ -3387,6 +4039,12 @@ body.qr-modal-open{ overflow:hidden }
     var endDateRaw=li.getAttribute('data-end-date')||'';
     var startTimeRaw=li.getAttribute('data-start-time')||'';
     var endTimeRaw=li.getAttribute('data-end-time')||'';
+    var amenityName=li.getAttribute('data-amenity')||'';
+    var priceRaw=li.getAttribute('data-price')||'';
+    var downpaymentRaw=li.getAttribute('data-downpayment')||'';
+    var receiptPath=li.getAttribute('data-receipt-path')||'';
+    var receiptUploadedAt=li.getAttribute('data-receipt-uploaded-at')||'';
+    var personsRaw=li.getAttribute('data-persons')||'';
     var reasonText=li.getAttribute('data-reason')||'';
     var statusNote='';
     var s=String(effectiveStatus||'').toLowerCase();
@@ -3490,6 +4148,63 @@ body.qr-modal-open{ overflow:hidden }
       var formatted = Number.isInteger(hours) ? String(parseInt(hours, 10)) : hours.toFixed(1).replace(/\.0$/, '');
       return formatted + ' ' + (parseFloat(formatted) === 1 ? 'hr' : 'hrs');
     }
+    function computeReservationDurationDays(startDateValue, endDateValue){
+      var start = String(startDateValue || '').trim();
+      var end = String(endDateValue || '').trim();
+      if(!start || !end) return '';
+      var startDate = new Date(start + 'T00:00:00');
+      var endDate = new Date(end + 'T00:00:00');
+      if(isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return '';
+      var days = Math.round((endDate.getTime() - startDate.getTime()) / 86400000) + 1;
+      if(days <= 1) return '';
+      return days + ' days';
+    }
+    function fmtMoney(value){
+      var num = parseFloat(value);
+      if(isNaN(num)) return '';
+      var abs = Math.abs(num).toFixed(2);
+      var parts = abs.split('.');
+      parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      return (num < 0 ? '-' : '') + '₱' + parts[0] + '.' + parts[1];
+    }
+    function resStatusLabel(rawStatusValue){
+      var sv=String(rawStatusValue||'').toLowerCase();
+      if(sv.indexOf('approv')!==-1||sv.indexOf('permission')!==-1||sv.indexOf('granted')!==-1) return 'Approved';
+      if(sv.indexOf('denied')!==-1||sv.indexOf('reject')!==-1) return 'Denied';
+      if(sv.indexOf('cancel')!==-1) return 'Cancelled';
+      if(sv.indexOf('expired')!==-1) return 'Expired';
+      return 'Pending Approval';
+    }
+    function paymentStatusLabel(rawPay, hasReceipt){
+      var pv=String(rawPay||'').toLowerCase();
+      if(pv==='verified') return 'Verified';
+      if(pv==='rejected') return 'Rejected';
+      if(pv==='pending_update') return 'Pending Update';
+      if(pv==='submitted') return 'Submitted';
+      if(pv==='pending') return 'Pending';
+      if(hasReceipt) return 'Submitted';
+      return 'Not Yet Submitted';
+    }
+    function absoluteAssetUrl(path){
+      var p=String(path||'').trim();
+      if(!p) return '';
+      if(/^(https?:)?\/\//i.test(p)) return p;
+      if(p.charAt(0)==='/') return location.origin + p;
+      var base = window.location.pathname.replace(/\/[^\/]*$/,'');
+      var fullBase = location.origin + base;
+      return fullBase.replace(/\/$/,'') + '/' + p;
+    }
+    function fmtUploadedAt(value){
+      var raw=String(value||'').trim();
+      if(!raw) return '';
+      var d=new Date(raw);
+      if(isNaN(d.getTime())) return '';
+      function p2(n){ return String(n).padStart(2,'0'); }
+      var hh=d.getHours();
+      var ampm=hh>=12?'PM':'AM';
+      var h=hh%12; if(h===0) h=12;
+      return p2(d.getMonth()+1)+'/'+p2(d.getDate())+'/'+String(d.getFullYear()).slice(-2)+' '+h+':'+p2(d.getMinutes())+' '+ampm;
+    }
     function scheduleParts(text){
       var t=String(text||'').trim();
       if(!t) return { date:'', time:'' };
@@ -3528,7 +4243,6 @@ body.qr-modal-open{ overflow:hidden }
     if(titleEl){ summaryParts.push(titleEl.textContent.trim()); }
     if(detailsEl){ summaryParts.push(detailsEl.textContent.replace(/^\s*-\s*/,'').trim()); }
     if(refSpan){ summaryParts.push('Code: '+refSpan.textContent.trim()); }
-    if(reservedBy && type==='reservation'){ summaryParts.push('Reserved by: '+reservedBy); }
     var summaryText=summaryParts.join(' • ');
     var canCancel=(type==='reservation'||type==='guest_form')&&((s.indexOf('pending')!==-1||s.indexOf('pending_update')!==-1||s===''||s==='new')||paymentStatus==='pending_update');
     var isHistoryPanel=!!li.closest('#panel-history');
@@ -3563,7 +4277,7 @@ body.qr-modal-open{ overflow:hidden }
       html+='<div class="item-extra-info-only">';
       html+='<div class="item-extra-note">'+esc('Access granted. Your QR entry pass has already been scanned by the guard.')+'</div>';
       html+='<div class="item-actions">';
-      if(ref){
+      if(ref && type==='guest_form'){
         html+='<button type="button" class="item-extra-link view-details-btn view-details-trigger" data-ref="'+esc(ref)+'">View details</button>';
       }
       if(canMoveHistory && ref){
@@ -3605,6 +4319,70 @@ body.qr-modal-open{ overflow:hidden }
         html+='<div class="item-extra-body">';
         html+='<div class="item-extra-info-only">';
       }
+      function rstCell(key,val){ return '<div class="rst-col"><div class="rst-key">'+esc(key)+'</div><div class="rst-val">'+esc(val)+'</div></div>'; }
+      if(type==='reservation'){
+        var rawParts=schedulePartsFromRaw();
+        var parts = (rawParts.date || rawParts.time) ? rawParts : (scheduleText ? scheduleParts(scheduleText) : {date:'', time:''});
+        var timeLabel = parts.time || '';
+        var bookingType = (parts.date && parts.date.indexOf(' - ')!==-1) ? 'Multi-day' : 'Single-day';
+        var bookingDateLabel = (parts.date || '—') + ' (' + bookingType + ')';
+        var statusLabelTxt = resStatusLabel(effectiveStatus);
+        var bookingCells='';
+        bookingCells+=rstCell('Amenity', amenityName || 'Amenity');
+        bookingCells+=rstCell('Booking Date', bookingDateLabel);
+        bookingCells+=rstCell('Time', timeLabel || '—');
+        var hoursLabel = computeReservationDurationHours(startTimeRaw, endTimeRaw);
+        var daysLabel = computeReservationDurationDays(startDateRaw, endDateRaw);
+        var durationLabel = daysLabel ? daysLabel + (hoursLabel ? ' (' + hoursLabel + ')' : '') : hoursLabel;
+        bookingCells+=rstCell('Duration', durationLabel || '—');
+        bookingCells+=rstCell('No. of Persons', personsRaw !== '' ? personsRaw + ' Pax' : '—');
+        bookingCells+=rstCell('Booked By', reservedBy || 'Resident');
+        bookingCells+=rstCell('Payment Status', paymentStatusLabel(paymentStatus, receiptPath!==''));
+        bookingCells+=rstCell('Reservation Status', statusLabelTxt);
+        html+='<div class="rst-section"><div class="rst-title">Amenity Booking Details</div><div class="rst-grid">'+bookingCells+'</div></div>';
+      }
+      if(type==='reservation' && (priceRaw!=='' || downpaymentRaw!=='' || receiptPath!=='')){
+        var totalTxt = priceRaw!=='' ? fmtMoney(priceRaw) : '—';
+        var requiredDp = priceRaw!=='' ? fmtMoney(Math.round(parseFloat(priceRaw)*50)/100) : '—';
+        var dpTxt = downpaymentRaw!=='' ? fmtMoney(downpaymentRaw) : '—';
+        var remainingTxt = '—';
+        if(priceRaw!==''){
+          var dpNum = downpaymentRaw!=='' ? parseFloat(downpaymentRaw) : 0;
+          remainingTxt = fmtMoney(Math.max(0, parseFloat(priceRaw) - (isNaN(dpNum)?0:dpNum)));
+        }
+        var payCells='';
+        payCells+=rstCell('Final Amount', totalTxt);
+        payCells+=rstCell('Required Downpayment', requiredDp);
+        payCells+=rstCell('Downpayment Paid', dpTxt);
+        payCells+=rstCell('Remaining Balance', remainingTxt);
+        var payNoteHtml='';
+        if(paymentStatus==='verified'){
+          payNoteHtml+='<div class="rst-paynote rst-paynote-ok">Payment verified.</div>';
+        } else if(paymentStatus==='rejected'){
+          payNoteHtml+='<div class="rst-paynote rst-paynote-bad">Payment rejected. Please check the notice below.</div>';
+        } else if(paymentStatus==='pending_update'){
+          payNoteHtml+='<div class="rst-paynote rst-paynote-warn">Payment proof resubmitted. Awaiting verification.</div>';
+        }
+        payNoteHtml+='<div class="rst-paynote rst-paynote-balance">Downpayment Paid — Remaining '+esc(remainingTxt)+' payable at the Administration Office</div>';
+        html+='<div class="rst-section"><div class="rst-title">Payment Details</div><div class="rst-grid">'+payCells+'</div>'+(payNoteHtml?payNoteHtml:'')+'</div>';
+      }
+      if(type==='reservation'){
+        var proofHtml='';
+        if(receiptPath){
+          var proofUrl=absoluteAssetUrl(receiptPath);
+          var proofName=String(receiptPath).split('/').pop()||'receipt';
+          var proofTime=fmtUploadedAt(receiptUploadedAt);
+          proofHtml+='<div class="rst-proof">';
+          proofHtml+='<img class="rst-proof-thumb" src="'+esc(proofUrl)+'" data-proof="'+esc(proofUrl)+'" alt="Payment receipt" loading="lazy" onerror="this.style.display=\'none\';">';
+          proofHtml+='<div class="rst-proof-meta">';
+          proofHtml+='<div class="rst-proof-file">'+esc(proofName)+'</div>';
+          if(proofTime){ proofHtml+='<div class="rst-proof-time">Uploaded: '+esc(proofTime)+'</div>'; }
+          proofHtml+='</div></div>';
+        } else {
+          proofHtml+='<div class="rst-none">No proof of payment uploaded</div>';
+        }
+        html+='<div class="rst-section"><div class="rst-title">Proof of Payment</div>'+proofHtml+'</div>';
+      }
       var lowerLabel=String(label||'').toLowerCase();
       if(showStatusLabel && lowerLabel !== 'pending' && lowerLabel !== 'approved'){
         html+='<div class="item-extra-status"><span class="status-label '+statusClassFor(effectiveStatus)+'">'+label+'</span></div>';
@@ -3613,28 +4391,6 @@ body.qr-modal-open{ overflow:hidden }
     if(statusNote) html+='<div class="'+noteClass+'">'+esc(statusNote)+'</div>';
       if(reasonText){
         html+='<div class="item-reason'+(highlightReason?' is-rejected':'')+'">'+esc(reasonText)+'</div>';
-      }
-      if(type==='reservation'){
-        var rawParts=schedulePartsFromRaw();
-        var parts = (rawParts.date || rawParts.time) ? rawParts : (scheduleText ? scheduleParts(scheduleText) : {date:'', time:''});
-        var rows='';
-        if(parts.date){
-          rows+='<div class="schedule-row"><div class="schedule-key">Date:</div><div class="schedule-val">'+esc(parts.date)+'</div></div>';
-        }
-        if(parts.time){
-          rows+='<div class="schedule-row"><div class="schedule-key">Time:</div><div class="schedule-val">'+esc(parts.time)+'</div></div>';
-          var hoursLabel = computeReservationDurationHours(startTimeRaw, endTimeRaw);
-          if(hoursLabel){
-            rows+='<div class="schedule-row"><div class="schedule-key">Duration:</div><div class="schedule-val">'+esc(hoursLabel)+'</div></div>';
-          }
-        }
-        if(!rows && scheduleText){
-          rows='<div class="schedule-row"><div class="schedule-key">Schedule:</div><div class="schedule-val">'+esc(scheduleText)+'</div></div>';
-        }
-        if(rows){
-          var scheduleClass = (isHistoryPanel || s.indexOf('denied')!==-1 || (paymentStatus==='rejected' && (isNaN(attempts)?0:attempts)>=3)) ? 'status-neutral' : statusClassFor(effectiveStatus);
-          html+='<div class="item-extra-schedule '+scheduleClass+'"><div class="schedule-title">Reservation Schedule</div>'+rows+'</div>';
-        }
       }
       if(summaryText) html+='<div class="item-extra-summary">'+esc(summaryText)+'</div>';
       
@@ -3645,7 +4401,7 @@ body.qr-modal-open{ overflow:hidden }
       if(canUpdateProof && ref){
         html+='<button type="button" class="item-extra-link update-proof-btn" data-ref="'+esc(ref)+'"><i class="fa-solid fa-upload"></i> Update Proof</button>';
       }
-      if(ref){
+      if(ref && type==='guest_form'){
         html+='<button type="button" class="item-extra-link view-details-btn view-details-trigger" data-ref="'+esc(ref)+'">View details</button>';
       }
       if(canCancel && ref){
@@ -4006,10 +4762,27 @@ body.qr-modal-open{ overflow:hidden }
         })
         .catch(() => alert('Could not download image.'));
    };
+
+   function removeStrayRequestArrowText(li) {
+    if (!li) return;
+    Array.prototype.slice.call(li.childNodes).forEach(function(node) {
+      if (node.nodeType === 3 && node.textContent.trim() === '>') {
+        node.remove();
+      }
+    });
+   }
+   document.querySelectorAll('.item-list .list-item').forEach(removeStrayRequestArrowText);
+   var requestsPanel = document.getElementById('panel-requests');
+   if (requestsPanel && typeof MutationObserver !== 'undefined') {
+    new MutationObserver(function() {
+      requestsPanel.querySelectorAll('.item-list .list-item').forEach(removeStrayRequestArrowText);
+    }).observe(requestsPanel, { childList: true, subtree: true });
+   }
  
    document.querySelectorAll('.item-list .list-item').forEach(function(li){
     li.addEventListener('click',function(e){
-      if(e.target.closest('a') || e.target.closest('button')) return;
+      var toggle = e.target.closest('.request-toggle');
+      if(!toggle || !li.contains(toggle)) return;
       
       li.classList.toggle('expanded');
       var extra = li.querySelector('.item-extra');
@@ -4425,6 +5198,9 @@ body.qr-modal-open{ overflow:hidden }
         }
         if(data && data.success){
           openGuestRefModal();
+          if(typeof refreshRequestsPanel==='function'){
+            refreshRequestsPanel();
+          }
         }else{
           var msg = data && data.message ? data.message : 'Failed to save guest.';
           if(msg.indexOf('Resident phone')!==-1) setWarning('resident_contact', msg);
@@ -4546,6 +5322,16 @@ body.qr-modal-open{ overflow:hidden }
                     if(item.scanned_at !== undefined){
                       li.setAttribute('data-scanned-at', item.scanned_at || '');
                     }
+                    if(item.start_date_raw !== undefined){ li.setAttribute('data-start-date', item.start_date_raw || ''); }
+                    if(item.end_date_raw !== undefined){ li.setAttribute('data-end-date', item.end_date_raw || ''); }
+                    if(item.start_time_raw !== undefined){ li.setAttribute('data-start-time', item.start_time_raw || ''); }
+                    if(item.end_time_raw !== undefined){ li.setAttribute('data-end-time', item.end_time_raw || ''); }
+                    if(item.amenity !== undefined){ li.setAttribute('data-amenity', item.amenity || ''); }
+                    if(item.price !== undefined){ li.setAttribute('data-price', item.price!=null&&item.price!==''?String(item.price):''); }
+                    if(item.downpayment !== undefined){ li.setAttribute('data-downpayment', item.downpayment!=null&&item.downpayment!==''?String(item.downpayment):''); }
+                    if(item.receipt_path !== undefined){ li.setAttribute('data-receipt-path', item.receipt_path || ''); }
+                    if(item.receipt_uploaded_at !== undefined){ li.setAttribute('data-receipt-uploaded-at', item.receipt_uploaded_at || ''); }
+                    if(item.persons !== undefined){ li.setAttribute('data-persons', item.persons!=null&&item.persons!==''?String(item.persons):''); }
                     if(String(item.type||'').toLowerCase()==='report'){
                       li.setAttribute('data-report-id', item.report_id || '');
                       li.setAttribute('data-report-subject', item.subject || '');
@@ -4566,7 +5352,6 @@ body.qr-modal-open{ overflow:hidden }
                         var refWrap = li.querySelector('.item-ref');
                         if(refWrap && refWrap.parentNode) refWrap.parentNode.insertBefore(reservedEl, refWrap.nextSibling);
                       }
-                      reservedEl.textContent = 'Reserved by: ' + reservedBy;
                       reservedEl.style.display = '';
                     } else if(reservedEl) {
                       reservedEl.style.display = 'none';
@@ -4706,6 +5491,16 @@ body.qr-modal-open{ overflow:hidden }
               li.setAttribute('data-type',item.type||'reservation');
               if(item.scanned_at!==undefined){ li.setAttribute('data-scanned-at', item.scanned_at || ''); }
               if(item.payment_status!==undefined){ li.setAttribute('data-payment-status', item.payment_status||''); }
+              if(item.start_date_raw!==undefined){ li.setAttribute('data-start-date', item.start_date_raw || ''); }
+              if(item.end_date_raw!==undefined){ li.setAttribute('data-end-date', item.end_date_raw || ''); }
+              if(item.start_time_raw!==undefined){ li.setAttribute('data-start-time', item.start_time_raw || ''); }
+              if(item.end_time_raw!==undefined){ li.setAttribute('data-end-time', item.end_time_raw || ''); }
+              if(item.amenity!==undefined){ li.setAttribute('data-amenity', item.amenity || ''); }
+              if(item.price!==undefined){ li.setAttribute('data-price', item.price!=null&&item.price!==''?String(item.price):''); }
+              if(item.downpayment!==undefined){ li.setAttribute('data-downpayment', item.downpayment!=null&&item.downpayment!==''?String(item.downpayment):''); }
+              if(item.receipt_path!==undefined){ li.setAttribute('data-receipt-path', item.receipt_path || ''); }
+              if(item.receipt_uploaded_at!==undefined){ li.setAttribute('data-receipt-uploaded-at', item.receipt_uploaded_at || ''); }
+              if(item.persons!==undefined){ li.setAttribute('data-persons', item.persons!=null&&item.persons!==''?String(item.persons):''); }
               var reservedBy=item.reserved_by||'';
               if(reservedBy){ li.setAttribute('data-reserved-by', reservedBy); }
               if(String(item.type||'').toLowerCase()==='report'){
@@ -4719,7 +5514,7 @@ body.qr-modal-open{ overflow:hidden }
               if(String(item.type||'').toLowerCase()==='guest_form'){
                 li.setAttribute('data-guest-name', item.guest_name || '');
               }
-              li.innerHTML='<div class="item-icon"><i class="fa-solid fa-chevron-right"></i></div>'
+              li.innerHTML='<div class="item-icon request-toggle"><i class="fa-solid fa-chevron-right"></i></div>'
                 +'<div class="item-content">'
                 +  '<div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">'
                 +    '<div class="item-left">'
@@ -4728,11 +5523,11 @@ body.qr-modal-open{ overflow:hidden }
                 +    '</div>'
                 +    '<div class="item-created">'+esc(createdText)+'</div>'
                 +  '</div>'
-                +  (isReservation && reservedBy ? ('<div style="font-size:0.8rem; color:#6b7280; margin-left: 48px;" class="item-reserved-by">Reserved by: '+esc(reservedBy)+'</div>') : '')
                 +  '<div class="item-extra" data-loaded="0"></div>'
                 +'</div>';
               li.addEventListener('click',function(e){
-                if(e.target.closest('a') || e.target.closest('button')) return;
+                var toggle = e.target.closest('.request-toggle');
+                if(!toggle || !li.contains(toggle)) return;
                 li.classList.toggle('expanded');
                 var extra=li.querySelector('.item-extra');
                 if(extra && extra.getAttribute('data-loaded')!=='1' && li.classList.contains('expanded')){
@@ -4760,7 +5555,6 @@ body.qr-modal-open{ overflow:hidden }
                   if(contentEl) contentEl.appendChild(reservedEl);
                 }
               }
-              reservedEl.textContent = 'Reserved by: ' + reservedBy;
               reservedEl.style.display = '';
             } else if(reservedEl) {
               reservedEl.style.display = 'none';
@@ -4839,6 +5633,126 @@ body.qr-modal-open{ overflow:hidden }
   }
   refreshStatuses();
   setInterval(refreshStatuses,15000);
+
+  function renderRequestsActive(list){
+    var escTxt=function(t){
+      return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    };
+    if(!Array.isArray(list)) return;
+    var panel=document.getElementById('panel-requests');
+    if(!panel) return;
+    var container=panel.querySelector('.item-list');
+    if(!container) return;
+    list.forEach(function(item){
+      var code=String(item.ref_code||'');
+      if(!code) return;
+      var type=String(item.type||'').toLowerCase();
+      var status=String(item.status||'pending');
+      var details=String(item.details||'');
+      var displayTitle=String(item.title||'');
+      var scheduleText='', reasonText='', detailsHtml='';
+      if(type==='reservation'){
+        scheduleText=details;
+        var rIdx=details.indexOf('Reason:');
+        if(rIdx!==-1){ reasonText=details.slice(rIdx); scheduleText=details.slice(0,rIdx).trim(); }
+        var prefix='Reservation Schedule - ';
+        if(displayTitle.toLowerCase().indexOf(prefix.toLowerCase())===0){
+          var rest=displayTitle.slice(prefix.length);
+          var parts=rest.split(' - ');
+          displayTitle=parts[0]?parts[0].trim():'';
+        }
+        if(displayTitle==='') displayTitle='Amenity';
+        displayTitle='Reservation – '+displayTitle;
+        detailsHtml='<span class="item-details" style="display:none;"></span>';
+      } else if(details!==''){
+        detailsHtml='<span class="item-details">- '+escTxt(details)+'</span>';
+      } else {
+        detailsHtml='<span class="item-details" style="display:none;"></span>';
+      }
+      var isReservation=(type==='reservation');
+      var badgeCls=statusClassFor(status);
+      var badgeText=fmtLabel(status);
+      var createdText=formatNotifDateTime(item.date);
+      var existing=container.querySelector('.list-item[data-ref-code="'+code+'"]');
+      var isNew=!existing;
+      var li=existing;
+      if(!li){
+        var emptyMsg=container.querySelector('div[style*="text-align:center"]');
+        if(emptyMsg) emptyMsg.remove();
+        li=document.createElement('div');
+        li.className='list-item';
+        container.insertBefore(li, container.firstChild);
+      }
+      li.setAttribute('data-ref-code',code);
+      li.setAttribute('data-status',status);
+      li.setAttribute('data-type',type);
+      li.setAttribute('data-reserved-by', item.reserved_by||'');
+      li.setAttribute('data-payment-status', item.payment_status||'');
+      li.setAttribute('data-attempts', item.attempts!=null?String(item.attempts):'0');
+      li.setAttribute('data-scanned-at', item.scanned_at||'');
+      li.setAttribute('data-start-date', item.start_date_raw||'');
+      li.setAttribute('data-end-date', item.end_date_raw||'');
+      li.setAttribute('data-start-time', item.start_time_raw||'');
+      li.setAttribute('data-end-time', item.end_time_raw||'');
+      li.setAttribute('data-amenity', item.amenity||'');
+      li.setAttribute('data-price', item.price!=null&&item.price!==''?String(item.price):'');
+      li.setAttribute('data-downpayment', item.downpayment!=null&&item.downpayment!==''?String(item.downpayment):'');
+      li.setAttribute('data-receipt-path', item.receipt_path||'');
+      li.setAttribute('data-receipt-uploaded-at', item.receipt_uploaded_at||'');
+      li.setAttribute('data-persons', item.persons!=null&&item.persons!==''?String(item.persons):'');
+      li.setAttribute('data-schedule', scheduleText);
+      li.setAttribute('data-reason', reasonText);
+      if(type==='report'){
+        li.setAttribute('data-report-id', item.report_id||'');
+        li.setAttribute('data-report-subject', item.subject||'');
+        li.setAttribute('data-report-address', item.address||'');
+        li.setAttribute('data-report-date', item.report_date||'');
+        li.setAttribute('data-report-nature', item.nature||'');
+        li.setAttribute('data-report-other', item.other_concern||'');
+      }
+      if(type==='guest_form'){ li.setAttribute('data-guest-name', item.guest_name||''); }
+      prevStatuses[code]=status;
+      li.innerHTML=
+        '<div class="item-icon request-toggle"><i class="fa-solid fa-chevron-right"></i></div>'
+        +'<div class="item-content">'
+        +'<div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">'
+        +'<div class="item-left">'
+        +'<span class="status-badge '+badgeCls+'">'+escTxt(badgeText)+'</span>'
+        +(isReservation?'<span class="item-amenity">'+escTxt(displayTitle)+'</span>':'<span class="item-title">'+escTxt(displayTitle)+'</span>')
+        +detailsHtml
+        +'</div>'
+        +'<div class="item-created">'+escTxt(createdText)+'</div>'
+        +'</div>'
+        +((!isReservation && type!=='guest_form' && type!=='report') ? '<div style="font-size:0.8rem; color:#999; margin-left: 48px;" class="item-ref"><span>'+escTxt(code)+'</span></div>' : '')
+        +'<div class="item-extra" data-loaded="0"></div>'
+        +'</div>';
+      if(isNew){
+        li.addEventListener('click',function(e){
+          var toggle = e.target.closest('.request-toggle');
+          if(!toggle || !li.contains(toggle)) return;
+          li.classList.toggle('expanded');
+          var extra=li.querySelector('.item-extra');
+          if(extra && extra.getAttribute('data-loaded')!=='1' && li.classList.contains('expanded')){
+            buildExtraContent(li,extra);
+            extra.setAttribute('data-loaded','1');
+          }
+        });
+      }
+    });
+  }
+  function refreshRequestsPanel(){
+    fetch('profileresident.php?ajax=1',{credentials:'same-origin'})
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if(!data || !data.success) return;
+        renderRequestsActive(data.active);
+        lastDataSig=buildSig(data.active)+'##'+buildSig(data.history)+'##'+String(data.account_status||'');
+        pendingReload=false;
+        if(searchInput && (searchInput.value||'').trim()){
+          filterList();
+        }
+      }).catch(function(){});
+  }
 })();
 </script>
 
@@ -4879,6 +5793,53 @@ document.addEventListener('DOMContentLoaded',function(){
       toggle.setAttribute('aria-expanded',collapsed?'false':'true');
     });
   }
+});
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var imgModal = document.getElementById('imgModal');
+  var imgModalSrc = document.getElementById('imgModalSrc');
+  var imgModalClose = document.getElementById('imgModalClose');
+  if (!imgModal || !imgModalSrc) return;
+  function openImgModal(src) {
+    if (!src) return;
+    imgModalSrc.src = src;
+    imgModal.classList.remove('closing');
+    imgModal.classList.add('open');
+    document.body.classList.add('modal-open');
+  }
+  function closeImgModal() {
+    if (imgModal.classList.contains('closing')) return;
+    if (imgModal.classList.contains('open') || getComputedStyle(imgModal).display !== 'none') {
+      imgModal.classList.remove('open');
+      imgModal.classList.add('closing');
+      setTimeout(function() {
+        imgModal.classList.remove('closing');
+        imgModal.style.display = 'none';
+        document.body.classList.remove('modal-open');
+        imgModalSrc.src = '';
+      }, 260);
+    } else {
+      document.body.classList.remove('modal-open');
+      imgModalSrc.src = '';
+    }
+  }
+  document.addEventListener('click', function(event) {
+    var thumbnail = event.target.closest('.rst-proof-thumb');
+    if (!thumbnail) return;
+    event.preventDefault();
+    event.stopPropagation();
+    var proofUrl = thumbnail.getAttribute('data-proof') || thumbnail.getAttribute('src');
+    openImgModal(proofUrl);
+  });
+  if (imgModalClose) imgModalClose.addEventListener('click', closeImgModal);
+  imgModal.addEventListener('click', function(event) {
+    if (event.target === imgModal) closeImgModal();
+  });
+  document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape' && imgModal.classList.contains('open')) closeImgModal();
+  });
 });
 </script>
 
