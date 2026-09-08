@@ -116,12 +116,12 @@ function reserveTableColumnExists(mysqli $con, string $table, string $column): b
 
 function reserveCalcVHEcoBalance(mysqli $con, int $userId): int {
     if ($userId <= 0) return 0;
-    $condition = "(description LIKE '%VHEcoPoint%' OR description LIKE '%recycling%' OR description LIKE '%Redeemed points%' OR (LOWER(TRIM(transaction_type)) = 'redeem' AND reservation_ref_code IS NOT NULL AND reservation_ref_code <> ''))";
-    $query = "SELECT COALESCE(SUM(CASE WHEN LOWER(TRIM(transaction_type)) = 'redeem' THEN -amount ELSE amount END), 0) AS balance FROM point_transactions WHERE user_id = ? AND ($condition OR ecopoint_session_id IS NOT NULL)";
+    $condition = "(description LIKE '%VHEcoPoint%' OR description LIKE '%recycling%' OR description LIKE '%Redeemed points%' OR (transaction_type = 'redeem' AND reservation_ref_code IS NOT NULL AND reservation_ref_code <> ''))";
+    $query = "SELECT COALESCE(SUM(CASE WHEN transaction_type = 'redeem' THEN -amount ELSE amount END), 0) AS balance FROM point_transactions WHERE user_id = ? AND ($condition OR ecopoint_session_id IS NOT NULL)";
     $stmt = $con->prepare($query);
     if (!$stmt) {
       error_log('reserveCalcVHEcoBalance primary prepare failed: ' . $con->error);
-      $query = "SELECT COALESCE(SUM(CASE WHEN LOWER(TRIM(transaction_type)) = 'redeem' THEN -amount ELSE amount END), 0) AS balance FROM point_transactions WHERE user_id = ? AND $condition";
+      $query = "SELECT COALESCE(SUM(CASE WHEN transaction_type = 'redeem' THEN -amount ELSE amount END), 0) AS balance FROM point_transactions WHERE user_id = ? AND $condition";
       $stmt = $con->prepare($query);
     }
     if (!$stmt) {
@@ -601,7 +601,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     exit;
                   } else {
                     // Fully free (1-hour booking with points) — mark verified and redirect
-                    $con->query("UPDATE reservations SET payment_status='verified' WHERE ref_code='" . $con->real_escape_string($newRef) . "'");
+                    $stmtV = $con->prepare("UPDATE reservations SET payment_status='verified' WHERE ref_code = ?");
+                    if ($stmtV) { $stmtV->bind_param('s', $newRef); $stmtV->execute(); $stmtV->close(); }
+                    else { error_log('reserve.php verify update prepare failed: ' . $con->error); }
                     header('Location: profileresident.php?reservation_success=1&points_used=' . $points_required);
                     exit;
                   }
