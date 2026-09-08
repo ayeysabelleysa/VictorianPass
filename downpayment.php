@@ -2,18 +2,29 @@
 require_once __DIR__ . '/session_bootstrap.php';
 include 'connect.php';
 
+function downpaymentColumnExists($con, string $col): bool {
+    if (!($con instanceof mysqli)) return false;
+    static $cache = [];
+    if (isset($cache[$col])) return $cache[$col];
+    $r = @$con->query("SHOW COLUMNS FROM reservations LIKE '" . $con->real_escape_string($col) . "'");
+    return $cache[$col] = ($r !== false && $r->num_rows > 0);
+}
+
 // FETCH USER EMAIL FROM ENTRYPASS
 $entry_pass_id = intval($_GET['entry_pass_id'] ?? 0);
 $user_email_prefill = '';
+$user_email = '';
 if($entry_pass_id > 0){
     $stmt = $con->prepare("SELECT email FROM entry_passes WHERE id = ? LIMIT 1");
-    $stmt->bind_param("i", $entry_pass_id);
-    $stmt->execute();
-    $stmt->bind_result($user_email);
-    if($stmt->fetch()){
-        $user_email_prefill = $user_email;
+    if ($stmt) {
+        $stmt->bind_param("i", $entry_pass_id);
+        $stmt->execute();
+        $stmt->bind_result($user_email);
+        if($stmt->fetch()){
+            $user_email_prefill = $user_email;
+        }
+        $stmt->close();
     }
-    $stmt->close();
 }
 
 // Helpers and CSRF
@@ -66,27 +77,32 @@ $user_id = isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : null;
 $pending = isset($_SESSION['pending_reservation']) ? $_SESSION['pending_reservation'] : null;
 
 if ((!is_array($pending) || empty($pending)) && $ref_code !== '' && ($con instanceof mysqli)) {
-    $stmtC = $con->prepare("SELECT amenity, start_date, end_date, start_time, end_time, persons, price, downpayment, entry_pass_id, booking_for FROM reservations WHERE ref_code = ? LIMIT 1");
-    $stmtC->bind_param('s', $ref_code);
-    $stmtC->execute();
-    $resC = $stmtC->get_result();
-    if ($resC && ($rwC = $resC->fetch_assoc())) {
-        $pending = [
-            'amenity' => $rwC['amenity'] ?? '',
-            'start_date' => $rwC['start_date'] ?? null,
-            'end_date' => $rwC['end_date'] ?? null,
-            'start_time' => $rwC['start_time'] ?? null,
-            'end_time' => $rwC['end_time'] ?? null,
-            'persons' => isset($rwC['persons']) ? intval($rwC['persons']) : null,
-            'price' => isset($rwC['price']) ? floatval($rwC['price']) : null,
-            'downpayment' => isset($rwC['downpayment']) ? floatval($rwC['downpayment']) : null,
-            'entry_pass_id' => isset($rwC['entry_pass_id']) ? intval($rwC['entry_pass_id']) : null,
-            'booking_for' => $rwC['booking_for'] ?? null
-        ];
-        $_SESSION['pending_reservation'] = $pending;
-        if ($entry_pass_id <= 0 && !empty($pending['entry_pass_id'])) { $entry_pass_id = intval($pending['entry_pass_id']); }
+    $colsC = ['amenity', 'start_date', 'end_date', 'start_time', 'end_time', 'persons', 'price', 'downpayment', 'entry_pass_id'];
+    $bookingForExists = downpaymentColumnExists($con, 'booking_for');
+    if ($bookingForExists) { $colsC[] = 'booking_for'; }
+    $stmtC = $con->prepare("SELECT " . implode(',', $colsC) . " FROM reservations WHERE ref_code = ? LIMIT 1");
+    if ($stmtC) {
+        $stmtC->bind_param('s', $ref_code);
+        $stmtC->execute();
+        $resC = $stmtC->get_result();
+        if ($resC && ($rwC = $resC->fetch_assoc())) {
+            $pending = [
+                'amenity' => $rwC['amenity'] ?? '',
+                'start_date' => $rwC['start_date'] ?? null,
+                'end_date' => $rwC['end_date'] ?? null,
+                'start_time' => $rwC['start_time'] ?? null,
+                'end_time' => $rwC['end_time'] ?? null,
+                'persons' => isset($rwC['persons']) ? intval($rwC['persons']) : null,
+                'price' => isset($rwC['price']) ? floatval($rwC['price']) : null,
+                'downpayment' => isset($rwC['downpayment']) ? floatval($rwC['downpayment']) : null,
+                'entry_pass_id' => isset($rwC['entry_pass_id']) ? intval($rwC['entry_pass_id']) : null,
+                'booking_for' => $rwC['booking_for'] ?? null
+            ];
+            $_SESSION['pending_reservation'] = $pending;
+            if ($entry_pass_id <= 0 && !empty($pending['entry_pass_id'])) { $entry_pass_id = intval($pending['entry_pass_id']); }
+        }
+        $stmtC->close();
     }
-    $stmtC->close();
 }
 
 function format_time_ap($t){
@@ -234,31 +250,101 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
       if(empty($msg)){
         $acct = ($continue_post === 'reserve_resident') ? 'resident' : 'visitor';
         $hadLegacy = false;
-        if($con instanceof mysqli){ $chk=$con->prepare("SELECT id FROM resident_reservations WHERE ref_code = ? LIMIT 1"); $chk->bind_param('s',$ref_code); $chk->execute(); $cr=$chk->get_result(); $hadLegacy = ($cr && $cr->num_rows>0); $chk->close(); }
-        $stmt = $con->prepare("UPDATE reservations SET amenity = COALESCE(?, amenity), start_date = COALESCE(?, start_date), end_date = COALESCE(?, end_date), start_time = COALESCE(?, start_time), end_time = COALESCE(?, end_time), persons = COALESCE(?, persons), price = COALESCE(?, price), downpayment = COALESCE(?, downpayment), receipt_path = COALESCE(?, receipt_path), gcash_reference_number = COALESCE(?, gcash_reference_number), user_id = COALESCE(?, user_id), entry_pass_id = COALESCE(?, entry_pass_id), booking_for = COALESCE(?, booking_for), booked_by_role = COALESCE(?, booked_by_role), booked_by_name = COALESCE(?, booked_by_name), account_type = COALESCE(account_type, ?), payment_status='submitted', approval_status='pending', receipt_uploaded_at = COALESCE(receipt_uploaded_at, NOW()) WHERE ref_code = ?");
-        $stmt->bind_param('sssssiddssiisssss', $amenity, $start, $end, $startTime, $endTime, $persons, $price, $downpayment, $receiptPath, $gcashReferenceNumber, $uid, $entry_pass_id_post, $booking_for, $booked_by_role, $booked_by_name, $acct, $ref_code);
-        $stmt->execute();
-        $affected = $stmt->affected_rows;
-        $stmt->close();
+        if($con instanceof mysqli){
+          $chk=$con->prepare("SELECT id FROM resident_reservations WHERE ref_code = ? LIMIT 1");
+          if ($chk) {
+            $chk->bind_param('s',$ref_code); $chk->execute(); $cr=$chk->get_result();
+            $hadLegacy = ($cr && $cr->num_rows>0);
+            $chk->close();
+          }
+        }
+        // Adaptive UPDATE: only set columns that actually exist in the deployed DB.
+        $colOk = function($col) use ($con){ return downpaymentColumnExists($con, $col); };
+        $updSets = [];
+        $updVals = [];
+        $updTypes = '';
+        $addSet = function($col, $type, $val) use (&$updSets, &$updVals, &$updTypes, $colOk) {
+          if (!$colOk($col)) return;
+          $updSets[] = $col . ' = COALESCE(?, ' . $col . ')';
+          $updVals[] = $val;
+          $updTypes .= $type;
+        };
+        $addSet('amenity', 's', $amenity);
+        $addSet('start_date', 's', $start);
+        $addSet('end_date', 's', $end);
+        $addSet('start_time', 's', $startTime);
+        $addSet('end_time', 's', $endTime);
+        $addSet('persons', 'i', $persons);
+        $addSet('price', 'd', $price);
+        $addSet('downpayment', 'd', $downpayment);
+        $addSet('receipt_path', 's', $receiptPath);
+        $addSet('gcash_reference_number', 's', $gcashReferenceNumber);
+        $addSet('user_id', 'i', $uid);
+        $addSet('entry_pass_id', 'i', $entry_pass_id_post);
+        $addSet('booking_for', 's', $booking_for);
+        $addSet('booked_by_role', 's', $booked_by_role);
+        $addSet('booked_by_name', 's', $booked_by_name);
+        $updSets[] = 'account_type = COALESCE(account_type, ?)';
+        $updVals[] = $acct;
+        $updTypes .= 's';
+        $updSets[] = "payment_status='submitted'";
+        $updSets[] = "approval_status='pending'";
+        $updSets[] = 'receipt_uploaded_at = COALESCE(receipt_uploaded_at, NOW())';
+
+        $stmt = $con->prepare('UPDATE reservations SET ' . implode(', ', $updSets) . " WHERE ref_code = ?");
+        $affected = 0;
+        if ($stmt) {
+          $valsAll = $updVals;
+          $valsAll[] = $ref_code;
+          $refs = [$updTypes . 's'];
+          foreach ($valsAll as $k => $v) { $refs[] = &$valsAll[$k]; }
+          call_user_func_array([$stmt, 'bind_param'], $refs);
+          $stmt->execute();
+          $affected = $stmt->affected_rows;
+          $stmt->close();
+        }
         if ($affected === 0) {
-          $ins = $con->prepare("INSERT INTO reservations (ref_code, amenity, start_date, end_date, start_time, end_time, persons, price, downpayment, receipt_path, gcash_reference_number, user_id, entry_pass_id, booking_for, booked_by_role, booked_by_name, account_type, payment_status, approval_status, receipt_uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', 'pending', NOW())");
-          $ins->bind_param('ssssssiddssiissss', $ref_code, $amenity, $start, $end, $startTime, $endTime, $persons, $price, $downpayment, $receiptPath, $gcashReferenceNumber, $uid, $entry_pass_id_post, $booking_for, $booked_by_role, $booked_by_name, $acct);
-          $ins->execute();
-          $ins->close();
+          $insCols = ['ref_code','amenity','start_date','end_date','start_time','end_time','persons','price','downpayment','receipt_path'];
+          $insTypes = 'ssssssidds';
+          $insVals = [$ref_code, $amenity, $start, $end, $startTime, $endTime, $persons, $price, $downpayment, $receiptPath];
+          if ($colOk('gcash_reference_number')) { $insCols[] = 'gcash_reference_number'; $insTypes .= 's'; $insVals[] = $gcashReferenceNumber; }
+          $insCols[] = 'user_id'; $insTypes .= 'i'; $insVals[] = $uid;
+          $insCols[] = 'entry_pass_id'; $insTypes .= 'i'; $insVals[] = $entry_pass_id_post;
+          if ($colOk('booking_for')) { $insCols[] = 'booking_for'; $insTypes .= 's'; $insVals[] = $booking_for; }
+          if ($colOk('booked_by_role')) { $insCols[] = 'booked_by_role'; $insTypes .= 's'; $insVals[] = $booked_by_role; }
+          if ($colOk('booked_by_name')) { $insCols[] = 'booked_by_name'; $insTypes .= 's'; $insVals[] = $booked_by_name; }
+          $insCols[] = 'account_type'; $insTypes .= 's'; $insVals[] = $acct;
+          $insCols[] = 'payment_status'; $insTypes .= 's'; $insVals[] = 'submitted';
+          $insCols[] = 'approval_status'; $insTypes .= 's'; $insVals[] = 'pending';
+          $insCols[] = 'receipt_uploaded_at';
+          $ins = $con->prepare('INSERT INTO reservations (' . implode(', ', $insCols) . ') VALUES (' . implode(', ', array_pad(array_fill(0, count($insCols) - 1, '?'), count($insCols), 'NOW()')) . ')');
+          if ($ins) {
+            $refsIns = [$insTypes];
+            foreach ($insVals as $k => $v) { $refsIns[] = &$insVals[$k]; }
+            call_user_func_array([$ins, 'bind_param'], $refsIns);
+            $ins->execute();
+            $ins->close();
+          }
         }
         if ($acct === 'resident') {
           try {
             $chkRR = $con->prepare("SELECT id FROM resident_reservations WHERE ref_code = ? LIMIT 1");
-            $chkRR->bind_param('s', $ref_code);
-            $chkRR->execute(); $resRR = $chkRR->get_result(); $existsRR = ($resRR && $resRR->num_rows>0); $chkRR->close();
-            if ($existsRR) {
-              $uRR = $con->prepare("UPDATE resident_reservations SET amenity = COALESCE(?, amenity), start_date = COALESCE(?, start_date), end_date = COALESCE(?, end_date), approval_status = 'pending', updated_at = NOW(), user_id = COALESCE(?, user_id) WHERE ref_code = ?");
-              $uRR->bind_param('sssis', $amenity, $start, $end, $uid, $ref_code);
-              $uRR->execute(); $uRR->close();
-            } else {
-              $iRR = $con->prepare("INSERT INTO resident_reservations (user_id, amenity, start_date, end_date, approval_status, ref_code, created_at, updated_at) VALUES (?, ?, ?, ?, 'pending', ?, NOW(), NOW())");
-              $iRR->bind_param('issss', $uid, $amenity, $start, $end, $ref_code);
-              $iRR->execute(); $iRR->close();
+            if ($chkRR) {
+              $chkRR->bind_param('s', $ref_code);
+              $chkRR->execute(); $resRR = $chkRR->get_result(); $existsRR = ($resRR && $resRR->num_rows>0); $chkRR->close();
+              if ($existsRR) {
+                $uRR = $con->prepare("UPDATE resident_reservations SET amenity = COALESCE(?, amenity), start_date = COALESCE(?, start_date), end_date = COALESCE(?, end_date), approval_status = 'pending', updated_at = NOW(), user_id = COALESCE(?, user_id) WHERE ref_code = ?");
+                if ($uRR) {
+                  $uRR->bind_param('sssis', $amenity, $start, $end, $uid, $ref_code);
+                  $uRR->execute(); $uRR->close();
+                }
+              } else {
+                $iRR = $con->prepare("INSERT INTO resident_reservations (user_id, amenity, start_date, end_date, approval_status, ref_code, created_at, updated_at) VALUES (?, ?, ?, ?, 'pending', ?, NOW(), NOW())");
+                if ($iRR) {
+                  $iRR->bind_param('issss', $uid, $amenity, $start, $end, $ref_code);
+                  $iRR->execute(); $iRR->close();
+                }
+              }
             }
           } catch (Throwable $_) { }
         }
@@ -273,25 +359,29 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
       $email = '';
       if ($entry_pass_id_post) {
         $stmtInfo = $con->prepare("SELECT full_name, middle_name, last_name, email FROM entry_passes WHERE id = ? LIMIT 1");
-        $stmtInfo->bind_param('i', $entry_pass_id_post);
-        $stmtInfo->execute();
-        $stmtInfo->bind_result($fn, $mn, $ln, $em);
-        if ($stmtInfo->fetch()) {
-          $full_name = trim(($fn ?: '') . ' ' . ($mn ?: '') . ' ' . ($ln ?: ''));
-          $email = $em ?: '';
+        if ($stmtInfo) {
+          $stmtInfo->bind_param('i', $entry_pass_id_post);
+          $stmtInfo->execute();
+          $stmtInfo->bind_result($fn, $mn, $ln, $em);
+          if ($stmtInfo->fetch()) {
+            $full_name = trim(($fn ?: '') . ' ' . ($mn ?: '') . ' ' . ($ln ?: ''));
+            $email = $em ?: '';
+          }
+          $stmtInfo->close();
         }
-        $stmtInfo->close();
       }
       if ($email === '' && $uid) {
         $stmtU = $con->prepare("SELECT first_name, middle_name, last_name, email FROM users WHERE id = ? LIMIT 1");
-        $stmtU->bind_param('i', $uid);
-        $stmtU->execute();
-        $stmtU->bind_result($uf, $um, $ul, $ue);
-        if ($stmtU->fetch()) {
-          $full_name = trim(($uf ?: '') . ' ' . ($um ?: '') . ' ' . ($ul ?: ''));
-          $email = $ue ?: '';
+        if ($stmtU) {
+          $stmtU->bind_param('i', $uid);
+          $stmtU->execute();
+          $stmtU->bind_result($uf, $um, $ul, $ue);
+          if ($stmtU->fetch()) {
+            $full_name = trim(($uf ?: '') . ' ' . ($um ?: '') . ' ' . ($ul ?: ''));
+            $email = $ue ?: '';
+          }
+          $stmtU->close();
         }
-        $stmtU->close();
       }
       if ($email === '' && $user_email_prefill !== '') { $email = $user_email_prefill; }
       if ($full_name === '') { $full_name = 'Guest'; }

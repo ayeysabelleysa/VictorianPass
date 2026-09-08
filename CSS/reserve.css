@@ -596,6 +596,8 @@ select:focus {
   backdrop-filter: blur(5px);
   align-items: center;
   justify-content: center;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal-content {
@@ -611,6 +613,9 @@ select:focus {
   animation: modalPop 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.35);
   border: 1px solid #e5e7eb;
+  max-height: calc(100vh - 48px);
+  margin: auto;
+  overflow-y: auto;
 }
 
 /* Maximizing (opening) animation — smooth scale + size, centered, no layout shift */
@@ -649,6 +654,37 @@ select:focus {
   cursor: pointer;
   line-height: 1;
   z-index: 2;
+}
+
+/* Scroll lock: keep background page still while a modal is open */
+html.modal-open,
+body.modal-open {
+  overflow: hidden;
+}
+
+/* Confirm Details modal: fixed header + scrollable body + always-visible actions */
+#verifyModal .modal-content {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-width: 470px;
+}
+
+#verifyModal .modal-content > h2 {
+  flex: 0 0 auto;
+}
+
+#verifySummary {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 6px;
+}
+
+#verifyModal .verify-actions {
+  flex: 0 0 auto;
+  gap: 10px;
 }
 
 /* Confirm Details — grouped summary sections */
@@ -1411,4 +1447,16 @@ input:focus-visible {
   .calendar-header h3 { font-size: 1rem; }
   .calendar th, .calendar td { font-size: 0.65rem; padding: 4px 0; }
   .calendar-header button { width:36px; height:36px; padding:6px; }
+}
+
+/* Responsive modal behavior */
+@media (max-width:640px) {
+  .modal { padding: 14px 12px; }
+  .modal-content { padding: 24px 18px 20px; max-height: calc(100vh - 28px); }
+}
+@media (max-width:480px) {
+  #verifyModal .modal-content { padding: 20px 16px 16px; width: 100%; }
+  #verifyModal .verify-actions { flex-direction: column; gap: 8px; }
+  #verifyModal .verify-actions .btn-confirm,
+  #verifyModal .verify-actions .btn-cancel { width: 100%; padding: 12px 16px; }
 }

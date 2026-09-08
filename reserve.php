@@ -1,11 +1,38 @@
 <?php
+// --- Temporary timing instrumentation (VP_TIMING_PROFILE=1 / define to enable).
+// Logs one line per request to the PHP error log; disabled by default.
+$GLOBALS['__vp_t0'] = microtime(true);
+$GLOBALS['__vp_marks'] = [];
+if (!function_exists('vpMark')) {
+  function vpMark(string $label): void {
+    if (empty(getenv('VP_TIMING_PROFILE')) && !(defined('VP_TIMING_PROFILE') && VP_TIMING_PROFILE === true)) { return; }
+    $GLOBALS['__vp_marks'][] = [$label, microtime(true)];
+  }
+}
+if (!function_exists('vpFlush')) {
+  function vpFlush(): void {
+    if (empty(getenv('VP_TIMING_PROFILE')) && !(defined('VP_TIMING_PROFILE') && VP_TIMING_PROFILE === true)) { return; }
+    $t0 = $GLOBALS['__vp_t0'] ?? microtime(true);
+    $parts = ['total=' . round((microtime(true) - $t0) * 1000, 1) . 'ms'];
+    $prev = $t0;
+    foreach ($GLOBALS['__vp_marks'] as $pair) {
+      $parts[] = $pair[0] . '=' . round(($pair[1] - $prev) * 1000, 1) . 'ms';
+      $prev = $pair[1];
+    }
+    @error_log('[TIMING] ' . ($_SERVER['REQUEST_URI'] ?? 'reserve') . ' | ' . implode(' ', $parts));
+  }
+}
+register_shutdown_function('vpFlush');
+// ---
 ob_start(); // Prevents header issues on redirect
 require_once __DIR__ . '/session_bootstrap.php';
+vpMark('session_start');
 $isReserveApiRequest = $_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && in_array($_GET['action'], ['booked_dates', 'booked_times', 'check_points'], true);
 if ($isReserveApiRequest) {
   define('VP_JSON_ERROR_RESPONSE', true);
 }
 require_once __DIR__ . '/connect.php';
+vpMark('db_connect');
 $generatedCode = '';
 $errorMsg = '';
 $canSubmit = true;
@@ -54,9 +81,37 @@ function reserveJsonResponse(array $payload, int $status = 200): void {
  * Log an error server-side and return a safe JSON error to the browser.
  * Never echoes the raw exception message or any credentials.
  */
-function reserveJsonError(string $logMessage, string $safeMessage = 'Server error.'): void {
+function reserveJsonError(string $logMessage, string $safeMessage = 'Server error. Please try again later.'): void {
     @error_log($logMessage);
     reserveJsonResponse(['error' => $safeMessage], 500);
+}
+
+/**
+ * Check whether a given column exists on a table, using a cached result
+ * to avoid repeated INFORMATION_SCHEMA queries on the same request.
+ */
+function reserveTableColumnExists(mysqli $con, string $table, string $column): bool {
+    static $cache = [];
+    $key = $table . '.' . $column;
+    if (array_key_exists($key, $cache)) {
+        return $cache[$key];
+    }
+    $exists = false;
+    try {
+        $stmt = $con->prepare("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1");
+        if ($stmt) {
+            $stmt->bind_param('ss', $table, $column);
+            if ($stmt->execute()) {
+                $res = $stmt->get_result();
+                $exists = $res && $res->num_rows > 0;
+            }
+            $stmt->close();
+        }
+    } catch (Throwable $e) {
+        error_log('reserveTableColumnExists error: ' . $e->getMessage());
+    }
+    $cache[$key] = $exists;
+    return $exists;
 }
 
 function reserveCalcVHEcoBalance(mysqli $con, int $userId): int {
@@ -92,10 +147,12 @@ function generateUniqueRefCode($con){
     $candidate='VP-'.str_pad(rand(0,99999),5,'0',STR_PAD_LEFT);
     $exists=false;
     if($con instanceof mysqli){
-      $q1=$con->prepare("SELECT 1 FROM reservations WHERE ref_code=? LIMIT 1");
-      $q1->bind_param('s',$candidate); $q1->execute(); $r1=$q1->get_result(); $exists = $exists || ($r1 && $r1->num_rows>0); $q1->close();
-      $q2=$con->prepare("SELECT 1 FROM guest_forms WHERE ref_code=? LIMIT 1");
-      $q2->bind_param('s',$candidate); $q2->execute(); $r2=$q2->get_result(); $exists = $exists || ($r2 && $r2->num_rows>0); $q2->close();
+      if ($q1 = $con->prepare("SELECT 1 FROM reservations WHERE ref_code=? LIMIT 1")) {
+        $q1->bind_param('s',$candidate); $q1->execute(); $r1=$q1->get_result(); $exists = $exists || ($r1 && $r1->num_rows>0); $q1->close();
+      }
+      if ($q2 = $con->prepare("SELECT 1 FROM guest_forms WHERE ref_code=? LIMIT 1")) {
+        $q2->bind_param('s',$candidate); $q2->execute(); $r2=$q2->get_result(); $exists = $exists || ($r2 && $r2->num_rows>0); $q2->close();
+      }
     }
     if(!$exists){ $code=$candidate; break; }
     $tries++;
@@ -130,15 +187,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $guestResidentId = null;
     if ($ref_code !== '' && ($con instanceof mysqli)) {
       try {
-        $stmtG = $con->prepare("SELECT resident_user_id FROM guest_forms WHERE ref_code = ? LIMIT 1");
-        $stmtG->bind_param('s', $ref_code);
-        $stmtG->execute();
-        $resG = $stmtG->get_result();
-        if ($resG && ($gRow = $resG->fetch_assoc())) {
-          $rid = isset($gRow['resident_user_id']) ? intval($gRow['resident_user_id']) : 0;
-          if ($rid > 0) { $guestResidentId = $rid; }
+        if ($stmtG = $con->prepare("SELECT resident_user_id FROM guest_forms WHERE ref_code = ? LIMIT 1")) {
+          $stmtG->bind_param('s', $ref_code);
+          $stmtG->execute();
+          $resG = $stmtG->get_result();
+          if ($resG && ($gRow = $resG->fetch_assoc())) {
+            $rid = isset($gRow['resident_user_id']) ? intval($gRow['resident_user_id']) : 0;
+            if ($rid > 0) { $guestResidentId = $rid; }
+          }
+          $stmtG->close();
         }
-        $stmtG->close();
       } catch (Throwable $e) {
         error_log('reserve.php guest link lookup error: ' . $e->getMessage());
       }
@@ -236,18 +294,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       if (!$errorMsg) {
         $cnt = 0;
         $singleDay = ($start && $end && $start === $end && $startTime && $endTime);
+        vpMark('availability_start');
         try {
           if (!($con instanceof mysqli)) { throw new Exception('DB unavailable'); }
           if ($singleDay) {
-              $check1 = $con->prepare("SELECT COUNT(*) AS c FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history')) AND ? BETWEEN start_date AND end_date AND (TIME(?) < end_time AND TIME(?) > start_time)");
-            $check1->bind_param("ssss", $amenity, $start, $startTime, $endTime);
-            $check1->execute(); $r1 = $check1->get_result(); $cnt += ($r1 && ($rw=$r1->fetch_assoc())) ? intval($rw['c']) : 0; $check1->close();
-            $check2 = $con->prepare("SELECT COUNT(*) AS c FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved') AND ? BETWEEN start_date AND end_date AND (TIME(?) < end_time AND TIME(?) > start_time)");
-            $check2->bind_param("ssss", $amenity, $start, $startTime, $endTime);
-            $check2->execute(); $r2 = $check2->get_result(); $cnt += ($r2 && ($rw=$r2->fetch_assoc())) ? intval($rw['c']) : 0; $check2->close();
-            $check3 = $con->prepare("SELECT COUNT(*) AS c FROM guest_forms WHERE amenity = ? AND ? BETWEEN start_date AND end_date AND (approval_status IN ('pending','approved')) AND (TIME(?) < end_time AND TIME(?) > start_time)");
-            $check3->bind_param("ssss", $amenity, $start, $startTime, $endTime);
-            $check3->execute(); $r3 = $check3->get_result(); $cnt += ($r3 && ($rw=$r3->fetch_assoc())) ? intval($rw['c']) : 0; $check3->close();
+            if ($check1 = $con->prepare("SELECT COUNT(*) AS c FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history')) AND ? BETWEEN start_date AND end_date AND (TIME(?) < end_time AND TIME(?) > start_time)")) {
+              $check1->bind_param("ssss", $amenity, $start, $startTime, $endTime);
+              $check1->execute(); $r1 = $check1->get_result(); $cnt += ($r1 && ($rw=$r1->fetch_assoc())) ? intval($rw['c']) : 0; $check1->close();
+            } else {
+              error_log('reserve.php single-day reservations prepare failed: ' . $con->error);
+            }
+            if ($check2 = $con->prepare("SELECT COUNT(*) AS c FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved') AND ? BETWEEN start_date AND end_date AND (TIME(?) < end_time AND TIME(?) > start_time)")) {
+              $check2->bind_param("ssss", $amenity, $start, $startTime, $endTime);
+              $check2->execute(); $r2 = $check2->get_result(); $cnt += ($r2 && ($rw=$r2->fetch_assoc())) ? intval($rw['c']) : 0; $check2->close();
+            } else if (reserveTableColumnExists($con, 'resident_reservations', 'start_time') && reserveTableColumnExists($con, 'resident_reservations', 'end_time')) {
+              error_log('reserve.php single-day resident_reservations prepare failed: ' . $con->error);
+            } else if ($check2b = $con->prepare("SELECT COUNT(*) AS c FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved') AND ? BETWEEN start_date AND end_date")) {
+              $check2b->bind_param("sss", $amenity, $start, $end);
+              $check2b->execute(); $r2b = $check2b->get_result(); $cnt += ($r2b && ($rw=$r2b->fetch_assoc())) ? intval($rw['c']) : 0; $check2b->close();
+            } else {
+              error_log('reserve.php single-day resident_reservations fallback prepare failed: ' . $con->error);
+            }
+            if ($check3 = $con->prepare("SELECT COUNT(*) AS c FROM guest_forms WHERE amenity = ? AND ? BETWEEN start_date AND end_date AND (approval_status IN ('pending','approved')) AND (TIME(?) < end_time AND TIME(?) > start_time)")) {
+              $check3->bind_param("ssss", $amenity, $start, $startTime, $endTime);
+              $check3->execute(); $r3 = $check3->get_result(); $cnt += ($r3 && ($rw=$r3->fetch_assoc())) ? intval($rw['c']) : 0; $check3->close();
+            } else if (reserveTableColumnExists($con, 'guest_forms', 'start_time') && reserveTableColumnExists($con, 'guest_forms', 'end_time')) {
+              error_log('reserve.php single-day guest_forms prepare failed: ' . $con->error);
+            } else if ($check3b = $con->prepare("SELECT COUNT(*) AS c FROM guest_forms WHERE amenity = ? AND ? BETWEEN start_date AND end_date AND approval_status IN ('pending','approved')")) {
+              $check3b->bind_param("sss", $amenity, $start, $end);
+              $check3b->execute(); $r3b = $check3b->get_result(); $cnt += ($r3b && ($rw=$r3b->fetch_assoc())) ? intval($rw['c']) : 0; $check3b->close();
+            } else {
+              error_log('reserve.php single-day guest_forms fallback prepare failed: ' . $con->error);
+            }
           } else {
             $hourBased = in_array($amenity, ['Basketball Court','Tennis Court','Clubhouse','Multi-Purpose Building'], true);
             $minH = 9;
@@ -304,6 +382,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               $q2->execute();
               $markOverlaps($q2->get_result());
               $q2->close();
+            } else if (!reserveTableColumnExists($con, 'resident_reservations', 'start_time') || !reserveTableColumnExists($con, 'resident_reservations', 'end_time')) {
+              $q2b = $con->prepare("SELECT start_date, end_date FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved') AND start_date <= ? AND end_date >= ?");
+              if ($q2b) {
+                $q2b->bind_param('sss', $amenity, $end, $start);
+                $q2b->execute();
+                $markOverlaps($q2b->get_result());
+                $q2b->close();
+              }
+            } else {
+              error_log('reserve.php multi-day resident_reservations prepare failed: ' . $con->error);
             }
 
             // guest_forms (may not have time columns)
@@ -313,6 +401,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               $q3->execute();
               $markOverlaps($q3->get_result());
               $q3->close();
+            } else if (!reserveTableColumnExists($con, 'guest_forms', 'start_time') || !reserveTableColumnExists($con, 'guest_forms', 'end_time')) {
+              $q3b = $con->prepare("SELECT start_date, end_date FROM guest_forms WHERE amenity = ? AND (approval_status IN ('pending','approved')) AND start_date <= ? AND end_date >= ?");
+              if ($q3b) {
+                $q3b->bind_param('sss', $amenity, $end, $start);
+                $q3b->execute();
+                $markOverlaps($q3b->get_result());
+                $q3b->close();
+              }
+            } else {
+              error_log('reserve.php multi-day guest_forms prepare failed: ' . $con->error);
             }
 
             foreach ($periodDays as $ds) {
@@ -323,6 +421,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           error_log('reserve.php POST error: ' . $e->getMessage());
           $errorMsg = 'Server error. Please try again later.';
         }
+        vpMark('availability_end');
         if (!$errorMsg && $cnt > 0) {
           $errorMsg = 'Selected dates include a fully booked day. Please adjust your range or choose different dates.';
         }
@@ -331,15 +430,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           if ($ref_code !== '') {
             try {
               if (!($con instanceof mysqli)) { throw new Exception('DB unavailable'); }
-              $s1 = $con->prepare("SELECT payment_status FROM reservations WHERE ref_code = ? LIMIT 1");
-              $s1->bind_param('s', $ref_code);
-              $s1->execute();
-              $g1 = $s1->get_result();
-              if ($g1 && ($rr = $g1->fetch_assoc())) {
-                $ps = strtolower(trim($rr['payment_status'] ?? ''));
-                $paidOk = ($ps === 'verified');
+              if ($s1 = $con->prepare("SELECT payment_status FROM reservations WHERE ref_code = ? LIMIT 1")) {
+                $s1->bind_param('s', $ref_code);
+                $s1->execute();
+                $g1 = $s1->get_result();
+                if ($g1 && ($rr = $g1->fetch_assoc())) {
+                  $ps = strtolower(trim($rr['payment_status'] ?? ''));
+                  $paidOk = ($ps === 'verified');
+                }
+                $s1->close();
               }
-              $s1->close();
             } catch (Throwable $e) {
               error_log('reserve.php payment check error: ' . $e->getMessage());
             }
@@ -421,27 +521,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               // If using points, deduct the free hour and proceed
               if ($use_points_post && !$errorMsg) {
                 try {
-                  $con->begin_transaction();
-                  
-                  // Deduct points
-                  $stmtDeduct = $con->prepare("UPDATE users SET points = points - ? WHERE id = ?");
+                $con->begin_transaction();
+                
+                $deductOk = true;
+
+                // Deduct points
+                if ($stmtDeduct = $con->prepare("UPDATE users SET points = points - ? WHERE id = ?")) {
                   $stmtDeduct->bind_param('ii', $points_required, $sessionUserId);
                   $stmtDeduct->execute();
                   $stmtDeduct->close();
-                  
-                  // Record transaction in point_transactions
+                } else {
+                  error_log('reserve.php points deduct prepare failed: ' . $con->error);
+                  $deductOk = false;
+                }
+                
+                // Record transaction in point_transactions
+                if ($deductOk) {
                   $txnDescription = "Redeemed points for 1 free hour of " . htmlspecialchars($amenity) . " booking (Ref: " . $newRef . ")";
-                  $stmtTxn = $con->prepare("INSERT INTO point_transactions (user_id, transaction_type, amount, description, reservation_ref_code) VALUES (?, 'redeem', ?, ?, ?)");
-                  $stmtTxn->bind_param('iiss', $sessionUserId, $points_required, $txnDescription, $newRef);
-                  $stmtTxn->execute();
-                  $stmtTxn->close();
-                  
-                  // Insert reservation with use_points and points_used
-                  $stmt = $con->prepare("INSERT INTO reservations (ref_code, amenity, start_date, end_date, start_time, end_time, persons, price, downpayment, user_id, entry_pass_id, booking_for, account_type, payment_status, approval_status, status, use_points, points_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', 'pending', ?, ?)");
-                  $stmt->bind_param('ssssssiddiissii', $newRef, $amenity, $start, $end, $startTime, $endTime, $persons, $price, $downpayment, $user_id, $entry_pass_id, $booking_for, $acct, $use_points_post, $points_required);
-                  $stmt->execute();
-                  $stmt->close();
-                  
+                  if ($stmtTxn = $con->prepare("INSERT INTO point_transactions (user_id, transaction_type, amount, description, reservation_ref_code) VALUES (?, 'redeem', ?, ?, ?)")) {
+                    $stmtTxn->bind_param('iiss', $sessionUserId, $points_required, $txnDescription, $newRef);
+                    $stmtTxn->execute();
+                    $stmtTxn->close();
+                  } else {
+                    error_log('reserve.php point transaction prepare failed: ' . $con->error);
+                    $deductOk = false;
+                  }
+                }
+                
+                // Insert reservation using only columns that exist.
+                // booking_for/use_points/points_used are added by
+                // setup/migrate_reserve.php; their absence on a fresh deployment
+                // must not break the booking (values are dropped in that case).
+                if ($deductOk) {
+                  $resCols  = ['ref_code','amenity','start_date','end_date','start_time','end_time','persons','price','downpayment','user_id','entry_pass_id','account_type','payment_status','approval_status','status'];
+                  $resPh    = ['?','?','?','?','?','?','?','?','?','?','?','?',"'pending'","'pending'","'pending'"];
+                  $resVals  = [$newRef, $amenity, $start, $end, $startTime, $endTime, $persons, $price, $downpayment, $user_id, $entry_pass_id, $acct];
+                  $resTypes = 'ssssssiddiis';
+                  if (reserveTableColumnExists($con, 'reservations', 'booking_for')) {
+                    $resCols[] = 'booking_for'; $resPh[] = '?';
+                    $resVals[] = $booking_for; $resTypes .= 's';
+                  }
+                  if (reserveTableColumnExists($con, 'reservations', 'use_points')) {
+                    $resCols[] = 'use_points'; $resPh[] = '?';
+                    $resVals[] = $use_points_post; $resTypes .= 'i';
+                  }
+                  if (reserveTableColumnExists($con, 'reservations', 'points_used')) {
+                    $resCols[] = 'points_used'; $resPh[] = '?';
+                    $resVals[] = $points_required; $resTypes .= 'i';
+                  }
+                  $resSql = "INSERT INTO reservations (" . implode(', ', $resCols) . ") VALUES (" . implode(', ', $resPh) . ")";
+                  if ($stmt = $con->prepare($resSql)) {
+                    $bindArgs = [$resTypes];
+                    foreach ($resVals as $k => $v) { $bindArgs[] = &$resVals[$k]; }
+                    call_user_func_array([$stmt, 'bind_param'], $bindArgs);
+                    $stmt->execute();
+                    $stmt->close();
+                  } else {
+                    error_log('reserve.php reservation insert prepare failed: ' . $con->error);
+                    $deductOk = false;
+                  }
+                }
+
+                if (!$deductOk) {
+                  $con->rollback();
+                  $errorMsg = 'An error occurred while processing your booking. Please try again.';
+                } else {
                   $con->commit();
                   
                   // Store pending reservation in session for downpayment page
@@ -461,11 +605,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     header('Location: profileresident.php?reservation_success=1&points_used=' . $points_required);
                     exit;
                   }
-                } catch (Throwable $e) {
-                  $con->rollback();
-                  error_log('reserve.php point redemption booking error: ' . $e->getMessage());
-                  $errorMsg = 'An error occurred while processing your points redemption. Please try again.';
                 }
+              } catch (Throwable $e) {
+                $con->rollback();
+                error_log('reserve.php point redemption booking error: ' . $e->getMessage());
+                $errorMsg = 'An error occurred while processing your points redemption. Please try again.';
+              }
               } else {
                 // Defer guest code notification until after downpayment submission
                 // Redirect to downpayment page with role-aware flow and ref_code
@@ -489,6 +634,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_dates') {
   $dates = [];
   if ($amenity === '') { reserveJsonResponse(['dates' => []]); }
   $collect = function($res) use (&$dates) {
+    if (!$res) { return; }
     while ($row = $res->fetch_assoc()) {
       if (empty($row['start_date']) || empty($row['end_date'])) continue;
       $start = new DateTime($row['start_date']);
@@ -499,12 +645,21 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_dates') {
   };
   try {
     if (!($con instanceof mysqli)) { throw new Exception('DB unavailable'); }
-    $stmt1 = $con->prepare("SELECT start_date, end_date FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history')) AND (end_date IS NULL OR end_date >= CURDATE()) AND (start_date IS NULL OR start_date <= DATE_ADD(CURDATE(), INTERVAL 6 MONTH))");
-    $stmt1->bind_param("s", $amenity); $stmt1->execute(); $collect($stmt1->get_result()); $stmt1->close();
-    $stmt2 = $con->prepare("SELECT start_date, end_date FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved') AND (end_date IS NULL OR end_date >= CURDATE()) AND (start_date IS NULL OR start_date <= DATE_ADD(CURDATE(), INTERVAL 6 MONTH))");
-    $stmt2->bind_param("s", $amenity); $stmt2->execute(); $collect($stmt2->get_result()); $stmt2->close();
-    $stmt3 = $con->prepare("SELECT start_date, end_date FROM guest_forms WHERE amenity = ? AND approval_status IN ('pending','approved') AND (end_date IS NULL OR end_date >= CURDATE()) AND (start_date IS NULL OR start_date <= DATE_ADD(CURDATE(), INTERVAL 6 MONTH))");
-    $stmt3->bind_param("s", $amenity); $stmt3->execute(); $collect($stmt3->get_result()); $stmt3->close();
+    if ($stmt1 = $con->prepare("SELECT start_date, end_date FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history')) AND (end_date IS NULL OR end_date >= CURDATE()) AND (start_date IS NULL OR start_date <= DATE_ADD(CURDATE(), INTERVAL 6 MONTH))")) {
+      $stmt1->bind_param("s", $amenity); $stmt1->execute(); $collect($stmt1->get_result()); $stmt1->close();
+    } else {
+      error_log('reserve.php booked_dates reservations prepare failed: ' . $con->error);
+    }
+    if ($stmt2 = $con->prepare("SELECT start_date, end_date FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved') AND (end_date IS NULL OR end_date >= CURDATE()) AND (start_date IS NULL OR start_date <= DATE_ADD(CURDATE(), INTERVAL 6 MONTH))")) {
+      $stmt2->bind_param("s", $amenity); $stmt2->execute(); $collect($stmt2->get_result()); $stmt2->close();
+    } else {
+      error_log('reserve.php booked_dates resident_reservations prepare failed: ' . $con->error);
+    }
+    if ($stmt3 = $con->prepare("SELECT start_date, end_date FROM guest_forms WHERE amenity = ? AND approval_status IN ('pending','approved') AND (end_date IS NULL OR end_date >= CURDATE()) AND (start_date IS NULL OR start_date <= DATE_ADD(CURDATE(), INTERVAL 6 MONTH))")) {
+      $stmt3->bind_param("s", $amenity); $stmt3->execute(); $collect($stmt3->get_result()); $stmt3->close();
+    } else {
+      error_log('reserve.php booked_dates guest_forms prepare failed: ' . $con->error);
+    }
   } catch (Throwable $e) {
     reserveJsonError('reserve.php booked_dates error: ' . $e->getMessage());
   }
@@ -515,26 +670,30 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_dates') {
 if ($refFromQuery !== '') {
 try {
   if (!($con instanceof mysqli)) { throw new Exception('DB unavailable'); }
-$stmtGate = $con->prepare("SELECT payment_status, amenity, start_date FROM reservations WHERE ref_code = ? LIMIT 1");
-  $stmtGate->bind_param('s', $refFromQuery);
-  $stmtGate->execute();
-  $resGate = $stmtGate->get_result();
-  if ($resGate && ($rw = $resGate->fetch_assoc())) {
-    if (!empty($rw['amenity']) && !empty($rw['start_date'])) {
-      $_SESSION['flash_notice'] = 'A reservation already exists for this QR reference code. Please wait for email notification.';
-      if ($sessionUserType === 'resident') {
-        header('Location: profileresident.php');
-      } else {
-        header('Location: mainpage.php');
+  if ($stmtGate = $con->prepare("SELECT payment_status, amenity, start_date FROM reservations WHERE ref_code = ? LIMIT 1")) {
+    $stmtGate->bind_param('s', $refFromQuery);
+    $stmtGate->execute();
+    $resGate = $stmtGate->get_result();
+    if ($resGate && ($rw = $resGate->fetch_assoc())) {
+      if (!empty($rw['amenity']) && !empty($rw['start_date'])) {
+        $_SESSION['flash_notice'] = 'A reservation already exists for this QR reference code. Please wait for email notification.';
+        if ($sessionUserType === 'resident') {
+          header('Location: profileresident.php');
+        } else {
+          header('Location: mainpage.php');
+        }
+        exit;
       }
-      exit;
+      $ps = strtolower(trim($rw['payment_status'] ?? ''));
+      $canSubmit = ($ps === 'verified');
+    } else {
+      $canSubmit = false;
     }
-    $ps = strtolower(trim($rw['payment_status'] ?? ''));
-    $canSubmit = ($ps === 'verified');
+    $stmtGate->close();
   } else {
+    error_log('reserve.php gate prepare failed: ' . $con->error);
     $canSubmit = false;
   }
-  $stmtGate->close();
 } catch (Throwable $e) {
   error_log('reserve.php gate error: ' . $e->getMessage());
   $canSubmit = false;
@@ -563,8 +722,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_times') {
       // Filter: bookings whose date range overlaps [startDate, endDate]
       $dateFilter = " AND start_date <= ? AND end_date >= ?";
 
+      // reserved/u: the point-redemption columns exist only after setup/migrate_reserve.php
+      $hasUsePoints = reserveTableColumnExists($con, 'reservations', 'use_points');
+      vpMark('booked_times_start');
+
       // Query 1: reservations table (has start_time/end_time)
-      $sql1 = "SELECT start_date, end_date, start_time, end_time, persons, approval_status, status, use_points FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history'))" . $dateFilter;
+      $sql1 = "SELECT start_date, end_date, start_time, end_time, persons, approval_status, status" . ($hasUsePoints ? ", use_points" : "") . " FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history'))" . $dateFilter;
       $stmt1 = $con->prepare($sql1);
       if ($stmt1) {
         $stmt1->bind_param("sss", $amenity, $endDate, $startDate);
@@ -579,7 +742,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_times') {
             'end'        => $hasTime ? $row['end_time'] : null,
             'has_time'   => $hasTime ? 1 : 0,
             'persons'    => intval($row['persons'] ?? 0),
-            'use_points' => intval($row['use_points'] ?? 0),
+            'use_points' => $hasUsePoints ? intval($row['use_points'] ?? 0) : 0,
           ];
           if (!empty($row['persons'])) {
             $personsTotal += intval($row['persons']);
@@ -587,13 +750,14 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_times') {
         }
         $stmt1->close();
       }
+      vpMark('booked_times_reservations');
 
       // Query 2: resident_reservations joined to reservations.
       // The join already supplies start_time/end_time/persons/use_points for
       // the matched reservations row (ref_code is unique), so no per-row
       // subquery is needed.
       $sql2 = "SELECT rr.start_date, rr.end_date, rr.approval_status, rr.ref_code,
-              r.start_time, r.end_time, r.persons, r.use_points
+              r.start_time, r.end_time, r.persons" . ($hasUsePoints ? ", r.use_points" : "") . "
            FROM resident_reservations rr
            LEFT JOIN reservations r ON r.ref_code = rr.ref_code
            WHERE rr.amenity = ? AND rr.approval_status IN ('pending','approved')" . $dateFilter;
@@ -611,7 +775,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_times') {
             'end'        => $hasTime ? $row['end_time'] : null,
             'has_time'   => $hasTime ? 1 : 0,
             'persons'    => intval($row['persons'] ?? 0),
-            'use_points' => intval($row['use_points'] ?? 0),
+            'use_points' => $hasUsePoints ? intval($row['use_points'] ?? 0) : 0,
           ];
           if (!empty($row['persons'])) {
             $personsTotal += intval($row['persons']);
@@ -619,6 +783,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_times') {
         }
         $stmt2->close();
       }
+      vpMark('booked_times_resident');
 
       // Query 3: guest_forms table (may not have time columns)
       $sql3 = "SELECT start_date, end_date, persons, approval_status FROM guest_forms WHERE amenity = ? AND approval_status IN ('pending','approved')" . $dateFilter;
@@ -643,6 +808,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_times') {
         }
         $stmt3->close();
       }
+      vpMark('booked_times_guest');
 
     } catch (Throwable $e) {
       reserveJsonError('reserve.php booked_times error: ' . $e->getMessage());
@@ -655,9 +821,13 @@ if (isset($_GET['action']) && $_GET['action'] === 'check_points') {
   if ($sessionUserType !== 'resident' || $sessionUserId === null) {
     reserveJsonResponse(['ok' => false, 'balance' => 0, 'error' => 'Not authenticated as resident.'], 401);
   }
-  $uid = intval($sessionUserId);
-  $balance = reserveCalcVHEcoBalance($con, $uid);
-  reserveJsonResponse(['ok' => true, 'balance' => $balance]);
+  try {
+    $uid = intval($sessionUserId);
+    $balance = reserveCalcVHEcoBalance($con, $uid);
+    reserveJsonResponse(['ok' => true, 'balance' => $balance]);
+  } catch (Throwable $e) {
+    reserveJsonError('reserve.php check_points error: ' . $e->getMessage());
+  }
 }
 if ($sessionUserType === 'resident') {
   $accountLink = 'profileresident.php';
@@ -667,11 +837,11 @@ if ($sessionUserType === 'resident') {
   $accountLink = 'mainpage.php';
 }
 
+vpMark('pre_html_queries');
 $residentGuests = [];
 if ($sessionUserType === 'resident' && $sessionUserId !== null && ($con instanceof mysqli)) {
   $rid = intval($sessionUserId);
-  $stmtRG = $con->prepare("SELECT id, visitor_first_name, visitor_middle_name, visitor_last_name, visitor_email, visitor_contact, ref_code FROM guest_forms WHERE resident_user_id = ? AND approval_status = 'approved' ORDER BY created_at DESC");
-  if ($stmtRG) {
+  if ($stmtRG = $con->prepare("SELECT id, visitor_first_name, visitor_middle_name, visitor_last_name, visitor_email, visitor_contact, ref_code FROM guest_forms WHERE resident_user_id = ? AND approval_status = 'approved' ORDER BY created_at DESC LIMIT 100")) {
     $stmtRG->bind_param('i', $rid);
     $stmtRG->execute();
     $resRG = $stmtRG->get_result();
@@ -679,8 +849,11 @@ if ($sessionUserType === 'resident' && $sessionUserId !== null && ($con instance
       $residentGuests[] = $row;
     }
     $stmtRG->close();
+  } else {
+    error_log('reserve.php residentGuests prepare failed: ' . $con->error);
   }
 }
+vpMark('resident_guests');
 $currentResident = null;
 $residentPoints = 0;
 $householdResidents = [];
@@ -699,6 +872,7 @@ if ($sessionUserType === 'resident' && $sessionUserId !== null && ($con instance
     }
     $stmtU->close();
   }
+  vpMark('resident_info_balance');
 
   // Get resident's booking history
   $bookingCounts = [
@@ -721,6 +895,7 @@ if ($sessionUserType === 'resident' && $sessionUserId !== null && ($con instance
     }
     $stmtHistory1->close();
   }
+  vpMark('booking_history1');
 
   $stmtHistory2 = $con->prepare("SELECT amenity FROM resident_reservations WHERE user_id = ? AND approval_status IN ('pending','approved') ORDER BY created_at DESC LIMIT 50");
   if ($stmtHistory2) {
@@ -734,6 +909,7 @@ if ($sessionUserType === 'resident' && $sessionUserId !== null && ($con instance
     }
     $stmtHistory2->close();
   }
+  vpMark('booking_history2');
 
   if ($currentResident && !empty($currentResident['house_number'])) {
     $hn = $currentResident['house_number'];
@@ -747,6 +923,7 @@ if ($sessionUserType === 'resident' && $sessionUserId !== null && ($con instance
     }
   }
 }
+vpMark('household');
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1274,7 +1451,7 @@ if ($sessionUserType === 'resident' && $sessionUserId !== null && ($con instance
     <button type="button" class="modal-close" id="verifyCloseBtn" aria-label="Close">&times;</button>
     <h2>Confirm Details</h2>
     <div id="verifySummary" style="text-align:left;margin-top:10px"></div>
-    <div style="text-align:center;margin-top:12px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+    <div class="verify-actions" style="text-align:center;margin-top:12px;display:flex;justify-content:center;flex-wrap:wrap;">
       <button type="button" class="btn-cancel" id="verifyCancelBtn">Cancel</button>
       <button type="button" class="btn-confirm" id="verifyConfirmBtn">Confirm</button>
     </div>
@@ -1362,6 +1539,8 @@ if ($sessionUserType === 'resident' && $sessionUserId !== null && ($con instance
     el.classList.remove('closing');
     el.classList.add('open');
     el.style.display='flex';
+    document.documentElement.classList.add('modal-open');
+    document.body.classList.add('modal-open');
   }
   function vpHideModal(el, done){
     if(!el) return;
@@ -1373,10 +1552,23 @@ if ($sessionUserType === 'resident' && $sessionUserId !== null && ($con instance
         el.style.display='none';
         el.classList.remove('closing');
         if(done) done();
+        vpReleaseModalScroll();
       }, 260);
     } else {
       el.style.display='none';
       if(done) done();
+      vpReleaseModalScroll();
+    }
+  }
+  function vpReleaseModalScroll(){
+    const mods=document.querySelectorAll('.modal');
+    let anyOpen=false;
+    for(let i=0;i<mods.length;i++){
+      if(getComputedStyle(mods[i]).display!=='none'){ anyOpen=true; break; }
+    }
+    if(!anyOpen){
+      document.documentElement.classList.remove('modal-open');
+      document.body.classList.remove('modal-open');
     }
   }
 
@@ -2258,7 +2450,7 @@ if ($sessionUserType === 'resident' && $sessionUserId !== null && ($con instance
   if(amenityReturnBtn){
     amenityReturnBtn.addEventListener('click',function(){
       const modal=document.getElementById('changeAmenityModal');
-      if(modal){ modal.style.display='flex'; }
+      if(modal){ vpShowModal(modal); }
     });
   }
 
@@ -3285,7 +3477,7 @@ if ($sessionUserType === 'resident' && $sessionUserId !== null && ($con instance
         }
 
         const sumEl=document.getElementById('verifySummary'); if(sumEl){ sumEl.innerHTML = summaryHTML; }
-        const vm=document.getElementById('verifyModal'); if(vm){ vm.style.display='flex'; }
+        const vm=document.getElementById('verifyModal'); if(vm){ vpShowModal(vm); }
         return;
       } else {
         window.__verifyConfirmed=false;
@@ -3311,8 +3503,8 @@ if ($sessionUserType === 'resident' && $sessionUserId !== null && ($con instance
     const xBtn=document.getElementById('verifyCloseBtn');
     const pBtn=document.getElementById('verifyConfirmBtn');
     window.__verifyConfirmed=false;
-    if(cBtn){ cBtn.addEventListener('click', function(){ if(vm){ vm.style.display='none'; } }); }
-    if(xBtn){ xBtn.addEventListener('click', function(){ if(vm){ vm.style.display='none'; } }); }
+    if(cBtn){ cBtn.addEventListener('click', function(){ if(vm){ vpHideModal(vm); } }); }
+    if(xBtn){ xBtn.addEventListener('click', function(){ if(vm){ vpHideModal(vm); } }); }
     if(pBtn){
       pBtn.addEventListener('click', function(){
         showIncompleteWarnings();
@@ -3339,7 +3531,7 @@ if ($sessionUserType === 'resident' && $sessionUserId !== null && ($con instance
     if (usePointsInput) {
       usePointsInput.value = usePoints ? '1' : '0';
     }
-        if(vm){ vm.style.display='none'; }
+        if(vm){ vpHideModal(vm); }
         showToast('Details confirmed.','success');
         const f = (typeof formEl !== 'undefined' && formEl) ? formEl : document.querySelector('form');
         if(f){
@@ -3697,10 +3889,10 @@ if ($sessionUserType === 'resident' && $sessionUserId !== null && ($con instance
       var modal = document.getElementById('resetReservationModal');
       var okBtn = document.getElementById('resetReservationOkBtn');
       var closeBtn = document.getElementById('resetReservationCloseBtn');
-      if(modal){ modal.style.display='flex'; }
-      if(okBtn){ okBtn.addEventListener('click', function(){ if(modal) modal.style.display='none'; }); }
-      if(closeBtn){ closeBtn.addEventListener('click', function(){ if(modal) modal.style.display='none'; }); }
-      if(modal){ modal.addEventListener('click', function(e){ if(e.target === modal){ modal.style.display='none'; } }); }
+      if(modal){ vpShowModal(modal); }
+      if(okBtn){ okBtn.addEventListener('click', function(){ if(modal) vpHideModal(modal); }); }
+      if(closeBtn){ closeBtn.addEventListener('click', function(){ if(modal) vpHideModal(modal); }); }
+      if(modal){ modal.addEventListener('click', function(e){ if(e.target === modal){ vpHideModal(modal); } }); }
     });
   })();
 </script>
