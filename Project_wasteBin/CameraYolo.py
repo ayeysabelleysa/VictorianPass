@@ -36,7 +36,7 @@ print("Loading YOLO...")
 model = YOLO(MODEL)
 print("YOLO ready.")
 
-
+model.fuse = lambda *args, **kwargs: model.model
 # =========================
 # CAMERA
 # =========================
