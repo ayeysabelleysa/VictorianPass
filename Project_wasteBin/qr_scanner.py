@@ -149,6 +149,27 @@ def read_qr(scanner):
             time.sleep(0.01)
             continue
 
+        except OSError:
+            print("QR scanner disconnected. Reconnecting...")
+
+            try:
+                scanner.close()
+            except:
+                pass
+
+            while True:
+                try:
+                    scanner = InputDevice(QR_DEVICE)
+                    print("GM65 QR scanner reconnected.")
+                    qr_buffer = ""
+                    shift_pressed = False
+                    break
+                except OSError:
+                    time.sleep(1)
+
+            continue
+
+
         if event is None:
             time.sleep(0.01)
             continue
@@ -204,7 +225,7 @@ def read_qr(scanner):
                 print(qr_buffer)
                 print("--------------------------------")
 
-                return qr_buffer
+                return qr_buffer, scanner
 
             qr_buffer = ""
             continue

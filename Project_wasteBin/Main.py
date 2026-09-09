@@ -44,6 +44,7 @@ API_BASE_URL = "https://deeppink-wren-292489.hostingersite.com/api"
 QR_API = (
     f"{API_BASE_URL}/qr_verify_and_create_session.php"
 )
+
 SUBMIT_WASTE_API = (
     f"{API_BASE_URL}/submit_waste_data.php"
 )
@@ -68,14 +69,12 @@ API_HEADERS = {
 
 
 MIN_WEIGHT = 20.0
-
-WEIGHT_STABLE_TIME = 1
+WEIGHT_STABLE_TIME = 0.5
 METAL_STABLE_TIME = 0.5
-
 MAX_SESSIONS = 3
 DAILY_POINT_CAP = 100
-
 CAMERA_TIMEOUT = 0.5
+CAMERA_CLASSIFICATION_TIMEOUT = 3.0
 
 # Resident session timeout.
 # If no item is placed for 2 minutes,
@@ -90,9 +89,7 @@ REMOVAL_CHECK_INTERVAL = 0.15
 # =========================================================
 
 def camera_status():
-
     try:
-
         r = requests.get(
             CAMERA_URL,
             timeout=CAMERA_TIMEOUT
@@ -112,9 +109,7 @@ def camera_status():
 # =========================================================
 
 def api_post(url, data):
-
     try:
-
         response = requests.post(
             url,
             headers=API_HEADERS,
@@ -136,29 +131,21 @@ def api_post(url, data):
             result = response.json()
 
         except Exception:
-
             print("Invalid JSON response from server.")
-
             return None
 
         return result
 
     except requests.exceptions.Timeout:
-
         print("Hostinger API timeout.")
-
         return None
 
     except requests.exceptions.ConnectionError:
-
         print("Cannot connect to Hostinger.")
-
         return None
 
     except Exception as e:
-
         print(f"API error: {e}")
-
         return None
 
 
@@ -167,10 +154,13 @@ def api_post(url, data):
 # =========================================================
 
 def create_api_session(qr_code):
-
     print()
     print("Verifying VictorianPass with Hostinger...")
-    print("QR VALUE SENT TO API:", repr(qr_code.split("CODE=")[-1].strip()))
+
+    print(
+        "QR VALUE SENT TO API:",
+        repr(qr_code.split("CODE=")[-1].strip())
+    )
 
     result = api_post(
         QR_API,
@@ -180,13 +170,10 @@ def create_api_session(qr_code):
     )
 
     if not result:
-
         print("No response from Hostinger.")
-
         return None
 
     if not result.get("success"):
-
         print(
             "QR verification failed:",
             result.get(
@@ -202,7 +189,6 @@ def create_api_session(qr_code):
     )
 
     if not session_token:
-
         print(
             "Hostinger did not return "
             "a session token."
@@ -222,6 +208,7 @@ def create_api_session(qr_code):
 
     print()
     print("--------------------------------")
+
     print(
         "Resident :",
         resident.get(
@@ -229,6 +216,7 @@ def create_api_session(qr_code):
             "Unknown"
         )
     )
+
     print(
         "Balance  :",
         resident.get(
@@ -236,15 +224,19 @@ def create_api_session(qr_code):
             0
         )
     )
+
     print("--------------------------------")
 
     return {
         "session_token": session_token,
         "resident": resident
     }
+
+
 # =========================================================
 # SUBMIT WASTE DATA
 # =========================================================
+
 def submit_waste_data(session_token, material, weight):
     result = api_post(
         SUBMIT_WASTE_API,
@@ -259,17 +251,26 @@ def submit_waste_data(session_token, material, weight):
     )
 
     if not result:
-        print("No response from waste submission API.")
+        print(
+            "No response from waste submission API."
+        )
+
         return None
 
     if not result.get("success"):
         print(
             "Waste submission failed:",
-            result.get("message", "Unknown error")
+            result.get(
+                "message",
+                "Unknown error"
+            )
         )
+
         return None
 
-    print("Waste data submitted successfully.")
+    print(
+        "Waste data submitted successfully."
+    )
 
     return result
 
@@ -277,6 +278,7 @@ def submit_waste_data(session_token, material, weight):
 # =========================================================
 # COMPLETE HOSTINGER SESSION
 # =========================================================
+
 def complete_api_session(
     session_token,
     material=None,
@@ -305,7 +307,10 @@ def complete_api_session(
     )
 
     if not result:
-        print("No response from session completion API.")
+        print(
+            "No response from session completion API."
+        )
+
         return None
 
     if not result.get("success"):
@@ -316,19 +321,31 @@ def complete_api_session(
                 "Unknown error"
             )
         )
+
         return None
 
-    print("Hostinger session completed.")
+    print(
+        "Hostinger session completed."
+    )
+
     print(
         "Points awarded:",
-        result.get("points_awarded", 0)
+        result.get(
+            "points_awarded",
+            0
+        )
     )
+
     print(
         "New balance:",
-        result.get("new_balance", 0)
+        result.get(
+            "new_balance",
+            0
+        )
     )
 
     return result
+
 
 # =========================================================
 # CANCEL HOSTINGER SESSION
@@ -338,9 +355,7 @@ def cancel_api_session(
     session_token,
     reason
 ):
-
     if not session_token:
-
         return
 
     print()
@@ -355,11 +370,11 @@ def cancel_api_session(
     )
 
     if result and result.get("success"):
-
-        print("Hostinger session cancelled.")
+        print(
+            "Hostinger session cancelled."
+        )
 
     elif result:
-
         print(
             "Hostinger cancellation failed:",
             result.get(
@@ -369,55 +384,63 @@ def cancel_api_session(
         )
 
 
-## =========================================================
+# =========================================================
 # WAIT FOR ITEM
 # =========================================================
 
 def wait_for_item():
-
     start_time = time.monotonic()
 
     while True:
-
-        weight = get_weight(1)
+        weight = get_weight(10)
         metal = metal_detected()
 
-        status = "METAL DETECTED" if metal else "Waiting for item..."
-        print(f"\r[ WEIGHT ] {weight:.1f} g | {status}", end="", flush=True)
+        status = (
+            "METAL DETECTED"
+            if metal
+            else "Waiting for item..."
+        )
+
+        print(
+            f"\r[ WEIGHT ] {weight:.1f} g | {status}",
+            end="",
+            flush=True
+        )
 
         # Weight must be present before an item can start
         if weight >= MIN_WEIGHT:
             print()
             return weight
 
-        if time.monotonic() - start_time >= IDLE_TIMEOUT:
+        if (
+            time.monotonic() - start_time
+            >= IDLE_TIMEOUT
+        ):
             print()
             return None
 
-        time.sleep(REMOVAL_CHECK_INTERVAL)
+        time.sleep(
+            REMOVAL_CHECK_INTERVAL
+        )
+
+
 # =========================================================
 # WEIGHT STABILITY
 # =========================================================
 
 def wait_for_weight_stable():
-
     stable_start = None
     last_weight = 0
 
     while True:
-
         weight = get_weight(1)
 
         if weight < MIN_WEIGHT:
-
             stable_start = None
-
             time.sleep(0.1)
-
             continue
 
         if stable_start is None:
-
             stable_start = time.monotonic()
 
         last_weight = weight
@@ -427,7 +450,6 @@ def wait_for_weight_stable():
             - stable_start
             >= WEIGHT_STABLE_TIME
         ):
-
             return last_weight
 
         time.sleep(0.1)
@@ -438,15 +460,16 @@ def wait_for_weight_stable():
 # =========================================================
 
 def get_camera_material():
+    start_time = time.monotonic()
 
-    while True:
-
+    while (
+        time.monotonic() - start_time
+        < CAMERA_CLASSIFICATION_TIMEOUT
+    ):
         data = camera_status()
 
         if not data:
-
             time.sleep(0.1)
-
             continue
 
         # -------------------------------------------------
@@ -454,27 +477,33 @@ def get_camera_material():
         # -------------------------------------------------
 
         if data.get("mixed"):
-
             return "Mixed"
 
         # -------------------------------------------------
-        # CAMERA CONFIRMED
+        # CAMERA CONFIRMED PLASTIC / PAPER
         # -------------------------------------------------
 
         if data.get("confirmed"):
-
-            material = data.get(
-                "material"
-            )
+            material = data.get("material")
 
             if material in (
                 "Plastic",
                 "Paper"
             ):
-
                 return material
 
         time.sleep(0.1)
+
+    # -----------------------------------------------------
+    # CAMERA COULD NOT CLASSIFY
+    # Let the inductive sensor handle the metal case.
+    # -----------------------------------------------------
+
+    print(
+        "Camera could not classify item."
+    )
+
+    return None
 
 
 # =========================================================
@@ -482,24 +511,18 @@ def get_camera_material():
 # =========================================================
 
 def wait_for_removal():
-
     print("Remove the item.")
 
     while True:
-
         weight = get_weight(1)
-
         metal = metal_detected()
 
         # Both sensors clear
-
         if (
             weight < MIN_WEIGHT
             and not metal
         ):
-
             print("Item removed.")
-
             return
 
         time.sleep(
@@ -510,16 +533,16 @@ def wait_for_removal():
 # =========================================================
 # PROCESS ONE ITEM
 # =========================================================
+
 def process_item():
     print()
     print("Ready for next item.")
     print(
-        "Place item on the "
-        "weight platform..."
+        "Place item on the weight platform..."
     )
 
     # =====================================================
-    # WAIT FOR WEIGHT FIRST
+    # 1. WAIT FOR ITEM
     # =====================================================
 
     weight = wait_for_item()
@@ -527,81 +550,174 @@ def process_item():
     if weight is None:
         return "IDLE"
 
-    print("Item detected. Checking material...")
-
-    metal = metal_detected()
-    print("DEBUG - Metal sensor:", metal)
-
-    if metal:
-        print("Metal detected. Verifying...")
-
-        if not wait_for_metal_stable(METAL_STABLE_TIME):
-            print("Metal verification failed.")
-            wait_for_removal()
-            return "REJECTED"
-
-        material = "aluminum"
-
-    else:
-        # =================================================
-        # CAMERA FOR PLASTIC / PAPER
-        # =================================================
-
-        print("Checking camera...")
-
-        material = get_camera_material()
-
-        if material == "Mixed":
-            print("Mixed material. Item rejected.")
-            wait_for_removal()
-            return "REJECTED"
-
-        print("Camera confirmed.")
+    print(
+        f"Item detected: {weight:.1f} g"
+    )
 
     # =====================================================
-    # STABILIZE WEIGHT
+    # 2. CAMERA FIRST
+    # =====================================================
+
+    print("Checking camera...")
+
+    camera_material = get_camera_material()
+
+    # -----------------------------------------------------
+    # CAMERA DETECTED MIXED MATERIAL
+    # -----------------------------------------------------
+
+    if camera_material == "Mixed":
+        print(
+            "Mixed material. Item rejected."
+        )
+
+        wait_for_removal()
+
+        return "REJECTED"
+
+    # -----------------------------------------------------
+    # CAMERA SUCCESSFULLY IDENTIFIED PLASTIC / PAPER
+    # -----------------------------------------------------
+
+    if camera_material in (
+        "Plastic",
+        "Paper"
+    ):
+        material = camera_material.lower()
+
+        print(
+            f"Camera confirmed: {camera_material}"
+        )
+
+    # -----------------------------------------------------
+    # CAMERA COULD NOT IDENTIFY
+    # FALL BACK TO INDUCTIVE SENSOR
+    # -----------------------------------------------------
+
+    else:
+        print(
+            "Camera did not classify the item."
+        )
+
+        print(
+            "Checking inductive sensor..."
+        )
+
+        metal = metal_detected()
+
+        if metal:
+            print(
+                "Metal detected. "
+                "Confirming aluminum..."
+            )
+
+            verify_start = time.monotonic()
+
+            while (
+                time.monotonic()
+                - verify_start
+                < METAL_STABLE_TIME
+            ):
+                if not metal_detected():
+                    print(
+                        "Metal verification failed."
+                    )
+
+                    wait_for_removal()
+
+                    return "REJECTED"
+
+                time.sleep(0.05)
+
+            material = "aluminum"
+
+            print(
+                "Aluminum confirmed."
+            )
+
+        else:
+            print(
+                "Item could not be identified."
+            )
+
+            wait_for_removal()
+
+            return "REJECTED"
+
+    # =====================================================
+    # 3. STABILIZE WEIGHT
     # =====================================================
 
     print("Measuring weight...")
 
     weight = wait_for_weight_stable()
 
-    if weight is None:
-        print("Item removed. Please try again.")
+    if weight < MIN_WEIGHT:
+        print(
+            "Item removed. Please try again."
+        )
+
         return "REJECTED"
 
+    print(
+        f"Stable weight: {weight:.2f} g"
+    )
+
     # =====================================================
-    # FINAL METAL CHECK
+    # 4. FINAL MATERIAL CHECK
     # =====================================================
 
     if material == "aluminum":
+
         if not metal_detected():
             print(
                 "Metal verification lost."
             )
+
             wait_for_removal()
+
             return "REJECTED"
 
     else:
+
         if metal_detected():
             print(
-                "Metal detected. "
-                "Item rejected."
+                "Metal detected. Item rejected."
             )
+
             wait_for_removal()
+
             return "REJECTED"
 
     # =====================================================
-    # CALCULATE INCENTIVE
+    # 5. CALCULATE INCENTIVE
     # =====================================================
 
     print("Verifying item...")
 
-    weight, points = measure_incentive(
-        material
-    )
+    if material == "plastic":
+
+        points = (
+            weight / 1000
+        ) * 55
+
+    elif material == "paper":
+
+        points = (
+            weight / 1000
+        ) * 30
+
+    elif material == "aluminum":
+
+        points = (
+            weight / 1000
+        ) * 140
+
+    else:
+        return "REJECTED"
 
     return weight, points, material
+
 
 # =========================================================
 # MAIN
@@ -612,12 +728,12 @@ scanner = None
 init_db()
 
 try:
+
     # =====================================================
     # START HARDWARE
     # =====================================================
 
     start_weight()
-
     start_inductive()
 
     scanner = start_scanner()
@@ -626,10 +742,13 @@ try:
     print("================================")
     print("          VHEcoPoint")
     print("================================")
+
     print("System ready.")
+
     print(
         "Please use your QR to access."
     )
+
     print()
 
     # =====================================================
@@ -645,7 +764,7 @@ try:
         # WAIT FOR QR
         # =================================================
 
-        qr = read_qr(scanner)
+        qr, scanner = read_qr(scanner)
 
         if not is_victorianpass(qr):
 
@@ -673,13 +792,16 @@ try:
         if session is None:
 
             print()
+
             print(
                 "Unable to create resident "
                 "session."
             )
+
             print(
                 "Please use your QR to access."
             )
+
             print()
 
             continue
@@ -707,6 +829,7 @@ try:
         print("================================")
         print("       USER SESSION STARTED")
         print("================================")
+
         print(
             "Resident :",
             resident.get(
@@ -714,6 +837,7 @@ try:
                 "Unknown"
             )
         )
+
         print(
             "Balance  :",
             resident.get(
@@ -721,7 +845,10 @@ try:
                 0
             )
         )
-        print("================================")
+
+        print(
+            "================================"
+        )
 
         # =================================================
         # RESIDENT ITEM LOOP
@@ -736,6 +863,7 @@ try:
             if total_points >= DAILY_POINT_CAP:
 
                 print()
+
                 print(
                     "Daily point limit reached."
                 )
@@ -758,10 +886,12 @@ try:
                 print("================================")
                 print("       RESIDENT SESSION ENDED")
                 print("================================")
+
                 print(
                     "No item detected for "
                     "2 minutes."
                 )
+
                 print(
                     "Your session has expired."
                 )
@@ -776,10 +906,15 @@ try:
                 )
 
                 print()
+
                 print(
                     "Please use your QR to access."
                 )
-                print("================================")
+
+                print(
+                    "================================"
+                )
+
                 print()
 
                 # -------------------------------------------------
@@ -799,7 +934,6 @@ try:
             # =================================================
 
             if result == "REJECTED":
-
                 continue
 
             # =================================================
@@ -807,9 +941,10 @@ try:
             # =================================================
 
             weight, points, material = result
-	   # =================================================
-	   # SUBMIT WASTE DATA TO HOSTINGER
-	   # =================================================
+
+            # =================================================
+            # SUBMIT WASTE DATA TO HOSTINGER
+            # =================================================
 
             submitted = submit_waste_data(
                 session_token,
@@ -818,10 +953,19 @@ try:
             )
 
             if submitted is None:
-                print("Failed to submit waste data.")
-                print("Item will not be counted.")
+
+                print(
+                    "Failed to submit waste data."
+                )
+
+                print(
+                    "Item will not be counted."
+                )
+
                 wait_for_removal()
+
                 continue
+
             # =================================================
             # LOCAL DAILY POINT CAP
             # =================================================
@@ -838,7 +982,9 @@ try:
 
             total_points += points
 
-            transaction_id = f"{session_token}-{sessions + 1}"
+            transaction_id = (
+                f"{session_token}-{sessions + 1}"
+            )
 
             sessions += 1
 
@@ -847,25 +993,31 @@ try:
             # =================================================
 
             print()
+
             print("--------------------------------")
-            print("ITEM ACCEPTED")
+
             print(
                 f"Material : "
                 f"{material.capitalize()}"
             )
+
             print(
                 f"Weight   : "
                 f"{weight:.2f} g"
             )
+
             print(
                 f"Points   : "
                 f"{points:.2f}"
             )
+
             print("--------------------------------")
+
             print(
                 f"Sessions : "
                 f"{sessions}/{MAX_SESSIONS}"
             )
+
             print(
                 f"Total    : "
                 f"{total_points:.2f}/"
@@ -881,12 +1033,15 @@ try:
         # =================================================
         # COMPLETE HOSTINGER SESSION
         # =================================================
+
         if sessions > 0:
+
             completed = complete_api_session(
                 session_token
             )
 
         if completed:
+
             print(
                 "Points awarded:",
                 completed.get(
@@ -894,6 +1049,7 @@ try:
                     0
                 )
             )
+
             print(
                 "New balance:",
                 completed.get(
@@ -910,17 +1066,25 @@ try:
         print("================================")
         print("       RESIDENT SESSION FINISHED")
         print("================================")
+
         print(
             f"Items  : {sessions}"
         )
+
         print(
             f"Points : {total_points:.2f}"
         )
+
         print()
+
         print(
             "Please use your QR to access."
         )
-        print("================================")
+
+        print(
+            "================================"
+        )
+
         print()
 
         # =================================================
@@ -951,27 +1115,21 @@ except KeyboardInterrupt:
 finally:
 
     try:
-
         close_scanner(scanner)
 
     except Exception:
-
         pass
 
     try:
-
         close_weight()
 
     except Exception:
-
         pass
 
     try:
-
         close_inductive()
 
     except Exception:
-
         pass
 
     print("System released.")

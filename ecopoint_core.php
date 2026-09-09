@@ -606,10 +606,10 @@ function eco_award_points_and_finalize(mysqli $con, int $sessionId, int $station
             $ins = $con->prepare("
                 INSERT INTO point_transactions
                 (user_id, transaction_type, amount, description, material_type, weight_kg, station_id, ecopoint_session_id)
-                VALUES (?, 'earn', ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, 'earn', ?, ?, ?, ?, ?, ?)
             ");
             $ins->bind_param(
-                'iisdidii',
+                'iisdidi',
                 $userId,
                 $awarded,
                 $desc,
