@@ -2282,23 +2282,58 @@ document.addEventListener('DOMContentLoaded', function() {
     var profileModal = document.getElementById("profileModal");
     var profileTrigger = document.getElementById("profileTrigger");
     var profileClose = document.getElementsByClassName("close-profile-modal")[0];
+    var profileAnchor = null;
+    var profileCloseTimeout;
+
+    if(profileTrigger && profileModal && profileTrigger.parentNode) {
+      profileAnchor = document.createElement('div');
+      profileAnchor.className = 'profile-menu-anchor';
+      profileTrigger.parentNode.insertBefore(profileAnchor, profileTrigger);
+      profileAnchor.appendChild(profileTrigger);
+      profileAnchor.appendChild(profileModal);
+    }
+
+    function openProfileModal() {
+      if (!profileModal) return;
+      clearTimeout(profileCloseTimeout);
+      profileModal.classList.remove('profile-modal-closing');
+      profileModal.style.display = 'block';
+      requestAnimationFrame(function() {
+        profileModal.classList.add('profile-modal-open');
+      });
+    }
+
+    function closeProfileModal(immediate) {
+      if (!profileModal) return;
+      clearTimeout(profileCloseTimeout);
+      if (immediate) {
+        profileModal.classList.remove('profile-modal-open', 'profile-modal-closing');
+        profileModal.style.display = 'none';
+        return;
+      }
+      profileModal.classList.add('profile-modal-closing');
+      profileCloseTimeout = window.setTimeout(function() {
+        profileModal.style.display = 'none';
+        profileModal.classList.remove('profile-modal-open', 'profile-modal-closing');
+      }, 220);
+    }
 
     if(profileTrigger && profileModal) {
-        profileTrigger.onclick = function(e) {
-            e.preventDefault();
-            profileModal.style.display = "block";
-        };
+      profileTrigger.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (profileModal.classList.contains('profile-modal-open')) closeProfileModal();
+        else openProfileModal();
+      };
     }
 
     if(profileClose && profileModal) {
-        profileClose.onclick = function() {
-            profileModal.style.display = "none";
-        };
+      profileClose.onclick = closeProfileModal;
     }
 
     window.addEventListener('click', function(event) {
-        if (event.target == profileModal) {
-            profileModal.style.display = "none";
+      if (profileModal && !profileModal.contains(event.target) && !profileTrigger.contains(event.target)) {
+        closeProfileModal(true);
         }
     });
 

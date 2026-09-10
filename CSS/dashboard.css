@@ -27,7 +27,8 @@ body {
     display: flex;
     flex-direction: column;
     position: fixed;
-    height: 100vh;
+    top: 64px;
+    height: calc(100vh - 64px);
     z-index: 100;
 }
 
@@ -183,30 +184,38 @@ body {
     flex-direction: column;
     margin-left: 220px;
     width: calc(100% - 220px);
+    padding-top: 64px;
 }
 
 .top-header {
-    height: 70px;
-    background: radial-gradient(circle at top left, #3a332f 0%, #2b2623 55%, #211b18 100%);
-    border-bottom: 1px solid #1a1512;
+    min-height: 64px;
+    background: rgba(43, 38, 35, 0.95);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 30px;
-    position: sticky;
+    padding: 12px 5%;
+    position: fixed;
     top: 0;
-    z-index: 90;
+    left: 0;
+    right: 0;
+    z-index: 1000;
     color: #fff;
 }
 
 .header-brand {
     display: flex;
     align-items: center;
+    gap: 12px;
 }
 
 .header-brand img {
+    width: 40px;
     height: 40px;
-    margin-right: 15px;
+    margin-right: 0;
 }
 
 .brand-text {
@@ -216,19 +225,19 @@ body {
 
 .brand-main {
     font-weight: 700;
-    font-size: 1.1rem;
-    color: #fff;
+    font-size: 1.2rem;
+    color: #f4f4f4;
 }
 
 .brand-sub {
     font-size: 0.8rem;
-    color: #ccc;
+    color: #aaa;
 }
 
 .header-actions {
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: 12px;
     position: relative;
 }
 
@@ -266,6 +275,10 @@ body {
     padding: 30px;
     flex: 1;
     overflow-y: auto;
+}
+
+.dashboard-back-row {
+    padding: 16px 30px 0;
 }
 
 .right-panel {
@@ -638,16 +651,16 @@ body {
     color: #fff;
     font-size: 1.5rem;
     cursor: pointer;
-    margin-right: 15px;
+    margin-right: 0;
 }
 
 .sidebar-overlay {
     display: none;
     position: fixed;
-    top: 0;
+    top: 64px;
     left: 0;
     width: 100%;
-    height: 100%;
+    height: calc(100% - 70px);
     background: rgba(0,0,0,0.5);
     z-index: 99;
 }
@@ -657,6 +670,548 @@ body {
         transform: translateX(-100%);
         transition: transform 0.3s ease;
         box-shadow: 2px 0 10px rgba(0,0,0,0.2);
+        top: 64px;
+
+/* Profile details popup: centered on desktop and compact on mobile. */
+@media (min-width: 901px) {
+    #profileModal {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: rgba(15, 23, 42, 0.48);
+        backdrop-filter: blur(3px);
+        -webkit-backdrop-filter: blur(3px);
+        overflow: hidden;
+        z-index: 2000;
+    }
+    #profileModal.profile-modal-open { display: flex !important; }
+    #profileModal .profile-modal-content {
+        width: min(560px, calc(100vw - 48px));
+        max-width: 560px;
+        max-height: calc(100vh - 48px);
+        margin: auto;
+        transform: none;
+        padding: 26px 28px 22px;
+        animation: profileDropdownIn 220ms cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    }
+    #profileModal.profile-modal-closing .profile-modal-content {
+        animation: profileDropdownOut 220ms cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    }
+}
+
+@media (max-width: 900px) {
+    #profileModal {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 14px;
+        background: rgba(15, 23, 42, 0.48);
+        backdrop-filter: blur(2px);
+        -webkit-backdrop-filter: blur(2px);
+        overflow: hidden;
+        z-index: 2000;
+    }
+    #profileModal.profile-modal-open { display: flex !important; }
+    #profileModal .profile-modal-content {
+        width: min(92vw, 390px);
+        max-width: calc(100vw - 28px);
+        max-height: calc(100vh - 28px);
+        margin: auto;
+        transform: none;
+        padding: 18px 16px 16px;
+        border-radius: 14px;
+        overflow-y: auto;
+        animation: profileDropdownIn 220ms cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    }
+    #profileModal.profile-modal-closing .profile-modal-content {
+        animation: profileDropdownOut 220ms cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    }
+    #profileModal .profile-header { margin-bottom: 12px; padding-bottom: 10px; }
+    #profileModal .profile-title h3 { font-size: 1rem; }
+    #profileModal .detail-row { padding: 7px 0; font-size: 0.86rem; }
+    #profileModal .profile-actions { gap: 8px; }
+}
+
+/* Keep the profile dropdown inside the viewport at the right side of the header. */
+@media (min-width: 901px) {
+    #profileModal {
+        position: fixed;
+        top: 78px;
+        right: 16px;
+        bottom: auto;
+        left: auto;
+        inset-inline-start: auto;
+        width: min(560px, calc(100vw - 32px));
+        height: auto;
+        padding: 0;
+        background: transparent;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        overflow: visible;
+        align-items: flex-start;
+        justify-content: flex-end;
+    }
+    #profileModal.profile-modal-open { display: block !important; }
+    #profileModal .profile-modal-content {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+    }
+}
+
+@media (max-width: 900px) {
+    #profileModal {
+        position: fixed;
+        top: 68px;
+        right: 10px;
+        bottom: auto;
+        left: auto;
+        inset-inline-start: auto;
+        width: min(390px, calc(100vw - 20px));
+        height: auto;
+        padding: 0;
+        background: transparent;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        overflow: visible;
+        align-items: flex-start;
+        justify-content: flex-end;
+    }
+    #profileModal.profile-modal-open { display: block !important; }
+    #profileModal .profile-modal-content {
+        width: 100%;
+        max-width: none;
+        max-height: calc(100vh - 82px);
+        margin: 0;
+    }
+}
+
+/* Final viewport guard: the profile panel must not depend on the header wrapper's width. */
+#profileModal {
+    position: fixed;
+    top: 78px;
+    right: clamp(16px, 2vw, 24px);
+    bottom: auto;
+    left: auto;
+    width: min(560px, calc(100vw - 32px));
+    max-width: calc(100vw - 32px);
+    height: auto;
+    max-height: calc(100vh - 94px);
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    transform: none;
+}
+
+#profileModal .profile-modal-content {
+    width: 100% !important;
+    max-width: none !important;
+    max-height: inherit;
+    box-sizing: border-box;
+    transform: none !important;
+}
+
+@media (max-width: 900px) {
+    #profileModal {
+        top: 68px !important;
+        right: 16px !important;
+        width: calc(100vw - 32px) !important;
+        max-width: calc(100vw - 32px) !important;
+        max-height: calc(100vh - 84px) !important;
+    }
+
+    #profileModal .profile-modal-content {
+        width: calc(100vw - 32px) !important;
+        max-width: calc(100vw - 32px) !important;
+        max-height: calc(100vh - 84px) !important;
+    }
+}
+
+/* Final mobile alignment override. */
+@media (max-width: 900px) {
+    #profileModal {
+        left: 50% !important;
+        right: auto !important;
+        bottom: 12px !important;
+        width: calc(100% - 32px) !important;
+        max-width: 400px !important;
+        max-height: calc(100vh - 24px) !important;
+        transform: translateX(-50%) !important;
+    }
+    #profileModal .profile-modal-content {
+        width: 100% !important;
+        max-width: 400px !important;
+        max-height: calc(100vh - 24px) !important;
+        padding: 20px !important;
+        box-sizing: border-box;
+        overflow-y: auto !important;
+        display: flex;
+        flex-direction: column;
+    }
+    #profileModal .profile-header {
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 16px;
+        text-align: center;
+    }
+    #profileModal .profile-title,
+    #profileModal .detail-label,
+    #profileModal .detail-value {
+        width: 100%;
+        text-align: left;
+    }
+    #profileModal .profile-title { text-align: center; }
+    #profileModal .detail-row {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 5px;
+        padding: 10px 0;
+        font-size: 0.9rem;
+        line-height: 1.35;
+    }
+    #profileModal .profile-details {
+        max-height: none;
+        margin-bottom: 16px;
+        overflow: visible;
+    }
+    #profileModal #openChangePasswordResident,
+    #profileModal .btn-logout-modal {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-height: 42px;
+        box-sizing: border-box;
+    }
+    #profileModal .profile-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        width: 100%;
+        margin: 0;
+    }
+}
+
+/* Final responsive profile positioning: centered on mobile, right-aligned on desktop. */
+@media (max-width: 900px) {
+    #profileModal {
+        position: fixed !important;
+        top: 68px !important;
+        left: 50% !important;
+        right: auto !important;
+        bottom: 12px !important;
+        width: calc(100% - 32px) !important;
+        max-width: 400px !important;
+        max-height: calc(100vh - 24px) !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        transform: translateX(-50%) !important;
+    }
+
+    #profileModal .profile-modal-content {
+        display: flex;
+        flex-direction: column;
+        width: 100% !important;
+        max-width: 400px !important;
+        max-height: calc(100vh - 24px) !important;
+        min-height: 0;
+        padding: 20px 20px 18px !important;
+        box-sizing: border-box;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+    }
+
+    #profileModal .profile-header {
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 16px;
+        padding: 0 28px 14px;
+        text-align: center;
+    }
+
+    #profileModal .profile-icon-large { width: 68px; height: 68px; }
+    #profileModal .profile-title { width: 100%; min-width: 0; text-align: center; }
+    #profileModal .profile-title h3 {
+        margin: 0;
+        font-size: 1.05rem;
+        line-height: 1.3;
+        overflow-wrap: anywhere;
+    }
+    #profileModal .profile-role { font-size: 0.82rem; }
+    #profileModal .profile-details {
+        flex: 0 0 auto;
+        max-height: none;
+        margin: 0 0 16px;
+        padding: 0;
+        overflow: visible;
+    }
+    #profileModal .detail-row {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 5px;
+        width: 100%;
+        padding: 10px 0;
+        font-size: 0.9rem;
+        line-height: 1.35;
+    }
+    #profileModal .detail-label,
+    #profileModal .detail-value { width: 100%; text-align: left; }
+    #profileModal .detail-label { font-size: 0.82rem; }
+    #profileModal .detail-value {
+        font-size: 0.9rem;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+    #profileModal #openChangePasswordResident {
+        display: block;
+        width: 100%;
+        min-height: 42px;
+        margin-top: 2px;
+        padding: 10px 12px;
+        box-sizing: border-box;
+    }
+    #profileModal .profile-actions {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        width: 100%;
+        margin: 0;
+    }
+    #profileModal .btn-logout-modal {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-height: 42px;
+        padding: 10px 12px;
+        box-sizing: border-box;
+    }
+    #profileModal .close-profile-modal {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 2;
+    }
+}
+
+/* Authoritative mobile profile layout. */
+@media (max-width: 900px) {
+    #profileModal {
+        position: fixed !important;
+        top: 68px !important;
+        left: 50% !important;
+        right: auto !important;
+        bottom: 12px !important;
+        width: calc(100% - 32px) !important;
+        max-width: 400px !important;
+        height: auto !important;
+        max-height: calc(100vh - 24px) !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        transform: translateX(-50%) !important;
+    }
+
+    #profileModal .profile-modal-content {
+        display: flex;
+        flex-direction: column;
+        width: 100% !important;
+        max-width: 400px !important;
+        max-height: calc(100vh - 24px) !important;
+        min-height: 0;
+        padding: 20px 20px 18px !important;
+        box-sizing: border-box;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        border-radius: 16px;
+    }
+
+    #profileModal .profile-header {
+        flex: 0 0 auto;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin: 0 0 16px;
+        padding: 0 28px 14px;
+        text-align: center;
+    }
+
+    #profileModal .profile-icon-large {
+        width: 68px;
+        height: 68px;
+    }
+
+    #profileModal .profile-title {
+        min-width: 0;
+        width: 100%;
+        text-align: center;
+    }
+
+    #profileModal .profile-title h3 {
+        margin: 0;
+        font-size: 1.05rem;
+        line-height: 1.3;
+        overflow-wrap: anywhere;
+    }
+
+    #profileModal .profile-role {
+        margin-top: 3px;
+        font-size: 0.82rem;
+    }
+
+    #profileModal .profile-details {
+        flex: 0 0 auto;
+        max-height: none;
+        margin: 0 0 16px;
+        padding: 0;
+        overflow: visible;
+    }
+
+    #profileModal .detail-row {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 5px;
+        width: 100%;
+        padding: 10px 0;
+        font-size: 0.9rem;
+        line-height: 1.35;
+    }
+
+    #profileModal .detail-label,
+    #profileModal .detail-value {
+        width: 100%;
+        text-align: left;
+    }
+
+    #profileModal .detail-label {
+        font-size: 0.82rem;
+    }
+
+    #profileModal .detail-value {
+        font-size: 0.9rem;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    #profileModal #openChangePasswordResident {
+        display: block;
+        width: 100%;
+        min-height: 42px;
+        margin-top: 2px;
+        padding: 10px 12px;
+        box-sizing: border-box;
+    }
+
+    #profileModal .profile-actions {
+        display: flex;
+        flex: 0 0 auto;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        width: 100%;
+        margin: 0;
+    }
+
+    #profileModal .btn-logout-modal {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-height: 42px;
+        padding: 10px 12px;
+        box-sizing: border-box;
+    }
+
+    #profileModal .close-profile-modal {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 2;
+    }
+}
+
+@media (max-width: 600px) {
+    #profileModal .profile-modal-content {
+        width: calc(100vw - 24px) !important;
+        max-width: calc(100vw - 24px) !important;
+        max-height: calc(100vh - 78px) !important;
+        padding: 12px 12px 10px;
+    }
+
+    #profileModal .close-profile-modal {
+        top: 6px;
+        right: 6px;
+        width: 28px;
+        height: 28px;
+        font-size: 1.15rem;
+    }
+
+    #profileModal .profile-header {
+        gap: 5px;
+        margin-bottom: 8px;
+        padding-bottom: 6px;
+    }
+
+    #profileModal .profile-icon-large {
+        width: 56px;
+        height: 56px;
+    }
+
+    #profileModal .profile-title h3 {
+        font-size: 0.9rem;
+    }
+
+    #profileModal .profile-role {
+        font-size: 0.68rem;
+    }
+
+    #profileModal .profile-details {
+        max-height: none;
+        margin-bottom: 7px;
+    }
+
+    #profileModal .detail-row {
+        gap: 2px;
+        padding: 4px 0;
+        font-size: 0.78rem;
+        line-height: 1.25;
+    }
+
+    #profileModal .detail-label {
+        font-size: 0.72rem;
+    }
+
+    #profileModal .detail-value {
+        font-size: 0.78rem;
+    }
+
+    #profileModal .profile-actions {
+        gap: 4px;
+        margin-top: 2px;
+    }
+
+    #profileModal .btn-open-dashboard,
+    #profileModal .btn-logout-modal {
+        padding: 7px 10px;
+        font-size: 0.8rem;
+    }
+}
+        height: calc(100vh - 64px);
     }
     
     .sidebar.open {
@@ -666,6 +1221,7 @@ body {
     .main-content {
         margin-left: 0;
         width: 100%;
+        padding-top: 64px;
     }
     
     .menu-toggle {
@@ -676,12 +1232,24 @@ body {
         display: block;
     }
 
+    .sidebar-overlay {
+        top: 64px;
+        height: calc(100% - 64px);
+    }
+
     .top-header {
-        padding: 0 15px;
+        left: 0;
+        right: 0;
+        min-height: 64px;
+        padding: 10px 4%;
     }
     
     .content-wrapper {
         padding: 15px;
+    }
+
+    .dashboard-back-row {
+        padding: 14px 15px 0;
     }
     
     .search-bar {
@@ -1236,36 +1804,128 @@ body {
 }
 
 /* Profile Modal */
+.profile-menu-anchor {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+}
+
 .profile-modal {
     display: none;
-    position: fixed;
-    z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    background-color: transparent;
+    position: absolute;
+    z-index: 50;
+    inset: auto;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    background: transparent;
 }
 
 .profile-modal-content {
     background-color: #fefefe;
-    position: absolute;
-    top: 70px;
-    right: 20px;
+    position: relative;
+    top: auto;
+    right: auto;
     margin: 0;
     padding: 20px;
     border: 1px solid #e0e0e0;
-    width: 350px;
+    width: 380px;
     max-width: 90vw;
-    max-height: calc(100vh - 100px);
+    max-height: none;
     display: flex;
     flex-direction: column;
     border-radius: 12px;
     font-family: 'Poppins', sans-serif;
     box-shadow: 0 5px 25px rgba(0,0,0,0.15);
-    animation: modalSlideIn 0.2s ease-out;
+    animation: none;
     box-sizing: border-box;
+}
+
+/* Resident profile popup: anchor the card below the profile control like the notification panel. */
+#profileModal {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    bottom: auto;
+    width: 100%;
+    height: auto;
+    background: transparent;
+    overflow: visible;
+    padding: 0;
+    z-index: 60;
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#profileModal.profile-modal-closing {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#profileModal .profile-modal-content {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    width: 380px;
+    max-width: min(90vw, 380px);
+    max-height: calc(100vh - 90px);
+    height: auto;
+    margin: 0;
+    padding: 22px 20px 18px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    border: 1px solid #e5e7eb;
+    border-radius: 18px;
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.24);
+    pointer-events: auto;
+    -webkit-animation: profileDropdownIn 220ms cubic-bezier(0.25, 1, 0.5, 1) forwards;
+        animation: profileDropdownIn 220ms cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+#profileModal.profile-modal-closing .profile-modal-content {
+    -webkit-animation: profileDropdownOut 220ms cubic-bezier(0.25, 1, 0.5, 1) forwards;
+        animation: profileDropdownOut 220ms cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+#profileModal .profile-details {
+    flex: 0 0 auto;
+    overflow: visible;
+    margin-bottom: 14px;
+    padding-right: 0;
+}
+
+#profileModal .profile-actions {
+    margin-top: 4px;
+    gap: 10px;
+}
+
+#profileModal .close-profile-modal {
+    top: 10px;
+    right: 10px;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: #334155;
+    background: #f1f5f9;
+    font-size: 1.4rem;
+    line-height: 1;
+}
+
+@keyframes profileDropdownIn {
+    from { opacity: 0; transform: translate3d(0, -8px, 0); }
+    to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes profileDropdownOut {
+    from { opacity: 1; transform: translate3d(0, 0, 0); }
+    to { opacity: 0; transform: translate3d(0, -8px, 0); }
 }
 
 @keyframes modalSlideIn {
@@ -1406,20 +2066,65 @@ body {
 }
 
 @media (max-width: 768px) {
-    .profile-modal {
-        background: rgba(0,0,0,0.4);
-        overflow: auto;
-    }
-    .profile-modal-content {
-        position: fixed;
-        top: 12px;
-        right: 12px;
-        left: 12px;
-        bottom: 12px;
+    #profileModal {
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 0;
+        bottom: auto;
         width: auto;
-        max-width: none;
-        max-height: none;
-        padding: 16px;
+        height: auto;
+        background: transparent;
+        overflow: visible;
+        padding: 0;
+        opacity: 1;
+        transition: none;
+    }
+    #profileModal.profile-modal-closing {
+        opacity: 0;
+        pointer-events: none;
+    }
+    #profileModal .profile-modal-content {
+        position: relative;
+        top: auto;
+        left: auto;
+        right: auto;
+        bottom: auto;
+        width: min(88vw, 380px);
+        max-width: calc(100vw - 32px);
+        max-height: min(620px, calc(100vh - 90px));
+        height: auto;
+        padding: 22px 20px 18px;
+        border-radius: 18px;
+        overflow: hidden;
+        transform: none;
+        animation: profileDropdownIn 220ms cubic-bezier(0.25, 1, 0.5, 1) forwards;
+        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.24);
+    }
+    #profileModal.profile-modal-closing .profile-modal-content {
+        animation: profileDropdownOut 220ms cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    }
+    #profileModal .close-profile-modal {
+        top: 10px;
+        right: 10px;
+        width: 34px;
+        height: 34px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        color: #334155;
+        background: #f1f5f9;
+        font-size: 1.45rem;
+        line-height: 1;
+        transition: background-color 220ms cubic-bezier(0.25, 1, 0.5, 1), color 220ms cubic-bezier(0.25, 1, 0.5, 1), transform 220ms cubic-bezier(0.25, 1, 0.5, 1);
+    }
+    #profileModal .close-profile-modal:hover,
+    #profileModal .close-profile-modal:focus-visible {
+        color: #111827;
+        background: #e2e8f0;
+        transform: scale(1.04);
+        outline: none;
     }
     .profile-header {
         margin-bottom: 14px;
@@ -1432,9 +2137,11 @@ body {
     .profile-role {
         font-size: 0.8rem;
     }
-    .profile-details {
-        margin-bottom: 14px;
+    #profileModal .profile-details {
+        margin-bottom: 12px;
         padding-right: 0;
+        flex: 0 1 auto;
+        max-height: min(360px, 52vh);
     }
     .detail-row {
         flex-direction: column;
@@ -1448,32 +2155,69 @@ body {
         width: 100%;
         text-align: left;
     }
-    .profile-actions {
+    #profileModal .profile-actions {
         flex-direction: column;
-        gap: 10px;
+        gap: 8px;
+        margin-top: 4px;
     }
-    .btn-open-dashboard, .btn-logout-modal {
+    #profileModal .btn-open-dashboard, #profileModal .btn-logout-modal {
         width: 100%;
     }
 }
 
 @media (max-width: 480px) {
-    .profile-modal-content {
-        padding: 14px;
+    #profileModal .profile-modal-content {
+        width: min(88vw, 360px);
+        max-width: calc(100vw - 28px);
+        max-height: calc(100vh - 32px);
+        padding: 20px 16px 16px;
     }
-    .detail-row {
+    #profileModal .detail-row {
         font-size: 0.9rem;
+        padding: 7px 0;
     }
-    .profile-title h3 {
+    #profileModal .profile-title h3 {
         font-size: 0.98rem;
     }
-    .profile-icon-large {
+    #profileModal .profile-icon-large {
         width: 72px;
         height: 72px;
     }
-    .btn-open-dashboard, .btn-logout-modal {
+    #profileModal .btn-open-dashboard, #profileModal .btn-logout-modal {
         font-size: 0.9rem;
-        padding: 10px 0;
+        padding: 10px 12px;
+    }
+}
+
+@media (max-width: 340px) {
+    #profileModal .profile-modal-content {
+        width: calc(100vw - 24px);
+        padding: 18px 14px 14px;
+    }
+    #profileModal .profile-details {
+        max-height: 48vh;
+    }
+}
+
+@keyframes profileCardIn {
+    from { opacity: 0; transform: translate3d(-50%, -48%, 0) scale(0.94); }
+    to { opacity: 1; transform: translate3d(-50%, -50%, 0) scale(1); }
+}
+
+@keyframes profileCardOut {
+    from { opacity: 1; transform: translate3d(-50%, -50%, 0) scale(1); }
+    to { opacity: 0; transform: translate3d(-50%, -48%, 0) scale(0.94); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #profileModal,
+    #profileModal .profile-modal-content,
+    #profileModal .close-profile-modal {
+        transition: none;
+        animation: none;
+    }
+    #profileModal .profile-modal-content {
+        transform: none;
     }
 }
 
@@ -1602,7 +2346,7 @@ body {
     }
 }
 
-.main, .main-content {
+.main {
     animation: dashboardEntry 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
@@ -1867,5 +2611,48 @@ body {
     #panel-history .item-created {
         margin-left: 0;
         text-align: left;
+    }
+}
+
+/* Keep the profile panel viewport-safe after all dashboard rules have loaded. */
+#profileModal {
+    position: fixed !important;
+    top: 72px !important;
+    right: clamp(16px, 2vw, 24px) !important;
+    bottom: auto !important;
+    left: auto !important;
+    width: min(560px, calc(100vw - 32px)) !important;
+    max-width: calc(100vw - 32px) !important;
+    height: auto !important;
+    max-height: calc(100vh - 94px) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    transform: none !important;
+}
+
+#profileModal .profile-modal-content {
+    width: min(380px, calc(100vw - 32px)) !important;
+    max-width: calc(100vw - 32px) !important;
+    max-height: calc(100vh - 110px) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box;
+    transform: none !important;
+}
+
+@media (max-width: 900px) {
+    #profileModal {
+        top: 68px !important;
+        right: 16px !important;
+        width: calc(100vw - 32px) !important;
+        max-width: calc(100vw - 32px) !important;
+        max-height: calc(100vh - 84px) !important;
+    }
+
+    #profileModal .profile-modal-content {
+        width: calc(100vw - 32px) !important;
+        max-width: calc(100vw - 32px) !important;
+        max-height: calc(100vh - 84px) !important;
     }
 }

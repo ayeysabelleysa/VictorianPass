@@ -918,19 +918,15 @@ body.account-blocked { overflow: hidden; }
 .account-blocked-content .btn-logout-only:hover { filter: brightness(0.95); }
 .toast-stack { position: fixed; top: 16px; right: 16px; z-index: 2500; display: flex; flex-direction: column; gap: 8px; }
 .main-content.ecopoint-active .top-header {
-  background: linear-gradient(135deg, #0d2018 0%, #163e2f 35%, #0b1c15 100%);
-  border-bottom: 1px solid rgba(212, 175, 55, 0.45);
-  box-shadow: inset 0 -1px 0 rgba(212, 175, 55, 0.25);
+  background: rgba(43, 38, 35, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
-.main-content.ecopoint-active .top-header .brand-main { color: #fde886; }
+.main-content.ecopoint-active .top-header .brand-main { color: #f4f4f4; }
 .main-content.ecopoint-active .top-header .brand-sub { color: rgba(255,255,255,0.82); }
-.main-content.ecopoint-active .top-header .icon-btn,
-.main-content.ecopoint-active .top-header .user-profile,
-.main-content.ecopoint-active .top-header .menu-toggle { border-color: rgba(212, 175, 55, 0.5); }
 .main-content.ecopoint-active .top-header .icon-btn i,
 .main-content.ecopoint-active .top-header .user-profile,
-.main-content.ecopoint-active .top-header .menu-toggle i { color: #fde886; }
-.main-content.ecopoint-active .top-header .notif-count { background: #d4af37; color: #10251b; }
+.main-content.ecopoint-active .top-header .menu-toggle i { color: #f4f4f4; }
 
 /* Panel shell — light background, not dark green */
 .main-content.ecopoint-active #panel-points-history {
@@ -2292,10 +2288,6 @@ body.modal-open{overflow:hidden}
 <div class="app-container">
   <!-- SIDEBAR -->
   <aside class="sidebar">
-    <div class="sidebar-header">
-      <a href="mainpage.php" class="back-btn"><i class="fa-solid fa-arrow-left"></i></a>
-    </div>
-
     <nav class="nav-menu">
       <a href="#" class="nav-item <?php echo $activeSection === 'panel-requests' ? 'active' : ''; ?>" data-section="panel-requests"><i class="fa-solid fa-list"></i> <span>My Requests</span></a>
       <a href="reserve.php" class="nav-item"><i class="fa-solid fa-ticket"></i> <span>Amenity Reservation</span></a>
@@ -2462,6 +2454,10 @@ body.modal-open{overflow:hidden}
         </a>
       </div>
     </header>
+
+    <div class="dashboard-back-row">
+      <a href="mainpage.php" class="back-btn" aria-label="Back to main page"><i class="fa-solid fa-arrow-left"></i></a>
+    </div>
 
     <div class="content-wrapper">
       <div class="right-panel">
@@ -5916,22 +5912,66 @@ document.addEventListener('DOMContentLoaded', function() {
     var profileTrigger = document.getElementById("profileTrigger");
     var profileClose = document.getElementsByClassName("close-profile-modal")[0];
 
+    // Keep the dropdown positioned relative to the profile control, not the page.
+    if (profileTrigger && profileModal && profileTrigger.parentNode) {
+      var profileAnchor = document.createElement('div');
+      profileAnchor.className = 'profile-menu-anchor';
+      profileTrigger.parentNode.insertBefore(profileAnchor, profileTrigger);
+      profileAnchor.appendChild(profileTrigger);
+      profileAnchor.appendChild(profileModal);
+    }
+
+    var profileAnchor = profileTrigger ? profileTrigger.parentNode : null;
+    var profileCloseTimeout;
+
+    function openProfileModal() {
+      if (!profileModal) return;
+      clearTimeout(profileCloseTimeout);
+      profileModal.classList.remove('profile-modal-closing');
+      profileModal.style.display = 'block';
+      requestAnimationFrame(function() {
+        profileModal.classList.add('profile-modal-open');
+      });
+    }
+
+    function closeProfileModal(immediate) {
+      if (!profileModal) return;
+      clearTimeout(profileCloseTimeout);
+      if (immediate) {
+        profileModal.classList.remove('profile-modal-open', 'profile-modal-closing');
+        profileModal.style.display = 'none';
+        return;
+      }
+      profileModal.classList.add('profile-modal-closing');
+      profileCloseTimeout = window.setTimeout(function() {
+        if (profileModal) {
+          profileModal.style.display = "none";
+          profileModal.classList.remove('profile-modal-open', 'profile-modal-closing');
+        }
+      }, 220);
+    }
+
     if(profileTrigger) {
         profileTrigger.onclick = function(e) {
             e.preventDefault();
-            profileModal.style.display = "block";
+          e.stopPropagation();
+          if (window.innerWidth <= 900) {
+            if (profileModal.style.display === 'block') closeProfileModal();
+            else openProfileModal();
+            return;
+          }
+          if (profileModal.classList.contains('profile-modal-open')) closeProfileModal();
+          else openProfileModal();
         }
     }
 
     if(profileClose) {
-        profileClose.onclick = function() {
-            profileModal.style.display = "none";
-        }
+      profileClose.onclick = closeProfileModal;
     }
 
     window.onclick = function(event) {
-        if (event.target == profileModal) {
-            profileModal.style.display = "none";
+      if (profileModal && !profileModal.contains(event.target) && !profileTrigger.contains(event.target)) {
+        closeProfileModal(true);
         }
     }
 
