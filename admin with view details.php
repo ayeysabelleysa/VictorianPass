@@ -4,16 +4,6 @@ ini_set('session.gc_maxlifetime', (string)$staffInactivityLimit);
 require_once __DIR__ . '/session_bootstrap.php';
 include 'connect.php';
 
-$isReservationDetailsAjax = isset($_GET['action']) && in_array($_GET['action'], [
-  'get_reservation_details',
-  'get_resident_reservation_details',
-  'get_visitor_details',
-  'get_user_details',
-  'get_reservation_details_by_ref',
-  'get_notifications',
-  'dismiss_notification'
-], true);
-
 $now = time();
 $last = intval($_SESSION['staff_last_activity'] ?? 0);
 $timeout = intval($_SESSION['staff_session_timeout'] ?? $staffInactivityLimit);
@@ -33,8 +23,6 @@ if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') {
         $_SESSION['staff_session_timeout'] = $staffInactivityLimit;
     }
 }
-
-if ($isReservationDetailsAjax) { session_write_close(); }
 
 function admin_status_link($code){ $scheme=(isset($_SERVER['HTTPS'])&&$_SERVER['HTTPS']==='on')?'https':'http'; $host=$_SERVER['HTTP_HOST']??'localhost'; $basePath=rtrim(dirname($_SERVER['SCRIPT_NAME']??'/VictorianPass'),'/'); return $scheme.'://'.$host.$basePath.'/qr_view.php?code='.urlencode($code); }
 function admin_send_email($to,$subject,$body){
@@ -215,7 +203,7 @@ if (!function_exists('vpMarkSchemaDone')) {
 }
 
 // Ensure new guest_forms table exists for admin operations
-if (!$isReservationDetailsAjax && !vpSchemaDone($con, 'admin_v1')) {
+if (!vpSchemaDone($con, 'admin_v1')) {
   ensureGuestFormsTable($con);
   ensureGuestFormsWantsAmenityColumn($con);
   ensureGuestFormsAmenityColumns($con);
@@ -231,11 +219,6 @@ if (!$isReservationDetailsAjax && !vpSchemaDone($con, 'admin_v1')) {
 
 // Handle AJAX request for user details (admin resident profile)
 if (isset($_GET['action']) && $_GET['action'] == 'get_user_details' && isset($_GET['id'])) {
-    if (($_SESSION['role'] ?? '') !== 'admin') {
-        http_response_code(403);
-        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
-        exit;
-    }
     $user_id = intval($_GET['id']);
     $stmt = $con->prepare("SELECT id, first_name, middle_name, last_name, email, phone, sex, birthdate, house_number, address, valid_id_path, created_at, user_type, IFNULL(status,'active') as status FROM users WHERE id = ?");
     $stmt->bind_param('i', $user_id);
@@ -252,11 +235,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_user_details' && isset($_G
 
 // Handle AJAX request for visitor details (guest_forms first, legacy fallback)
 if (isset($_GET['action']) && $_GET['action'] == 'get_visitor_details' && isset($_GET['id'])) {
-    if (($_SESSION['role'] ?? '') !== 'admin') {
-        http_response_code(403);
-        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
-        exit;
-    }
     $id = intval($_GET['id']);
     $source = isset($_GET['source']) ? $_GET['source'] : '';
 
@@ -362,11 +340,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_visitor_details' && isset(
 // Handle AJAX request for resident reservation details
 if (isset($_GET['action']) && $_GET['action'] == 'get_resident_reservation_details' && isset($_GET['id'])) {
     header('Content-Type: application/json');
-    if (($_SESSION['role'] ?? '') !== 'admin') {
-        http_response_code(403);
-        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
-        exit;
-    }
     $id = intval($_GET['id']);
     $stmt = $con->prepare("SELECT r.id, r.user_id, r.ref_code, r.amenity, r.start_date, r.end_date, r.start_time, r.end_time, r.persons, r.purpose,
                                     r.created_at, r.approval_status, r.approved_by, r.approval_date,
@@ -392,66 +365,29 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_resident_reservation_detai
 
 // Handle AJAX request for standard amenity reservation details
 if (isset($_GET['action']) && $_GET['action'] == 'get_reservation_details' && isset($_GET['id'])) {
-  header('Content-Type: application/json; charset=utf-8');
-  if (($_SESSION['role'] ?? '') !== 'admin') {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+    $reservation_id = intval($_GET['id']);
+    $query = "SELECT r.*, u.first_name, u.middle_name, u.last_name, u.email, u.phone, u.house_number, u.user_type,
+                     gf.id AS gf_id, gf.visitor_first_name AS guest_first_name, gf.visitor_middle_name AS guest_middle_name,
+                     gf.visitor_last_name AS guest_last_name, gf.visitor_email AS guest_email, gf.visitor_contact AS guest_contact
+              FROM reservations r
+              LEFT JOIN users u ON r.user_id = u.id
+              LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code
+              WHERE r.id = ? AND (r.entry_pass_id IS NULL OR r.entry_pass_id = 0)";
+    $stmt = $con->prepare($query);
+    $stmt->bind_param('i', $reservation_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    if ($result && $row = $result->fetch_assoc()) {
+        echo json_encode(['success' => true, 'details' => $row]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Reservation details not found']);
+    }
     exit;
-  }
-  $reservationId = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-  if (!$reservationId || !($con instanceof mysqli)) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'Invalid reservation ID']);
-    exit;
-  }
-  $query = "SELECT r.id, r.user_id, r.ref_code, r.amenity, r.start_date, r.end_date,
-           r.start_time, r.end_time, r.persons, r.purpose, r.created_at,
-           r.approval_status, r.approved_by, r.approval_date, r.price,
-           r.downpayment, r.payment_status, r.receipt_path, r.receipt_attempts,
-           r.denial_reason, r.booking_for, r.booked_by_role, r.booked_by_name,
-           r.entry_pass_id, u.first_name, u.middle_name, u.last_name,
-           u.email, u.phone, u.house_number, u.user_type,
-           gf.id AS gf_id, gf.visitor_first_name AS guest_first_name,
-           gf.visitor_middle_name AS guest_middle_name, gf.visitor_last_name AS guest_last_name,
-           gf.visitor_email AS guest_email, gf.visitor_contact AS guest_contact
-        FROM reservations r
-        LEFT JOIN users u ON u.id = r.user_id
-        LEFT JOIN guest_forms gf ON gf.ref_code = r.ref_code
-        WHERE r.id = ?
-        LIMIT 1";
-  $stmt = $con->prepare($query);
-  if (!$stmt) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Unable to prepare reservation lookup']);
-    exit;
-  }
-  $stmt->bind_param('i', $reservationId);
-  if (!$stmt->execute()) {
-    $stmt->close();
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Unable to load reservation details']);
-    exit;
-  }
-  $result = $stmt->get_result();
-  $row = $result ? $result->fetch_assoc() : null;
-  $stmt->close();
-  if ($row) {
-    echo json_encode(['success' => true, 'details' => $row]);
-  } else {
-    http_response_code(404);
-    echo json_encode(['success' => false, 'message' => 'Reservation details not found']);
-  }
-  exit;
 }
 
 // Handle AJAX request to fetch reservation by ref_code
 if (isset($_GET['action']) && $_GET['action'] == 'get_reservation_details_by_ref' && isset($_GET['ref'])) {
     header('Content-Type: application/json');
-    if (($_SESSION['role'] ?? '') !== 'admin') {
-        http_response_code(403);
-        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
-        exit;
-    }
     $ref = trim($_GET['ref']);
     $stmt = $con->prepare("SELECT r.*, u.user_type, gf.id AS gf_id FROM reservations r LEFT JOIN users u ON r.user_id = u.id LEFT JOIN guest_forms gf ON gf.ref_code = r.ref_code WHERE r.ref_code = ? ORDER BY r.id DESC LIMIT 1");
     $stmt->bind_param('s', $ref);
@@ -489,11 +425,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_resident_reservation_detai
 }
 
 if (isset($_GET['action']) && $_GET['action'] === 'get_notifications') {
-    if (($_SESSION['role'] ?? '') !== 'admin') {
-        http_response_code(403);
-        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
-        exit;
-    }
     $payments = getPendingPaymentCount($con);
     $awaiting = getAmenityAwaitingPaymentCount($con);
     $ready = getAmenityReadyForApprovalCount($con);
@@ -583,11 +514,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_notifications') {
 }
 
 if (isset($_GET['action']) && $_GET['action'] === 'dismiss_notification' && isset($_GET['id'])) {
-    if (($_SESSION['role'] ?? '') !== 'admin') {
-        http_response_code(403);
-        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
-        exit;
-    }
     $nid = intval($_GET['id']);
     $stmt = $con->prepare("UPDATE notifications SET is_read = 1 WHERE id = ?");
     $stmt->bind_param('i', $nid);
@@ -5622,7 +5548,7 @@ body.modal-open { overflow: hidden; }
           }
           function poll(){ fetch('admin.php?action=get_notifications').then(function(r){ return r.json(); }).then(handleData).catch(function(){}); }
           poll();
-          var pollMs = 10000; var timer = setInterval(poll, pollMs);
+          var pollMs = 2000; var timer = setInterval(poll, pollMs);
           document.addEventListener('visibilitychange', function(){ if(document.hidden){ clearInterval(timer); timer = setInterval(poll, 5000); } else { clearInterval(timer); timer = setInterval(poll, pollMs); poll(); } });
           function dismissItem(e){ var btn=e.target.closest('.notif-dismiss'); if(!btn) return; var item=btn.closest('.notif-item'); if(!item) return; var k=[item.getAttribute('data-type')||'', item.getAttribute('data-ref')||'', item.getAttribute('data-time')||''].join('|'); var nid=item.getAttribute('data-id'); if(nid){ fetch('admin.php?action=dismiss_notification&id='+nid).catch(function(){}); } dismissed.add(k); item.remove(); }
           if(p){ p.addEventListener('click', dismissItem); }
@@ -5819,7 +5745,7 @@ body.modal-open { overflow: hidden; }
     } catch (Throwable $e) {}
 
     try {
-      $r = $con->query("SELECT COUNT(*) AS c FROM users WHERE user_type='resident'");
+      $r = $con->query("SELECT COUNT(*) AS c FROM users WHERE user_type='resident' AND status = 'active'");
       if ($r && $row = $r->fetch_assoc()) $swStats['resident_count'] = intval($row['c'] ?? 0);
     } catch (Throwable $e) {}
 

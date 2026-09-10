@@ -501,6 +501,67 @@ if (!$data) {
         .rejection-reason {
             margin-top:12px; padding:10px; border-radius:8px; background:#fee2e2; color:#991b1b; font-weight:600;
         }
+
+        /* Guest / Personal Information — matches the improved Amenity Booking Details card */
+        .guest-info-section {
+            background: #f2faf6;
+            border: 1px solid #d7e9df;
+            border-radius: 14px;
+            padding: 20px;
+            color: #20342b;
+            overflow: hidden;
+        }
+        .guest-info-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            column-gap: 24px;
+            position: relative;
+        }
+        .guest-info-grid::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 50%;
+            width: 1px;
+            background: #d7e9df;
+            transform: translateX(-12px);
+        }
+        .guest-info-col {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            min-width: 0;
+        }
+        .guest-info-key {
+            display: block;
+            margin-bottom: 4px;
+            color: #718078;
+            font-size: 0.84rem;
+            line-height: 1.3;
+        }
+        .guest-info-val {
+            color: #1f2f28;
+            font-size: 1rem;
+            font-weight: 600;
+            line-height: 1.35;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+        .guest-info-email {
+            margin-top: 18px;
+            padding-top: 16px;
+            border-top: 1px solid #d7e9df;
+        }
+        @media (max-width: 480px) {
+            .guest-info-section { padding: 16px; }
+            .guest-info-grid { grid-template-columns: 1fr; column-gap: 0; row-gap: 16px; }
+            .guest-info-grid::before { display: none; }
+            .guest-info-col { gap: 14px; }
+            .guest-info-email { margin-top: 16px; padding-top: 14px; }
+            #activityModalBody { padding: 14px; }
+            #activityModal .modal-content { width: 96%; }
+        }
     </style>
 
     <div class="details-header">
@@ -773,39 +834,41 @@ if (!$data) {
     <?php endif; ?>
 
     <div class="section-title"><?php echo !empty($data['is_resident_guest']) ? 'Guest Information' : 'Personal Information'; ?></div>
-    <div class="info-grid">
-        <div class="info-row">
-            <span class="info-label"><?php echo !empty($data['is_resident_guest']) ? 'Guest Name' : 'Name'; ?></span>
-            <span class="info-value"><?php echo htmlspecialchars($data['name']); ?></span>
+    <div class="guest-info-section">
+        <div class="guest-info-grid">
+            <div class="guest-info-col">
+                <div class="guest-info-item">
+                    <span class="guest-info-key"><?php echo !empty($data['is_resident_guest']) ? 'Guest Name' : 'Name'; ?></span>
+                    <div class="guest-info-val"><?php echo htmlspecialchars($data['name']); ?></div>
+                </div>
+                <?php if(!empty($data['birthdate'])): ?>
+                <div class="guest-info-item">
+                    <span class="guest-info-key">Birthdate</span>
+                    <div class="guest-info-val"><?php echo htmlspecialchars($data['birthdate']); ?></div>
+                </div>
+                <?php endif; ?>
+            </div>
+            <div class="guest-info-col">
+                <?php if(!empty($data['sex'])): ?>
+                <div class="guest-info-item">
+                    <span class="guest-info-key">Sex</span>
+                    <div class="guest-info-val"><?php echo htmlspecialchars($data['sex']); ?></div>
+                </div>
+                <?php endif; ?>
+                <?php if(!empty($data['contact'])): ?>
+                <div class="guest-info-item">
+                    <span class="guest-info-key">Contact Number</span>
+                    <div class="guest-info-val"><?php echo htmlspecialchars($data['contact']); ?></div>
+                </div>
+                <?php endif; ?>
+            </div>
         </div>
-        <?php if(!empty($data['sex'])): ?>
-        <div class="info-row">
-            <span class="info-label">Sex</span>
-            <span class="info-value"><?php echo htmlspecialchars($data['sex']); ?></span>
-        </div>
-        <?php endif; ?>
-        <?php if(!empty($data['birthdate'])): ?>
-        <div class="info-row">
-            <span class="info-label">Birthdate</span>
-            <span class="info-value"><?php echo htmlspecialchars($data['birthdate']); ?></span>
-        </div>
-        <?php endif; ?>
-        <?php if(!empty($data['contact'])): ?>
-        <div class="info-row">
-            <span class="info-label">Contact</span>
-            <span class="info-value"><?php echo htmlspecialchars($data['contact']); ?></span>
-        </div>
-        <?php endif; ?>
         <?php if(!empty($data['email'])): ?>
-        <div class="info-row">
-            <span class="info-label">Email</span>
-            <span class="info-value" style="font-size:0.85rem;"><?php echo htmlspecialchars($data['email']); ?></span>
+        <div class="guest-info-email">
+            <span class="guest-info-key">Email Address</span>
+            <div class="guest-info-val"><?php echo htmlspecialchars($data['email']); ?></div>
         </div>
         <?php endif; ?>
-        <div class="info-row">
-            <span class="info-label">Reference Code</span>
-            <span class="info-value" style="font-family:monospace; letter-spacing:1px;"><?php echo htmlspecialchars($data['code']); ?></span>
-        </div>
     </div>
 
     <?php if (($data['status'] ?? '') === 'approved'): ?>

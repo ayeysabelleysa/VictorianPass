@@ -743,7 +743,7 @@ if ($stmt) {
 }
 
 // 3. Guest Forms
-$stmt = $con->prepare("SELECT 'guest_form' as type, visitor_first_name, visitor_middle_name, visitor_last_name, visit_date, visit_time, approval_status, denial_reason, created_at, updated_at, ref_code, scanned_at FROM guest_forms WHERE resident_user_id = ? AND (wants_amenity IS NULL OR wants_amenity = 0) AND amenity IS NULL AND start_date IS NULL AND end_date IS NULL ORDER BY created_at DESC");
+$stmt = $con->prepare("SELECT 'guest_form' as type, g.visitor_first_name, g.visitor_middle_name, g.visitor_last_name, g.visitor_sex, g.visitor_birthdate, g.visitor_contact, g.visitor_email, g.visit_date, g.visit_time, g.approval_status, g.denial_reason, g.created_at, g.updated_at, g.ref_code, g.scanned_at, g.valid_id_path, u.first_name AS res_first_name, u.last_name AS res_last_name, u.email AS res_email, u.phone AS res_phone, u.house_number AS res_house_number FROM guest_forms g LEFT JOIN users u ON g.resident_user_id = u.id WHERE g.resident_user_id = ? AND (g.wants_amenity IS NULL OR g.wants_amenity = 0) AND g.amenity IS NULL AND g.start_date IS NULL AND g.end_date IS NULL ORDER BY g.created_at DESC");
 if ($stmt) {
     $stmt->bind_param("i", $userId);
     $stmt->execute();
@@ -781,6 +781,15 @@ if ($stmt) {
             'title' => $title,
             'details' => $details,
             'guest_name' => $guestName,
+            'guest_sex' => $row['visitor_sex'] ?? '',
+            'guest_birthdate' => $row['visitor_birthdate'] ?? '',
+            'guest_contact' => $row['visitor_contact'] ?? '',
+            'guest_email' => $row['visitor_email'] ?? '',
+            'resident_name' => trim(((string)($row['res_first_name'] ?? '')) . ' ' . ((string)($row['res_last_name'] ?? ''))),
+            'resident_contact' => $row['res_phone'] ?? '',
+            'resident_email' => $row['res_email'] ?? '',
+            'resident_house' => $row['res_house_number'] ?? '',
+            'valid_id' => $row['valid_id_path'] ?? '',
             'status' => $statusVal,
             'date' => $actionDate,
             'event_timestamp' => $visitTs,
@@ -1685,6 +1694,100 @@ body.qr-modal-open{ overflow:hidden }
   color: #a86212;
 }
 
+/* Guest request card — inline details (mirrors Amenity Booking Details) */
+.list-item.expanded[data-type="guest_form"] .rst-section {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0 0 14px;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: #f2faf6;
+  border: 1px solid #d7e9df;
+  border-radius: 14px;
+  padding: 20px;
+  color: #20342b;
+}
+.list-item.expanded[data-type="guest_form"] .rst-section:last-child {
+  margin-bottom: 0;
+}
+.list-item.expanded[data-type="guest_form"] .rst-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #d7e9df;
+  color: #174b3b;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.list-item.expanded[data-type="guest_form"] .rst-title::before {
+  content: "\f007";
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  font-size: 0.95rem;
+}
+.list-item.expanded[data-type="guest_form"] .rst-guest-id-sec .rst-title::before {
+  content: "\f2bb";
+}
+.list-item.expanded[data-type="guest_form"] .rst-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 24px;
+  row-gap: 20px;
+  position: relative;
+}
+.list-item.expanded[data-type="guest_form"] .rst-grid::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: #d7e9df;
+  transform: translateX(-12px);
+}
+.list-item.expanded[data-type="guest_form"] .rst-col {
+  min-width: 0;
+}
+.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
+.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(2) { grid-column: 2; grid-row: 1; }
+.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(3) { grid-column: 1; grid-row: 2; }
+.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(4) { grid-column: 2; grid-row: 2; }
+.list-item.expanded[data-type="guest_form"] .rst-key {
+  margin-bottom: 4px;
+  color: #718078;
+  font-size: 0.84rem;
+  line-height: 1.3;
+}
+.list-item.expanded[data-type="guest_form"] .rst-val {
+  color: #1f2f28;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.list-item.expanded[data-type="guest_form"] .rst-guest-email {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #d7e9df;
+}
+.list-item.expanded[data-type="guest_form"] .rst-guest-id-body {
+  text-align: center;
+}
+.list-item.expanded[data-type="guest_form"] .rst-guest-id-img {
+  max-width: 210px;
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+}
+.list-item.expanded[data-type="guest_form"] .rst-guest-id-link {
+  display: inline-block;
+  color: #174b3b;
+  font-weight: 600;
+}
+
 /* Resident request-card header only */
 #panel-requests .list-item {
   min-height: 106px;
@@ -2076,6 +2179,47 @@ body.modal-open{overflow:hidden}
   .rst-section:first-of-type .rst-col:nth-child(n) {
     grid-column: 1;
     grid-row: auto;
+  }
+  .list-item.expanded[data-type="guest_form"] .rst-section {
+    padding: 12px;
+    border-radius: 12px;
+  }
+  .list-item.expanded[data-type="guest_form"] .rst-section:last-child {
+    margin-bottom: 0;
+  }
+  .list-item.expanded[data-type="guest_form"] .rst-title {
+    margin-bottom: 9px;
+    padding-bottom: 8px;
+    font-size: 0.9rem;
+  }
+  .list-item.expanded[data-type="guest_form"] .rst-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 10px;
+    row-gap: 10px;
+  }
+  .list-item.expanded[data-type="guest_form"] .rst-grid::before {
+    display: block;
+    left: 50%;
+    transform: translateX(-5px);
+  }
+  .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
+  .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(2) { grid-column: 2; grid-row: 1; }
+  .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(3) { grid-column: 1; grid-row: 2; }
+  .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(4) { grid-column: 2; grid-row: 2; }
+  .list-item.expanded[data-type="guest_form"] .rst-key {
+    margin-bottom: 2px;
+    font-size: 0.76rem;
+  }
+  .list-item.expanded[data-type="guest_form"] .rst-val {
+    font-size: 0.9rem;
+    line-height: 1.25;
+  }
+  .list-item.expanded[data-type="guest_form"] .rst-guest-email {
+    margin-top: 12px;
+    padding-top: 10px;
+  }
+  .list-item.expanded[data-type="guest_form"] .rst-guest-id-img {
+    max-width: 160px;
   }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type {
     width: calc(100% - 4px);
@@ -2514,7 +2658,7 @@ body.modal-open{overflow:hidden}
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
-              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($act['amenity'] ?? ''); ?>" data-price="<?php echo ($act['price'] ?? null) !== null ? number_format((float)$act['price'], 2, '.', '') : ''; ?>" data-downpayment="<?php echo ($act['downpayment'] ?? null) !== null ? number_format((float)$act['downpayment'], 2, '.', '') : ''; ?>" data-receipt-path="<?php echo htmlspecialchars($act['receipt_path'] ?? ''); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars($act['receipt_uploaded_at'] ?? ''); ?>" data-persons="<?php echo ($act['persons'] ?? null) !== null ? intval($act['persons']) : ''; ?>"><?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; } ?>>
+              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($act['amenity'] ?? ''); ?>" data-price="<?php echo ($act['price'] ?? null) !== null ? number_format((float)$act['price'], 2, '.', '') : ''; ?>" data-downpayment="<?php echo ($act['downpayment'] ?? null) !== null ? number_format((float)$act['downpayment'], 2, '.', '') : ''; ?>" data-receipt-path="<?php echo htmlspecialchars($act['receipt_path'] ?? ''); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars($act['receipt_uploaded_at'] ?? ''); ?>" data-persons="<?php echo ($act['persons'] ?? null) !== null ? intval($act['persons']) : ''; ?>"<?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; echo ' data-guest-sex="' . htmlspecialchars($act['guest_sex'] ?? '') . '"'; echo ' data-guest-birthdate="' . htmlspecialchars($act['guest_birthdate'] ?? '') . '"'; echo ' data-guest-contact="' . htmlspecialchars($act['guest_contact'] ?? '') . '"'; echo ' data-guest-email="' . htmlspecialchars($act['guest_email'] ?? '') . '"'; echo ' data-res-name="' . htmlspecialchars($act['resident_name'] ?? '') . '"'; echo ' data-res-contact="' . htmlspecialchars($act['resident_contact'] ?? '') . '"'; echo ' data-res-email="' . htmlspecialchars($act['resident_email'] ?? '') . '"'; echo ' data-res-house="' . htmlspecialchars($act['resident_house'] ?? '') . '"'; echo ' data-valid-id="' . htmlspecialchars($act['valid_id'] ?? '') . '"'; } ?>>
                  <div class="item-icon request-toggle"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
@@ -2775,7 +2919,7 @@ body.modal-open{overflow:hidden}
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
-              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($act['amenity'] ?? ''); ?>" data-price="<?php echo ($act['price'] ?? null) !== null ? number_format((float)$act['price'], 2, '.', '') : ''; ?>" data-downpayment="<?php echo ($act['downpayment'] ?? null) !== null ? number_format((float)$act['downpayment'], 2, '.', '') : ''; ?>" data-receipt-path="<?php echo htmlspecialchars($act['receipt_path'] ?? ''); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars($act['receipt_uploaded_at'] ?? ''); ?>" data-persons="<?php echo ($act['persons'] ?? null) !== null ? intval($act['persons']) : ''; ?>"><?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; } ?>>
+              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($act['amenity'] ?? ''); ?>" data-price="<?php echo ($act['price'] ?? null) !== null ? number_format((float)$act['price'], 2, '.', '') : ''; ?>" data-downpayment="<?php echo ($act['downpayment'] ?? null) !== null ? number_format((float)$act['downpayment'], 2, '.', '') : ''; ?>" data-receipt-path="<?php echo htmlspecialchars($act['receipt_path'] ?? ''); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars($act['receipt_uploaded_at'] ?? ''); ?>" data-persons="<?php echo ($act['persons'] ?? null) !== null ? intval($act['persons']) : ''; ?>"<?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; echo ' data-guest-sex="' . htmlspecialchars($act['guest_sex'] ?? '') . '"'; echo ' data-guest-birthdate="' . htmlspecialchars($act['guest_birthdate'] ?? '') . '"'; echo ' data-guest-contact="' . htmlspecialchars($act['guest_contact'] ?? '') . '"'; echo ' data-guest-email="' . htmlspecialchars($act['guest_email'] ?? '') . '"'; echo ' data-res-name="' . htmlspecialchars($act['resident_name'] ?? '') . '"'; echo ' data-res-contact="' . htmlspecialchars($act['resident_contact'] ?? '') . '"'; echo ' data-res-email="' . htmlspecialchars($act['resident_email'] ?? '') . '"'; echo ' data-res-house="' . htmlspecialchars($act['resident_house'] ?? '') . '"'; echo ' data-valid-id="' . htmlspecialchars($act['valid_id'] ?? '') . '"'; } ?>>
                  <div class="item-icon request-toggle"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
@@ -4078,6 +4222,29 @@ body.modal-open{overflow:hidden}
     function esc(t){
       return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
+    function guestInfoSection(){
+      var gh='';
+      var rName=li.getAttribute('data-res-name')||'';
+      var rHouse=li.getAttribute('data-res-house')||'';
+      if(rName || rHouse){
+        gh+='<div class="rst-section rst-guest rst-guest-resident"><div class="rst-title">Resident Information</div><div class="rst-grid">';
+        gh+='<div class="rst-col"><div class="rst-key">Resident Name</div><div class="rst-val">'+esc(rName||'—')+'</div></div>';
+        gh+='<div class="rst-col"><div class="rst-key">House Number</div><div class="rst-val">'+esc(rHouse||'—')+'</div></div>';
+        gh+='</div></div>';
+      }
+      gh+='<div class="rst-section rst-guest"><div class="rst-title">Guest Information</div><div class="rst-grid">';
+      gh+='<div class="rst-col"><div class="rst-key">Guest Name</div><div class="rst-val">'+esc(li.getAttribute('data-guest-name')||'—')+'</div></div>';
+      gh+='<div class="rst-col"><div class="rst-key">Sex</div><div class="rst-val">'+esc(li.getAttribute('data-guest-sex')||'—')+'</div></div>';
+      var gBirthRaw=li.getAttribute('data-guest-birthdate')||'';
+      var gBirthLabel=formatRawDate(gBirthRaw)||gBirthRaw||'—';
+      gh+='<div class="rst-col"><div class="rst-key">Birthdate</div><div class="rst-val">'+esc(gBirthLabel)+'</div></div>';
+      gh+='<div class="rst-col"><div class="rst-key">Contact Number</div><div class="rst-val">'+esc(li.getAttribute('data-guest-contact')||'—')+'</div></div>';
+      gh+='</div>';
+      var gEmail=li.getAttribute('data-guest-email')||'';
+      if(gEmail){ gh+='<div class="rst-guest-email"><div class="rst-key">Email Address</div><div class="rst-val">'+esc(gEmail)+'</div></div>'; }
+      gh+='</div>';
+      return gh;
+    }
     function formatRawDate(value){
       var raw = String(value||'').trim();
       if(!raw) return '';
@@ -4271,15 +4438,18 @@ body.modal-open{overflow:hidden}
       html+='<div class="item-extra-section">';
       html+='<div class="item-extra-body">';
       html+='<div class="item-extra-info-only">';
-      html+='<div class="item-extra-note">'+esc('Access granted. Your QR entry pass has already been scanned by the guard.')+'</div>';
-      html+='<div class="item-actions">';
-      if(ref && type==='guest_form'){
-        html+='<button type="button" class="item-extra-link view-details-btn view-details-trigger" data-ref="'+esc(ref)+'">View details</button>';
+      if(type==='reservation'){
+        html+='<div class="item-extra-note">'+esc('Access granted. Your QR entry pass has already been scanned by the guard.')+'</div>';
       }
-      if(canMoveHistory && ref){
-        html+='<button type="button" class="item-extra-link item-extra-move-history"><i class="fa-solid fa-box-archive"></i> Move to History</button>';
+      if(type==='guest_form'){ html+=guestInfoSection(); }
+      var accActions='';
+      if(type==='guest_form' && canCancel && ref){
+        accActions+='<button type="button" class="item-extra-link item-extra-cancel"><i class="fa-solid fa-xmark"></i> Cancel Request</button>';
       }
-      html+='</div>';
+      if(type!=='guest_form' && canMoveHistory && ref){
+        accActions+='<button type="button" class="item-extra-link item-extra-move-history"><i class="fa-solid fa-box-archive"></i> Move to History</button>';
+      }
+      if(accActions){ html+='<div class="item-actions">'+accActions+'</div>'; }
       html+='</div></div></div>';
       extra.innerHTML=html;
       var moveBtn = extra.querySelector('.item-extra-move-history');
@@ -4289,14 +4459,13 @@ body.modal-open{overflow:hidden}
           openMoveHistoryModal(li, ref);
         });
       }
-      var viewBtns = extra.querySelectorAll('.view-details-trigger');
-      viewBtns.forEach(function(btn){
-        btn.addEventListener('click', function(ev){
+      var cancelBtn = extra.querySelector('.item-extra-cancel');
+      if(cancelBtn){
+        cancelBtn.addEventListener('click',function(ev){
           ev.stopPropagation();
-          var code = btn.getAttribute('data-ref') || ref;
-          if(code) openActivityModal(code);
+          openCancelModal(li,ref);
         });
-      });
+      }
       return;
     }
     if(type==='reservation'||type==='guest_form'){
@@ -4336,6 +4505,9 @@ body.modal-open{overflow:hidden}
         bookingCells+=rstCell('Payment Status', paymentStatusLabel(paymentStatus, receiptPath!==''));
         bookingCells+=rstCell('Reservation Status', statusLabelTxt);
         html+='<div class="rst-section"><div class="rst-title">Amenity Booking Details</div><div class="rst-grid">'+bookingCells+'</div></div>';
+      }
+      if(type==='guest_form'){
+        html+=guestInfoSection();
       }
       if(type==='reservation' && (priceRaw!=='' || downpaymentRaw!=='' || receiptPath!=='')){
         var totalTxt = priceRaw!=='' ? fmtMoney(priceRaw) : '—';
@@ -4384,11 +4556,11 @@ body.modal-open{overflow:hidden}
         html+='<div class="item-extra-status"><span class="status-label '+statusClassFor(effectiveStatus)+'">'+label+'</span></div>';
       }
     var noteClass='item-extra-note'+((type==='reservation' && paymentStatus==='rejected' && (isNaN(attempts)?0:attempts) < 3)?' note-error':'');
-    if(statusNote) html+='<div class="'+noteClass+'">'+esc(statusNote)+'</div>';
-      if(reasonText){
+    if(statusNote && type!=='guest_form') html+='<div class="'+noteClass+'">'+esc(statusNote)+'</div>';
+      if(reasonText && type!=='guest_form'){
         html+='<div class="item-reason'+(highlightReason?' is-rejected':'')+'">'+esc(reasonText)+'</div>';
       }
-      if(summaryText) html+='<div class="item-extra-summary">'+esc(summaryText)+'</div>';
+      if(summaryText && type!=='guest_form') html+='<div class="item-extra-summary">'+esc(summaryText)+'</div>';
       
       html+='<div class="item-actions">';
       if(qrSrcForDownload){
@@ -4397,13 +4569,10 @@ body.modal-open{overflow:hidden}
       if(canUpdateProof && ref){
         html+='<button type="button" class="item-extra-link update-proof-btn" data-ref="'+esc(ref)+'"><i class="fa-solid fa-upload"></i> Update Proof</button>';
       }
-      if(ref && type==='guest_form'){
-        html+='<button type="button" class="item-extra-link view-details-btn view-details-trigger" data-ref="'+esc(ref)+'">View details</button>';
-      }
       if(canCancel && ref){
         html+='<button type="button" class="item-extra-link item-extra-cancel"><i class="fa-solid fa-xmark"></i> '+(type==='guest_form'?'Cancel Request':'Cancel Reservation')+'</button>';
       }
-      if(canMoveHistory && ref){
+      if(canMoveHistory && ref && type!=='guest_form'){
         html+='<button type="button" class="item-extra-link item-extra-move-history"><i class="fa-solid fa-box-archive"></i> Move to History</button>';
       }
       html+='</div>';
@@ -4494,14 +4663,6 @@ body.modal-open{overflow:hidden}
         openMoveHistoryModal(li, ref);
       });
     }
-    var viewBtns=extra.querySelectorAll('.view-details-trigger');
-    viewBtns.forEach(function(btn){
-      btn.addEventListener('click',function(ev){
-        ev.stopPropagation();
-        var code=btn.getAttribute('data-ref')||ref;
-        if(code) openActivityModal(code);
-      });
-    });
     var dropdownMove = extra.querySelector('.dropdown-move-history, [data-action="move_history"]');
     if(dropdownMove && ref && canMoveHistory){
       dropdownMove.addEventListener('click', function(ev){
@@ -4667,26 +4828,6 @@ body.modal-open{overflow:hidden}
   var activityModal = document.getElementById('activityModal');
   var activityModalBody = document.getElementById('activityModalBody');
   var activityModalClose = activityModal ? activityModal.querySelector('.close') : null;
-
-  window.openActivityModal = function(refCode) {
-    if (!activityModal || !activityModalBody) {
-      // Re-fetch in case it was missing on load
-      activityModal = document.getElementById('activityModal');
-      activityModalBody = document.getElementById('activityModalBody');
-      if (!activityModal || !activityModalBody) return;
-    }
-    activityModalBody.innerHTML = '<div style="padding:20px;text-align:center;">Loading...</div>';
-    activityModal.style.display = 'block';
-
-    fetch('get_activity_details.php?code=' + encodeURIComponent(refCode))
-      .then(r => r.text())
-      .then(html => {
-        activityModalBody.innerHTML = html;
-      })
-      .catch(e => {
-        activityModalBody.innerHTML = '<div style="padding:20px;text-align:center;color:red;">Error loading details.</div>';
-      });
-  }
 
   window.openReportDetailsModal = function(reportId) {
     if (!activityModal || !activityModalBody) {
@@ -5338,6 +5479,15 @@ body.modal-open{overflow:hidden}
                     }
                     if(String(item.type||'').toLowerCase()==='guest_form'){
                       li.setAttribute('data-guest-name', item.guest_name || '');
+                      li.setAttribute('data-guest-sex', item.guest_sex || '');
+                      li.setAttribute('data-guest-birthdate', item.guest_birthdate || '');
+                      li.setAttribute('data-guest-contact', item.guest_contact || '');
+                      li.setAttribute('data-guest-email', item.guest_email || '');
+                      li.setAttribute('data-res-name', item.resident_name || '');
+                      li.setAttribute('data-res-contact', item.resident_contact || '');
+                      li.setAttribute('data-res-email', item.resident_email || '');
+                      li.setAttribute('data-res-house', item.resident_house || '');
+                      li.setAttribute('data-valid-id', item.valid_id || '');
                     }
                     var reservedEl = li.querySelector('.item-reserved-by');
                     if(item.type === 'reservation' && reservedBy){
@@ -5509,6 +5659,15 @@ body.modal-open{overflow:hidden}
               }
               if(String(item.type||'').toLowerCase()==='guest_form'){
                 li.setAttribute('data-guest-name', item.guest_name || '');
+                li.setAttribute('data-guest-sex', item.guest_sex || '');
+                li.setAttribute('data-guest-birthdate', item.guest_birthdate || '');
+                li.setAttribute('data-guest-contact', item.guest_contact || '');
+                li.setAttribute('data-guest-email', item.guest_email || '');
+                li.setAttribute('data-res-name', item.resident_name || '');
+                li.setAttribute('data-res-contact', item.resident_contact || '');
+                li.setAttribute('data-res-email', item.resident_email || '');
+                li.setAttribute('data-res-house', item.resident_house || '');
+                li.setAttribute('data-valid-id', item.valid_id || '');
               }
               li.innerHTML='<div class="item-icon request-toggle"><i class="fa-solid fa-chevron-right"></i></div>'
                 +'<div class="item-content">'
@@ -5706,7 +5865,7 @@ body.modal-open{overflow:hidden}
         li.setAttribute('data-report-nature', item.nature||'');
         li.setAttribute('data-report-other', item.other_concern||'');
       }
-      if(type==='guest_form'){ li.setAttribute('data-guest-name', item.guest_name||''); }
+      if(type==='guest_form'){ li.setAttribute('data-guest-name', item.guest_name||''); li.setAttribute('data-guest-sex', item.guest_sex||''); li.setAttribute('data-guest-birthdate', item.guest_birthdate||''); li.setAttribute('data-guest-contact', item.guest_contact||''); li.setAttribute('data-guest-email', item.guest_email||''); li.setAttribute('data-res-name', item.resident_name||''); li.setAttribute('data-res-contact', item.resident_contact||''); li.setAttribute('data-res-email', item.resident_email||''); li.setAttribute('data-res-house', item.resident_house||''); li.setAttribute('data-valid-id', item.valid_id||''); }
       prevStatuses[code]=status;
       li.innerHTML=
         '<div class="item-icon request-toggle"><i class="fa-solid fa-chevron-right"></i></div>'
