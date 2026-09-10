@@ -284,6 +284,15 @@ if (!in_array($activeSection, $allowedSections, true)) {
   $activeSection = 'panel-requests';
 }
 
+$sectionPageTitles = [
+  'panel-requests' => 'My Requests',
+  'panel-guest-form' => 'Guest Form',
+  'panel-my-guests' => 'My Guests',
+  'panel-history' => 'History',
+  'panel-points-history' => 'VHEcoPoint',
+];
+$dashboardPageTitle = $sectionPageTitles[$activeSection] ?? 'Dashboard';
+
 // Fetch point transactions - ONLY those tied to VHEcoPoint sessions so dashboard numbers
 // (balance, weekly points, daily sessions, activity history, expiry) share ONE source of truth.
 $ecoPointTransactions = [];
@@ -1132,12 +1141,13 @@ body.account-blocked { overflow: hidden; }
     padding: 0 14px;
   }
   .header-brand {
+    gap: 0;
     min-width: 0;
     overflow: hidden;
   }
   .header-brand img {
     height: 32px;
-    margin-right: 10px;
+    margin-right: 8px;
     flex-shrink: 0;
   }
   .menu-toggle {
@@ -1165,7 +1175,7 @@ body.account-blocked { overflow: hidden; }
 
 @media (max-width: 430px) {
   .top-header { padding: 0 10px; }
-  .header-brand img { margin-right: 8px; }
+  .header-brand img { margin-right: 6px; }
   .brand-main { font-size: 0.88rem; max-width: 120px; }
   .brand-sub { font-size: 0.62rem; max-width: 110px; }
   .header-actions { gap: 8px; }
@@ -1174,7 +1184,7 @@ body.account-blocked { overflow: hidden; }
 
 @media (max-width: 430px) {
   .top-header { padding: 0 10px; }
-  .header-brand img { margin-right: 8px; }
+  .header-brand img { margin-right: 6px; }
   .brand-main { font-size: 0.88rem; }
   .brand-sub { font-size: 0.62rem; }
   .header-actions { gap: 8px; }
@@ -2601,13 +2611,13 @@ body.modal-open{overflow:hidden}
 
     <div class="dashboard-back-row">
       <a href="mainpage.php" class="back-btn" aria-label="Back to main page"><i class="fa-solid fa-arrow-left"></i></a>
+      <h1 class="page-title" id="dashboardPageTitle"><?php echo htmlspecialchars($dashboardPageTitle); ?></h1>
     </div>
 
     <div class="content-wrapper">
       <div class="right-panel">
         <div class="panel-section" id="panel-requests" style="<?php echo $activeSection === 'panel-requests' ? '' : 'display:none;'; ?>">
           <div class="activity-list-header">
-            <div>My Requests</div>
             <div class="search-bar">
               <i class="fa-solid fa-magnifying-glass"></i>
               <input type="text" placeholder="Search by code or keyword" id="requestSearch">
@@ -2868,9 +2878,6 @@ body.modal-open{overflow:hidden}
         </div>
 
         <div class="panel-section" id="panel-history" style="<?php echo $activeSection === 'panel-history' ? '' : 'display:none;'; ?>">
-          <div class="activity-list-header">
-            <div>History</div>
-          </div>
 
           <div class="item-list">
             <?php if (empty($historyActivities)): ?>
@@ -2956,9 +2963,6 @@ body.modal-open{overflow:hidden}
         </div>
 
         <div class="panel-section" id="panel-guest-form" style="<?php echo $activeSection === 'panel-guest-form' ? '' : 'display:none;'; ?>">
-          <div class="activity-list-header">
-            <div>Guest Form</div>
-          </div>
           <div style="max-width:720px;margin:0 auto;">
             <form class="entry-form" id="entryForm" enctype="multipart/form-data">
               <div class="booking-steps" aria-label="Guest form steps">
@@ -3060,9 +3064,6 @@ body.modal-open{overflow:hidden}
         </div>
 
         <div class="panel-section" id="panel-my-guests" style="<?php echo $activeSection === 'panel-my-guests' ? '' : 'display:none;'; ?>">
-          <div class="activity-list-header">
-            <div>My Guests</div>
-          </div>
           <div id="guestListSection" style="margin-top:8px;background:#ffffff;border-radius:16px;padding:20px 22px;box-shadow:0 4px 16px rgba(15,23,42,0.08);border:1px solid #e5e7eb;max-width:860px;width:100%;margin-left:auto;margin-right:auto;">
             <h4 style="margin:0 0 10px;color:#111827;">My Saved Guests</h4>
             <?php if (empty($guestRows)): ?>
@@ -4958,6 +4959,13 @@ body.modal-open{overflow:hidden}
   });
 
   var sections=document.querySelectorAll('.right-panel .panel-section');
+  var sectionTitles={
+    'panel-requests':'My Requests',
+    'panel-guest-form':'Guest Form',
+    'panel-my-guests':'My Guests',
+    'panel-history':'History',
+    'panel-points-history':'VHEcoPoint'
+  };
   function applyResidentThemeBySection(id){
     var mainContent = document.querySelector('.main-content');
     var brandMain = document.querySelector('.top-header .brand-main');
@@ -4980,6 +4988,8 @@ body.modal-open{overflow:hidden}
       sec.style.display=sec.id===id?'':'none';
     });
     applyResidentThemeBySection(id);
+    var titleEl=document.getElementById('dashboardPageTitle');
+    if(titleEl){ titleEl.textContent=sectionTitles[id]||'Dashboard'; }
   }
   document.querySelectorAll('.nav-menu .nav-item[data-section]').forEach(function(item){
     item.addEventListener('click',function(e){
@@ -6071,16 +6081,12 @@ document.addEventListener('DOMContentLoaded', function() {
     var profileTrigger = document.getElementById("profileTrigger");
     var profileClose = document.getElementsByClassName("close-profile-modal")[0];
 
-    // Keep the dropdown positioned relative to the profile control, not the page.
-    if (profileTrigger && profileModal && profileTrigger.parentNode) {
-      var profileAnchor = document.createElement('div');
-      profileAnchor.className = 'profile-menu-anchor';
-      profileTrigger.parentNode.insertBefore(profileAnchor, profileTrigger);
-      profileAnchor.appendChild(profileTrigger);
-      profileAnchor.appendChild(profileModal);
+    // The profile modal is a full-screen centered overlay (same as the My QR modal),
+    // so it must stay a direct child of the page body, not inside the fixed top header.
+    if (profileModal && profileModal.parentNode && profileModal.parentNode !== document.body) {
+      document.body.appendChild(profileModal);
     }
 
-    var profileAnchor = profileTrigger ? profileTrigger.parentNode : null;
     var profileCloseTimeout;
 
     function openProfileModal() {
