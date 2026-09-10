@@ -5819,7 +5819,7 @@ body.modal-open { overflow: hidden; }
     } catch (Throwable $e) {}
 
     try {
-      $r = $con->query("SELECT COUNT(*) AS c FROM users WHERE user_type='resident' AND status = 'active'");
+      $r = $con->query("SELECT COUNT(*) AS c FROM users WHERE user_type='resident'");
       if ($r && $row = $r->fetch_assoc()) $swStats['resident_count'] = intval($row['c'] ?? 0);
     } catch (Throwable $e) {}
 
