@@ -771,34 +771,29 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
     </div>
     <div class="profile-details">
       <div class="detail-row">
-        <div class="detail-label">Name</div>
+        <div class="detail-label"><i class="fa-solid fa-user"></i> Name</div>
         <div class="detail-value"><?php echo htmlspecialchars($fullName); ?></div>
       </div>
       <div class="detail-row">
-        <div class="detail-label">Email</div>
+        <div class="detail-label"><i class="fa-solid fa-envelope"></i> Email</div>
         <div class="detail-value"><?php echo htmlspecialchars($user_data['email'] ?? ''); ?></div>
       </div>
       <div class="detail-row">
-        <div class="detail-label">Contact Number</div>
+        <div class="detail-label"><i class="fa-solid fa-phone"></i> Contact Number</div>
         <div class="detail-value"><?php echo htmlspecialchars($user_data['phone'] ?? ''); ?></div>
       </div>
       <div class="detail-row">
-        <div class="detail-label">Sex</div>
+        <div class="detail-label"><i class="fa-solid fa-venus-mars"></i> Sex</div>
         <div class="detail-value"><?php echo htmlspecialchars($user_data['sex'] ?? ''); ?></div>
       </div>
       <div class="detail-row">
-        <div class="detail-label">Birthdate</div>
+        <div class="detail-label"><i class="fa-solid fa-cake-candles"></i> Birthdate</div>
         <div class="detail-value"><?php echo htmlspecialchars($birthdateDisplay); ?></div>
-      </div>
-      <div class="detail-row">
-        <div class="detail-label">Change Password</div>
-        <div class="detail-value" style="width:100%;">
-          <button type="button" id="openChangePasswordVisitor" style="background:#23412e; color:#fff; border:none; padding:10px 14px; border-radius:8px; cursor:pointer; font-weight:600;">Change Password</button>
-        </div>
       </div>
     </div>
     <div class="profile-actions">
-       <a href="logout.php" class="btn-logout-modal">Log Out</a>
+      <button type="button" id="openChangePasswordVisitor" class="btn-change-password-modal">Change Password</button>
+      <a href="logout.php" class="btn-logout-modal">Log Out</a>
     </div>
   </div>
 </div>
@@ -1841,11 +1836,20 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
       }
 
       menuToggle.addEventListener('click', function() {
-          sidebar.classList.add('open');
-          overlay.classList.add('show');
+          if (sidebar.classList.contains('open')) {
+              closeSidebar();
+          } else {
+              sidebar.classList.add('open');
+              overlay.classList.add('show');
+          }
       });
 
       overlay.addEventListener('click', closeSidebar);
+
+      // Auto-close the drawer when a menu item / Log Out is tapped
+      document.querySelectorAll('.sidebar .nav-menu .nav-item, .sidebar-footer .logout-btn').forEach(function(item) {
+          item.addEventListener('click', closeSidebar);
+      });
   }
 
   // Activity Modal Logic (View Details)
@@ -2298,6 +2302,7 @@ document.addEventListener('DOMContentLoaded', function() {
       clearTimeout(profileCloseTimeout);
       profileModal.classList.remove('profile-modal-closing');
       profileModal.style.display = 'block';
+      document.body.classList.add('profile-modal-open');
       requestAnimationFrame(function() {
         profileModal.classList.add('profile-modal-open');
       });
@@ -2309,13 +2314,15 @@ document.addEventListener('DOMContentLoaded', function() {
       if (immediate) {
         profileModal.classList.remove('profile-modal-open', 'profile-modal-closing');
         profileModal.style.display = 'none';
+        document.body.classList.remove('profile-modal-open');
         return;
       }
       profileModal.classList.add('profile-modal-closing');
       profileCloseTimeout = window.setTimeout(function() {
         profileModal.style.display = 'none';
         profileModal.classList.remove('profile-modal-open', 'profile-modal-closing');
-      }, 220);
+        document.body.classList.remove('profile-modal-open');
+      }, 250);
     }
 
     if(profileTrigger && profileModal) {

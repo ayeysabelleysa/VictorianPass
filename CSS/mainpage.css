@@ -1902,6 +1902,110 @@ html { max-width:100%; overflow-x:hidden; }
   .amenity-card .desc{ line-height:1.6; font-size:0.97rem; }
 }
 
+/* =========================
+   LANDING PAGE MOBILE COMPACT (<=480px)
+   Tightens nav/hero/CTA sizing for phone viewports (tested at 375px).
+   Desktop and tablet (>=481px) are untouched. Nav menu items stay
+   full-width; Login/Register stay a 50/50 split; every other button
+   becomes auto-width.
+========================= */
+@media (max-width: 480px) {
+
+  /* Nav menu items — compact, full-width, 6px radius */
+  .page-nav{ gap:7px; }
+  .page-nav a{
+    height:34px;
+    padding:0 12px;
+    font-size:12.5px;
+    border-radius:6px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    line-height:1;
+  }
+  .page-nav .nav-ecopoint{
+    height:34px;
+    padding:0 12px;
+    border-radius:6px;
+    font-size:12.5px;
+    gap:6px;
+  }
+  .page-nav .nav-ecopoint-icon{ font-size:0.95rem; }
+  .nav-ecopoint-badge{
+    padding:1px 6px;
+    font-size:9.5px;
+  }
+
+  /* Login / Register — side by side 50/50 */
+  .nav-links{
+    flex-direction:row;
+    width:100%;
+    gap:8px;
+    margin-top:10px;
+  }
+  .nav-links .btn-nav{
+    flex:1 1 0;
+    width:auto;
+    max-width:250px;
+    height:34px;
+    padding:0 10px;
+    font-size:12.5px;
+    border-radius:6px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    box-sizing:border-box;
+  }
+
+  /* Hero — compact vertical rhythm, centered */
+  .hero{ padding:32px 4% 24px; }
+  .hero-content h2{ font-size:0.9rem; margin-bottom:4px; }
+  .hero-content h1{ font-size:21px; margin-bottom:4px; }
+  .hero-emblem{ margin:8px 0 6px; }
+  .tagline{
+    font-size:11px;
+    line-height:1.5;
+    margin:8px auto 10px;
+  }
+  .hero-eco-subtitle{
+    font-size:11px;
+    line-height:1.5;
+    margin:0 auto 6px;
+  }
+
+  /* See VHEcoPoint description — ghost/outline pill, auto-width */
+  .mobile-ecopoint-btn{
+    height:28px;
+    font-size:10px;
+    padding:0 14px;
+    border-radius:999px;
+    background:transparent;
+    color:#f2c24f;
+    border:1px solid rgba(242,194,79,0.68);
+    box-shadow:none;
+  }
+
+  /* CTA buttons — solid pill, auto-width, centered, 12px above */
+  .action-buttons{
+    margin-top:12px !important;
+    gap:8px !important;
+    justify-content:center;
+  }
+  .action-buttons .btn-change{
+    width:auto;
+    max-width:none;
+    height:34px;
+    padding:0 18px;
+    font-size:12px;
+    border-radius:999px;
+    line-height:1;
+  }
+  .action-buttons .btn-start{
+    padding:0 22px;
+    background:#f2c24f;
+  }
+}
+
 
 
 

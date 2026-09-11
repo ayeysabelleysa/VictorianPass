@@ -1220,66 +1220,6 @@ body.account-blocked { overflow: hidden; }
   color: #14532d;
   font-weight: 700;
 }
-.sidebar-footer .download-qr-btn {
-  position: relative;
-  background-image: linear-gradient(135deg, #fcd34d 0%, #eab308 50%, #d97706 100%);
-  box-shadow: 0 6px 14px rgba(234, 179, 8, 0.28);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
-}
-.sidebar-footer .download-qr-btn:hover {
-  background-image: linear-gradient(135deg, #fbbf24 0%, #d97706 50%, #b45309 100%);
-}
-.sidebar-footer .download-qr-btn.qr-highlight {
-  background: linear-gradient(135deg, #f8d76a, #eab308);
-  color: #153426;
-  box-shadow: 0 0 0 3px rgba(248, 215, 106, 0.18), 0 12px 22px rgba(234, 179, 8, 0.35);
-  transform: translateY(-1px) scale(1.01);
-  filter: saturate(1.08);
-}
-.qr-help-tooltip {
-  position: fixed;
-  z-index: 2400;
-  width: min(260px, calc(100vw - 24px));
-  background: rgba(11, 29, 23, 0.95);
-  color: #f7f1d8;
-  border: 1px solid rgba(241, 215, 130, 0.45);
-  border-radius: 12px;
-  box-shadow: 0 18px 28px rgba(6, 20, 17, 0.18);
-  padding: 12px 14px;
-  pointer-events: none;
-  opacity: 0;
-  transform: translate(10px, -50%);
-  transition: opacity 0.18s ease, transform 0.18s ease;
-}
-.qr-help-tooltip.visible {
-  opacity: 1;
-  transform: translate(0, -50%);
-}
-.qr-help-tooltip::after {
-  content: "";
-  position: absolute;
-  left: -7px;
-  top: 50%;
-  width: 12px;
-  height: 12px;
-  background: rgba(11, 29, 23, 0.95);
-  border-left: 1px solid rgba(241, 215, 130, 0.45);
-  border-bottom: 1px solid rgba(241, 215, 130, 0.45);
-  transform: translateY(-50%) rotate(45deg);
-}
-.qr-help-tooltip strong {
-  display: block;
-  font-size: 0.84rem;
-  color: #fde886;
-  margin-bottom: 6px;
-  letter-spacing: 0.02em;
-}
-.qr-help-tooltip span {
-  display: block;
-  font-size: 0.78rem;
-  line-height: 1.5;
-  color: #f0ebe2;
-}
 .field-warning {
   color: #333;
   font-size: 0.85rem;
@@ -2459,15 +2399,6 @@ body.modal-open{overflow:hidden}
     </nav>
 
     <div class="sidebar-footer">
-      <?php if (!$isAccountBlocked): ?>
-      <a href="#" onclick="openQRChoice(); return false;" class="download-qr-btn" title="My QR" aria-label="My QR Code">
-        <i class="fa-solid fa-qrcode"></i> <span>My QR</span>
-      </a>
-      <?php endif; ?>
-      <div id="qrHelpTooltip" class="qr-help-tooltip" role="tooltip" aria-hidden="true">
-        <strong>This is your QR Code</strong>
-        <span>Use this QR code at the VHEcoPoint Station to start your recycling session.</span>
-      </div>
       <a href="logout.php" class="logout-btn" title="Log Out"><i class="fa-solid fa-right-from-bracket"></i> <span>Log Out</span></a>
     </div>
   </aside>
@@ -2713,6 +2644,18 @@ body.modal-open{overflow:hidden}
               <div class="ecopoint-header-desc">Track your current point balance, weekly recycling progress, daily session usage, expiry countdown, and station-ready QR access in one place.</div>
             </div>
 
+            <?php if (!$isAccountBlocked): ?>
+            <div class="ecopoint-qr-unit">
+              <button type="button" class="btn-ecopoint-qr" onclick="openQRChoice(); return false;" title="My QR" aria-label="My QR Code">
+                <i class="fa-solid fa-qrcode"></i> My QR
+              </button>
+              <div class="ecopoint-qr-note">
+                <i class="fa-solid fa-circle-info"></i>
+                <span>Use this QR code at the VHEcoPoint Station to start your recycling session.</span>
+              </div>
+            </div>
+            <?php endif; ?>
+
             <div class="ecopoint-kpi-grid">
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label"><i class="fa-solid fa-coins" style="margin-right:5px; opacity:0.7;"></i>Current Point Balance</div>
@@ -2745,7 +2688,7 @@ body.modal-open{overflow:hidden}
                 </div>
                 <div class="ecopoint-live-indicator" aria-hidden="true"></div>
               </div>
-              <div class="ecopoint-live-message" id="ecopoint-live-message" tabindex="0" aria-describedby="qrHelpTooltip">Scan your VictorianPass QR at the VHEcoPoint Station to begin.</div>
+              <div class="ecopoint-live-message" id="ecopoint-live-message" tabindex="0">Scan your VictorianPass QR at the VHEcoPoint Station to begin.</div>
               <div class="ecopoint-live-meta" id="ecopoint-live-meta">
                 <div class="ecopoint-live-metric">
                   <span class="ecopoint-live-metric-label">Session start time</span>
@@ -3386,83 +3329,11 @@ body.modal-open{overflow:hidden}
     if(m) m.style.display='none';
     document.body.classList.remove('qr-modal-open');
   }
-  document.addEventListener('DOMContentLoaded', function() {
-    var qrButton = document.querySelector('.sidebar-footer .download-qr-btn[title="My QR"]');
-    var qrTooltip = document.getElementById('qrHelpTooltip');
-    var ecopointNav = document.querySelector('.nav-menu .nav-item[data-section="panel-points-history"]');
-
-    function setQRHighlight(active) {
-      if (!qrButton) return;
-      qrButton.classList.toggle('qr-highlight', !!active);
-      qrButton.setAttribute('aria-pressed', active ? 'true' : 'false');
-      if (qrTooltip) {
-        qrTooltip.classList.toggle('visible', !!active);
-        qrTooltip.setAttribute('aria-hidden', active ? 'false' : 'true');
-      }
-    }
-
-    function positionTooltip(anchor) {
-      if (!qrButton || !qrTooltip || !qrTooltip.classList.contains('visible')) return;
-      var el = anchor || qrButton;
-      var rect = el.getBoundingClientRect();
-      if (rect.right < 0 || rect.left > window.innerWidth || rect.width === 0) {
-        setQRHighlight(false);
-        return;
-      }
-      var tooltipWidth = qrTooltip.offsetWidth || 220;
-      var left = rect.right + 16;
-      var top = rect.top + (rect.height / 2);
-      var maxLeft = window.innerWidth - tooltipWidth - 12;
-      left = Math.min(Math.max(left, 12), maxLeft);
-      qrTooltip.style.left = left + 'px';
-      qrTooltip.style.top = top + 'px';
-    }
-
-    function showQRHelp(anchor) {
-      setQRHighlight(true);
-      positionTooltip(anchor);
-    }
-
-    if (qrButton) {
-      qrButton.addEventListener('click', function(e) {
-        e.preventDefault();
-        openQRChoice();
-      });
-      qrButton.addEventListener('mouseenter', function() {
-        showQRHelp(qrButton);
-      });
-      qrButton.addEventListener('mouseleave', function() {
-        setQRHighlight(false);
-      });
-      qrButton.addEventListener('focus', function() {
-        showQRHelp(qrButton);
-      });
-      qrButton.addEventListener('blur', function() {
-        setQRHighlight(false);
-      });
-    }
-
-    if (ecopointNav) {
-      ecopointNav.addEventListener('click', function() {
-        showQRHelp(qrButton);
-      });
-      document.querySelectorAll('.nav-menu .nav-item[data-section]').forEach(function(item) {
-        if (item !== ecopointNav) {
-          item.addEventListener('click', function() { setQRHighlight(false); });
-        }
-      });
-    }
-
-    if (ecopointNav && ecopointNav.classList.contains('active')) {
-      showQRHelp(qrButton);
-    }
-
-    window.addEventListener('resize', function() {
-      if (qrTooltip && qrTooltip.classList.contains('visible')) {
-        positionTooltip();
-      }
-    });
-  });
+  // Expose QR actions to the global scope so inline onclick handlers work
+  window.openQRChoice = openQRChoice;
+  window.closeQRChoice = closeQRChoice;
+  window.openQRView = openQRView;
+  window.closeQRView = closeQRView;
   // Wire buttons
   document.addEventListener('click', function(e){
     if(e.target && e.target.id === 'qrChoiceClose') closeQRChoice();
@@ -4157,11 +4028,20 @@ body.modal-open{overflow:hidden}
       }
 
       menuToggle.addEventListener('click', function() {
-          sidebar.classList.add('open');
-          overlay.classList.add('show');
+          if (sidebar.classList.contains('open')) {
+              closeSidebar();
+          } else {
+              sidebar.classList.add('open');
+              overlay.classList.add('show');
+          }
       });
 
       overlay.addEventListener('click', closeSidebar);
+
+      // Auto-close the drawer when a menu item / Log Out is tapped
+      document.querySelectorAll('.sidebar .nav-menu .nav-item, .sidebar-footer .logout-btn').forEach(function(item) {
+          item.addEventListener('click', closeSidebar);
+      });
   }
 
   function buildExtraContent(li, extra){
@@ -6018,7 +5898,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <div id="profileModal" class="profile-modal">
   <div class="profile-modal-content">
-    <button class="close-profile-modal">&times;</button>
+    <button type="button" class="close-profile-modal" aria-label="Close">&times;</button>
     <div class="profile-header">
       <div class="profile-icon-large">
         <img src="<?php echo $profilePicUrl; ?>" alt="Profile" id="profileModalImg">
@@ -6034,34 +5914,35 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
     <div class="profile-details">
       <div class="detail-row">
-        <div class="detail-label">Name</div>
+        <div class="detail-label"><i class="fa-solid fa-user"></i> Name</div>
         <div class="detail-value"><?php echo htmlspecialchars($fullName); ?></div>
       </div>
       <div class="detail-row">
-        <div class="detail-label">Email</div>
+        <div class="detail-label"><i class="fa-solid fa-envelope"></i> Email</div>
         <div class="detail-value"><?php echo htmlspecialchars($user['email'] ?? ''); ?></div>
       </div>
       <div class="detail-row">
-        <div class="detail-label">Contact Number</div>
+        <div class="detail-label"><i class="fa-solid fa-phone"></i> Contact Number</div>
         <div class="detail-value"><?php echo htmlspecialchars($user['phone'] ?? ''); ?></div>
       </div>
       <div class="detail-row">
-        <div class="detail-label">House Number</div>
+        <div class="detail-label"><i class="fa-solid fa-home"></i> House Number</div>
         <div class="detail-value"><?php echo htmlspecialchars($user['house_number'] ?? ''); ?></div>
       </div>
       <div class="detail-row">
-        <div class="detail-label">Address</div>
+        <div class="detail-label"><i class="fa-solid fa-location-dot"></i> Address</div>
         <div class="detail-value"><?php echo htmlspecialchars($user['address'] ?? ''); ?></div>
       </div>
-      <div class="detail-row">
-        <div class="detail-label">Change Password</div>
-        <div class="detail-value" style="width:100%;">
-          <button type="button" id="openChangePasswordResident" style="background:#23412e; color:#fff; border:none; padding:10px 14px; border-radius:8px; cursor:pointer; font-weight:600;">Change Password</button>
-        </div>
-      </div>
     </div>
+    <?php if (!$isAccountBlocked): ?>
+    <button type="button" class="btn-qr-modal" onclick="openQRChoice(); return false;" title="My QR" aria-label="My QR Code">
+      <i class="fa-solid fa-qrcode"></i> My QR
+    </button>
+    <?php endif; ?>
+
     <div class="profile-actions">
-       <a href="logout.php" class="btn-logout-modal">Log Out</a>
+      <button type="button" id="openChangePasswordResident" class="btn-change-password-modal">Change Password</button>
+      <a href="logout.php" class="btn-logout-modal">Log Out</a>
     </div>
   </div>
 </div>
@@ -6094,6 +5975,7 @@ document.addEventListener('DOMContentLoaded', function() {
       clearTimeout(profileCloseTimeout);
       profileModal.classList.remove('profile-modal-closing');
       profileModal.style.display = 'block';
+      document.body.classList.add('profile-modal-open');
       requestAnimationFrame(function() {
         profileModal.classList.add('profile-modal-open');
       });
@@ -6105,6 +5987,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (immediate) {
         profileModal.classList.remove('profile-modal-open', 'profile-modal-closing');
         profileModal.style.display = 'none';
+        document.body.classList.remove('profile-modal-open');
         return;
       }
       profileModal.classList.add('profile-modal-closing');
@@ -6112,8 +5995,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (profileModal) {
           profileModal.style.display = "none";
           profileModal.classList.remove('profile-modal-open', 'profile-modal-closing');
+          document.body.classList.remove('profile-modal-open');
         }
-      }, 220);
+      }, 250);
     }
 
     if(profileTrigger) {

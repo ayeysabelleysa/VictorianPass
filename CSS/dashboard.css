@@ -2718,6 +2718,7 @@ body {
     background: rgba(0, 0, 0, 0.6) !important;
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
+    transform: none !important;
     pointer-events: auto;
 }
 
@@ -2725,12 +2726,12 @@ body {
     display: flex !important;
     align-items: center;
     justify-content: center;
-    -webkit-animation: vpModalOverlay var(--vp-med) var(--vp-ease) both;
-            animation: vpModalOverlay var(--vp-med) var(--vp-ease) both;
+    animation: fadeIn 0.3s;
 }
 
 #profileModal.profile-modal-closing {
     pointer-events: none;
+    animation: fadeIn 0.3s reverse both;
 }
 
 #profileModal .profile-modal-content {
@@ -2744,17 +2745,16 @@ body {
     max-height: calc(100vh - 40px) !important;
     margin: auto !important;
     transform: none;
-    -webkit-animation: vpModalPop var(--vp-slow) var(--vp-ease) both;
-            animation: vpModalPop var(--vp-slow) var(--vp-ease) both;
+    animation: slideDown 0.3s;
 }
 
 #profileModal.profile-modal-closing .profile-modal-content {
-    -webkit-animation: vpModalOut 200ms var(--vp-ease) both;
-            animation: vpModalOut 200ms var(--vp-ease) both;
+    animation: slideDown 0.3s reverse both;
 }
 
 @media (prefers-reduced-motion: reduce) {
     #profileModal.profile-modal-open,
+    #profileModal.profile-modal-closing,
     #profileModal .profile-modal-content {
         -webkit-animation: none !important;
                 animation: none !important;
@@ -2778,4 +2778,539 @@ body {
 
 #profileModal .profile-header {
     flex-shrink: 0;
+}
+
+/* ================= My Profile popup redesign ================= */
+body.profile-modal-open {
+    overflow: hidden;
+}
+
+#profileModal {
+    display: none !important;
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 16px !important;
+    z-index: 2000 !important;
+    overflow: hidden !important;
+    background: rgba(15, 23, 42, 0.55) !important;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    transform: none !important;
+    pointer-events: auto;
+}
+
+#profileModal.profile-modal-open {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    -webkit-animation: profileFadeIn 250ms ease-out both;
+            animation: profileFadeIn 250ms ease-out both;
+}
+
+#profileModal.profile-modal-closing {
+    pointer-events: none;
+    -webkit-animation: profileFadeOut 250ms ease-out both;
+            animation: profileFadeOut 250ms ease-out both;
+}
+
+#profileModal .profile-modal-content {
+    position: relative !important;
+    top: auto !important;
+    right: auto !important;
+    left: auto !important;
+    bottom: auto !important;
+    width: min(400px, calc(100vw - 32px)) !important;
+    max-width: calc(100vw - 32px) !important;
+    max-height: calc(100vh - 32px) !important;
+    height: auto !important;
+    min-height: 0;
+    margin: 0 !important;
+    padding: 26px 26px 22px !important;
+    border: 1px solid #e5e7eb;
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transform-origin: center center;
+    -webkit-animation: profilePopIn 250ms cubic-bezier(0.25, 1, 0.5, 1) both;
+            animation: profilePopIn 250ms cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
+#profileModal.profile-modal-closing .profile-modal-content {
+    -webkit-animation: profilePopOut 250ms cubic-bezier(0.25, 1, 0.5, 1) both;
+            animation: profilePopOut 250ms cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
+#profileModal .close-profile-modal {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 5;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 0;
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color .2s ease, color .2s ease, transform .2s ease;
+}
+#profileModal .close-profile-modal:hover {
+    background: #e2e8f0;
+    color: #111827;
+    transform: scale(1.08) rotate(90deg);
+}
+#profileModal .close-profile-modal:active {
+    transform: scale(0.94);
+}
+
+#profileModal .profile-header {
+    flex-shrink: 0;
+    margin: 0;
+    padding: 0 0 18px;
+    border-bottom: 1px solid #eef1ef;
+}
+#profileModal .profile-icon-large {
+    width: 86px;
+    height: 86px;
+    margin: 0 0 12px;
+    border: 3px solid #ffffff;
+    box-shadow: 0 0 0 2px #23412e, 0 8px 20px rgba(15, 23, 42, 0.16);
+}
+#profileModal .profile-edit-overlay {
+    border-radius: 50%;
+}
+#profileModal .profile-title h3 {
+    margin: 0 0 5px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #111827;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+#profileModal .profile-role {
+    display: inline-block;
+    margin: 0;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: #e7f0ea;
+    color: #1f3c2e;
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+}
+
+#profileModal .profile-details {
+    flex: 1 1 auto;
+    min-height: 0;
+    margin: 10px 0 0;
+    padding-right: 2px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+#profileModal .detail-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 12px 2px;
+    border-bottom: 1px solid #f0f2f0;
+}
+#profileModal .detail-row:last-child {
+    border-bottom: none;
+}
+#profileModal .detail-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0;
+    color: #6b7280;
+    font-size: .85rem;
+    font-weight: 500;
+    line-height: 1.45;
+}
+#profileModal .detail-label i {
+    width: 16px;
+    text-align: center;
+    color: #23412e;
+    font-size: .9rem;
+    flex-shrink: 0;
+}
+#profileModal .detail-value {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+    margin: 0 0 0 auto;
+    text-align: right;
+    color: #1f2937;
+    font-size: .9rem;
+    font-weight: 500;
+    line-height: 1.45;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+#profileModal .profile-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+    flex-shrink: 0;
+}
+#profileModal .btn-change-password-modal {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 11px 14px;
+    border-radius: 10px;
+    border: 1.5px solid #23412e;
+    background: #ffffff;
+    color: #23412e;
+    font-family: inherit;
+    font-size: .9rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color .2s ease, color .2s ease, border-color .2s ease, transform .15s ease, box-shadow .2s ease;
+}
+#profileModal .btn-change-password-modal:hover {
+    background: #23412e;
+    color: #ffffff;
+}
+#profileModal .btn-change-password-modal:active {
+    transform: translateY(1px) scale(0.98);
+}
+#profileModal .btn-change-password-modal:focus-visible {
+    outline: 2px solid #23412e;
+    outline-offset: 2px;
+}
+#profileModal .btn-logout-modal {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 11px 14px;
+    border-radius: 10px;
+    border: 1.5px solid #c0392b;
+    background: #c0392b;
+    color: #ffffff;
+    font-family: inherit;
+    font-size: .9rem;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color .2s ease, border-color .2s ease, transform .15s ease, box-shadow .2s ease;
+}
+#profileModal .btn-logout-modal:hover {
+    background: #a93226;
+    border-color: #a93226;
+}
+#profileModal .btn-logout-modal:active {
+    transform: translateY(1px) scale(0.98);
+}
+#profileModal .btn-logout-modal:focus-visible {
+    outline: 2px solid #c0392b;
+    outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+    #profileModal .profile-actions {
+        flex-direction: column;
+    }
+    #profileModal .btn-change-password-modal,
+    #profileModal .btn-logout-modal {
+        width: 100%;
+        flex-basis: auto;
+    }
+}
+
+@media (max-width: 480px) {
+    #profileModal {
+        padding: 12px;
+    }
+    #profileModal .profile-modal-content {
+        width: calc(100vw - 24px) !important;
+        max-height: calc(100vh - 24px) !important;
+        padding: 20px 16px 16px !important;
+        border-radius: 16px;
+    }
+    #profileModal .profile-icon-large {
+        width: 74px;
+        height: 74px;
+    }
+    #profileModal .profile-title h3 {
+        font-size: 1rem;
+    }
+    #profileModal .detail-row {
+        flex-direction: column;
+        gap: 4px;
+        padding: 10px 2px;
+    }
+    #profileModal .detail-label {
+        font-size: .8rem;
+    }
+    #profileModal .detail-value {
+        margin-left: 0;
+        width: 100%;
+        text-align: left;
+    }
+}
+
+@media (max-width: 340px) {
+    #profileModal .profile-modal-content {
+        padding: 18px 12px 14px !important;
+    }
+    #profileModal .profile-details {
+        margin-top: 8px;
+    }
+}
+
+@keyframes profileFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+@keyframes profileFadeOut {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+}
+@keyframes profilePopIn {
+    from { opacity: 0; transform: scale(0.94); }
+    to   { opacity: 1; transform: scale(1); }
+}
+@keyframes profilePopOut {
+    from { opacity: 1; transform: scale(1); }
+    to   { opacity: 0; transform: scale(0.94); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #profileModal.profile-modal-open,
+    #profileModal.profile-modal-closing,
+    #profileModal .profile-modal-content {
+        -webkit-animation: none !important;
+                animation: none !important;
+        transition: none !important;
+    }
+}
+
+/* ================= Mobile drawer sidebar — final override =================
+   Forces the sidebar to render as a proper off-canvas slide-out drawer on
+   screens <= 900px (an earlier malformed @media block around line 689 makes
+   the old mobile rules unreliable). */
+@media (max-width: 900px) {
+    .sidebar {
+        width: min(78vw, 300px) !important;
+        max-width: 300px !important;
+        left: 0 !important;
+        right: auto !important;
+        top: 64px !important;
+        bottom: 0 !important;
+        height: calc(100vh - 64px) !important;
+        z-index: 1005 !important;
+        transform: translateX(-100%) !important;
+        transition: transform 0.25s ease-out !important;
+        box-shadow: 2px 0 18px rgba(0, 0, 0, 0.35) !important;
+        will-change: transform;
+    }
+
+    .sidebar.open {
+        transform: translateX(0) !important;
+    }
+
+    .top-header {
+        z-index: 1010 !important;
+    }
+
+    .sidebar-overlay {
+        display: none !important;
+        position: fixed !important;
+        top: 64px !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: 100% !important;
+        height: calc(100vh - 64px) !important;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 1002 !important;
+        transition: opacity 0.25s ease-out;
+    }
+
+    .sidebar-overlay.show {
+        display: block !important;
+    }
+
+    .sidebar .nav-menu {
+        padding: 12px 10px;
+        gap: 2px;
+    }
+
+    .sidebar .nav-item {
+        padding: 13px 14px;
+        font-size: 13.5px;
+        line-height: 1.3;
+        min-height: 46px;
+        box-sizing: border-box;
+    }
+
+    .sidebar .nav-item i {
+        width: 20px;
+        margin-right: 10px;
+    }
+
+    .sidebar .nav-item.ecopoint-link small {
+        display: block !important;
+        font-size: 0.6rem !important;
+        line-height: 1.2 !important;
+        margin-top: 1px !important;
+    }
+
+    .sidebar .sidebar-footer {
+        padding: 12px 14px 14px;
+        align-items: stretch;
+    }
+
+    .sidebar .sidebar-footer .logout-btn {
+        width: 100% !important;
+        min-width: 0 !important;
+        height: 42px !important;
+        min-height: 42px !important;
+        padding: 0 14px !important;
+        font-size: 13.5px !important;
+        box-sizing: border-box !important;
+        align-self: stretch !important;
+    }
+}
+
+/* ================= My QR actions (VHEcoPoint page + Profile modal) ================= */
+.btn-qr-modal,
+.btn-ecopoint-qr {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: none;
+    border-radius: 12px;
+    background-image: linear-gradient(135deg, #fcd34d 0%, #eab308 50%, #d97706 100%);
+    color: #153426;
+    font-family: inherit;
+    font-size: .9rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(234, 179, 8, .22);
+    transition: filter .2s ease, transform .15s ease, box-shadow .2s ease;
+}
+.btn-qr-modal:hover,
+.btn-ecopoint-qr:hover {
+    filter: brightness(1.05);
+    box-shadow: 0 6px 14px rgba(234, 179, 8, .28);
+}
+.btn-qr-modal:active,
+.btn-ecopoint-qr:active {
+    transform: translateY(1px) scale(.98);
+}
+.btn-qr-modal:focus-visible,
+.btn-ecopoint-qr:focus-visible {
+    outline: 2px solid #23412e;
+    outline-offset: 2px;
+}
+
+#profileModal .btn-qr-modal {
+    display: flex;
+    width: 100%;
+    padding: 12px 14px;
+    margin: 12px 0 0;
+}
+
+.ecopoint-qr-unit {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.btn-ecopoint-qr {
+    flex: 0 0 auto;
+    min-width: 130px;
+    padding: 11px 18px;
+}
+.ecopoint-qr-note {
+    flex: 1 1 220px;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid #fde68a;
+    background: #fffbeb;
+    color: #7c4a03;
+    font-size: .85rem;
+    line-height: 1.45;
+}
+.ecopoint-qr-note i {
+    color: #d97706;
+    flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+    .ecopoint-qr-unit {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .btn-ecopoint-qr {
+        justify-content: center;
+    }
+}
+
+/* ================= Profile modal close — match the My QR popup close ================= */
+#profileModal .close-profile-modal {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    z-index: 2;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 50%;
+    border: 0;
+    background: #e5e7eb;
+    color: #111827;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    line-height: 1;
+    transition: filter .2s ease;
+}
+#profileModal .close-profile-modal:hover {
+    filter: brightness(0.92);
+    background: #e5e7eb;
+    color: #111827;
+    transform: none;
+}
+#profileModal .close-profile-modal:active {
+    transform: scale(0.94);
+}
+#profileModal .close-profile-modal:focus-visible {
+    outline: 2px solid #23412e;
+    outline-offset: 2px;
 }
