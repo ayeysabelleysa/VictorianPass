@@ -336,7 +336,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
       <p class="tagline">Every home has a story — start yours in a place worth remembering.</p>
       <?php if (($isResident || !$isLoggedIn) && !$isVisitor): ?>
-      <p class="hero-eco-subtitle">Now with VHEcoPoint Rewards — Recycle &amp; Earn Points</p>
+      <p class="hero-eco-subtitle" data-ecopoint-modal-open="true" role="button" tabindex="0" aria-haspopup="dialog"><span class="hero-eco-subtitle-top"><span class="hero-eco-subtitle-icon" aria-hidden="true">&#9851;</span><span class="hero-eco-subtitle-main">Now with VHEcoPoint Rewards</span></span><span class="hero-eco-subtitle-sub">Recycle &amp; Earn Points</span><span class="hero-eco-subtitle-hint">See description &#9662;</span></p>
       <!-- Mobile-only: See description button for VHEcoPoint (short, close to subtitle) -->
       <button class="mobile-ecopoint-btn" data-ecopoint-modal-open="true" aria-controls="ecopointModal" aria-expanded="false">See VHEcoPoint description</button>
       <?php endif; ?>
@@ -347,7 +347,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         <?php elseif ($isVisitor): ?>
           <button class="btn-change btn-reserve" onclick="window.location.href='reserve.php'">Reserve an Amenity</button>
         <?php else: ?>
-          <button class="btn-change btn-eco" onclick="window.location.href='profileresident.php?section=panel-points-history'">View VHEcoPoint</button>
           <button class="btn-change btn-dashboard" onclick="window.location.href='profileresident.php'">My Dashboard</button>
         <?php endif; ?>
       </div>
@@ -386,7 +385,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
           </div>
           <?php endif; ?>          <p class="section-subtitle ecopoint-description">VHEcoPoint is Victorian Heights Subdivision’s Smart Waste Segregation Station that automatically sorts recyclables and rewards you with points redeemable for free amenity bookings. Scan your VictorianPass QR code, deposit recyclables, and points are credited to your account instantly.</p>
             <?php if ($isResident): ?>
-            <p style="background:#d1fae5; border:1px solid #34d399; border-radius:8px; padding:10px 12px; color:#065f46; font-weight:600; display:flex; align-items:center; gap:10px; flex-wrap:wrap;"><span><strong><i class="fa-solid fa-lightbulb" style="margin-right:6px;"></i>Tip:</strong> You can view your personal QR code on your profile dashboard page.</span><a href="profileresident.php" class="btn-change" style="display:inline-block; padding:8px 16px; border-radius:8px; text-decoration:none; font-weight:700; font-size:0.9rem; white-space:nowrap;">My Profile Dashboard</a></p>
+            <div class="ecopoint-home-actions" style="justify-content:center; margin-top:14px;">
+              <a href="profileresident.php?section=panel-points-history" class="btn-change ecopoint-home-cta">View VHEcoPoint</a>
+            </div>
             <?php endif; ?>
             <h3 class="ecopoint-card-title">How It Works</h3>
             <div class="ecopoint-step-list">
@@ -394,7 +395,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <div class="ecopoint-step-icon" aria-hidden="true"><i class="fa-solid fa-qrcode"></i></div>
                 <div class="ecopoint-step-copy">
                   <h4>Scan</h4>
-                  <p>Scan your VictorianPass QR code at the VHEcoPoint station.</p>
+                  <p>Scan your VictorianPass QR code at the VHEcoPoint station. Your code is in the VHEcoPoint dashboard and your Profile Settings.</p>
                 </div>
               </div>
               <div class="ecopoint-step-item">
