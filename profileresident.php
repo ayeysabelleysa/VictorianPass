@@ -1198,7 +1198,30 @@ body.account-blocked { overflow: hidden; }
 }
 @media (max-width: 480px) {
   .main-content.ecopoint-active #panel-points-history .ecopoint-live-meta { grid-template-columns: 1fr; }
-  .main-content.ecopoint-active #panel-points-history .ecopoint-live-header { align-items: flex-start; }
+  .main-content.ecopoint-active #panel-points-history .ecopoint-live-header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    align-items: center;
+    gap: 4px 8px;
+  }
+  .main-content.ecopoint-active #panel-points-history .ecopoint-live-header-text { display: contents; }
+  .main-content.ecopoint-active #panel-points-history .ecopoint-live-status-badge {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    justify-self: start;
+  }
+  .main-content.ecopoint-active #panel-points-history .ecopoint-live-station-name {
+    grid-column: 1;
+    grid-row: 2;
+    min-width: 0;
+  }
+  .main-content.ecopoint-active #panel-points-history .ecopoint-live-indicator {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: center;
+    align-self: center;
+  }
 }
 .toast-item { background: #fff; border-left: 4px solid #23412e; box-shadow: 0 4px 12px rgba(0,0,0,0.18); border-radius: 10px; padding: 10px 12px; min-width: 260px; display: flex; align-items: flex-start; gap: 8px; color: #333; }
 .toast-item .toast-message { flex: 1; font-size: 0.85rem; }
@@ -2641,7 +2664,7 @@ body.modal-open{overflow:hidden}
             <div class="ecopoint-header-card">
               <div class="ecopoint-header-kicker">Resident Dashboard</div>
               <div class="ecopoint-header-title"><i class="fa-solid fa-leaf" style="margin-right:8px; font-size:0.9em;"></i>Your VHEcoPoint Dashboard</div>
-              <div class="ecopoint-header-desc">Track your current point balance, weekly recycling progress, daily session usage, expiry countdown, and station-ready QR access in one place.</div>
+              <div class="ecopoint-header-desc"><i class="fa-solid fa-circle-info ecopoint-info" style="float:left; margin:2px 6px 0 0;" title="Your personal VHEcoPoint dashboard: see your point balance, weekly progress, daily session usage, expiry countdown, and station-ready QR access all in one place."></i>Track your current point balance, weekly recycling progress, daily session usage, expiry countdown, and station-ready QR access in one place.</div>
             </div>
 
             <?php if (!$isAccountBlocked): ?>
@@ -2651,7 +2674,7 @@ body.modal-open{overflow:hidden}
               </button>
               <div class="ecopoint-qr-note">
                 <i class="fa-solid fa-circle-info"></i>
-                <span>Use this QR code at the VHEcoPoint Station to start your recycling session.</span>
+                <span>Click the &ldquo;My QR&rdquo; button to view your personal QR code. Then scan it at the VHEcoPoint Station to verify your resident account, start your recycling session, and earn points.</span>
               </div>
             </div>
             <?php endif; ?>
@@ -2660,22 +2683,22 @@ body.modal-open{overflow:hidden}
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label"><i class="fa-solid fa-coins" style="margin-right:5px; opacity:0.7;"></i>Current Point Balance</div>
                 <div class="ecopoint-kpi-value"><i class="fa-solid fa-star" style="font-size:0.6em; margin-right:4px; opacity:0.6;"></i><?php echo number_format($currentPoints); ?> pts</div>
-                <div class="ecopoint-kpi-subtext">Net balance from VHEcoPoint recycling ledger (earn − redeem ± adjustments).</div>
+                <div class="ecopoint-kpi-subtext"><i class="fa-solid fa-circle-info ecopoint-info" title="Earned points add to this balance; redeemed or adjusted points subtract from it."></i> Net balance from VHEcoPoint recycling ledger (earn − redeem ± adjustments).</div>
               </div>
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label"><i class="fa-solid fa-chart-line" style="margin-right:5px; opacity:0.7;"></i>Weekly Points Earned</div>
                 <div class="ecopoint-kpi-value"><?php echo number_format($ecoPointWeeklyPoints); ?> / <?php echo number_format($ecoPointWeeklyCap); ?> pts</div>
-                <div class="ecopoint-kpi-subtext"><?php echo number_format($ecoPointWeeklyRemaining); ?> pts remain before this week's program cap resets.</div>
+                <div class="ecopoint-kpi-subtext"><i class="fa-solid fa-circle-info ecopoint-info" title="How many of this week's allowed points you have already earned toward the program cap."></i> <?php echo number_format($ecoPointWeeklyRemaining); ?> pts remain before this week's program cap resets.</div>
               </div>
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label"><i class="fa-solid fa-right-to-bracket" style="margin-right:5px; opacity:0.7;"></i>Daily Sessions Used</div>
                 <div class="ecopoint-kpi-value"><?php echo number_format($ecoPointTodaySessionsUsed); ?> / <?php echo number_format($ecoPointDailySessionsMax); ?> Used Today</div>
-                <div class="ecopoint-kpi-subtext"><?php echo number_format($ecoPointSessionsRemaining); ?> session<?php echo $ecoPointSessionsRemaining === 1 ? '' : 's'; ?> remaining. Maximum of 3 VHEcoPoint station visits per day.</div>
+                <div class="ecopoint-kpi-subtext"><i class="fa-solid fa-circle-info ecopoint-info" title="Each session is one VHEcoPoint station visit. The daily maximum is 3 visits."></i> <?php echo number_format($ecoPointSessionsRemaining); ?> session<?php echo $ecoPointSessionsRemaining === 1 ? '' : 's'; ?> remaining. Maximum of 3 VHEcoPoint station visits per day.</div>
               </div>
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label"><i class="fa-solid fa-clock" style="margin-right:5px; opacity:0.7;"></i>Points Expiry Countdown</div>
                 <div class="ecopoint-kpi-value"><?php echo htmlspecialchars($ecoPointExpiryCountdownLabel); ?></div>
-                <div class="ecopoint-kpi-subtext"><?php echo htmlspecialchars($ecoPointExpiryCountdownSubtext); ?></div>
+                <div class="ecopoint-kpi-subtext"><i class="fa-solid fa-circle-info ecopoint-info" title="How long before your earned points expire or the program cap resets your balance."></i> <?php echo htmlspecialchars($ecoPointExpiryCountdownSubtext); ?></div>
               </div>
             </div>
             <!-- Live session panel: shows real-time weight/points when using VHEcoPoint station -->
@@ -2688,7 +2711,7 @@ body.modal-open{overflow:hidden}
                 </div>
                 <div class="ecopoint-live-indicator" aria-hidden="true"></div>
               </div>
-              <div class="ecopoint-live-message" id="ecopoint-live-message" tabindex="0">Scan your VictorianPass QR at the VHEcoPoint Station to begin.</div>
+              <div class="ecopoint-live-message" id="ecopoint-live-message" tabindex="0"><i class="fa-solid fa-circle-info ecopoint-info" style="margin-right:4px;" title="See your active station session live: when it started, the material being recycled, current weight, and points earned."></i>Scan your VictorianPass QR at the VHEcoPoint Station to begin.</div>
               <div class="ecopoint-live-meta" id="ecopoint-live-meta">
                 <div class="ecopoint-live-metric">
                   <span class="ecopoint-live-metric-label">Session start time</span>
@@ -2711,7 +2734,7 @@ body.modal-open{overflow:hidden}
 
             <div class="ecopoint-card">
               <h3 class="ecopoint-card-title">Weekly Material Cap Tracker</h3>
-              <div class="ecopoint-card-note">Weekly contributions count toward the current 250-point program cap. Material rows show your contribution by recyclables logged this week.</div>
+              <div class="ecopoint-card-note"><i class="fa-solid fa-circle-info ecopoint-info" style="margin-right:4px;" title="Every contribution this week counts toward the 250-point program cap. Each row shows what you have recycled so far."></i>Weekly contributions count toward the current 250-point program cap. Material rows show your contribution by recyclables logged this week.</div>
               <div style="display:flex;justify-content:space-between;align-items:flex-end;margin:10px 0 6px 0;">
                 <div style="font-weight:700;color:#374151;font-size:13px;">Total Weekly Progress</div>
                 <div style="font-weight:800;color:#14532d;font-size:15px;"><?php echo number_format($ecoPointWeeklyPoints); ?> / <?php echo number_format($ecoPointWeeklyCap); ?> pts &middot; <?php echo intval($ecoPointWeeklyProgress); ?>%</div>
@@ -2739,7 +2762,7 @@ body.modal-open{overflow:hidden}
 
             <div class="ecopoint-card">
               <h3 class="ecopoint-card-title"><i class="fa-solid fa-receipt" style="margin-right:6px; font-size:0.85em; opacity:0.7;"></i>Points History</h3>
-              <div class="ecopoint-card-note">Your VHEcoPoint earn and redeem transactions.</div>
+              <div class="ecopoint-card-note"><i class="fa-solid fa-circle-info ecopoint-info" style="margin-right:4px;" title="Your complete record of VHEcoPoint earn and redeem transactions, most recent first."></i>Your VHEcoPoint earn and redeem transactions.</div>
               <?php if (empty($allPointHistory)): ?>
                 <div class="ecopoint-empty">No VHEcoPoint activity yet.</div>
               <?php else: ?>
