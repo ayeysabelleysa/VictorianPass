@@ -2840,13 +2840,18 @@ body.profile-modal-open {
     flex-direction: column;
     overflow: hidden;
     transform-origin: center center;
-    -webkit-animation: profilePopIn 250ms cubic-bezier(0.25, 1, 0.5, 1) both;
-            animation: profilePopIn 250ms cubic-bezier(0.25, 1, 0.5, 1) both;
+    -webkit-animation: profilePopIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+            animation: profilePopIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+#profileModal.profile-modal-open .profile-modal-content {
+    -webkit-animation: profilePopIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+            animation: profilePopIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 #profileModal.profile-modal-closing .profile-modal-content {
-    -webkit-animation: profilePopOut 250ms cubic-bezier(0.25, 1, 0.5, 1) both;
-            animation: profilePopOut 250ms cubic-bezier(0.25, 1, 0.5, 1) both;
+    -webkit-animation: profilePopOut 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+            animation: profilePopOut 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 #profileModal .close-profile-modal {
@@ -3094,12 +3099,12 @@ body.profile-modal-open {
     to   { opacity: 0; }
 }
 @keyframes profilePopIn {
-    from { opacity: 0; transform: scale(0.94); }
-    to   { opacity: 1; transform: scale(1); }
+    from { opacity: 0; transform: translate3d(0, 16px, 0) scale(0.96); }
+    to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
 }
 @keyframes profilePopOut {
-    from { opacity: 1; transform: scale(1); }
-    to   { opacity: 0; transform: scale(0.94); }
+    from { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+    to   { opacity: 0; transform: translate3d(0, 10px, 0) scale(0.97); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3341,4 +3346,25 @@ body.profile-modal-open {
 #profileModal .close-profile-modal:focus-visible {
     outline: 2px solid #23412e;
     outline-offset: 2px;
+}
+
+/* ===== VHEcoPoint announcement popup (once per session after login) ===== */
+.vhecopoint-popup-overlay{position:fixed;inset:0;z-index:15000;display:flex;align-items:center;justify-content:center;padding:24px 16px;background:rgba(15,25,17,0.55);backdrop-filter:blur(3px);opacity:0;transition:opacity .25s ease;box-sizing:border-box}
+.vhecopoint-popup-overlay.vhecopoint-popup-open{opacity:1}
+.vhecopoint-popup-card{position:relative;width:min(420px,100%);background:#fff;border-radius:18px;padding:32px 28px 26px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,0.35);border:1px solid #dbe7de;transform:translateY(12px) scale(0.98);transition:transform .25s ease;box-sizing:border-box}
+.vhecopoint-popup-overlay.vhecopoint-popup-open .vhecopoint-popup-card{transform:translateY(0) scale(1)}
+.vhecopoint-popup-close{position:absolute;top:12px;right:12px;width:34px;height:34px;border:none;border-radius:50%;background:#eef4ef;color:#23412e;font-size:1.15rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s ease,transform .2s ease;padding:0}
+.vhecopoint-popup-close:hover{background:#dce9df;transform:rotate(90deg)}
+.vhecopoint-popup-close:focus-visible{outline:2px solid #1d6b3f;outline-offset:2px}
+.vhecopoint-popup-icon{display:inline-flex;align-items:center;justify-content:center;width:58px;height:58px;margin:0 auto 14px;border-radius:50%;background:linear-gradient(135deg,#1d6b3f 0%,#2a9d52 100%);color:#fff;font-size:1.7rem;box-shadow:0 10px 22px rgba(29,107,63,0.35)}
+.vhecopoint-popup-title{font-family:'Poppins',sans-serif;font-size:1.3rem;font-weight:700;color:#14532d;margin:0 0 6px;letter-spacing:.2px}
+.vhecopoint-popup-sub{font-family:'Poppins',sans-serif;font-size:1rem;font-weight:600;color:#1d6b3f;margin:0 0 14px}
+.vhecopoint-popup-text{margin:0 0 22px;font-size:.92rem;line-height:1.6;color:#4b5563}
+.vhecopoint-popup-learn{display:inline-block;text-decoration:none;background:linear-gradient(135deg,#1d6b3f 0%,#2a9d52 100%);color:#fff;font-family:'Poppins',sans-serif;font-weight:600;font-size:.95rem;padding:12px 30px;border-radius:999px;box-shadow:0 8px 18px rgba(29,107,63,0.35);transition:transform .2s ease,box-shadow .2s ease}
+.vhecopoint-popup-learn:hover{transform:translateY(-2px);box-shadow:0 12px 24px rgba(29,107,63,0.45)}
+.vhecopoint-popup-learn:focus-visible{outline:2px solid #f2c24f;outline-offset:2px}
+@media (max-width:560px){
+  .vhecopoint-popup-card{padding:26px 20px 22px;border-radius:16px}
+  .vhecopoint-popup-icon{width:52px;height:52px;font-size:1.5rem}
+  .vhecopoint-popup-title{font-size:1.15rem}
 }

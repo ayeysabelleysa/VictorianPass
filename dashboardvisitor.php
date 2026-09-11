@@ -2322,7 +2322,7 @@ document.addEventListener('DOMContentLoaded', function() {
         profileModal.style.display = 'none';
         profileModal.classList.remove('profile-modal-open', 'profile-modal-closing');
         document.body.classList.remove('profile-modal-open');
-      }, 250);
+      }, 360);
     }
 
     if(profileTrigger && profileModal) {

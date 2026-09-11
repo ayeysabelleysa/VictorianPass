@@ -1802,6 +1802,8 @@ body.qr-modal-open{ overflow:hidden }
 #panel-requests .list-item > .request-toggle .fa-chevron-right {
   display: inline-block !important;
 }
+#panel-history .list-item > .request-toggle { display: none !important; }
+#panel-history .list-item .item-extra { display: none !important; }
 #panel-requests .list-item > .item-icon:not(.request-toggle),
 #panel-requests .list-item > :not(.request-toggle):not(.item-content) {
   display: none !important;
@@ -1979,37 +1981,96 @@ body.qr-modal-open{ overflow:hidden }
   padding: 2px 0;
   overflow: hidden;
 }
-#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-thumb {
-  display: block;
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-media {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 170px;
-  max-width: 100%;
+  max-width: 170px;
   height: 115px;
-  max-height: 130px;
-  object-fit: contain;
+  min-height: 90px;
   border: 1px solid #d5e4dc;
   border-radius: 9px;
   background: #f4f8f6;
   overflow: hidden;
   cursor: zoom-in;
+  box-sizing: border-box;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-media.rst-proof-media-file {
+  cursor: pointer;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  cursor: zoom-in;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-fallback {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  text-align: center;
+  color: #455c50;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  box-sizing: border-box;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-media.rst-proof-broken .rst-proof-thumb {
+  display: none;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-media.rst-proof-broken .rst-proof-fallback,
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-media.rst-proof-media-file .rst-proof-fallback {
+  display: flex;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-fallback i {
+  font-size: 32px;
+  color: #5e7d6e;
 }
 #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-meta {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 6px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 5px;
   min-width: 0;
 }
 #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-file {
   min-width: 0;
+  max-width: 560px;
   color: #20342b;
   font-size: 0.9rem;
   font-weight: 600;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  white-space: normal;
 }
 #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-time {
   min-width: 0;
   color: #718078;
   font-size: 0.78rem;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  color: #0e7160;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-open:hover {
+  color: #0a5848;
+  text-decoration: underline;
 }
 #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-meta .view-proof-btn {
   grid-column: 2;
@@ -2271,9 +2332,11 @@ body.modal-open{overflow:hidden}
     grid-template-columns: 110px minmax(0, 1fr);
     gap: 10px;
   }
-  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-thumb {
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-media {
     width: 110px;
+    max-width: 110px;
     height: 78px;
+    min-height: 78px;
   }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-meta {
     display: flex;
@@ -2286,6 +2349,9 @@ body.modal-open{overflow:hidden}
   }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-time {
     font-size: 0.68rem;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-open {
+    font-size: 0.72rem;
   }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(3) ~ .item-extra-note {
     margin-bottom: 8px;
@@ -2325,8 +2391,9 @@ body.modal-open{overflow:hidden}
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
   }
-  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-thumb {
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-media {
     width: min(170px, 100%);
+    max-width: 170px;
     height: 115px;
   }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-meta {
@@ -2372,9 +2439,11 @@ body.modal-open{overflow:hidden}
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof {
     grid-template-columns: 92px minmax(0, 1fr);
   }
-  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-thumb {
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-media {
     width: 92px;
+    max-width: 92px;
     height: 70px;
+    min-height: 70px;
   }
 }
 </style>
@@ -4444,11 +4513,21 @@ body.modal-open{overflow:hidden}
           var proofUrl=absoluteAssetUrl(receiptPath);
           var proofName=String(receiptPath).split('/').pop()||'receipt';
           var proofTime=fmtUploadedAt(receiptUploadedAt);
+          var lowerName=String(proofName).toLowerCase();
+          var proofExt=lowerName.split('.').pop()||'';
+          var isImage=/(png|jpe?g|gif|webp|bmp|avif)$/.test(proofExt);
+          var fileIcon=isImage?'fa-file-image':(proofExt==='pdf'?'fa-file-pdf':(proofExt==='txt'?'fa-file-lines':(proofExt==='doc'||proofExt==='docx'?'fa-file-word':(proofExt==='xls'||proofExt==='xlsx'?'fa-file-excel':'fa-file'))));
           proofHtml+='<div class="rst-proof">';
-          proofHtml+='<img class="rst-proof-thumb" src="'+esc(proofUrl)+'" data-proof="'+esc(proofUrl)+'" alt="Payment receipt" loading="lazy" onerror="this.style.display=\'none\';">';
+          proofHtml+='<div class="rst-proof-media'+(isImage?'':' rst-proof-media-file')+'" data-proof="'+esc(proofUrl)+'" title="'+esc(proofName)+'">';
+          if(isImage){
+            proofHtml+='<img class="rst-proof-thumb" src="'+esc(proofUrl)+'" alt="Payment receipt" loading="lazy" onerror="this.parentNode.classList.add(\'rst-proof-broken\');">';
+          }
+          proofHtml+='<div class="rst-proof-fallback"><i class="fa-solid '+fileIcon+'"></i><span>View file</span></div>';
+          proofHtml+='</div>';
           proofHtml+='<div class="rst-proof-meta">';
           proofHtml+='<div class="rst-proof-file">'+esc(proofName)+'</div>';
           if(proofTime){ proofHtml+='<div class="rst-proof-time">Uploaded: '+esc(proofTime)+'</div>'; }
+          proofHtml+='<a class="rst-proof-open" href="'+esc(proofUrl)+'" target="_blank" rel="noopener"><i class="fa-solid fa-up-right-from-square"></i> Open file</a>';
           proofHtml+='</div></div>';
         } else {
           proofHtml+='<div class="rst-none">No proof of payment uploaded</div>';
@@ -4824,6 +4903,7 @@ body.modal-open{overflow:hidden}
     li.addEventListener('click',function(e){
       var toggle = e.target.closest('.request-toggle');
       if(!toggle || !li.contains(toggle)) return;
+      if(li.closest('#panel-history')) return;
       
       li.classList.toggle('expanded');
       var extra = li.querySelector('.item-extra');
@@ -5596,6 +5676,7 @@ body.modal-open{overflow:hidden}
               li.addEventListener('click',function(e){
                 var toggle = e.target.closest('.request-toggle');
                 if(!toggle || !li.contains(toggle)) return;
+                if(li.closest('#panel-history')) return;
                 li.classList.toggle('expanded');
                 var extra=li.querySelector('.item-extra');
                 if(extra && extra.getAttribute('data-loaded')!=='1' && li.classList.contains('expanded')){
@@ -5798,6 +5879,7 @@ body.modal-open{overflow:hidden}
         li.addEventListener('click',function(e){
           var toggle = e.target.closest('.request-toggle');
           if(!toggle || !li.contains(toggle)) return;
+          if(li.closest('#panel-history')) return;
           li.classList.toggle('expanded');
           var extra=li.querySelector('.item-extra');
           if(extra && extra.getAttribute('data-loaded')!=='1' && li.classList.contains('expanded')){
@@ -5894,6 +5976,19 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
   document.addEventListener('click', function(event) {
+    var media = event.target.closest('.rst-proof-media');
+    if (media && !event.target.closest('.rst-proof-open')) {
+      event.preventDefault();
+      event.stopPropagation();
+      var proofUrl = media.getAttribute('data-proof') || '';
+      if (!proofUrl) return;
+      if (media.classList.contains('rst-proof-media-file')) {
+        window.open(proofUrl, '_blank', 'noopener');
+      } else {
+        openImgModal(proofUrl);
+      }
+      return;
+    }
     var thumbnail = event.target.closest('.rst-proof-thumb');
     if (!thumbnail) return;
     event.preventDefault();
@@ -6020,7 +6115,7 @@ document.addEventListener('DOMContentLoaded', function() {
           profileModal.classList.remove('profile-modal-open', 'profile-modal-closing');
           document.body.classList.remove('profile-modal-open');
         }
-      }, 250);
+      }, 360);
     }
 
     if(profileTrigger) {
@@ -6303,5 +6398,46 @@ function replaceProof(reportId, proofId){
     })();
   </script>
 <script src="js/ecopoint_dashboard.js"></script>
+<div id="vhecopointAnnouncement" class="vhecopoint-popup-overlay" role="dialog" aria-modal="true" aria-labelledby="vhecopointPopupTitle" aria-describedby="vhecopointPopupText" style="display:none;">
+  <div class="vhecopoint-popup-card">
+    <button type="button" class="vhecopoint-popup-close" id="vhecopointPopupClose" aria-label="Close announcement">&times;</button>
+    <span class="vhecopoint-popup-icon" aria-hidden="true">&#9851;</span>
+    <div class="vhecopoint-popup-title" id="vhecopointPopupTitle">Now with VHEcoPoint Rewards!</div>
+    <div class="vhecopoint-popup-sub">Recycle &amp; Earn Points</div>
+    <p class="vhecopoint-popup-text" id="vhecopointPopupText">&ldquo;Recycle your materials at the VHEcoPoint Station, earn points, and redeem them for rewards.&rdquo;</p>
+    <a href="mainpage.php?ecopoint=1#home" class="vhecopoint-popup-learn" id="vhecopointPopupLearn">Learn More</a>
+  </div>
+</div>
+<script>
+(function(){
+  var uid = <?php echo (int)$userId; ?>;
+  var flag = 'vhecopointAnnounced_' + uid;
+  try {
+    if(sessionStorage.getItem(flag)) return;
+  } catch(e){ return; }
+  var overlay = document.getElementById('vhecopointAnnouncement');
+  if(!overlay) return;
+  var closeBtn = document.getElementById('vhecopointPopupClose');
+  var popupCard = overlay.querySelector('.vhecopoint-popup-card');
+  function hide(){
+    overlay.style.display = 'none';
+    overlay.classList.remove('vhecopoint-popup-open');
+  }
+  closeBtn.addEventListener('click', hide);
+  overlay.addEventListener('click', function(e){
+    if(e.target === overlay) hide();
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape' && overlay.style.display !== 'none') hide();
+  });
+  setTimeout(function(){
+    try { sessionStorage.setItem(flag, '1'); } catch(e){}
+    overlay.style.display = 'flex';
+    requestAnimationFrame(function(){ overlay.classList.add('vhecopoint-popup-open'); });
+    var learn = document.getElementById('vhecopointPopupLearn');
+    if(learn) setTimeout(function(){ learn.focus(); }, 350);
+  }, 600);
+})();
+</script>
 </body>
 </html>

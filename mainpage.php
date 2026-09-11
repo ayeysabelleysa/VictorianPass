@@ -638,6 +638,24 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     })();
   </script>
   <script>
+    (function(){
+      var params = new URLSearchParams(window.location.search);
+      if(params.get('ecopoint') !== '1') return;
+      var target = document.getElementById('home') || document.body;
+      if(target && 'scrollIntoView' in target){
+        target.scrollIntoView({behavior:'smooth', block:'start'});
+      } else if(target){
+        target.scrollIntoView();
+      }
+      window.addEventListener('load', function(){
+        setTimeout(function(){
+          var trigger = document.querySelector('[data-ecopoint-modal-open]');
+          if(trigger && typeof trigger.click === 'function') trigger.click();
+        }, 500);
+      });
+    })();
+  </script>
+  <script>
     document.addEventListener('DOMContentLoaded', function(){
       // Profile Dropdown Logic
       var profileUrl = <?php echo json_encode($userType === 'resident' ? 'profileresident.php' : 'dashboardvisitor.php'); ?>;
