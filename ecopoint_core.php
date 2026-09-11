@@ -536,7 +536,7 @@ function eco_transition_status(mysqli $con, int $sessionId, int $stationId, stri
         $s && ($s->bind_param('i', $sessionId) && @$s->execute());
     }
     if ($newStatus === 'COMPLETED') {
-        $s = $con->prepare("UPDATE ecopoint_waste_sessions SET completed_at = NOW(), total_weight_kg = COALESCE(total_weight_kg, weight_kg), total_points = COALESCE(total_points, points_awarded) WHERE id = ?");
+        $s = $con->prepare("UPDATE ecopoint_waste_sessions SET completed_at = NOW() WHERE id = ?");
         $s && ($s->bind_param('i', $sessionId) && @$s->execute());
     }
     if ($newStatus === 'CANCELLED') {
