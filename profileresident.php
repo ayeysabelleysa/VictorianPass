@@ -6340,7 +6340,7 @@ function replaceProof(reportId, proofId){
         if (statusUp === 'COMPLETED') {
           pointsEl.textContent = fmtPts(s.points_awarded || s.total_points);
         } else {
-          pointsEl.textContent = fmtPts(s.points_calculated);
+          pointsEl.textContent = fmtPts(s.total_points);
         }
         // If a session just became final, reload the page once to refresh the
         // history/KPI cards on the dashboard.
