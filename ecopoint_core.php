@@ -536,7 +536,7 @@ function eco_transition_status(mysqli $con, int $sessionId, int $stationId, stri
         $s && ($s->bind_param('i', $sessionId) && @$s->execute());
     }
     if ($newStatus === 'COMPLETED') {
-        $s = $con->prepare("UPDATE ecopoint_waste_sessions SET completed_at = NOW(), total_weight_kg = COALESCE(total_weight_kg, weight_kg), total_points = COALESCE(total_points, points_awarded) WHERE id = ?");
+        $s = $con->prepare("UPDATE ecopoint_waste_sessions SET completed_at = NOW() WHERE id = ?");
         $s && ($s->bind_param('i', $sessionId) && @$s->execute());
     }
     if ($newStatus === 'CANCELLED') {
@@ -577,9 +577,37 @@ function eco_award_points_and_finalize(mysqli $con, int $sessionId, int $station
     $curBal   = eco_user_balance($con, $userId);
 
     if (!$alreadyPosted) {
-        $calc       = eco_calculate_points($material, $weight);
-        $calculated = (int)$calc['raw_points'];
-        $awarded    = eco_apply_cap_rules($calc, $capState, $curBal);
+
+    $eventStmt = $con->prepare("
+        SELECT
+            COALESCE(SUM(
+                CAST(JSON_UNQUOTE(JSON_EXTRACT(event_payload, '$.points_calc')) AS DECIMAL(10,2))
+            ), 0) AS total_points,
+            COALESCE(SUM(
+                CAST(JSON_UNQUOTE(JSON_EXTRACT(event_payload, '$.weight_kg')) AS DECIMAL(10,3))
+            ), 0) AS total_weight
+        FROM ecopoint_session_events
+        WHERE session_id = ?
+          AND event_type = 'WASTE_DATA'
+    ");
+
+    $eventStmt->bind_param('i', $sessionId);
+    $eventStmt->execute();
+    $eventTotals = $eventStmt->get_result()->fetch_assoc();
+    $eventStmt->close();
+
+    $calculated = (int)round((float)($eventTotals['total_points'] ?? 0));
+    $weight = (float)($eventTotals['total_weight'] ?? 0);
+
+    $calc = [
+        'material' => $material,
+        'weight_kg' => $weight,
+        'rate_pts_per_kg' => 0,
+        'raw_points' => $calculated,
+        'valid' => ($calculated > 0)
+    ];
+
+    $awarded = eco_apply_cap_rules($calc, $capState, $curBal);
 
         // Update session with calculated values
         $upd = $con->prepare("
