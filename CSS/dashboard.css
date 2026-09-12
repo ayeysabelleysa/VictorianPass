@@ -1427,27 +1427,26 @@ body {
 
 .cancel-modal-close {
     position: absolute;
-    top: 14px;
-    right: 14px;
+    top: 10px;
+    right: 12px;
     border: none;
-    background: #eef2f0;
+    background: #e5e7eb;
     font-size: 16px;
+    font-weight: 700;
     cursor: pointer;
-    color: #23412e;
-    width: 32px;
-    height: 32px;
+    color: #111827;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 6px rgba(35, 65, 46, 0.12);
-    transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+    line-height: 1;
+    z-index: 2;
+    transition: filter 0.2s ease;
 }
 .cancel-modal-close:hover {
-    background: #dfeee5;
-    color: #1a2f22;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 10px rgba(35, 65, 46, 0.18);
+    filter: brightness(0.92);
 }
 @keyframes cancelModalFadeIn {
     from { opacity: 0; }

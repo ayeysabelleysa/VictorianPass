@@ -633,7 +633,6 @@ html { scroll-behavior: smooth; }
   margin: 0 auto;
 }
 
-.ecopoint-intro-card,
 .ecopoint-card{
   background: #fff;
   color: #222;
@@ -1383,6 +1382,17 @@ html { scroll-behavior: smooth; }
 .ecopoint-modal .flash-modal{position:relative;max-width:980px;text-align:left;background:#fff;color:#222;border:1px solid #e9ecef;max-height:86vh;overflow-y:auto;overflow-x:hidden}
 .ecopoint-modal .flash-modal .title{color:#23412e;font-size:1.25rem}
 .ecopoint-modal .flash-modal .text{color:#555;line-height:1.7;margin:0}
+/* "Learn About VHEcoPoint" modal — compact text sizing */
+.ecopoint-modal .flash-modal{padding:22px 18px}
+.ecopoint-modal .ecopoint-title{font-size:16px}
+.ecopoint-modal .ecopoint-title .ecopoint-title-icon{width:40px;height:40px;font-size:1.15rem}
+.ecopoint-modal .ecopoint-description{font-size:13px;line-height:1.5}
+.ecopoint-modal .ecopoint-card-title{font-size:14px}
+.ecopoint-modal .ecopoint-step-copy h4{font-size:14px}
+.ecopoint-modal .ecopoint-step-copy p{font-size:13px;line-height:1.5}
+.ecopoint-modal .ecopoint-step-icon{width:40px;height:40px;border-radius:12px;font-size:1.1rem}
+.ecopoint-modal .ecopoint-step-icon i{font-size:1.1rem}
+.ecopoint-modal .btn-change.ecopoint-home-cta{font-size:13px;padding:10px 18px}
 .close-profile-modal{
   position:sticky;
   top:8px;

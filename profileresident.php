@@ -1567,6 +1567,439 @@ body.qr-modal-open{ overflow:hidden }
   #qrViewCardContainer .resident-id-card .id-body{ padding:8px 12px; }
   #qrViewCardContainer .resident-id-card .row{ margin:4px 0; }
 }
+
+/* ---------- Mobile fit: ALL Profile dashboard modals compact inside the viewport ---------- */
+@media (max-width: 768px) {
+  /* ============ Profile info modal ============ */
+  #profileModal.profile-modal-open {
+    align-items: center !important;
+    padding: 14px !important;
+    box-sizing: border-box;
+  }
+  #profileModal .profile-modal-content {
+    width: 66vw !important;
+    max-width: 340px !important;
+    max-height: calc(100vh - 24px) !important;
+    max-height: calc(100dvh - 24px) !important;
+    padding: 16px 18px 16px 18px !important;
+    border-radius: 16px;
+    overflow: hidden !important;
+  }
+  #profileModal .profile-header {
+    flex-shrink: 0 !important;
+    padding: 0 0 8px !important;
+  }
+  #profileModal .profile-icon-large {
+    width: 58px !important;
+    height: 58px !important;
+    margin: 0 0 6px !important;
+  }
+  #profileModal .profile-modal-content .profile-title h3 {
+    font-size: 15px !important;
+    margin: 0 0 3px !important;
+    line-height: 1.25 !important;
+  }
+  #profileModal .profile-modal-content .profile-role {
+    padding: 2px 8px !important;
+    font-size: 10px !important;
+  }
+  #profileModal .profile-details {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    margin-top: 4px !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  #profileModal .detail-row {
+    padding: 6px 2px !important;
+    gap: 8px !important;
+  }
+  #profileModal .profile-modal-content .detail-label {
+    font-size: 10px !important;
+    color: #6b7280 !important;
+    gap: 6px !important;
+    line-height: 1.3 !important;
+  }
+  #profileModal .profile-modal-content .detail-value {
+    font-size: 13px !important;
+    line-height: 1.3 !important;
+  }
+  #profileModal .profile-modal-content .btn-qr-modal {
+    flex-shrink: 0 !important;
+    min-height: 36px !important;
+    margin-top: 8px !important;
+    padding: 6px 12px !important;
+    font-size: 13px !important;
+  }
+  #profileModal .profile-actions {
+    flex-shrink: 0 !important;
+    gap: 6px !important;
+    margin-top: 8px !important;
+  }
+  #profileModal .profile-modal-content .btn-change-password-modal,
+  #profileModal .profile-modal-content .btn-logout-modal {
+    min-height: 36px !important;
+    padding: 6px 10px !important;
+    font-size: 13px !important;
+  }
+
+  /* ============ Generic modal-content cap (kept minimal; imgModal has its own rules) ============ */
+  .modal-content {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+    margin: 12px auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ============ Small notification / confirm modals (ref, verify, guest pass, notice, report wait) ============ */
+  #refModal .modal-content,
+  #verifyModal .modal-content,
+  #guestPassModal .modal-content,
+  #submitNoticeModal .modal-content,
+  #reportWaitModal .modal-content {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    padding: 16px 16px 14px !important;
+    text-align: center;
+  }
+  #refModal .modal-content h2,
+  #verifyModal .modal-content h2,
+  #guestPassModal .modal-content h3,
+  #reportWaitModal .modal-content h3 {
+    font-size: 1.1rem !important;
+    font-weight: 700;
+    color: #23412e;
+    margin: 0 0 8px !important;
+    line-height: 1.3 !important;
+  }
+  #refModal .modal-content p,
+  #verifyModal .modal-content p,
+  #reportWaitModal .modal-content p {
+    margin: 4px 0 10px !important;
+    font-size: .8rem !important;
+    line-height: 1.5 !important;
+  }
+  #reportWaitModal .modal-content,
+  #reportWaitModal .report-wait-content p {
+    text-align: center;
+  }
+  #submitNoticeModal .modal-content > div {
+    margin-bottom: 8px !important;
+    font-size: .8rem !important;
+    line-height: 1.5 !important;
+  }
+  #submitNoticeModal .modal-content > div:first-of-type {
+    font-size: 1.1rem !important;
+    color: #23412e;
+  }
+  #submitNoticeModal #submitNoticeBtn {
+    margin-top: 12px !important;
+  }
+  #verifyModal #verifySummary {
+    margin-top: 6px !important;
+    font-size: .8rem !important;
+    line-height: 1.5;
+  }
+  #guestPassModal .modal-content {
+    padding-top: 12px !important;
+  }
+
+  /* ============ Cancel / Move-to-history confirm modals ============ */
+  #cancelModal .cancel-modal-content,
+  #moveHistoryModal .cancel-modal-content {
+    width: 66vw !important;
+    max-width: 340px !important;
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+    padding: 18px 16px 14px !important;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #cancelModal .cancel-modal-close,
+  #moveHistoryModal .cancel-modal-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    z-index: 2;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 0;
+    background: #e5e7eb;
+    color: #111827;
+    font-size: 16px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    line-height: 1;
+    box-shadow: none;
+  }
+  #cancelModal .cancel-modal-close:hover,
+  #moveHistoryModal .cancel-modal-close:hover {
+    filter: brightness(0.92);
+    transform: none;
+  }
+  #cancelModal .cancel-modal-header,
+  #moveHistoryModal .cancel-modal-header {
+    padding: 0 !important;
+  }
+  #cancelModal .cancel-modal-header h3,
+  #moveHistoryModal .cancel-modal-header h3 {
+    margin: 0 0 8px !important;
+    max-width: calc(100% - 40px);
+    width: auto;
+    font-size: 1.1rem !important;
+    font-weight: 800;
+    color: #23412e;
+    text-align: center;
+    line-height: 1.3;
+  }
+  #cancelModal .cancel-modal-body,
+  #moveHistoryModal .cancel-modal-body {
+    padding: 10px 0 0 !important;
+  }
+  #cancelModal .cancel-modal-body p,
+  #moveHistoryModal .cancel-modal-body p {
+    margin: 4px 0 8px !important;
+    font-size: .8rem !important;
+    line-height: 1.5 !important;
+  }
+  #cancelModal .cancel-modal-note,
+  #moveHistoryModal .cancel-modal-note {
+    font-size: .7rem !important;
+    line-height: 1.4 !important;
+    margin-bottom: 4px !important;
+  }
+  #cancelModal .cancel-modal-actions,
+  #moveHistoryModal .cancel-modal-actions {
+    gap: 8px !important;
+    padding-top: 6px !important;
+    flex-wrap: wrap !important;
+  }
+  #cancelModal .cancel-modal-keep,
+  #cancelModal .cancel-modal-confirm,
+  #moveHistoryModal .cancel-modal-keep,
+  #moveHistoryModal .cancel-modal-confirm {
+    padding: 9px 16px !important;
+    font-size: .8rem !important;
+  }
+
+  /* ============ My QR modals (choice + view) ============ */
+  .qr-modal-content {
+    width: 66vw !important;
+    max-width: 340px !important;
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+    padding: 36px 14px 14px;
+  }
+  .qr-modal-content h3 {
+    font-size: 1.1rem !important;
+    margin: 0 0 4px !important;
+    font-weight: 700;
+    color: #23412e;
+  }
+  .qr-modal-body {
+    margin: 0 0 10px !important;
+    font-size: .75rem !important;
+    line-height: 1.5 !important;
+    color: #6b7280;
+  }
+  .qr-modal-actions {
+    gap: 8px !important;
+  }
+  .qr-modal-actions .btn-confirm {
+    padding: 9px 16px !important;
+    font-size: .8rem !important;
+  }
+  .qr-modal-note {
+    margin-top: 6px !important;
+    font-size: .7rem !important;
+    line-height: 1.4;
+    color: #6b7280;
+  }
+  #qrViewModal .qr-modal-content {
+    padding: 32px 14px 14px;
+  }
+  #qrViewCardContainer {
+    margin: 6px auto !important;
+  }
+  /* QR ID card preview: shrink oversized elements to fit the viewport */
+  #qrViewCardContainer .resident-id-card .id-top {
+    padding: 10px 12px !important;
+    gap: 8px !important;
+  }
+  #qrViewCardContainer .resident-id-card .avatar {
+    width: 84px !important;
+    height: 84px !important;
+  }
+  #qrViewCardContainer .resident-id-card .id-body {
+    padding: 8px 12px !important;
+  }
+  #qrViewCardContainer .resident-id-card .top-info .name {
+    font-size: .95rem !important;
+  }
+  #qrViewCardContainer .resident-id-card .contact {
+    font-size: .8rem !important;
+  }
+  #qrViewCardContainer .resident-id-card .row {
+    margin: 4px 0 !important;
+  }
+  #qrViewCardContainer .resident-id-card .label {
+    font-size: .78rem !important;
+  }
+
+  /* ============ Activity modal ============ */
+  #activityModalBody {
+    padding: 14px !important;
+    max-height: calc(100vh - 60px);
+    max-height: calc(100dvh - 60px);
+  }
+
+  /* ============ Upload proof modal ============ */
+  .update-proof-content {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    padding: 16px !important;
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .update-proof-content h3 {
+    margin: 0 0 8px !important;
+    font-size: 1.1rem !important;
+    color: #23412e;
+  }
+  .update-proof-file,
+  .update-proof-hint,
+  .update-proof-file-name {
+    margin: 0 0 6px !important;
+  }
+  .update-proof-actions {
+    gap: 8px !important;
+    margin-top: 10px !important;
+  }
+  .update-proof-btn {
+    padding: 8px 14px !important;
+  }
+
+  /* ============ Resident proof modal (upload) ============ */
+  #residentProofModal .resident-proof-modal-content {
+    max-height: calc(100vh - 20px);
+    max-height: calc(100dvh - 20px);
+  }
+
+  /* ============ Change password modal ============ */
+  #changePasswordModalResident .vp-logout-modal {
+    max-height: calc(100vh - 24px) !important;
+    max-height: calc(100dvh - 24px) !important;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #changePasswordModalResident .change-password-title {
+    margin-bottom: 6px !important;
+  }
+  #changePasswordModalResident form {
+    gap: 6px !important;
+  }
+  #changePasswordModalResident form input,
+  #changePasswordModalResident form button {
+    padding: 9px 12px !important;
+    font-size: .85rem !important;
+  }
+
+  /* ============ QR warning modal (inline-styled) ============ */
+  #qrWarningModal > div {
+    width: 66vw !important;
+    max-width: 340px !important;
+    padding: 16px 14px !important;
+    box-sizing: border-box;
+  }
+  #qrWarningTitle {
+    font-size: 1.1rem !important;
+    margin-bottom: 6px !important;
+    font-weight: 700;
+    color: #23412e;
+  }
+  #qrWarningMessage {
+    font-size: .75rem !important;
+    line-height: 1.4 !important;
+    color: #6b7280;
+  }
+  #qrWarningModal > div > div:last-of-type {
+    margin-top: 12px !important;
+  }
+
+  /* ============ Account suspended popup ============ */
+  #accountBlockedModal {
+    padding: 14px;
+    box-sizing: border-box;
+  }
+  #accountBlockedModal .account-blocked-content {
+    width: 100% !important;
+    max-width: 340px !important;
+    max-height: calc(100dvh - 24px);
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 18px 16px !important;
+  }
+  #accountBlockedModal .account-blocked-content h3 {
+    font-size: 1.1rem !important;
+    font-weight: 700;
+    color: #23412e;
+    margin: 0 0 8px !important;
+  }
+  #accountBlockedModal .account-blocked-content p {
+    font-size: .8rem !important;
+    line-height: 1.5 !important;
+    margin: 0 0 14px !important;
+  }
+  #accountBlockedModal .account-blocked-content .btn-logout-only {
+    font-size: 13px !important;
+    padding: 9px 16px !important;
+  }
+
+  /* ============ Confirm / notice modal buttons → compact text ============ */
+  #refModal .modal-content .btn-confirm,
+  #verifyModal .modal-content .btn-confirm,
+  #verifyModal .modal-content .btn-cancel,
+  #submitNoticeModal #submitNoticeBtn {
+    font-size: 13px !important;
+    padding: 9px 16px !important;
+  }
+  /* QR warning modal buttons handled below; cancel modal buttons sized in their own section above. */
+  #qrWarningModal button {
+    font-size: 13px !important;
+    padding: 8px 13px !important;
+  }
+
+  /* ============ Confirm Logout popup (injected by js/logout-modal.js) ============ */
+  .vp-logout-overlay .vp-logout-modal {
+    width: 66vw !important;
+    max-width: 340px !important;
+    padding: 16px 14px !important;
+  }
+  .vp-logout-overlay .vp-logout-modal .title {
+    font-size: 1.1rem !important;
+    margin: 0 0 6px !important;
+  }
+  .vp-logout-overlay .vp-logout-modal .text {
+    font-size: .8rem !important;
+    line-height: 1.5 !important;
+    margin: 0 0 12px !important;
+  }
+  .vp-logout-overlay .vp-logout-modal .btn {
+    font-size: .8rem !important;
+    padding: 9px 16px !important;
+  }
+}
 </style>
 <style>
 .item-extra-link.item-extra-cancel{background:#ef4444;color:#ffffff;border:1px solid #ef4444;padding:8px 16px;border-radius:50px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;font-weight:500;text-decoration:none}
@@ -1728,9 +2161,10 @@ body.qr-modal-open{ overflow:hidden }
   min-width: 0;
 }
 .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
-.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(2) { grid-column: 2; grid-row: 1; }
-.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(3) { grid-column: 1; grid-row: 2; }
-.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(4) { grid-column: 2; grid-row: 2; }
+.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(2) { grid-column: 1; grid-row: 2; }
+.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(3) { grid-column: 1; grid-row: 3; }
+.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(4) { grid-column: 2; grid-row: 1; }
+.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(5) { grid-column: 2; grid-row: 2; }
 .list-item.expanded[data-type="guest_form"] .rst-key {
   margin-bottom: 4px;
   color: #718078;
@@ -1762,6 +2196,102 @@ body.qr-modal-open{ overflow:hidden }
   display: inline-block;
   color: #174b3b;
   font-weight: 600;
+}
+
+/* Report Incident request card — inline details (mirrors Amenity Booking / Guest Form green cards) */
+.list-item.expanded[data-type="report"] .rst-section {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0 0 14px;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: #f2faf6;
+  border: 1px solid #d7e9df;
+  border-radius: 14px;
+  padding: 20px;
+  color: #20342b;
+}
+.list-item.expanded[data-type="report"] .rst-section:last-child {
+  margin-bottom: 0;
+}
+.list-item.expanded[data-type="report"] .rst-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #d7e9df;
+  color: #174b3b;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.list-item.expanded[data-type="report"] .rst-title::before {
+  content: "\f071";
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  font-size: 0.95rem;
+}
+.list-item.expanded[data-type="report"] .rst-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 24px;
+  row-gap: 20px;
+  position: relative;
+}
+.list-item.expanded[data-type="report"] .rst-grid::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: #d7e9df;
+  transform: translateX(-12px);
+}
+.list-item.expanded[data-type="report"] .rst-col {
+  min-width: 0;
+}
+.list-item.expanded[data-type="report"] .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
+.list-item.expanded[data-type="report"] .rst-col:nth-child(2) { grid-column: 1; grid-row: 2; }
+.list-item.expanded[data-type="report"] .rst-col:nth-child(3) { grid-column: 1; grid-row: 3; }
+.list-item.expanded[data-type="report"] .rst-col:nth-child(4) { grid-column: 1; grid-row: 4; }
+.list-item.expanded[data-type="report"] .rst-col:nth-child(5) { grid-column: 2; grid-row: 1; }
+.list-item.expanded[data-type="report"] .rst-col:nth-child(6) { grid-column: 2; grid-row: 2; }
+.list-item.expanded[data-type="report"] .rst-col:nth-child(7) { grid-column: 2; grid-row: 3; }
+.list-item.expanded[data-type="report"] .rst-col:nth-child(8) { grid-column: 2; grid-row: 4; }
+.list-item.expanded[data-type="report"] .rst-key {
+  margin-bottom: 4px;
+  color: #718078;
+  font-size: 0.84rem;
+  line-height: 1.3;
+}
+.list-item.expanded[data-type="report"] .rst-val {
+  color: #1f2f28;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+/* Incident Status section — centered */
+.list-item.expanded[data-type="report"] .rst-status-section {
+  text-align: center;
+}
+.list-item.expanded[data-type="report"] .rst-status-section .rst-title {
+  justify-content: center;
+}
+.list-item.expanded[data-type="report"] .rst-status-section .item-extra-status {
+  display: flex;
+  justify-content: center;
+}
+.list-item.expanded[data-type="report"] .rst-status-section .item-extra-note {
+  margin: 0 auto;
+  max-width: 100%;
+  text-align: center;
+}
+/* Single Cancel Request action centered */
+.list-item.expanded[data-type="report"] .item-actions {
+  justify-content: center;
 }
 
 /* Resident request-card header only */
@@ -2230,26 +2760,32 @@ body.modal-open{overflow:hidden}
     font-size: 0.9rem;
   }
   .list-item.expanded[data-type="guest_form"] .rst-grid {
+    display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    column-gap: 10px;
-    row-gap: 10px;
+    column-gap: 16px;
+    row-gap: 12px;
   }
   .list-item.expanded[data-type="guest_form"] .rst-grid::before {
     display: block;
     left: 50%;
-    transform: translateX(-5px);
+    transform: translateX(-8px);
   }
   .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
-  .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(2) { grid-column: 2; grid-row: 1; }
-  .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(3) { grid-column: 1; grid-row: 2; }
-  .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(4) { grid-column: 2; grid-row: 2; }
+  .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(2) { grid-column: 1; grid-row: 2; }
+  .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(3) { grid-column: 1; grid-row: 3; }
+  .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(4) { grid-column: 2; grid-row: 1; }
+.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(5) { grid-column: 2; grid-row: 2; }
+.list-item.expanded[data-type="guest_form"] .rst-guest-resident .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
+.list-item.expanded[data-type="guest_form"] .rst-guest-resident .rst-col:nth-child(2) { grid-column: 2; grid-row: 1; }
+  .list-item.expanded[data-type="guest_form"] .rst-guest-resident .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
+  .list-item.expanded[data-type="guest_form"] .rst-guest-resident .rst-col:nth-child(2) { grid-column: 2; grid-row: 1; }
   .list-item.expanded[data-type="guest_form"] .rst-key {
     margin-bottom: 2px;
-    font-size: 0.76rem;
+    font-size: 0.66rem;
   }
   .list-item.expanded[data-type="guest_form"] .rst-val {
-    font-size: 0.9rem;
-    line-height: 1.25;
+    font-size: 0.85rem;
+    line-height: 1.3;
   }
   .list-item.expanded[data-type="guest_form"] .rst-guest-email {
     margin-top: 12px;
@@ -2257,6 +2793,44 @@ body.modal-open{overflow:hidden}
   }
   .list-item.expanded[data-type="guest_form"] .rst-guest-id-img {
     max-width: 160px;
+  }
+  /* Report Incident request card — mobile */
+  .list-item.expanded[data-type="report"] .rst-section {
+    padding: 12px;
+    border-radius: 12px;
+  }
+  .list-item.expanded[data-type="report"] .rst-section:last-child {
+    margin-bottom: 0;
+  }
+  .list-item.expanded[data-type="report"] .rst-title {
+    margin-bottom: 9px;
+    padding-bottom: 8px;
+    font-size: 0.9rem;
+  }
+  .list-item.expanded[data-type="report"] .rst-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 16px;
+    row-gap: 12px;
+  }
+  .list-item.expanded[data-type="report"] .rst-grid::before {
+    display: block;
+    left: 50%;
+    transform: translateX(-8px);
+  }
+  .list-item.expanded[data-type="report"] .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
+  .list-item.expanded[data-type="report"] .rst-col:nth-child(2) { grid-column: 1; grid-row: 2; }
+  .list-item.expanded[data-type="report"] .rst-col:nth-child(3) { grid-column: 1; grid-row: 3; }
+  .list-item.expanded[data-type="report"] .rst-col:nth-child(4) { grid-column: 2; grid-row: 1; }
+  .list-item.expanded[data-type="report"] .rst-col:nth-child(5) { grid-column: 2; grid-row: 2; }
+  .list-item.expanded[data-type="report"] .rst-col:nth-child(6) { grid-column: 2; grid-row: 3; }
+  .list-item.expanded[data-type="report"] .rst-key {
+    margin-bottom: 2px;
+    font-size: 0.66rem;
+  }
+  .list-item.expanded[data-type="report"] .rst-val {
+    font-size: 0.85rem;
+    line-height: 1.3;
   }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type {
     width: calc(100% - 4px);
@@ -2275,11 +2849,11 @@ body.modal-open{overflow:hidden}
   }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-key {
     margin-bottom: 2px;
-    font-size: 0.76rem;
+    font-size: 0.66rem;
   }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-val {
-    font-size: 0.9rem;
-    line-height: 1.25;
+    font-size: 0.85rem;
+    line-height: 1.3;
   }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-col:nth-child(7) .rst-val,
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-col:nth-child(8) .rst-val {
@@ -2296,13 +2870,13 @@ body.modal-open{overflow:hidden}
   }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-grid {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    column-gap: 10px;
-    row-gap: 10px;
+    column-gap: 16px;
+    row-gap: 12px;
   }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-grid::before {
     display: block;
     left: 50%;
-    transform: translateX(-5px);
+    transform: translateX(-8px);
   }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-col:nth-child(2) { grid-column: 1; grid-row: 2; }
@@ -4215,9 +4789,9 @@ body.modal-open{overflow:hidden}
       var gBirthLabel=formatRawDate(gBirthRaw)||gBirthRaw||'—';
       gh+='<div class="rst-col"><div class="rst-key">Birthdate</div><div class="rst-val">'+esc(gBirthLabel)+'</div></div>';
       gh+='<div class="rst-col"><div class="rst-key">Contact Number</div><div class="rst-val">'+esc(li.getAttribute('data-guest-contact')||'—')+'</div></div>';
-      gh+='</div>';
       var gEmail=li.getAttribute('data-guest-email')||'';
-      if(gEmail){ gh+='<div class="rst-guest-email"><div class="rst-key">Email Address</div><div class="rst-val">'+esc(gEmail)+'</div></div>'; }
+      if(gEmail){ gh+='<div class="rst-col"><div class="rst-key">Email Address</div><div class="rst-val">'+esc(gEmail)+'</div></div>'; }
+      gh+='</div>';
       gh+='</div>';
       return gh;
     }
@@ -4567,9 +5141,7 @@ body.modal-open{overflow:hidden}
       var curStat=(String(effectiveStatus||'').toLowerCase());
       if(curStat==='new'){ label='Pending'; }
       html+='<div class="item-extra-section">';
-      html+='<div class="item-extra-title">Incident Status</div>';
-      html+='<div class="item-extra-body">';
-      html+='<div class="item-extra-info-only">';
+      html+='<div class="rst-section rst-status-section"><div class="rst-title">Incident Status</div>';
       var lowerLabel=String(label||'').toLowerCase();
       if(lowerLabel !== 'pending' && lowerLabel !== 'approved'){
         html+='<div class="item-extra-status"><span class="status-label '+statusClassFor(status)+'">'+label+'</span></div>';
@@ -4582,37 +5154,22 @@ body.modal-open{overflow:hidden}
       var reportNature = li.getAttribute('data-report-nature') || '';
       var reportOther = li.getAttribute('data-report-other') || '';
       var reportId = li.getAttribute('data-report-id') || '';
-      var reportRows = '';
-      if(reportSubject){
-        reportRows+='<div class="schedule-row"><div class="schedule-key">Subject:</div><div class="schedule-val">'+esc(reportSubject)+'</div></div>';
-      }
-      if(reportAddress){
-        reportRows+='<div class="schedule-row"><div class="schedule-key">Address:</div><div class="schedule-val">'+esc(reportAddress)+'</div></div>';
-      }
-      if(reportDate){
-        reportRows+='<div class="schedule-row"><div class="schedule-key">Date:</div><div class="schedule-val">'+esc(reportDate)+'</div></div>';
-      }
-      if(reportNature){
-        reportRows+='<div class="schedule-row"><div class="schedule-key">Nature:</div><div class="schedule-val">'+esc(reportNature)+'</div></div>';
-      }
-      if(reportOther){
-        reportRows+='<div class="schedule-row"><div class="schedule-key">Details:</div><div class="schedule-val">'+esc(reportOther)+'</div></div>';
-      }
-      if(ref){
-        reportRows+='<div class="schedule-row"><div class="schedule-key">Code:</div><div class="schedule-val">'+esc(ref)+'</div></div>';
-      }
-      if(reportRows){
-        html+='<div class="item-extra-schedule report-details"><div class="schedule-title">Report Details</div>'+reportRows+'</div>';
+      var reportCells = '';
+      var reportCell = function(key,val){ return '<div class="rst-col"><div class="rst-key">'+esc(key)+'</div><div class="rst-val">'+esc(val)+'</div></div>'; };
+      if(reportSubject){ reportCells+=reportCell('Subject', reportSubject); }
+      if(reportAddress){ reportCells+=reportCell('Address', reportAddress); }
+      if(reportDate){ reportCells+=reportCell('Date', reportDate); }
+      if(reportNature){ reportCells+=reportCell('Nature', reportNature); }
+      if(reportOther){ reportCells+=reportCell('Details', reportOther); }
+      if(ref){ reportCells+=reportCell('Code', ref); }
+      if(reportCells){
+        html+='<div class="rst-section"><div class="rst-title">Report Details</div><div class="rst-grid">'+reportCells+'</div></div>';
       }
       html+='<div class="item-actions">';
-      if(reportId){
-        html+='<button type="button" class="view-details-btn view-report-btn" data-report-id="'+esc(reportId)+'">View details</button>';
-      }
       if(canCancelReport && ref){
         html+='<button type="button" class="item-extra-link item-extra-cancel"><i class="fa-solid fa-xmark"></i> Cancel Request</button>';
       }
       html+='</div>';
-      html+='</div></div>';
       html+='</div>';
     }else{
       html+='<div class="item-extra-section">';
@@ -4654,14 +5211,6 @@ body.modal-open{overflow:hidden}
       dropdownMove.addEventListener('click', function(ev){
         ev.stopPropagation();
         openMoveHistoryModal(li, ref);
-      });
-    }
-    var viewReportBtn = extra.querySelector('.view-report-btn');
-    if(viewReportBtn){
-      viewReportBtn.addEventListener('click', function(ev){
-        ev.stopPropagation();
-        var rid = viewReportBtn.getAttribute('data-report-id') || '';
-        if(rid){ openReportDetailsModal(rid); }
       });
     }
     var downloadBtn=extra.querySelector('.download-qr-btn');

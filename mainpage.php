@@ -413,7 +413,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 </div>
               </div>
             </div>
-          </article>
+          </div>
 
           <?php if ($isResident): ?>
           <div class="ecopoint-duo-grid">
@@ -480,12 +480,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
               </div>
             </div>
           </article>
+</div>
           </div>
-          <?php endif; ?>
+<?php endif; ?>
+</div>
         </div>
-      </div>
-    </div>
-  </div>
   <?php endif; ?>
 
   <section id="about-us" class="section reveal-on-scroll">
