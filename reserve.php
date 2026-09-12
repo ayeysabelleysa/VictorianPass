@@ -973,8 +973,8 @@ vpMark('household');
             <!-- Modal Header -->
             <div style="padding:24px 24px 0; display:flex; justify-content:space-between; align-items:center;">
               <h2 style="margin:0; color:#23412e; font-size:1.5rem; font-weight:800;"><i class="fa-solid fa-gift" aria-hidden="true"></i> View Rewards</h2>
-              <button type="button" id="closeRewardsModal" style="background:#f3f4f6; border:none; width:36px; height:36px; border-radius:50%; font-size:1.25rem; cursor:pointer; color:#4b5563;">
-                ×
+              <button type="button" id="closeRewardsModal" class="close-profile-modal" aria-label="Close">
+                &times;
               </button>
             </div>
             
@@ -1419,7 +1419,7 @@ vpMark('household');
   </div>
   <div id="amenityImageModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1000; align-items:center; justify-content:center;">
     <div class="amia-box" style="position:relative; background:#fff; border-radius:12px; padding:12px; max-width:90vw; max-height:90vh;">
-      <button type="button" id="amenityImageClose" class="modal-close" aria-label="Close">&times;</button>
+      <button type="button" id="amenityImageClose" class="close-profile-modal" aria-label="Close">&times;</button>
       <img id="amenityImageModalImg" src="" alt="Amenity" style="display:block; max-width:85vw; max-height:80vh;">
     </div>
   </div>
@@ -1428,7 +1428,7 @@ vpMark('household');
 
 <div id="verifyModal" class="modal" style="display:none;">
   <div class="modal-content">
-    <button type="button" class="modal-close" id="verifyCloseBtn" aria-label="Close">&times;</button>
+    <button type="button" class="close-profile-modal" id="verifyCloseBtn" aria-label="Close">&times;</button>
     <h2>Confirm Details</h2>
     <div id="verifySummary" style="text-align:left;margin-top:10px"></div>
     <div class="verify-actions" style="text-align:center;margin-top:12px;display:flex;justify-content:center;flex-wrap:wrap;">
@@ -1441,7 +1441,7 @@ vpMark('household');
 <!-- Error Modal -->
 <div id="errorModal" class="modal" style="display:none;">
   <div class="modal-content">
-    <button type="button" class="modal-close" id="errorModalCloseBtn" aria-label="Close">&times;</button>
+    <button type="button" class="close-profile-modal" id="errorModalCloseBtn" aria-label="Close">&times;</button>
     <h2 style="color:#dc2626;">Error</h2>
     <p id="errorModalMessage" style="margin-top:15px; text-align:left;"></p>
     <div style="text-align:center;margin-top:20px;">
@@ -1452,7 +1452,7 @@ vpMark('household');
 
 <div id="changeAmenityModal" class="modal" style="display:none;">
   <div class="modal-content">
-    <button type="button" class="modal-close" id="changeAmenityCloseBtn" aria-label="Close">&times;</button>
+    <button type="button" class="close-profile-modal" id="changeAmenityCloseBtn" aria-label="Close">&times;</button>
     <h2>Change amenity?</h2>
     <p style="margin:8px 0 16px;color:#4b5563;">Are you sure you want to change amenities? This will reset your current selection.</p>
     <div style="text-align:center;margin-top:12px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
@@ -1463,7 +1463,7 @@ vpMark('household');
 </div>
 <div id="resetReservationModal" class="modal" style="display:none;">
   <div class="modal-content">
-    <button type="button" class="modal-close" id="resetReservationCloseBtn" aria-label="Close">&times;</button>
+    <button type="button" class="close-profile-modal" id="resetReservationCloseBtn" aria-label="Close">&times;</button>
     <h2>Reservation reset</h2>
     <p style="margin:8px 0 16px;color:#4b5563;">You need to make the reservation again since you clicked back on the downpayment page.</p>
     <div style="text-align:center;margin-top:12px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
@@ -2250,25 +2250,86 @@ vpMark('household');
     panel.innerHTML='';
     const body=document.createElement('div');
     body.className='inline-amenity-details';
-    let inner='';
-    inner+=`<div class="inline-title">${info.title}</div>`;
+    let head='';
+    head+=`<div class="inline-details-head"><div class="inline-title">${info.title}</div><button type="button" class="close-profile-modal" aria-label="Close">&times;</button></div>`;
+    let rows='';
     try{
       const hrs=getAmenityHours(info.value);
       if(hrs){
         const minH=parseInt(hrs.min.split(':')[0],10);
         const maxH=parseInt(hrs.max.split(':')[0],10);
-        inner+=`<p class="inline-meta"><strong>Hours:</strong> ${formatTimeSlot(minH)} – ${formatTimeSlot(maxH)}</p>`;
+        rows+=`<p class="inline-meta"><strong>Hours:</strong> ${formatTimeSlot(minH)} – ${formatTimeSlot(maxH)}</p>`;
       }
     }catch(_){ }
-    if(info.days){ inner+=`<p class="inline-meta"><strong>Availability:</strong> ${info.days}</p>`; }
+    if(info.days){ rows+=`<p class="inline-meta"><strong>Availability:</strong> ${info.days}</p>`; }
     const rateLabel=getAmenityPriceLabel(info.value);
-    if(rateLabel){ inner+=`<p class="inline-meta"><strong>Rate:</strong> ${rateLabel}</p>`; }
+    if(rateLabel){ rows+=`<p class="inline-meta"><strong>Rate:</strong> ${rateLabel}</p>`; }
     const bookingNote=getAmenityBookingNote(info.value);
-    if(bookingNote){ inner+=`<p class="inline-note">${bookingNote}</p>`; }
-    if(Number.isFinite(info.capacity)){ inner+=`<p class="inline-meta"><strong>Capacity:</strong> ${info.capacity} guests</p>`; }
-    body.innerHTML=inner;
+    if(bookingNote){ rows+=`<p class="inline-note">${bookingNote}</p>`; }
+    if(Number.isFinite(info.capacity)){ rows+=`<p class="inline-meta"><strong>Capacity:</strong> ${info.capacity} guests</p>`; }
+    const headEl=document.createElement('div');
+    headEl.innerHTML=head;
+    const bodyWrap=document.createElement('div');
+    bodyWrap.className='inline-details-body';
+    bodyWrap.innerHTML=rows;
+    const bookBtn=document.createElement('button');
+    bookBtn.type='button';
+    bookBtn.className='btn-main inline-book-now';
+    bookBtn.textContent='Book Now';
+    body.appendChild(headEl.firstChild);
+    body.appendChild(bodyWrap);
+    body.appendChild(bookBtn);
     panel.appendChild(body);
     panel.style.display='block';
+    const closeBtn=body.querySelector('.close-profile-modal');
+    if(closeBtn){ closeBtn.addEventListener('click',function(e){ e.stopPropagation(); closeAmenityDetails(body, panel); }); }
+    bookBtn.addEventListener('click',function(e){
+      e.stopPropagation();
+      runBookNowFlow(bookBtn);
+    });
+  }
+
+  function closeAmenityDetails(sheet, panel){
+    if(!sheet) return;
+    if(sheet.classList){ sheet.classList.add('closing'); }
+    setTimeout(function(){
+      resetAmenitySelection();
+    },220);
+  }
+
+  function runBookNowFlow(btn){
+    if(!btn) return;
+    const card=btn.closest('.amenity-card');
+    if(!card) return;
+    btn.style.display='none';
+    const key=card.getAttribute('data-key');
+    selectAmenityByKey(key);
+    try{
+      updateAmenityDescription(key);
+      const descBox=document.getElementById('amenityDescBox');
+      if(descBox){ descBox.style.display='flex'; }
+      const descText=document.getElementById('amenityDescText');
+      if(descText){ descText.textContent=''; descText.style.display='none'; }
+    }catch(_){}
+    const viewBtn=card.querySelector('button[data-action="view-desc"]');
+    if(viewBtn){ viewBtn.style.display='none'; }
+    document.querySelectorAll('.amenity-card').forEach(function(c){
+      c.style.display='none';
+    });
+    const amenitiesHeader=document.getElementById('amenitiesHeader');
+    if(amenitiesHeader){ amenitiesHeader.style.display='none'; }
+    const ret=document.getElementById('amenityReturnBtn');
+    if(ret){ ret.style.display='inline-flex'; }
+    try{
+      const rc=document.getElementById('reservationCard');
+      if(rc){
+        rc.style.display='flex';
+        document.getElementById('reservationTitle').textContent='Reservation';
+        document.getElementById('reservationHint').textContent='Select date, time, and persons';
+        refreshAvailabilityFromServer();
+        rc.scrollIntoView({behavior:'smooth',block:'start'});
+      }
+    }catch(_){}
   }
 
   function openAmenityImageModal(key){
@@ -3160,38 +3221,7 @@ vpMark('household');
   document.querySelectorAll('[data-action="book-now"]').forEach(btn=>{
     btn.addEventListener('click',function(e){
       e.stopPropagation();
-      const card=this.closest('.amenity-card');
-      if(card){
-        this.style.display='none';
-        const key=card.getAttribute('data-key');
-        selectAmenityByKey(key);
-        try{
-          updateAmenityDescription(key);
-          const descBox=document.getElementById('amenityDescBox');
-          if(descBox){ descBox.style.display='flex'; }
-          const descText=document.getElementById('amenityDescText');
-          if(descText){ descText.textContent=''; descText.style.display='none'; }
-        }catch(_){}
-        const viewBtn=card.querySelector('button[data-action="view-desc"]');
-        if(viewBtn){ viewBtn.style.display='none'; }
-        document.querySelectorAll('.amenity-card').forEach(function(c){
-          c.style.display='none';
-        });
-        const amenitiesHeader=document.getElementById('amenitiesHeader');
-        if(amenitiesHeader){ amenitiesHeader.style.display='none'; }
-        const ret=document.getElementById('amenityReturnBtn');
-        if(ret){ ret.style.display='inline-flex'; }
-        try{
-          const rc=document.getElementById('reservationCard');
-          if(rc){
-            rc.style.display='flex';
-            document.getElementById('reservationTitle').textContent='Reservation';
-            document.getElementById('reservationHint').textContent='Select date, time, and persons';
-            refreshAvailabilityFromServer();
-            rc.scrollIntoView({behavior:'smooth',block:'start'});
-          }
-        }catch(_){}
-      }
+      runBookNowFlow(this);
     });
   });
   

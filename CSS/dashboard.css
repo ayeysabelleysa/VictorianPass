@@ -2870,6 +2870,7 @@ body.profile-modal-open {
     background: #f1f5f9;
     color: #475569;
     font-size: 1.25rem;
+    font-weight: 700;
     line-height: 1;
     cursor: pointer;
     transition: background-color .2s ease, color .2s ease, transform .2s ease;
@@ -3327,6 +3328,7 @@ body.profile-modal-open {
     background: #e5e7eb;
     color: #111827;
     font-size: 18px;
+    font-weight: 700;
     display: flex;
     align-items: center;
     justify-content: center;

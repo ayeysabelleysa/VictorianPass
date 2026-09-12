@@ -374,7 +374,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   <?php if (!$isVisitor && ($isResident || !$isLoggedIn)): ?>
   <div id="ecopointModal" class="flash-overlay ecopoint-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="ecopointModalTitle">
     <div class="flash-modal">
-      <button type="button" class="ecopoint-modal-close" id="ecopointModalClose" aria-label="Close">&times;</button>
+      <button type="button" class="close-profile-modal" id="ecopointModalClose" aria-label="Close">&times;</button>
       <div class="ecopoint-shell">
         <div class="ecopoint-intro-card" style="margin-bottom:18px;">
           <h2 class="section-title ecopoint-title" id="ecopointModalTitle"><span class="ecopoint-title-icon" aria-hidden="true"><i class="fa-solid fa-leaf"></i></span><span>Learn About VHEcoPoint</span></h2>

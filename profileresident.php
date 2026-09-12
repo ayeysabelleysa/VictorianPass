@@ -936,11 +936,13 @@ body.account-blocked { overflow: hidden; }
 .account-blocked-content .btn-logout-only:hover { filter: brightness(0.95); }
 .toast-stack { position: fixed; top: 16px; right: 16px; z-index: 2500; display: flex; flex-direction: column; gap: 8px; }
 .main-content.ecopoint-active .top-header {
-  background: rgba(43, 38, 35, 0.95);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  background: linear-gradient(135deg, #0f2f27, #1a5240);
+  border-bottom: 1px solid rgba(212, 175, 55, 0.35);
+  box-shadow: 0 4px 12px rgba(9,18,14,0.18);
 }
 .main-content.ecopoint-active .top-header .brand-main { color: #f4f4f4; }
+.main-content.ecopoint-active .top-header .header-brand-link { display: inline-flex; align-items: center; }
+.main-content.ecopoint-active .top-header .ecopoint-header-logo { font-size: 40px; color: #fde886; display: inline-block; vertical-align: middle; }
 .main-content.ecopoint-active .top-header .brand-sub { color: rgba(255,255,255,0.82); }
 .main-content.ecopoint-active .top-header .icon-btn i,
 .main-content.ecopoint-active .top-header .user-profile,
@@ -1145,6 +1147,7 @@ body.account-blocked { overflow: hidden; }
     min-width: 0;
     overflow: hidden;
   }
+  .main-content.ecopoint-active .top-header .ecopoint-header-logo { font-size: 32px; }
   .header-brand img {
     height: 32px;
     margin-right: 8px;
@@ -1495,7 +1498,7 @@ body.qr-modal-open{ overflow:hidden }
 .qr-modal-content .close{
   position:absolute; top:10px; right:12px; z-index:2;
   width:32px; height:32px; border-radius:50%; border:0;
-  background:#e5e7eb; color:#111827; font-size:18px;
+  background:#e5e7eb; color:#111827; font-size:18px; font-weight:700;
   display:flex; align-items:center; justify-content:center;
   cursor:pointer; line-height:1;
 }
@@ -2615,7 +2618,7 @@ body.modal-open{overflow:hidden}
     <header class="top-header<?php echo $isEcoPointThemeActive ? ' ecopoint-theme-header' : ''; ?>">
       <div class="header-brand">
         <button class="menu-toggle" id="menuToggle"><i class="fa-solid fa-bars"></i></button>
-        <a href="mainpage.php" aria-label="Go to Main Page"><img src="images/logo.svg" alt="Logo"></a>
+        <a href="mainpage.php" aria-label="Go to Main Page" class="header-brand-link"><?php echo $isEcoPointThemeActive ? '<i class="fa-solid fa-recycle ecopoint-header-logo" aria-hidden="true"></i>' : '<img src="images/logo.svg" alt="Logo">'; ?></a>
         <div class="brand-text">
           <span class="brand-main"><?php echo $isEcoPointThemeActive ? 'VHEcoPoint' : 'VictorianPass'; ?></span>
           <span class="brand-sub"><?php echo $isEcoPointThemeActive ? 'Smart Waste Segregation Station' : 'Victorian Heights Subdivision'; ?></span>
@@ -4953,6 +4956,7 @@ body.modal-open{overflow:hidden}
     var mainContent = document.querySelector('.main-content');
     var brandMain = document.querySelector('.top-header .brand-main');
     var brandSub = document.querySelector('.top-header .brand-sub');
+    var brandLogoLink = document.querySelector('.top-header .header-brand-link');
     var isEcoPoint = id === 'panel-points-history';
 
     if (mainContent) {
@@ -4963,6 +4967,11 @@ body.modal-open{overflow:hidden}
     }
     if (brandSub) {
       brandSub.textContent = isEcoPoint ? 'Smart Waste Segregation Station' : 'Victorian Heights Subdivision';
+    }
+    if (brandLogoLink) {
+      brandLogoLink.innerHTML = isEcoPoint
+        ? '<i class="fa-solid fa-recycle ecopoint-header-logo" aria-hidden="true"></i>'
+        : '<img src="images/logo.svg" alt="Logo">';
     }
   }
   function showPanel(id){

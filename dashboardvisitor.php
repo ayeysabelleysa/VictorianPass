@@ -755,7 +755,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
 
 <div id="profileModal" class="profile-modal">
   <div class="profile-modal-content">
-    <button class="close-profile-modal">&times;</button>
+    <button type="button" class="close-profile-modal" aria-label="Close">&times;</button>
     <div class="profile-header">
       <div class="profile-icon-large">
         <img src="<?php echo $profilePicUrl; ?>" alt="Profile" id="profileModalImg">

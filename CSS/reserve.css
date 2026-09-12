@@ -193,6 +193,8 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
 .amenity-card .info .meta{color:#666; font-size:0.85rem; display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-start; align-items:center; margin-top:4px; padding-right:140px}
 .amenity-card button[data-action="book-now"]{position:absolute; bottom:16px; right:16px; z-index:999 !important; margin:0 !important; padding:10px 14px !important; font-size:0.85rem !important; height:auto !important; min-width:auto !important; display:none; transition:display .2s ease, opacity .2s ease}
 .amenity-card button[data-action="book-now"].visible{display:inline-flex !important; opacity:1}
+.amenity-card[data-details-visible="true"] button[data-action="book-now"]{display:none !important}
+.amenity-card[data-details-visible="true"] .schedule-panel{background:transparent; border:none; padding:0}
 .amenity-card .schedule-panel{margin-top:8px; background:#f9f9f9; border:1px solid #e5e7eb; border-radius:10px; padding:10px; display:none; box-sizing:border-box; width:100%}
 .status-pill{display:inline-flex;align-items:center;justify-content:center;height:32px;padding:0 12px;border-radius:8px;font-weight:700;font-size:0.85rem;box-shadow:0 2px 8px rgba(0,0,0,0.1);border:none}
 .status-pill.available{background:#23412e;color:#fff}
@@ -223,10 +225,61 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
 .btn-main.small:hover{background:#1a2f23; transform:translateY(-2px); box-shadow:0 4px 12px rgba(35,65,46,0.25)}
 .schedule-panel{margin-top:8px; background:#f9f9f9; border:1px solid #e5e7eb; border-radius:10px; padding:10px; display:none; box-sizing:border-box; width:100%}
 
-.inline-amenity-details{display:flex;flex-direction:column;gap:12px;font-size:0.9rem;color:#23412e;margin-top:12px}
-.inline-amenity-details .inline-title{font-weight:700;font-size:1.15rem;color:#111827;letter-spacing:-0.01em;margin-bottom:4px}
-.inline-amenity-details .inline-meta{font-size:0.9rem;color:#23412e;line-height:1.6}
+@keyframes detailsPopIn{from{opacity:0; transform:translateY(18px) scale(0.97)} to{opacity:1; transform:translateY(0) scale(1)}}
+@keyframes detailsPopOut{from{opacity:1; transform:translateY(0) scale(1)} to{opacity:0; transform:translateY(12px) scale(0.98)}}
+@keyframes bookNowPulse{0%,100%{box-shadow:0 4px 12px rgba(35,65,46,0.4)} 50%{box-shadow:0 4px 22px rgba(35,65,46,0.65)}}
+.inline-amenity-details{
+  position:relative;
+  background:#fff;
+  border:1.5px solid #e5e7eb;
+  border-radius:18px;
+  box-shadow:0 16px 40px rgba(15,23,42,0.16);
+  padding:18px 20px 16px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  font-size:0.9rem;
+  color:#23412e;
+  margin-top:12px;
+  animation:detailsPopIn 0.3s cubic-bezier(0.2,0.8,0.2,1) both;
+  width:100%;
+  box-sizing:border-box;
+}
+.inline-amenity-details.closing{animation:detailsPopOut 0.22s ease-in forwards}
+.inline-details-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.inline-amenity-details .inline-title{font-weight:700;font-size:1.2rem;color:#111827;letter-spacing:-0.01em;line-height:1.3}
+.close-profile-modal{
+  position:absolute;
+  top:10px; right:12px;
+  width:32px; height:32px;
+  border-radius:50%;
+  border:0;
+  background:#e5e7eb;
+  color:#111827;
+  font-size:18px;
+  font-weight:700;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  line-height:1;
+  transition:background .2s ease, color .2s ease, transform .25s ease, filter .2s ease;
+}
+.close-profile-modal:hover{ background:#23412e; color:#fff; }
+.inline-details-body{display:flex;flex-direction:column;gap:8px;overflow-y:auto;padding-right:2px;-webkit-overflow-scrolling:touch}
+.inline-amenity-details .inline-meta{font-size:0.9rem;color:#23412e;line-height:1.6;margin:0}
 .inline-amenity-details .inline-note{margin:0;font-size:0.88rem;font-weight:700;line-height:1.5;color:#166534;background:#ecfdf5;border:1px solid #bbf7d0;border-radius:12px;padding:10px 12px}
+.inline-book-now{
+  width:100%;
+  text-align:center;
+  margin-top:2px;
+  animation:bookNowPulse 2.4s ease-in-out infinite;
+}
+.inline-book-now:hover{animation:none}
+@media (max-width:640px){
+  .inline-amenity-details{max-height:72vh; padding:16px 16px 14px}
+  .inline-details-body{max-height:38vh}
+}
 .reservation-card{background:#fff;color:#111827;padding:24px;border-radius:16px;box-shadow:0 4px 16px rgba(15,23,42,0.08);border:1px solid #e5e7eb;display:flex;flex-direction:column;gap:20px;max-width:900px;margin:0 auto}
 .reservation-grid{display:flex;flex-direction:column;gap:16px;width:100%}
 .amenity-preview{background:#fff;color:#111827;padding:16px;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.06);border:1px solid #e5e7eb;display:flex;flex-direction:column;gap:10px}
