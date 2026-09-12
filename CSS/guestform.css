@@ -72,7 +72,7 @@ body {
   border:1px solid #e5e7eb;
 }
 .booking-shell{display:flex;flex-direction:column;gap:14px;margin-top:0}
-.booking-steps{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:10px;background:#fff;color:#222;box-shadow:0 1px 6px rgba(0,0,0,0.08);border:1px solid #e5e7eb;max-width:260px;position:sticky;top:96px;align-self:flex-start;z-index:200}
+.booking-steps{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:10px;background:#fff;color:#222;box-shadow:0 1px 6px rgba(0,0,0,0.08);border:1px solid #e5e7eb;max-width:100%;position:static;z-index:auto}
 .booking-steps-header{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .booking-steps-label{font-size:.78rem;font-weight:600;color:#111827}
 .booking-steps-toggle{width:22px;height:22px;border-radius:50%;border:none;background:#23412e;color:#fff;font-size:.9rem;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1;flex-shrink:0;box-shadow:0 1px 4px rgba(35,65,46,0.35)}
@@ -223,11 +223,12 @@ body {
     right:32px;
     top:110px;
     z-index:900;
+    width:auto;
     max-width:320px;
   }
 }
 @media (max-width:640px){
-  .booking-steps{width:100%;max-width:100%}
+  .booking-steps{width:100%;max-width:100%;position:static;top:auto;z-index:auto}
 }
 
 .btn-secondary {

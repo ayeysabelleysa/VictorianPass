@@ -284,6 +284,15 @@ if (!in_array($activeSection, $allowedSections, true)) {
   $activeSection = 'panel-requests';
 }
 
+$sectionPageTitles = [
+  'panel-requests' => 'My Requests',
+  'panel-guest-form' => 'Guest Form',
+  'panel-my-guests' => 'My Guests',
+  'panel-history' => 'History',
+  'panel-points-history' => 'VHEcoPoint',
+];
+$dashboardPageTitle = $sectionPageTitles[$activeSection] ?? 'Dashboard';
+
 // Fetch point transactions - ONLY those tied to VHEcoPoint sessions so dashboard numbers
 // (balance, weekly points, daily sessions, activity history, expiry) share ONE source of truth.
 $ecoPointTransactions = [];
@@ -743,7 +752,7 @@ if ($stmt) {
 }
 
 // 3. Guest Forms
-$stmt = $con->prepare("SELECT 'guest_form' as type, visitor_first_name, visitor_middle_name, visitor_last_name, visit_date, visit_time, approval_status, denial_reason, created_at, updated_at, ref_code, scanned_at FROM guest_forms WHERE resident_user_id = ? AND (wants_amenity IS NULL OR wants_amenity = 0) AND amenity IS NULL AND start_date IS NULL AND end_date IS NULL ORDER BY created_at DESC");
+$stmt = $con->prepare("SELECT 'guest_form' as type, g.visitor_first_name, g.visitor_middle_name, g.visitor_last_name, g.visitor_sex, g.visitor_birthdate, g.visitor_contact, g.visitor_email, g.visit_date, g.visit_time, g.approval_status, g.denial_reason, g.created_at, g.updated_at, g.ref_code, g.scanned_at, g.valid_id_path, u.first_name AS res_first_name, u.last_name AS res_last_name, u.email AS res_email, u.phone AS res_phone, u.house_number AS res_house_number FROM guest_forms g LEFT JOIN users u ON g.resident_user_id = u.id WHERE g.resident_user_id = ? AND (g.wants_amenity IS NULL OR g.wants_amenity = 0) AND g.amenity IS NULL AND g.start_date IS NULL AND g.end_date IS NULL ORDER BY g.created_at DESC");
 if ($stmt) {
     $stmt->bind_param("i", $userId);
     $stmt->execute();
@@ -781,6 +790,15 @@ if ($stmt) {
             'title' => $title,
             'details' => $details,
             'guest_name' => $guestName,
+            'guest_sex' => $row['visitor_sex'] ?? '',
+            'guest_birthdate' => $row['visitor_birthdate'] ?? '',
+            'guest_contact' => $row['visitor_contact'] ?? '',
+            'guest_email' => $row['visitor_email'] ?? '',
+            'resident_name' => trim(((string)($row['res_first_name'] ?? '')) . ' ' . ((string)($row['res_last_name'] ?? ''))),
+            'resident_contact' => $row['res_phone'] ?? '',
+            'resident_email' => $row['res_email'] ?? '',
+            'resident_house' => $row['res_house_number'] ?? '',
+            'valid_id' => $row['valid_id_path'] ?? '',
             'status' => $statusVal,
             'date' => $actionDate,
             'event_timestamp' => $visitTs,
@@ -918,11 +936,13 @@ body.account-blocked { overflow: hidden; }
 .account-blocked-content .btn-logout-only:hover { filter: brightness(0.95); }
 .toast-stack { position: fixed; top: 16px; right: 16px; z-index: 2500; display: flex; flex-direction: column; gap: 8px; }
 .main-content.ecopoint-active .top-header {
-  background: rgba(43, 38, 35, 0.95);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  background: linear-gradient(135deg, #0f2f27, #1a5240);
+  border-bottom: 1px solid rgba(212, 175, 55, 0.35);
+  box-shadow: 0 4px 12px rgba(9,18,14,0.18);
 }
 .main-content.ecopoint-active .top-header .brand-main { color: #f4f4f4; }
+.main-content.ecopoint-active .top-header .header-brand-link { display: inline-flex; align-items: center; }
+.main-content.ecopoint-active .top-header .ecopoint-header-logo { font-size: 40px; color: #fde886; display: inline-block; vertical-align: middle; }
 .main-content.ecopoint-active .top-header .brand-sub { color: rgba(255,255,255,0.82); }
 .main-content.ecopoint-active .top-header .icon-btn i,
 .main-content.ecopoint-active .top-header .user-profile,
@@ -1123,12 +1143,14 @@ body.account-blocked { overflow: hidden; }
     padding: 0 14px;
   }
   .header-brand {
+    gap: 0;
     min-width: 0;
     overflow: hidden;
   }
+  .main-content.ecopoint-active .top-header .ecopoint-header-logo { font-size: 32px; }
   .header-brand img {
     height: 32px;
-    margin-right: 10px;
+    margin-right: 8px;
     flex-shrink: 0;
   }
   .menu-toggle {
@@ -1156,7 +1178,7 @@ body.account-blocked { overflow: hidden; }
 
 @media (max-width: 430px) {
   .top-header { padding: 0 10px; }
-  .header-brand img { margin-right: 8px; }
+  .header-brand img { margin-right: 6px; }
   .brand-main { font-size: 0.88rem; max-width: 120px; }
   .brand-sub { font-size: 0.62rem; max-width: 110px; }
   .header-actions { gap: 8px; }
@@ -1165,7 +1187,7 @@ body.account-blocked { overflow: hidden; }
 
 @media (max-width: 430px) {
   .top-header { padding: 0 10px; }
-  .header-brand img { margin-right: 8px; }
+  .header-brand img { margin-right: 6px; }
   .brand-main { font-size: 0.88rem; }
   .brand-sub { font-size: 0.62rem; }
   .header-actions { gap: 8px; }
@@ -1179,7 +1201,30 @@ body.account-blocked { overflow: hidden; }
 }
 @media (max-width: 480px) {
   .main-content.ecopoint-active #panel-points-history .ecopoint-live-meta { grid-template-columns: 1fr; }
-  .main-content.ecopoint-active #panel-points-history .ecopoint-live-header { align-items: flex-start; }
+  .main-content.ecopoint-active #panel-points-history .ecopoint-live-header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    align-items: center;
+    gap: 4px 8px;
+  }
+  .main-content.ecopoint-active #panel-points-history .ecopoint-live-header-text { display: contents; }
+  .main-content.ecopoint-active #panel-points-history .ecopoint-live-status-badge {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    justify-self: start;
+  }
+  .main-content.ecopoint-active #panel-points-history .ecopoint-live-station-name {
+    grid-column: 1;
+    grid-row: 2;
+    min-width: 0;
+  }
+  .main-content.ecopoint-active #panel-points-history .ecopoint-live-indicator {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: center;
+    align-self: center;
+  }
 }
 .toast-item { background: #fff; border-left: 4px solid #23412e; box-shadow: 0 4px 12px rgba(0,0,0,0.18); border-radius: 10px; padding: 10px 12px; min-width: 260px; display: flex; align-items: flex-start; gap: 8px; color: #333; }
 .toast-item .toast-message { flex: 1; font-size: 0.85rem; }
@@ -1200,66 +1245,6 @@ body.account-blocked { overflow: hidden; }
   background-color: #bbf7d0;
   color: #14532d;
   font-weight: 700;
-}
-.sidebar-footer .download-qr-btn {
-  position: relative;
-  background-image: linear-gradient(135deg, #fcd34d 0%, #eab308 50%, #d97706 100%);
-  box-shadow: 0 6px 14px rgba(234, 179, 8, 0.28);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
-}
-.sidebar-footer .download-qr-btn:hover {
-  background-image: linear-gradient(135deg, #fbbf24 0%, #d97706 50%, #b45309 100%);
-}
-.sidebar-footer .download-qr-btn.qr-highlight {
-  background: linear-gradient(135deg, #f8d76a, #eab308);
-  color: #153426;
-  box-shadow: 0 0 0 3px rgba(248, 215, 106, 0.18), 0 12px 22px rgba(234, 179, 8, 0.35);
-  transform: translateY(-1px) scale(1.01);
-  filter: saturate(1.08);
-}
-.qr-help-tooltip {
-  position: fixed;
-  z-index: 2400;
-  width: min(260px, calc(100vw - 24px));
-  background: rgba(11, 29, 23, 0.95);
-  color: #f7f1d8;
-  border: 1px solid rgba(241, 215, 130, 0.45);
-  border-radius: 12px;
-  box-shadow: 0 18px 28px rgba(6, 20, 17, 0.18);
-  padding: 12px 14px;
-  pointer-events: none;
-  opacity: 0;
-  transform: translate(10px, -50%);
-  transition: opacity 0.18s ease, transform 0.18s ease;
-}
-.qr-help-tooltip.visible {
-  opacity: 1;
-  transform: translate(0, -50%);
-}
-.qr-help-tooltip::after {
-  content: "";
-  position: absolute;
-  left: -7px;
-  top: 50%;
-  width: 12px;
-  height: 12px;
-  background: rgba(11, 29, 23, 0.95);
-  border-left: 1px solid rgba(241, 215, 130, 0.45);
-  border-bottom: 1px solid rgba(241, 215, 130, 0.45);
-  transform: translateY(-50%) rotate(45deg);
-}
-.qr-help-tooltip strong {
-  display: block;
-  font-size: 0.84rem;
-  color: #fde886;
-  margin-bottom: 6px;
-  letter-spacing: 0.02em;
-}
-.qr-help-tooltip span {
-  display: block;
-  font-size: 0.78rem;
-  line-height: 1.5;
-  color: #f0ebe2;
 }
 .field-warning {
   color: #333;
@@ -1513,7 +1498,7 @@ body.qr-modal-open{ overflow:hidden }
 .qr-modal-content .close{
   position:absolute; top:10px; right:12px; z-index:2;
   width:32px; height:32px; border-radius:50%; border:0;
-  background:#e5e7eb; color:#111827; font-size:18px;
+  background:#e5e7eb; color:#111827; font-size:18px; font-weight:700;
   display:flex; align-items:center; justify-content:center;
   cursor:pointer; line-height:1;
 }
@@ -1685,6 +1670,100 @@ body.qr-modal-open{ overflow:hidden }
   color: #a86212;
 }
 
+/* Guest request card — inline details (mirrors Amenity Booking Details) */
+.list-item.expanded[data-type="guest_form"] .rst-section {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0 0 14px;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: #f2faf6;
+  border: 1px solid #d7e9df;
+  border-radius: 14px;
+  padding: 20px;
+  color: #20342b;
+}
+.list-item.expanded[data-type="guest_form"] .rst-section:last-child {
+  margin-bottom: 0;
+}
+.list-item.expanded[data-type="guest_form"] .rst-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #d7e9df;
+  color: #174b3b;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.list-item.expanded[data-type="guest_form"] .rst-title::before {
+  content: "\f007";
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  font-size: 0.95rem;
+}
+.list-item.expanded[data-type="guest_form"] .rst-guest-id-sec .rst-title::before {
+  content: "\f2bb";
+}
+.list-item.expanded[data-type="guest_form"] .rst-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 24px;
+  row-gap: 20px;
+  position: relative;
+}
+.list-item.expanded[data-type="guest_form"] .rst-grid::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: #d7e9df;
+  transform: translateX(-12px);
+}
+.list-item.expanded[data-type="guest_form"] .rst-col {
+  min-width: 0;
+}
+.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
+.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(2) { grid-column: 2; grid-row: 1; }
+.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(3) { grid-column: 1; grid-row: 2; }
+.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(4) { grid-column: 2; grid-row: 2; }
+.list-item.expanded[data-type="guest_form"] .rst-key {
+  margin-bottom: 4px;
+  color: #718078;
+  font-size: 0.84rem;
+  line-height: 1.3;
+}
+.list-item.expanded[data-type="guest_form"] .rst-val {
+  color: #1f2f28;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.list-item.expanded[data-type="guest_form"] .rst-guest-email {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #d7e9df;
+}
+.list-item.expanded[data-type="guest_form"] .rst-guest-id-body {
+  text-align: center;
+}
+.list-item.expanded[data-type="guest_form"] .rst-guest-id-img {
+  max-width: 210px;
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+}
+.list-item.expanded[data-type="guest_form"] .rst-guest-id-link {
+  display: inline-block;
+  color: #174b3b;
+  font-weight: 600;
+}
+
 /* Resident request-card header only */
 #panel-requests .list-item {
   min-height: 106px;
@@ -1726,6 +1805,8 @@ body.qr-modal-open{ overflow:hidden }
 #panel-requests .list-item > .request-toggle .fa-chevron-right {
   display: inline-block !important;
 }
+#panel-history .list-item > .request-toggle { display: none !important; }
+#panel-history .list-item .item-extra { display: none !important; }
 #panel-requests .list-item > .item-icon:not(.request-toggle),
 #panel-requests .list-item > :not(.request-toggle):not(.item-content) {
   display: none !important;
@@ -1903,37 +1984,96 @@ body.qr-modal-open{ overflow:hidden }
   padding: 2px 0;
   overflow: hidden;
 }
-#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-thumb {
-  display: block;
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-media {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 170px;
-  max-width: 100%;
+  max-width: 170px;
   height: 115px;
-  max-height: 130px;
-  object-fit: contain;
+  min-height: 90px;
   border: 1px solid #d5e4dc;
   border-radius: 9px;
   background: #f4f8f6;
   overflow: hidden;
   cursor: zoom-in;
+  box-sizing: border-box;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-media.rst-proof-media-file {
+  cursor: pointer;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  cursor: zoom-in;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-fallback {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  text-align: center;
+  color: #455c50;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  box-sizing: border-box;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-media.rst-proof-broken .rst-proof-thumb {
+  display: none;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-media.rst-proof-broken .rst-proof-fallback,
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-media.rst-proof-media-file .rst-proof-fallback {
+  display: flex;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-fallback i {
+  font-size: 32px;
+  color: #5e7d6e;
 }
 #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-meta {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 6px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 5px;
   min-width: 0;
 }
 #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-file {
   min-width: 0;
+  max-width: 560px;
   color: #20342b;
   font-size: 0.9rem;
   font-weight: 600;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  white-space: normal;
 }
 #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-time {
   min-width: 0;
   color: #718078;
   font-size: 0.78rem;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  color: #0e7160;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-open:hover {
+  color: #0a5848;
+  text-decoration: underline;
 }
 #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-meta .view-proof-btn {
   grid-column: 2;
@@ -2077,6 +2217,47 @@ body.modal-open{overflow:hidden}
     grid-column: 1;
     grid-row: auto;
   }
+  .list-item.expanded[data-type="guest_form"] .rst-section {
+    padding: 12px;
+    border-radius: 12px;
+  }
+  .list-item.expanded[data-type="guest_form"] .rst-section:last-child {
+    margin-bottom: 0;
+  }
+  .list-item.expanded[data-type="guest_form"] .rst-title {
+    margin-bottom: 9px;
+    padding-bottom: 8px;
+    font-size: 0.9rem;
+  }
+  .list-item.expanded[data-type="guest_form"] .rst-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 10px;
+    row-gap: 10px;
+  }
+  .list-item.expanded[data-type="guest_form"] .rst-grid::before {
+    display: block;
+    left: 50%;
+    transform: translateX(-5px);
+  }
+  .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
+  .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(2) { grid-column: 2; grid-row: 1; }
+  .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(3) { grid-column: 1; grid-row: 2; }
+  .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(4) { grid-column: 2; grid-row: 2; }
+  .list-item.expanded[data-type="guest_form"] .rst-key {
+    margin-bottom: 2px;
+    font-size: 0.76rem;
+  }
+  .list-item.expanded[data-type="guest_form"] .rst-val {
+    font-size: 0.9rem;
+    line-height: 1.25;
+  }
+  .list-item.expanded[data-type="guest_form"] .rst-guest-email {
+    margin-top: 12px;
+    padding-top: 10px;
+  }
+  .list-item.expanded[data-type="guest_form"] .rst-guest-id-img {
+    max-width: 160px;
+  }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type {
     width: calc(100% - 4px);
     margin-left: auto;
@@ -2154,9 +2335,11 @@ body.modal-open{overflow:hidden}
     grid-template-columns: 110px minmax(0, 1fr);
     gap: 10px;
   }
-  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-thumb {
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-media {
     width: 110px;
+    max-width: 110px;
     height: 78px;
+    min-height: 78px;
   }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-meta {
     display: flex;
@@ -2169,6 +2352,9 @@ body.modal-open{overflow:hidden}
   }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-time {
     font-size: 0.68rem;
+  }
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-open {
+    font-size: 0.72rem;
   }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:nth-of-type(3) ~ .item-extra-note {
     margin-bottom: 8px;
@@ -2208,8 +2394,9 @@ body.modal-open{overflow:hidden}
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
   }
-  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-thumb {
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-media {
     width: min(170px, 100%);
+    max-width: 170px;
     height: 115px;
   }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-meta {
@@ -2255,9 +2442,11 @@ body.modal-open{overflow:hidden}
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof {
     grid-template-columns: 92px minmax(0, 1fr);
   }
-  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-thumb {
+  #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof-media {
     width: 92px;
+    max-width: 92px;
     height: 70px;
+    min-height: 70px;
   }
 }
 </style>
@@ -2305,15 +2494,6 @@ body.modal-open{overflow:hidden}
     </nav>
 
     <div class="sidebar-footer">
-      <?php if (!$isAccountBlocked): ?>
-      <a href="#" onclick="openQRChoice(); return false;" class="download-qr-btn" title="My QR" aria-label="My QR Code">
-        <i class="fa-solid fa-qrcode"></i> <span>My QR</span>
-      </a>
-      <?php endif; ?>
-      <div id="qrHelpTooltip" class="qr-help-tooltip" role="tooltip" aria-hidden="true">
-        <strong>This is your QR Code</strong>
-        <span>Use this QR code at the VHEcoPoint Station to start your recycling session.</span>
-      </div>
       <a href="logout.php" class="logout-btn" title="Log Out"><i class="fa-solid fa-right-from-bracket"></i> <span>Log Out</span></a>
     </div>
   </aside>
@@ -2438,7 +2618,7 @@ body.modal-open{overflow:hidden}
     <header class="top-header<?php echo $isEcoPointThemeActive ? ' ecopoint-theme-header' : ''; ?>">
       <div class="header-brand">
         <button class="menu-toggle" id="menuToggle"><i class="fa-solid fa-bars"></i></button>
-        <a href="mainpage.php" aria-label="Go to Main Page"><img src="images/logo.svg" alt="Logo"></a>
+        <a href="mainpage.php" aria-label="Go to Main Page" class="header-brand-link"><?php echo $isEcoPointThemeActive ? '<i class="fa-solid fa-recycle ecopoint-header-logo" aria-hidden="true"></i>' : '<img src="images/logo.svg" alt="Logo">'; ?></a>
         <div class="brand-text">
           <span class="brand-main"><?php echo $isEcoPointThemeActive ? 'VHEcoPoint' : 'VictorianPass'; ?></span>
           <span class="brand-sub"><?php echo $isEcoPointThemeActive ? 'Smart Waste Segregation Station' : 'Victorian Heights Subdivision'; ?></span>
@@ -2457,13 +2637,13 @@ body.modal-open{overflow:hidden}
 
     <div class="dashboard-back-row">
       <a href="mainpage.php" class="back-btn" aria-label="Back to main page"><i class="fa-solid fa-arrow-left"></i></a>
+      <h1 class="page-title" id="dashboardPageTitle"><?php echo htmlspecialchars($dashboardPageTitle); ?></h1>
     </div>
 
     <div class="content-wrapper">
       <div class="right-panel">
         <div class="panel-section" id="panel-requests" style="<?php echo $activeSection === 'panel-requests' ? '' : 'display:none;'; ?>">
           <div class="activity-list-header">
-            <div>My Requests</div>
             <div class="search-bar">
               <i class="fa-solid fa-magnifying-glass"></i>
               <input type="text" placeholder="Search by code or keyword" id="requestSearch">
@@ -2514,7 +2694,7 @@ body.modal-open{overflow:hidden}
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
-              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($act['amenity'] ?? ''); ?>" data-price="<?php echo ($act['price'] ?? null) !== null ? number_format((float)$act['price'], 2, '.', '') : ''; ?>" data-downpayment="<?php echo ($act['downpayment'] ?? null) !== null ? number_format((float)$act['downpayment'], 2, '.', '') : ''; ?>" data-receipt-path="<?php echo htmlspecialchars($act['receipt_path'] ?? ''); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars($act['receipt_uploaded_at'] ?? ''); ?>" data-persons="<?php echo ($act['persons'] ?? null) !== null ? intval($act['persons']) : ''; ?>"><?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; } ?>>
+              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($act['amenity'] ?? ''); ?>" data-price="<?php echo ($act['price'] ?? null) !== null ? number_format((float)$act['price'], 2, '.', '') : ''; ?>" data-downpayment="<?php echo ($act['downpayment'] ?? null) !== null ? number_format((float)$act['downpayment'], 2, '.', '') : ''; ?>" data-receipt-path="<?php echo htmlspecialchars($act['receipt_path'] ?? ''); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars($act['receipt_uploaded_at'] ?? ''); ?>" data-persons="<?php echo ($act['persons'] ?? null) !== null ? intval($act['persons']) : ''; ?>"<?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; echo ' data-guest-sex="' . htmlspecialchars($act['guest_sex'] ?? '') . '"'; echo ' data-guest-birthdate="' . htmlspecialchars($act['guest_birthdate'] ?? '') . '"'; echo ' data-guest-contact="' . htmlspecialchars($act['guest_contact'] ?? '') . '"'; echo ' data-guest-email="' . htmlspecialchars($act['guest_email'] ?? '') . '"'; echo ' data-res-name="' . htmlspecialchars($act['resident_name'] ?? '') . '"'; echo ' data-res-contact="' . htmlspecialchars($act['resident_contact'] ?? '') . '"'; echo ' data-res-email="' . htmlspecialchars($act['resident_email'] ?? '') . '"'; echo ' data-res-house="' . htmlspecialchars($act['resident_house'] ?? '') . '"'; echo ' data-valid-id="' . htmlspecialchars($act['valid_id'] ?? '') . '"'; } ?>>
                  <div class="item-icon request-toggle"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
@@ -2556,29 +2736,41 @@ body.modal-open{overflow:hidden}
             <div class="ecopoint-header-card">
               <div class="ecopoint-header-kicker">Resident Dashboard</div>
               <div class="ecopoint-header-title"><i class="fa-solid fa-leaf" style="margin-right:8px; font-size:0.9em;"></i>Your VHEcoPoint Dashboard</div>
-              <div class="ecopoint-header-desc">Track your current point balance, weekly recycling progress, daily session usage, expiry countdown, and station-ready QR access in one place.</div>
+              <div class="ecopoint-header-desc"><i class="fa-solid fa-circle-info ecopoint-info" style="float:left; margin:2px 6px 0 0;" title="Your personal VHEcoPoint dashboard: see your point balance, weekly progress, daily session usage, expiry countdown, and station-ready QR access all in one place."></i>Track your current point balance, weekly recycling progress, daily session usage, expiry countdown, and station-ready QR access in one place.</div>
             </div>
+
+            <?php if (!$isAccountBlocked): ?>
+            <div class="ecopoint-qr-unit">
+              <button type="button" class="btn-ecopoint-qr" onclick="openQRChoice(); return false;" title="My QR" aria-label="My QR Code">
+                <i class="fa-solid fa-qrcode"></i> My QR
+              </button>
+              <div class="ecopoint-qr-note">
+                <i class="fa-solid fa-circle-info"></i>
+                <span>Click the &ldquo;My QR&rdquo; button to view your personal QR code. Then scan it at the VHEcoPoint Station to verify your resident account, start your recycling session, and earn points.</span>
+              </div>
+            </div>
+            <?php endif; ?>
 
             <div class="ecopoint-kpi-grid">
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label"><i class="fa-solid fa-coins" style="margin-right:5px; opacity:0.7;"></i>Current Point Balance</div>
                 <div class="ecopoint-kpi-value"><i class="fa-solid fa-star" style="font-size:0.6em; margin-right:4px; opacity:0.6;"></i><?php echo number_format($currentPoints); ?> pts</div>
-                <div class="ecopoint-kpi-subtext">Net balance from VHEcoPoint recycling ledger (earn − redeem ± adjustments).</div>
+                <div class="ecopoint-kpi-subtext"><i class="fa-solid fa-circle-info ecopoint-info" title="Earned points add to this balance; redeemed or adjusted points subtract from it."></i> Net balance from VHEcoPoint recycling ledger (earn − redeem ± adjustments).</div>
               </div>
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label"><i class="fa-solid fa-chart-line" style="margin-right:5px; opacity:0.7;"></i>Weekly Points Earned</div>
                 <div class="ecopoint-kpi-value"><?php echo number_format($ecoPointWeeklyPoints); ?> / <?php echo number_format($ecoPointWeeklyCap); ?> pts</div>
-                <div class="ecopoint-kpi-subtext"><?php echo number_format($ecoPointWeeklyRemaining); ?> pts remain before this week's program cap resets.</div>
+                <div class="ecopoint-kpi-subtext"><i class="fa-solid fa-circle-info ecopoint-info" title="How many of this week's allowed points you have already earned toward the program cap."></i> <?php echo number_format($ecoPointWeeklyRemaining); ?> pts remain before this week's program cap resets.</div>
               </div>
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label"><i class="fa-solid fa-right-to-bracket" style="margin-right:5px; opacity:0.7;"></i>Daily Sessions Used</div>
                 <div class="ecopoint-kpi-value"><?php echo number_format($ecoPointTodaySessionsUsed); ?> / <?php echo number_format($ecoPointDailySessionsMax); ?> Used Today</div>
-                <div class="ecopoint-kpi-subtext"><?php echo number_format($ecoPointSessionsRemaining); ?> session<?php echo $ecoPointSessionsRemaining === 1 ? '' : 's'; ?> remaining. Maximum of 3 VHEcoPoint station visits per day.</div>
+                <div class="ecopoint-kpi-subtext"><i class="fa-solid fa-circle-info ecopoint-info" title="Each session is one VHEcoPoint station visit. The daily maximum is 3 visits."></i> <?php echo number_format($ecoPointSessionsRemaining); ?> session<?php echo $ecoPointSessionsRemaining === 1 ? '' : 's'; ?> remaining. Maximum of 3 VHEcoPoint station visits per day.</div>
               </div>
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label"><i class="fa-solid fa-clock" style="margin-right:5px; opacity:0.7;"></i>Points Expiry Countdown</div>
                 <div class="ecopoint-kpi-value"><?php echo htmlspecialchars($ecoPointExpiryCountdownLabel); ?></div>
-                <div class="ecopoint-kpi-subtext"><?php echo htmlspecialchars($ecoPointExpiryCountdownSubtext); ?></div>
+                <div class="ecopoint-kpi-subtext"><i class="fa-solid fa-circle-info ecopoint-info" title="How long before your earned points expire or the program cap resets your balance."></i> <?php echo htmlspecialchars($ecoPointExpiryCountdownSubtext); ?></div>
               </div>
             </div>
             <!-- Live session panel: shows real-time weight/points when using VHEcoPoint station -->
@@ -2591,7 +2783,7 @@ body.modal-open{overflow:hidden}
                 </div>
                 <div class="ecopoint-live-indicator" aria-hidden="true"></div>
               </div>
-              <div class="ecopoint-live-message" id="ecopoint-live-message" tabindex="0" aria-describedby="qrHelpTooltip">Scan your VictorianPass QR at the VHEcoPoint Station to begin.</div>
+              <div class="ecopoint-live-message" id="ecopoint-live-message" tabindex="0"><i class="fa-solid fa-circle-info ecopoint-info" style="margin-right:4px;" title="See your active station session live: when it started, the material being recycled, current weight, and points earned."></i>Scan your VictorianPass QR at the VHEcoPoint Station to begin.</div>
               <div class="ecopoint-live-meta" id="ecopoint-live-meta">
                 <div class="ecopoint-live-metric">
                   <span class="ecopoint-live-metric-label">Session start time</span>
@@ -2614,7 +2806,7 @@ body.modal-open{overflow:hidden}
 
             <div class="ecopoint-card">
               <h3 class="ecopoint-card-title">Weekly Material Cap Tracker</h3>
-              <div class="ecopoint-card-note">Weekly contributions count toward the current 250-point program cap. Material rows show your contribution by recyclables logged this week.</div>
+              <div class="ecopoint-card-note"><i class="fa-solid fa-circle-info ecopoint-info" style="margin-right:4px;" title="Every contribution this week counts toward the 250-point program cap. Each row shows what you have recycled so far."></i>Weekly contributions count toward the current 250-point program cap. Material rows show your contribution by recyclables logged this week.</div>
               <div style="display:flex;justify-content:space-between;align-items:flex-end;margin:10px 0 6px 0;">
                 <div style="font-weight:700;color:#374151;font-size:13px;">Total Weekly Progress</div>
                 <div style="font-weight:800;color:#14532d;font-size:15px;"><?php echo number_format($ecoPointWeeklyPoints); ?> / <?php echo number_format($ecoPointWeeklyCap); ?> pts &middot; <?php echo intval($ecoPointWeeklyProgress); ?>%</div>
@@ -2642,7 +2834,7 @@ body.modal-open{overflow:hidden}
 
             <div class="ecopoint-card">
               <h3 class="ecopoint-card-title"><i class="fa-solid fa-receipt" style="margin-right:6px; font-size:0.85em; opacity:0.7;"></i>Points History</h3>
-              <div class="ecopoint-card-note">Your VHEcoPoint earn and redeem transactions.</div>
+              <div class="ecopoint-card-note"><i class="fa-solid fa-circle-info ecopoint-info" style="margin-right:4px;" title="Your complete record of VHEcoPoint earn and redeem transactions, most recent first."></i>Your VHEcoPoint earn and redeem transactions.</div>
               <?php if (empty($allPointHistory)): ?>
                 <div class="ecopoint-empty">No VHEcoPoint activity yet.</div>
               <?php else: ?>
@@ -2724,9 +2916,6 @@ body.modal-open{overflow:hidden}
         </div>
 
         <div class="panel-section" id="panel-history" style="<?php echo $activeSection === 'panel-history' ? '' : 'display:none;'; ?>">
-          <div class="activity-list-header">
-            <div>History</div>
-          </div>
 
           <div class="item-list">
             <?php if (empty($historyActivities)): ?>
@@ -2775,7 +2964,7 @@ body.modal-open{overflow:hidden}
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
-              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($act['amenity'] ?? ''); ?>" data-price="<?php echo ($act['price'] ?? null) !== null ? number_format((float)$act['price'], 2, '.', '') : ''; ?>" data-downpayment="<?php echo ($act['downpayment'] ?? null) !== null ? number_format((float)$act['downpayment'], 2, '.', '') : ''; ?>" data-receipt-path="<?php echo htmlspecialchars($act['receipt_path'] ?? ''); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars($act['receipt_uploaded_at'] ?? ''); ?>" data-persons="<?php echo ($act['persons'] ?? null) !== null ? intval($act['persons']) : ''; ?>"><?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; } ?>>
+              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($act['amenity'] ?? ''); ?>" data-price="<?php echo ($act['price'] ?? null) !== null ? number_format((float)$act['price'], 2, '.', '') : ''; ?>" data-downpayment="<?php echo ($act['downpayment'] ?? null) !== null ? number_format((float)$act['downpayment'], 2, '.', '') : ''; ?>" data-receipt-path="<?php echo htmlspecialchars($act['receipt_path'] ?? ''); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars($act['receipt_uploaded_at'] ?? ''); ?>" data-persons="<?php echo ($act['persons'] ?? null) !== null ? intval($act['persons']) : ''; ?>"<?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; echo ' data-guest-sex="' . htmlspecialchars($act['guest_sex'] ?? '') . '"'; echo ' data-guest-birthdate="' . htmlspecialchars($act['guest_birthdate'] ?? '') . '"'; echo ' data-guest-contact="' . htmlspecialchars($act['guest_contact'] ?? '') . '"'; echo ' data-guest-email="' . htmlspecialchars($act['guest_email'] ?? '') . '"'; echo ' data-res-name="' . htmlspecialchars($act['resident_name'] ?? '') . '"'; echo ' data-res-contact="' . htmlspecialchars($act['resident_contact'] ?? '') . '"'; echo ' data-res-email="' . htmlspecialchars($act['resident_email'] ?? '') . '"'; echo ' data-res-house="' . htmlspecialchars($act['resident_house'] ?? '') . '"'; echo ' data-valid-id="' . htmlspecialchars($act['valid_id'] ?? '') . '"'; } ?>>
                  <div class="item-icon request-toggle"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
@@ -2812,9 +3001,6 @@ body.modal-open{overflow:hidden}
         </div>
 
         <div class="panel-section" id="panel-guest-form" style="<?php echo $activeSection === 'panel-guest-form' ? '' : 'display:none;'; ?>">
-          <div class="activity-list-header">
-            <div>Guest Form</div>
-          </div>
           <div style="max-width:720px;margin:0 auto;">
             <form class="entry-form" id="entryForm" enctype="multipart/form-data">
               <div class="booking-steps" aria-label="Guest form steps">
@@ -2916,9 +3102,6 @@ body.modal-open{overflow:hidden}
         </div>
 
         <div class="panel-section" id="panel-my-guests" style="<?php echo $activeSection === 'panel-my-guests' ? '' : 'display:none;'; ?>">
-          <div class="activity-list-header">
-            <div>My Guests</div>
-          </div>
           <div id="guestListSection" style="margin-top:8px;background:#ffffff;border-radius:16px;padding:20px 22px;box-shadow:0 4px 16px rgba(15,23,42,0.08);border:1px solid #e5e7eb;max-width:860px;width:100%;margin-left:auto;margin-right:auto;">
             <h4 style="margin:0 0 10px;color:#111827;">My Saved Guests</h4>
             <?php if (empty($guestRows)): ?>
@@ -3241,83 +3424,11 @@ body.modal-open{overflow:hidden}
     if(m) m.style.display='none';
     document.body.classList.remove('qr-modal-open');
   }
-  document.addEventListener('DOMContentLoaded', function() {
-    var qrButton = document.querySelector('.sidebar-footer .download-qr-btn[title="My QR"]');
-    var qrTooltip = document.getElementById('qrHelpTooltip');
-    var ecopointNav = document.querySelector('.nav-menu .nav-item[data-section="panel-points-history"]');
-
-    function setQRHighlight(active) {
-      if (!qrButton) return;
-      qrButton.classList.toggle('qr-highlight', !!active);
-      qrButton.setAttribute('aria-pressed', active ? 'true' : 'false');
-      if (qrTooltip) {
-        qrTooltip.classList.toggle('visible', !!active);
-        qrTooltip.setAttribute('aria-hidden', active ? 'false' : 'true');
-      }
-    }
-
-    function positionTooltip(anchor) {
-      if (!qrButton || !qrTooltip || !qrTooltip.classList.contains('visible')) return;
-      var el = anchor || qrButton;
-      var rect = el.getBoundingClientRect();
-      if (rect.right < 0 || rect.left > window.innerWidth || rect.width === 0) {
-        setQRHighlight(false);
-        return;
-      }
-      var tooltipWidth = qrTooltip.offsetWidth || 220;
-      var left = rect.right + 16;
-      var top = rect.top + (rect.height / 2);
-      var maxLeft = window.innerWidth - tooltipWidth - 12;
-      left = Math.min(Math.max(left, 12), maxLeft);
-      qrTooltip.style.left = left + 'px';
-      qrTooltip.style.top = top + 'px';
-    }
-
-    function showQRHelp(anchor) {
-      setQRHighlight(true);
-      positionTooltip(anchor);
-    }
-
-    if (qrButton) {
-      qrButton.addEventListener('click', function(e) {
-        e.preventDefault();
-        openQRChoice();
-      });
-      qrButton.addEventListener('mouseenter', function() {
-        showQRHelp(qrButton);
-      });
-      qrButton.addEventListener('mouseleave', function() {
-        setQRHighlight(false);
-      });
-      qrButton.addEventListener('focus', function() {
-        showQRHelp(qrButton);
-      });
-      qrButton.addEventListener('blur', function() {
-        setQRHighlight(false);
-      });
-    }
-
-    if (ecopointNav) {
-      ecopointNav.addEventListener('click', function() {
-        showQRHelp(qrButton);
-      });
-      document.querySelectorAll('.nav-menu .nav-item[data-section]').forEach(function(item) {
-        if (item !== ecopointNav) {
-          item.addEventListener('click', function() { setQRHighlight(false); });
-        }
-      });
-    }
-
-    if (ecopointNav && ecopointNav.classList.contains('active')) {
-      showQRHelp(qrButton);
-    }
-
-    window.addEventListener('resize', function() {
-      if (qrTooltip && qrTooltip.classList.contains('visible')) {
-        positionTooltip();
-      }
-    });
-  });
+  // Expose QR actions to the global scope so inline onclick handlers work
+  window.openQRChoice = openQRChoice;
+  window.closeQRChoice = closeQRChoice;
+  window.openQRView = openQRView;
+  window.closeQRView = closeQRView;
   // Wire buttons
   document.addEventListener('click', function(e){
     if(e.target && e.target.id === 'qrChoiceClose') closeQRChoice();
@@ -4012,11 +4123,20 @@ body.modal-open{overflow:hidden}
       }
 
       menuToggle.addEventListener('click', function() {
-          sidebar.classList.add('open');
-          overlay.classList.add('show');
+          if (sidebar.classList.contains('open')) {
+              closeSidebar();
+          } else {
+              sidebar.classList.add('open');
+              overlay.classList.add('show');
+          }
       });
 
       overlay.addEventListener('click', closeSidebar);
+
+      // Auto-close the drawer when a menu item / Log Out is tapped
+      document.querySelectorAll('.sidebar .nav-menu .nav-item, .sidebar-footer .logout-btn').forEach(function(item) {
+          item.addEventListener('click', closeSidebar);
+      });
   }
 
   function buildExtraContent(li, extra){
@@ -4077,6 +4197,29 @@ body.modal-open{overflow:hidden}
     var refSpan=li.querySelector('.item-ref span');
     function esc(t){
       return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+    function guestInfoSection(){
+      var gh='';
+      var rName=li.getAttribute('data-res-name')||'';
+      var rHouse=li.getAttribute('data-res-house')||'';
+      if(rName || rHouse){
+        gh+='<div class="rst-section rst-guest rst-guest-resident"><div class="rst-title">Resident Information</div><div class="rst-grid">';
+        gh+='<div class="rst-col"><div class="rst-key">Resident Name</div><div class="rst-val">'+esc(rName||'—')+'</div></div>';
+        gh+='<div class="rst-col"><div class="rst-key">House Number</div><div class="rst-val">'+esc(rHouse||'—')+'</div></div>';
+        gh+='</div></div>';
+      }
+      gh+='<div class="rst-section rst-guest"><div class="rst-title">Guest Information</div><div class="rst-grid">';
+      gh+='<div class="rst-col"><div class="rst-key">Guest Name</div><div class="rst-val">'+esc(li.getAttribute('data-guest-name')||'—')+'</div></div>';
+      gh+='<div class="rst-col"><div class="rst-key">Sex</div><div class="rst-val">'+esc(li.getAttribute('data-guest-sex')||'—')+'</div></div>';
+      var gBirthRaw=li.getAttribute('data-guest-birthdate')||'';
+      var gBirthLabel=formatRawDate(gBirthRaw)||gBirthRaw||'—';
+      gh+='<div class="rst-col"><div class="rst-key">Birthdate</div><div class="rst-val">'+esc(gBirthLabel)+'</div></div>';
+      gh+='<div class="rst-col"><div class="rst-key">Contact Number</div><div class="rst-val">'+esc(li.getAttribute('data-guest-contact')||'—')+'</div></div>';
+      gh+='</div>';
+      var gEmail=li.getAttribute('data-guest-email')||'';
+      if(gEmail){ gh+='<div class="rst-guest-email"><div class="rst-key">Email Address</div><div class="rst-val">'+esc(gEmail)+'</div></div>'; }
+      gh+='</div>';
+      return gh;
     }
     function formatRawDate(value){
       var raw = String(value||'').trim();
@@ -4271,15 +4414,18 @@ body.modal-open{overflow:hidden}
       html+='<div class="item-extra-section">';
       html+='<div class="item-extra-body">';
       html+='<div class="item-extra-info-only">';
-      html+='<div class="item-extra-note">'+esc('Access granted. Your QR entry pass has already been scanned by the guard.')+'</div>';
-      html+='<div class="item-actions">';
-      if(ref && type==='guest_form'){
-        html+='<button type="button" class="item-extra-link view-details-btn view-details-trigger" data-ref="'+esc(ref)+'">View details</button>';
+      if(type==='reservation'){
+        html+='<div class="item-extra-note">'+esc('Access granted. Your QR entry pass has already been scanned by the guard.')+'</div>';
       }
-      if(canMoveHistory && ref){
-        html+='<button type="button" class="item-extra-link item-extra-move-history"><i class="fa-solid fa-box-archive"></i> Move to History</button>';
+      if(type==='guest_form'){ html+=guestInfoSection(); }
+      var accActions='';
+      if(type==='guest_form' && canCancel && ref){
+        accActions+='<button type="button" class="item-extra-link item-extra-cancel"><i class="fa-solid fa-xmark"></i> Cancel Request</button>';
       }
-      html+='</div>';
+      if(type!=='guest_form' && canMoveHistory && ref){
+        accActions+='<button type="button" class="item-extra-link item-extra-move-history"><i class="fa-solid fa-box-archive"></i> Move to History</button>';
+      }
+      if(accActions){ html+='<div class="item-actions">'+accActions+'</div>'; }
       html+='</div></div></div>';
       extra.innerHTML=html;
       var moveBtn = extra.querySelector('.item-extra-move-history');
@@ -4289,14 +4435,13 @@ body.modal-open{overflow:hidden}
           openMoveHistoryModal(li, ref);
         });
       }
-      var viewBtns = extra.querySelectorAll('.view-details-trigger');
-      viewBtns.forEach(function(btn){
-        btn.addEventListener('click', function(ev){
+      var cancelBtn = extra.querySelector('.item-extra-cancel');
+      if(cancelBtn){
+        cancelBtn.addEventListener('click',function(ev){
           ev.stopPropagation();
-          var code = btn.getAttribute('data-ref') || ref;
-          if(code) openActivityModal(code);
+          openCancelModal(li,ref);
         });
-      });
+      }
       return;
     }
     if(type==='reservation'||type==='guest_form'){
@@ -4337,6 +4482,9 @@ body.modal-open{overflow:hidden}
         bookingCells+=rstCell('Reservation Status', statusLabelTxt);
         html+='<div class="rst-section"><div class="rst-title">Amenity Booking Details</div><div class="rst-grid">'+bookingCells+'</div></div>';
       }
+      if(type==='guest_form'){
+        html+=guestInfoSection();
+      }
       if(type==='reservation' && (priceRaw!=='' || downpaymentRaw!=='' || receiptPath!=='')){
         var totalTxt = priceRaw!=='' ? fmtMoney(priceRaw) : '—';
         var requiredDp = priceRaw!=='' ? fmtMoney(Math.round(parseFloat(priceRaw)*50)/100) : '—';
@@ -4368,11 +4516,21 @@ body.modal-open{overflow:hidden}
           var proofUrl=absoluteAssetUrl(receiptPath);
           var proofName=String(receiptPath).split('/').pop()||'receipt';
           var proofTime=fmtUploadedAt(receiptUploadedAt);
+          var lowerName=String(proofName).toLowerCase();
+          var proofExt=lowerName.split('.').pop()||'';
+          var isImage=/(png|jpe?g|gif|webp|bmp|avif)$/.test(proofExt);
+          var fileIcon=isImage?'fa-file-image':(proofExt==='pdf'?'fa-file-pdf':(proofExt==='txt'?'fa-file-lines':(proofExt==='doc'||proofExt==='docx'?'fa-file-word':(proofExt==='xls'||proofExt==='xlsx'?'fa-file-excel':'fa-file'))));
           proofHtml+='<div class="rst-proof">';
-          proofHtml+='<img class="rst-proof-thumb" src="'+esc(proofUrl)+'" data-proof="'+esc(proofUrl)+'" alt="Payment receipt" loading="lazy" onerror="this.style.display=\'none\';">';
+          proofHtml+='<div class="rst-proof-media'+(isImage?'':' rst-proof-media-file')+'" data-proof="'+esc(proofUrl)+'" title="'+esc(proofName)+'">';
+          if(isImage){
+            proofHtml+='<img class="rst-proof-thumb" src="'+esc(proofUrl)+'" alt="Payment receipt" loading="lazy" onerror="this.parentNode.classList.add(\'rst-proof-broken\');">';
+          }
+          proofHtml+='<div class="rst-proof-fallback"><i class="fa-solid '+fileIcon+'"></i><span>View file</span></div>';
+          proofHtml+='</div>';
           proofHtml+='<div class="rst-proof-meta">';
           proofHtml+='<div class="rst-proof-file">'+esc(proofName)+'</div>';
           if(proofTime){ proofHtml+='<div class="rst-proof-time">Uploaded: '+esc(proofTime)+'</div>'; }
+          proofHtml+='<a class="rst-proof-open" href="'+esc(proofUrl)+'" target="_blank" rel="noopener"><i class="fa-solid fa-up-right-from-square"></i> Open file</a>';
           proofHtml+='</div></div>';
         } else {
           proofHtml+='<div class="rst-none">No proof of payment uploaded</div>';
@@ -4384,11 +4542,11 @@ body.modal-open{overflow:hidden}
         html+='<div class="item-extra-status"><span class="status-label '+statusClassFor(effectiveStatus)+'">'+label+'</span></div>';
       }
     var noteClass='item-extra-note'+((type==='reservation' && paymentStatus==='rejected' && (isNaN(attempts)?0:attempts) < 3)?' note-error':'');
-    if(statusNote) html+='<div class="'+noteClass+'">'+esc(statusNote)+'</div>';
-      if(reasonText){
+    if(statusNote && type!=='guest_form') html+='<div class="'+noteClass+'">'+esc(statusNote)+'</div>';
+      if(reasonText && type!=='guest_form'){
         html+='<div class="item-reason'+(highlightReason?' is-rejected':'')+'">'+esc(reasonText)+'</div>';
       }
-      if(summaryText) html+='<div class="item-extra-summary">'+esc(summaryText)+'</div>';
+      if(summaryText && type!=='guest_form') html+='<div class="item-extra-summary">'+esc(summaryText)+'</div>';
       
       html+='<div class="item-actions">';
       if(qrSrcForDownload){
@@ -4397,13 +4555,10 @@ body.modal-open{overflow:hidden}
       if(canUpdateProof && ref){
         html+='<button type="button" class="item-extra-link update-proof-btn" data-ref="'+esc(ref)+'"><i class="fa-solid fa-upload"></i> Update Proof</button>';
       }
-      if(ref && type==='guest_form'){
-        html+='<button type="button" class="item-extra-link view-details-btn view-details-trigger" data-ref="'+esc(ref)+'">View details</button>';
-      }
       if(canCancel && ref){
         html+='<button type="button" class="item-extra-link item-extra-cancel"><i class="fa-solid fa-xmark"></i> '+(type==='guest_form'?'Cancel Request':'Cancel Reservation')+'</button>';
       }
-      if(canMoveHistory && ref){
+      if(canMoveHistory && ref && type!=='guest_form'){
         html+='<button type="button" class="item-extra-link item-extra-move-history"><i class="fa-solid fa-box-archive"></i> Move to History</button>';
       }
       html+='</div>';
@@ -4494,14 +4649,6 @@ body.modal-open{overflow:hidden}
         openMoveHistoryModal(li, ref);
       });
     }
-    var viewBtns=extra.querySelectorAll('.view-details-trigger');
-    viewBtns.forEach(function(btn){
-      btn.addEventListener('click',function(ev){
-        ev.stopPropagation();
-        var code=btn.getAttribute('data-ref')||ref;
-        if(code) openActivityModal(code);
-      });
-    });
     var dropdownMove = extra.querySelector('.dropdown-move-history, [data-action="move_history"]');
     if(dropdownMove && ref && canMoveHistory){
       dropdownMove.addEventListener('click', function(ev){
@@ -4668,26 +4815,6 @@ body.modal-open{overflow:hidden}
   var activityModalBody = document.getElementById('activityModalBody');
   var activityModalClose = activityModal ? activityModal.querySelector('.close') : null;
 
-  window.openActivityModal = function(refCode) {
-    if (!activityModal || !activityModalBody) {
-      // Re-fetch in case it was missing on load
-      activityModal = document.getElementById('activityModal');
-      activityModalBody = document.getElementById('activityModalBody');
-      if (!activityModal || !activityModalBody) return;
-    }
-    activityModalBody.innerHTML = '<div style="padding:20px;text-align:center;">Loading...</div>';
-    activityModal.style.display = 'block';
-
-    fetch('get_activity_details.php?code=' + encodeURIComponent(refCode))
-      .then(r => r.text())
-      .then(html => {
-        activityModalBody.innerHTML = html;
-      })
-      .catch(e => {
-        activityModalBody.innerHTML = '<div style="padding:20px;text-align:center;color:red;">Error loading details.</div>';
-      });
-  }
-
   window.openReportDetailsModal = function(reportId) {
     if (!activityModal || !activityModalBody) {
       activityModal = document.getElementById('activityModal');
@@ -4779,6 +4906,7 @@ body.modal-open{overflow:hidden}
     li.addEventListener('click',function(e){
       var toggle = e.target.closest('.request-toggle');
       if(!toggle || !li.contains(toggle)) return;
+      if(li.closest('#panel-history')) return;
       
       li.classList.toggle('expanded');
       var extra = li.querySelector('.item-extra');
@@ -4817,10 +4945,18 @@ body.modal-open{overflow:hidden}
   });
 
   var sections=document.querySelectorAll('.right-panel .panel-section');
+  var sectionTitles={
+    'panel-requests':'My Requests',
+    'panel-guest-form':'Guest Form',
+    'panel-my-guests':'My Guests',
+    'panel-history':'History',
+    'panel-points-history':'VHEcoPoint'
+  };
   function applyResidentThemeBySection(id){
     var mainContent = document.querySelector('.main-content');
     var brandMain = document.querySelector('.top-header .brand-main');
     var brandSub = document.querySelector('.top-header .brand-sub');
+    var brandLogoLink = document.querySelector('.top-header .header-brand-link');
     var isEcoPoint = id === 'panel-points-history';
 
     if (mainContent) {
@@ -4832,6 +4968,11 @@ body.modal-open{overflow:hidden}
     if (brandSub) {
       brandSub.textContent = isEcoPoint ? 'Smart Waste Segregation Station' : 'Victorian Heights Subdivision';
     }
+    if (brandLogoLink) {
+      brandLogoLink.innerHTML = isEcoPoint
+        ? '<i class="fa-solid fa-recycle ecopoint-header-logo" aria-hidden="true"></i>'
+        : '<img src="images/logo.svg" alt="Logo">';
+    }
   }
   function showPanel(id){
     sections.forEach(function(sec){
@@ -4839,6 +4980,8 @@ body.modal-open{overflow:hidden}
       sec.style.display=sec.id===id?'':'none';
     });
     applyResidentThemeBySection(id);
+    var titleEl=document.getElementById('dashboardPageTitle');
+    if(titleEl){ titleEl.textContent=sectionTitles[id]||'Dashboard'; }
   }
   document.querySelectorAll('.nav-menu .nav-item[data-section]').forEach(function(item){
     item.addEventListener('click',function(e){
@@ -5338,6 +5481,15 @@ body.modal-open{overflow:hidden}
                     }
                     if(String(item.type||'').toLowerCase()==='guest_form'){
                       li.setAttribute('data-guest-name', item.guest_name || '');
+                      li.setAttribute('data-guest-sex', item.guest_sex || '');
+                      li.setAttribute('data-guest-birthdate', item.guest_birthdate || '');
+                      li.setAttribute('data-guest-contact', item.guest_contact || '');
+                      li.setAttribute('data-guest-email', item.guest_email || '');
+                      li.setAttribute('data-res-name', item.resident_name || '');
+                      li.setAttribute('data-res-contact', item.resident_contact || '');
+                      li.setAttribute('data-res-email', item.resident_email || '');
+                      li.setAttribute('data-res-house', item.resident_house || '');
+                      li.setAttribute('data-valid-id', item.valid_id || '');
                     }
                     var reservedEl = li.querySelector('.item-reserved-by');
                     if(item.type === 'reservation' && reservedBy){
@@ -5509,6 +5661,15 @@ body.modal-open{overflow:hidden}
               }
               if(String(item.type||'').toLowerCase()==='guest_form'){
                 li.setAttribute('data-guest-name', item.guest_name || '');
+                li.setAttribute('data-guest-sex', item.guest_sex || '');
+                li.setAttribute('data-guest-birthdate', item.guest_birthdate || '');
+                li.setAttribute('data-guest-contact', item.guest_contact || '');
+                li.setAttribute('data-guest-email', item.guest_email || '');
+                li.setAttribute('data-res-name', item.resident_name || '');
+                li.setAttribute('data-res-contact', item.resident_contact || '');
+                li.setAttribute('data-res-email', item.resident_email || '');
+                li.setAttribute('data-res-house', item.resident_house || '');
+                li.setAttribute('data-valid-id', item.valid_id || '');
               }
               li.innerHTML='<div class="item-icon request-toggle"><i class="fa-solid fa-chevron-right"></i></div>'
                 +'<div class="item-content">'
@@ -5524,6 +5685,7 @@ body.modal-open{overflow:hidden}
               li.addEventListener('click',function(e){
                 var toggle = e.target.closest('.request-toggle');
                 if(!toggle || !li.contains(toggle)) return;
+                if(li.closest('#panel-history')) return;
                 li.classList.toggle('expanded');
                 var extra=li.querySelector('.item-extra');
                 if(extra && extra.getAttribute('data-loaded')!=='1' && li.classList.contains('expanded')){
@@ -5706,7 +5868,7 @@ body.modal-open{overflow:hidden}
         li.setAttribute('data-report-nature', item.nature||'');
         li.setAttribute('data-report-other', item.other_concern||'');
       }
-      if(type==='guest_form'){ li.setAttribute('data-guest-name', item.guest_name||''); }
+      if(type==='guest_form'){ li.setAttribute('data-guest-name', item.guest_name||''); li.setAttribute('data-guest-sex', item.guest_sex||''); li.setAttribute('data-guest-birthdate', item.guest_birthdate||''); li.setAttribute('data-guest-contact', item.guest_contact||''); li.setAttribute('data-guest-email', item.guest_email||''); li.setAttribute('data-res-name', item.resident_name||''); li.setAttribute('data-res-contact', item.resident_contact||''); li.setAttribute('data-res-email', item.resident_email||''); li.setAttribute('data-res-house', item.resident_house||''); li.setAttribute('data-valid-id', item.valid_id||''); }
       prevStatuses[code]=status;
       li.innerHTML=
         '<div class="item-icon request-toggle"><i class="fa-solid fa-chevron-right"></i></div>'
@@ -5726,6 +5888,7 @@ body.modal-open{overflow:hidden}
         li.addEventListener('click',function(e){
           var toggle = e.target.closest('.request-toggle');
           if(!toggle || !li.contains(toggle)) return;
+          if(li.closest('#panel-history')) return;
           li.classList.toggle('expanded');
           var extra=li.querySelector('.item-extra');
           if(extra && extra.getAttribute('data-loaded')!=='1' && li.classList.contains('expanded')){
@@ -5822,6 +5985,19 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
   document.addEventListener('click', function(event) {
+    var media = event.target.closest('.rst-proof-media');
+    if (media && !event.target.closest('.rst-proof-open')) {
+      event.preventDefault();
+      event.stopPropagation();
+      var proofUrl = media.getAttribute('data-proof') || '';
+      if (!proofUrl) return;
+      if (media.classList.contains('rst-proof-media-file')) {
+        window.open(proofUrl, '_blank', 'noopener');
+      } else {
+        openImgModal(proofUrl);
+      }
+      return;
+    }
     var thumbnail = event.target.closest('.rst-proof-thumb');
     if (!thumbnail) return;
     event.preventDefault();
@@ -5849,7 +6025,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <div id="profileModal" class="profile-modal">
   <div class="profile-modal-content">
-    <button class="close-profile-modal">&times;</button>
+    <button type="button" class="close-profile-modal" aria-label="Close">&times;</button>
     <div class="profile-header">
       <div class="profile-icon-large">
         <img src="<?php echo $profilePicUrl; ?>" alt="Profile" id="profileModalImg">
@@ -5865,34 +6041,35 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
     <div class="profile-details">
       <div class="detail-row">
-        <div class="detail-label">Name</div>
+        <div class="detail-label"><i class="fa-solid fa-user"></i> Name</div>
         <div class="detail-value"><?php echo htmlspecialchars($fullName); ?></div>
       </div>
       <div class="detail-row">
-        <div class="detail-label">Email</div>
+        <div class="detail-label"><i class="fa-solid fa-envelope"></i> Email</div>
         <div class="detail-value"><?php echo htmlspecialchars($user['email'] ?? ''); ?></div>
       </div>
       <div class="detail-row">
-        <div class="detail-label">Contact Number</div>
+        <div class="detail-label"><i class="fa-solid fa-phone"></i> Contact Number</div>
         <div class="detail-value"><?php echo htmlspecialchars($user['phone'] ?? ''); ?></div>
       </div>
       <div class="detail-row">
-        <div class="detail-label">House Number</div>
+        <div class="detail-label"><i class="fa-solid fa-home"></i> House Number</div>
         <div class="detail-value"><?php echo htmlspecialchars($user['house_number'] ?? ''); ?></div>
       </div>
       <div class="detail-row">
-        <div class="detail-label">Address</div>
+        <div class="detail-label"><i class="fa-solid fa-location-dot"></i> Address</div>
         <div class="detail-value"><?php echo htmlspecialchars($user['address'] ?? ''); ?></div>
       </div>
-      <div class="detail-row">
-        <div class="detail-label">Change Password</div>
-        <div class="detail-value" style="width:100%;">
-          <button type="button" id="openChangePasswordResident" style="background:#23412e; color:#fff; border:none; padding:10px 14px; border-radius:8px; cursor:pointer; font-weight:600;">Change Password</button>
-        </div>
-      </div>
     </div>
+    <?php if (!$isAccountBlocked): ?>
+    <button type="button" class="btn-qr-modal" onclick="openQRChoice(); return false;" title="My QR" aria-label="My QR Code">
+      <i class="fa-solid fa-qrcode"></i> My QR
+    </button>
+    <?php endif; ?>
+
     <div class="profile-actions">
-       <a href="logout.php" class="btn-logout-modal">Log Out</a>
+      <button type="button" id="openChangePasswordResident" class="btn-change-password-modal">Change Password</button>
+      <a href="logout.php" class="btn-logout-modal">Log Out</a>
     </div>
   </div>
 </div>
@@ -5912,16 +6089,12 @@ document.addEventListener('DOMContentLoaded', function() {
     var profileTrigger = document.getElementById("profileTrigger");
     var profileClose = document.getElementsByClassName("close-profile-modal")[0];
 
-    // Keep the dropdown positioned relative to the profile control, not the page.
-    if (profileTrigger && profileModal && profileTrigger.parentNode) {
-      var profileAnchor = document.createElement('div');
-      profileAnchor.className = 'profile-menu-anchor';
-      profileTrigger.parentNode.insertBefore(profileAnchor, profileTrigger);
-      profileAnchor.appendChild(profileTrigger);
-      profileAnchor.appendChild(profileModal);
+    // The profile modal is a full-screen centered overlay (same as the My QR modal),
+    // so it must stay a direct child of the page body, not inside the fixed top header.
+    if (profileModal && profileModal.parentNode && profileModal.parentNode !== document.body) {
+      document.body.appendChild(profileModal);
     }
 
-    var profileAnchor = profileTrigger ? profileTrigger.parentNode : null;
     var profileCloseTimeout;
 
     function openProfileModal() {
@@ -5929,6 +6102,7 @@ document.addEventListener('DOMContentLoaded', function() {
       clearTimeout(profileCloseTimeout);
       profileModal.classList.remove('profile-modal-closing');
       profileModal.style.display = 'block';
+      document.body.classList.add('profile-modal-open');
       requestAnimationFrame(function() {
         profileModal.classList.add('profile-modal-open');
       });
@@ -5940,6 +6114,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (immediate) {
         profileModal.classList.remove('profile-modal-open', 'profile-modal-closing');
         profileModal.style.display = 'none';
+        document.body.classList.remove('profile-modal-open');
         return;
       }
       profileModal.classList.add('profile-modal-closing');
@@ -5947,8 +6122,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (profileModal) {
           profileModal.style.display = "none";
           profileModal.classList.remove('profile-modal-open', 'profile-modal-closing');
+          document.body.classList.remove('profile-modal-open');
         }
-      }, 220);
+      }, 360);
     }
 
     if(profileTrigger) {
@@ -6231,5 +6407,46 @@ function replaceProof(reportId, proofId){
     })();
   </script>
 <script src="js/ecopoint_dashboard.js"></script>
+<div id="vhecopointAnnouncement" class="vhecopoint-popup-overlay" role="dialog" aria-modal="true" aria-labelledby="vhecopointPopupTitle" aria-describedby="vhecopointPopupText" style="display:none;">
+  <div class="vhecopoint-popup-card">
+    <button type="button" class="vhecopoint-popup-close" id="vhecopointPopupClose" aria-label="Close announcement">&times;</button>
+    <span class="vhecopoint-popup-icon" aria-hidden="true">&#9851;</span>
+    <div class="vhecopoint-popup-title" id="vhecopointPopupTitle">Now with VHEcoPoint Rewards!</div>
+    <div class="vhecopoint-popup-sub">Recycle &amp; Earn Points</div>
+    <p class="vhecopoint-popup-text" id="vhecopointPopupText">&ldquo;Recycle your materials at the VHEcoPoint Station, earn points, and redeem them for rewards.&rdquo;</p>
+    <a href="mainpage.php?ecopoint=1#home" class="vhecopoint-popup-learn" id="vhecopointPopupLearn">Learn More</a>
+  </div>
+</div>
+<script>
+(function(){
+  var uid = <?php echo (int)$userId; ?>;
+  var flag = 'vhecopointAnnounced_' + uid;
+  try {
+    if(sessionStorage.getItem(flag)) return;
+  } catch(e){ return; }
+  var overlay = document.getElementById('vhecopointAnnouncement');
+  if(!overlay) return;
+  var closeBtn = document.getElementById('vhecopointPopupClose');
+  var popupCard = overlay.querySelector('.vhecopoint-popup-card');
+  function hide(){
+    overlay.style.display = 'none';
+    overlay.classList.remove('vhecopoint-popup-open');
+  }
+  closeBtn.addEventListener('click', hide);
+  overlay.addEventListener('click', function(e){
+    if(e.target === overlay) hide();
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape' && overlay.style.display !== 'none') hide();
+  });
+  setTimeout(function(){
+    try { sessionStorage.setItem(flag, '1'); } catch(e){}
+    overlay.style.display = 'flex';
+    requestAnimationFrame(function(){ overlay.classList.add('vhecopoint-popup-open'); });
+    var learn = document.getElementById('vhecopointPopupLearn');
+    if(learn) setTimeout(function(){ learn.focus(); }, 350);
+  }, 600);
+})();
+</script>
 </body>
 </html>
