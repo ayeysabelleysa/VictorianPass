@@ -572,14 +572,62 @@ function eco_award_points_and_finalize(mysqli $con, int $sessionId, int $station
     $material = (string)($session['material_type'] ?? '');
     $weight   = (float)($session['weight_kg']    ?? 0);
     $userId   = (int)$session['user_id'];
+     // Aggregate all waste deposits recorded during this station session.
+    $itemStmt = $con->prepare("
+        SELECT
+            COALESCE(SUM(weight_kg), 0) AS total_weight,
+            COALESCE(SUM(points_calculated), 0) AS total_points
+        FROM ecopoint_waste_items
+        WHERE session_id = ?
+    ");
+
+    $itemStmt->bind_param('i', $sessionId);
+    $itemStmt->execute();
+    $itemTotals = $itemStmt->get_result()->fetch_assoc();
+    $itemStmt->close();
+
+    if ($itemTotals && (float)$itemTotals['total_weight'] > 0) {
+        $weight = (float)$itemTotals['total_weight'];
+        $session['weight_kg'] = $weight;
+        $session['points_calculated'] = (int)$itemTotals['total_points'];
+    }
     $capState = eco_resident_cap_state($con, $userId);
     $bal      = (int)($session['points_awarded'] ?? 0); // pre-existing award if any
+
     $curBal   = eco_user_balance($con, $userId);
 
     if (!$alreadyPosted) {
-        $calc       = eco_calculate_points($material, $weight);
-        $calculated = (int)$calc['raw_points'];
-        $awarded    = eco_apply_cap_rules($calc, $capState, $curBal);
+
+    $eventStmt = $con->prepare("
+        SELECT
+            COALESCE(SUM(
+                CAST(JSON_UNQUOTE(JSON_EXTRACT(event_payload, '$.points_calc')) AS DECIMAL(10,2))
+            ), 0) AS total_points,
+            COALESCE(SUM(
+                CAST(JSON_UNQUOTE(JSON_EXTRACT(event_payload, '$.weight_kg')) AS DECIMAL(10,3))
+            ), 0) AS total_weight
+        FROM ecopoint_session_events
+        WHERE session_id = ?
+          AND event_type = 'WASTE_DATA'
+    ");
+
+    $eventStmt->bind_param('i', $sessionId);
+    $eventStmt->execute();
+    $eventTotals = $eventStmt->get_result()->fetch_assoc();
+    $eventStmt->close();
+
+    $calculated = (int)round((float)($eventTotals['total_points'] ?? 0));
+    $weight = (float)($eventTotals['total_weight'] ?? 0);
+
+    $calc = [
+        'material' => $material,
+        'weight_kg' => $weight,
+        'rate_pts_per_kg' => 0,
+        'raw_points' => $calculated,
+        'valid' => ($calculated > 0)
+    ];
+
+    $awarded = eco_apply_cap_rules($calc, $capState, $curBal);
 
         // Update session with calculated values
         $upd = $con->prepare("
