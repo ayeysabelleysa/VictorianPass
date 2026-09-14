@@ -481,8 +481,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             </div>
           </article>
 </div>
-          </div>
 <?php endif; ?>
+          </div>
 </div>
         </div>
   <?php endif; ?>
