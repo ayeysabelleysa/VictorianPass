@@ -1553,3 +1553,141 @@ input:focus-visible {
   #verifyModal .verify-actions .btn-confirm,
   #verifyModal .verify-actions .btn-cancel { width: 100%; padding: 12px 16px; }
 }
+
+/* ============ View Rewards modal — MOBILE ONLY ============ */
+@media (max-width: 768px) {
+  #viewRewardsModal {
+    padding: 10px !important;
+    overflow-x: hidden;
+  }
+  #viewRewardsModal .view-rewards-content {
+    width: min(86vw, 380px) !important;
+    max-width: min(86vw, 380px) !important;
+    max-height: calc(100vh - 40px) !important;
+    max-height: calc(100dvh - 40px) !important;
+    border-radius: 14px;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    box-sizing: border-box;
+  }
+  #viewRewardsModal .view-rewards-header {
+    padding: 12px 14px 0 !important;
+    gap: 8px;
+  }
+  #viewRewardsModal .view-rewards-header h2 {
+    font-size: 1rem !important;
+  }
+  #viewRewardsModal .view-rewards-body {
+    padding: 14px !important;
+  }
+  #viewRewardsModal .view-rewards-balance {
+    padding: 12px 14px !important;
+    border-radius: 12px;
+    margin-bottom: 14px !important;
+  }
+  #viewRewardsModal .view-rewards-balance > div:first-child {
+    font-size: 0.78rem !important;
+    margin-bottom: 2px !important;
+  }
+  #viewRewardsModal .view-rewards-balance > div:last-child {
+    font-size: 1.7rem !important;
+  }
+  #viewRewardsModal .view-rewards-amenities {
+    margin-bottom: 14px !important;
+  }
+  #viewRewardsModal .view-rewards-amenities > div:first-child {
+    font-size: 1rem !important;
+    margin-bottom: 10px !important;
+  }
+  #viewRewardsModal .view-rewards-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+  #viewRewardsModal .amenity-reward-card {
+    padding: 10px 12px !important;
+    border-radius: 12px;
+    box-sizing: border-box;
+    min-width: 0;
+  }
+  #viewRewardsModal .amenity-reward-card > div:first-child {
+    gap: 10px !important;
+    margin-bottom: 8px !important;
+  }
+  #viewRewardsModal .amenity-reward-card > div:first-child > div:first-child {
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 9px;
+    flex-shrink: 0;
+  }
+  #viewRewardsModal .amenity-reward-card > div:first-child > div:first-child img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover;
+  }
+  #viewRewardsModal .amenity-reward-card > div:first-child > div:last-child {
+    min-width: 0;
+    flex: 1;
+  }
+  #viewRewardsModal .amenity-reward-card > div:first-child > div:last-child > div:first-child {
+    font-size: 0.92rem !important;
+    line-height: 1.25;
+    word-break: break-word;
+  }
+  #viewRewardsModal .view-rewards-card-meta {
+    margin-top: 4px !important;
+    gap: 6px !important;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  #viewRewardsModal .view-rewards-card-meta > span:first-child {
+    white-space: nowrap;
+  }
+  #viewRewardsModal .view-rewards-badge {
+    white-space: nowrap;
+    padding: 2px 7px !important;
+  }
+  #viewRewardsModal .view-rewards-card-bottom {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    flex-wrap: wrap;
+  }
+  #viewRewardsModal .view-rewards-card-balance {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  #viewRewardsModal .view-rewards-card-btn {
+    padding: 7px 12px !important;
+    font-size: 0.78rem !important;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  #viewRewardsModal .view-rewards-contact {
+    padding: 12px 14px !important;
+    border-radius: 12px;
+  }
+  #viewRewardsModal .view-rewards-contact ul {
+    line-height: 1.7 !important;
+    padding-left: 18px !important;
+    word-break: break-word;
+  }
+  #viewRewardsModal .view-rewards-contact p {
+    font-size: 0.82rem !important;
+  }
+}
+
+/* ============ View Rewards modal — MOBILE ONLY ============ */
+@media (max-width: 380px) {
+  #viewRewardsModal .view-rewards-card-bottom {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+  #viewRewardsModal .view-rewards-card-bottom .view-rewards-card-balance {
+    text-align: center;
+  }
+  #viewRewardsModal .view-rewards-card-bottom .view-rewards-card-btn {
+    width: 100%;
+  }
+}

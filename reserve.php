@@ -969,9 +969,9 @@ vpMark('household');
       <?php if ($isResident): ?>
         <!-- View Rewards Modal -->
         <div id="viewRewardsModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:10000; align-items:center; justify-content:center; padding:20px;">
-          <div style="background:#fff; border-radius:20px; max-width:800px; width:100%; max-height:90vh; overflow-y:auto; position:relative;">
+          <div class="view-rewards-content" style="background:#fff; border-radius:20px; max-width:800px; width:100%; max-height:90vh; overflow-y:auto; position:relative;">
             <!-- Modal Header -->
-            <div style="padding:24px 24px 0; display:flex; justify-content:space-between; align-items:center;">
+            <div class="view-rewards-header" style="padding:24px 24px 0; display:flex; justify-content:space-between; align-items:center;">
               <h2 style="margin:0; color:#23412e; font-size:1.5rem; font-weight:800;"><i class="fa-solid fa-gift" aria-hidden="true"></i> View Rewards</h2>
               <button type="button" id="closeRewardsModal" class="close-profile-modal" aria-label="Close">
                 &times;
@@ -979,18 +979,18 @@ vpMark('household');
             </div>
             
             <!-- Modal Content -->
-            <div style="padding:24px;">
+            <div class="view-rewards-body" style="padding:24px;">
 
               <!-- Current Points -->
-              <div style="background:linear-gradient(135deg,#23412e,#1f3528); color:#fff; padding:20px; border-radius:16px; margin-bottom:24px;">
+              <div class="view-rewards-balance" style="background:linear-gradient(135deg,#23412e,#1f3528); color:#fff; padding:20px; border-radius:16px; margin-bottom:24px;">
                 <div style="font-size:0.9rem; opacity:0.9; margin-bottom:4px;">Your Current Balance</div>
                 <div style="font-size:2.5rem; font-weight:800;"><?php echo number_format($residentPoints); ?> pts</div>
               </div>
 
               <!-- All Available Amenity Rewards -->
-              <div style="margin-bottom:24px;">
+              <div class="view-rewards-amenities" style="margin-bottom:24px;">
                 <div style="font-size:1.25rem; font-weight:800; color:#23412e; margin-bottom:16px;">All Available Amenities</div>
-                <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px;">
+                <div class="view-rewards-grid" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px;">
                   <?php 
                     $allAmenities = [
                       ['name' => 'Basketball Court', 'points' => 300, 'img' => 'images/basketballcourt.png'],
@@ -1009,22 +1009,22 @@ vpMark('household');
                         </div>
                         <div style="flex:1;">
                           <div style="font-weight:800; font-size:1rem; color:#111827;"><?php echo htmlspecialchars($amenity['name']); ?></div>
-                          <div style="display:flex; gap:8px; align-items:center; font-size:0.8rem; margin-top:4px;">
+                          <div class="view-rewards-card-meta" style="display:flex; gap:8px; align-items:center; font-size:0.8rem; margin-top:4px; flex-wrap:wrap;">
                             <span style="color:#23412e; font-weight:700;"><?php echo number_format($amenity['points']); ?> pts / hour</span>
                             <?php if ($isEligible): ?>
-                              <span style="background:#d1fae5; color:#065f46; padding:2px 8px; border-radius:10px; font-weight:700; font-size:0.75rem;"><i class="fa-solid fa-check" aria-hidden="true"></i> Eligible</span>
+                              <span class="view-rewards-badge view-rewards-badge-ok" style="background:#d1fae5; color:#065f46; padding:2px 8px; border-radius:10px; font-weight:700; font-size:0.75rem;"><i class="fa-solid fa-check" aria-hidden="true"></i> Eligible</span>
                             <?php else: ?>
-                              <span style="background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:10px; font-weight:700; font-size:0.75rem;"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Need <?php echo number_format($amenity['points'] - $residentPoints); ?> more</span>
+                              <span class="view-rewards-badge view-rewards-badge-need" style="background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:10px; font-weight:700; font-size:0.75rem; white-space:nowrap;"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Need <?php echo number_format($amenity['points'] - $residentPoints); ?> more</span>
                             <?php endif; ?>
                           </div>
                         </div>
                       </div>
-                      <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
-                        <div style="display:flex; flex-direction:column;">
+                      <div class="view-rewards-card-bottom" style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                        <div class="view-rewards-card-balance" style="display:flex; flex-direction:column; min-width:0;">
                           <span style="color:#6b7280; font-size:0.8rem;">Your balance:</span>
                           <span style="font-weight:800; color:#111827; font-size:0.9rem;"><?php echo number_format($residentPoints); ?> pts</span>
                         </div>
-                        <button type="button" style="padding:8px 20px; border-radius:10px; border:none; font-weight:700; font-size:0.85rem; cursor:pointer; transition:all 0.2s; <?php echo $isEligible ? 'background:linear-gradient(135deg,#23412e,#1f5a33); color:#fff; box-shadow:0 2px 8px rgba(35,65,46,0.2);' : 'background:#e5e7eb; color:#6b7280; cursor:not-allowed;'; ?>">
+                        <button type="button" class="view-rewards-card-btn" style="padding:8px 16px; border-radius:10px; border:none; font-weight:700; font-size:0.85rem; cursor:pointer; transition:all 0.2s; white-space:nowrap; <?php echo $isEligible ? 'background:linear-gradient(135deg,#23412e,#1f5a33); color:#fff; box-shadow:0 2px 8px rgba(35,65,46,0.2);' : 'background:#e5e7eb; color:#6b7280; cursor:not-allowed;'; ?>">
                           <?php echo $isEligible ? 'Redeem' : 'Not Enough Points'; ?>
                         </button>
                       </div>
@@ -1044,7 +1044,7 @@ vpMark('household');
                 }
                 if ($showEarnPoints): 
               ?>
-                <div style="background:#fffbeb; border:1px solid #fcd34d; border-radius:16px; padding:20px;">
+                <div class="view-rewards-contact" style="background:#fffbeb; border:1px solid #fcd34d; border-radius:16px; padding:20px;">
                   <div style="font-weight:800; color:#92400e; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
                      <i class="fa-solid fa-lightbulb"></i> Earn More Points
                    </div>
