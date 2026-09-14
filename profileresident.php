@@ -919,7 +919,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
 <title>Resident Dashboard - Victorian Heights</title>
 <link rel="icon" type="image/png" href="images/logo.svg">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<?php $_dashCss = @filemtime(__DIR__ . '/css/dashboard.css') ?: 1; $_gfCss = @filemtime(__DIR__ . '/css/guestform.css') ?: 1; ?>
+<?php $_dashCss = substr(@md5_file(__DIR__ . '/css/dashboard.css') ?: '', 0, 12); $_gfCss = substr(@md5_file(__DIR__ . '/css/guestform.css') ?: '', 0, 12); ?>
 <link rel="stylesheet" href="css/dashboard.css?v=<?php echo $_dashCss; ?>">
 <link rel="stylesheet" href="css/guestform.css?v=<?php echo $_gfCss; ?>">
 <!-- FontAwesome for icons -->
