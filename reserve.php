@@ -25,9 +25,20 @@ if (!function_exists('vpFlush')) {
 register_shutdown_function('vpFlush');
 // ---
 ob_start(); // Prevents header issues on redirect
+
+// Read-only session for GET page loads: avoids holding the file lock while
+// heavy DB queries run, which prevents 504s when concurrent AJAX requests
+// from the previous page still hold the lock.
+$isReserveApiRequest = $_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && in_array($_GET['action'], ['booked_dates', 'booked_times', 'check_points'], true);
+$resetReservation = isset($_GET['reset_reservation']) && $_GET['reset_reservation'] === '1';
+$isGetPageLoad = ($_SERVER['REQUEST_METHOD'] === 'GET' && !$isReserveApiRequest);
+// reset_reservation GETs must persist the session unset below, so they get a writable session.
+if ($isGetPageLoad && !$resetReservation) {
+  define('VP_SESSION_READONLY', true);
+}
+
 require_once __DIR__ . '/session_bootstrap.php';
 vpMark('session_start');
-$isReserveApiRequest = $_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && in_array($_GET['action'], ['booked_dates', 'booked_times', 'check_points'], true);
 if ($isReserveApiRequest) {
   define('VP_JSON_ERROR_RESPONSE', true);
 }
@@ -37,9 +48,10 @@ $generatedCode = '';
 $errorMsg = '';
 $canSubmit = true;
 if (empty($_SESSION['csrf_token'])) {
+  // Session may be read-only — reopen in write mode to persist the CSRF token.
+  session_start();
   $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
-$resetReservation = isset($_GET['reset_reservation']) && $_GET['reset_reservation'] === '1';
 $refFromQuery = isset($_GET['ref_code']) ? trim($_GET['ref_code']) : '';
 if ($resetReservation) {
   unset($_SESSION['pending_reservation'], $_SESSION['dp_ref_code'], $_SESSION['flash_ref_code'], $_SESSION['reservation_submitted']);
@@ -116,19 +128,25 @@ function reserveTableColumnExists(mysqli $con, string $table, string $column): b
 
 function reserveCalcVHEcoBalance(mysqli $con, int $userId): int {
     if ($userId <= 0) return 0;
-    $condition = "(description LIKE '%VHEcoPoint%' OR description LIKE '%recycling%' OR description LIKE '%Redeemed points%' OR (transaction_type = 'redeem' AND reservation_ref_code IS NOT NULL AND reservation_ref_code <> ''))";
-    $query = "SELECT COALESCE(SUM(CASE WHEN transaction_type = 'redeem' THEN -amount ELSE amount END), 0) AS balance FROM point_transactions WHERE user_id = ? AND ($condition OR ecopoint_session_id IS NOT NULL)";
+    // Modern VHEcoPoint rows carry ecopoint_session_id (index-friendly). Legacy
+    // rows are matched via description/transaction_type patterns, only when the
+    // session id is NULL so no row is double-counted.
+    $legacy = "(description LIKE '%VHEcoPoint%' OR description LIKE '%recycling%' OR description LIKE '%Redeemed points%' OR (transaction_type = 'redeem' AND reservation_ref_code IS NOT NULL AND reservation_ref_code <> ''))";
+    $sumExpr = "CASE WHEN transaction_type = 'redeem' THEN -amount ELSE amount END";
+    $query = "SELECT COALESCE((SELECT SUM(b) FROM (SELECT $sumExpr AS b FROM point_transactions WHERE user_id = ? AND ecopoint_session_id IS NOT NULL UNION ALL SELECT $sumExpr AS b FROM point_transactions WHERE user_id = ? AND (ecopoint_session_id IS NULL) AND $legacy) t), 0) AS balance";
     $stmt = $con->prepare($query);
     if (!$stmt) {
       error_log('reserveCalcVHEcoBalance primary prepare failed: ' . $con->error);
-      $query = "SELECT COALESCE(SUM(CASE WHEN transaction_type = 'redeem' THEN -amount ELSE amount END), 0) AS balance FROM point_transactions WHERE user_id = ? AND $condition";
+      $query = "SELECT COALESCE(SUM($sumExpr), 0) AS balance FROM point_transactions WHERE user_id = ? AND $legacy";
       $stmt = $con->prepare($query);
+      if (!$stmt) {
+        error_log('reserveCalcVHEcoBalance fallback prepare failed: ' . $con->error);
+        return 0;
+      }
+      $stmt->bind_param('i', $userId);
+    } else {
+      $stmt->bind_param('ii', $userId, $userId);
     }
-    if (!$stmt) {
-      error_log('reserveCalcVHEcoBalance fallback prepare failed: ' . $con->error);
-      return 0;
-    }
-    $stmt->bind_param('i', $userId);
     if (!$stmt->execute()) {
       error_log('reserveCalcVHEcoBalance execute failed: ' . $stmt->error);
       $stmt->close(); return 0;
@@ -938,6 +956,12 @@ vpMark('household');
   <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
   <link rel="stylesheet" href="css/reserve.css?v=<?php echo substr(@md5_file(__DIR__ . '/css/reserve.css') ?: '', 0, 12); ?>">
 </head>
+<?php
+// Flush the <head> HTML now so the browser can start loading CSS/JS while the
+// server generates the body. Keeps the upstream connection active on slow
+// Hostinger servers and reduces the chance of nginx 504 timeouts.
+if (ob_get_level() > 0) { ob_end_flush(); }
+?>
 <body>
   <div id="notifyLayer" class="toast"></div>
    
