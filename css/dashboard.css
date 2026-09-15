@@ -59,6 +59,26 @@ body {
     filter: brightness(0.95);
 }
 
+.sidebar-close-btn {
+    display: none;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: none;
+    background-color: #d4a017;
+    color: #ffffff;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    font-size: 1.2rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+.sidebar-close-btn i { color: #ffffff; }
+.sidebar-close-btn:hover { filter: brightness(0.95); }
+
 .nav-menu {
     flex: 1;
     padding: 16px 12px;
@@ -248,6 +268,16 @@ body {
     color: #f5f5f5;
     cursor: pointer;
     position: relative;
+    padding: 9px 11px;
+    border-radius: 50%;
+    transition: background-color .25s ease, color .25s ease;
+}
+
+.icon-btn.active,
+.menu-toggle.active {
+    background: rgba(255,255,255,0.18);
+    border-radius: 50%;
+    color: #fbbf24;
 }
 
 .user-profile {
@@ -256,11 +286,23 @@ body {
     text-decoration: none;
     color: #fff;
     gap: 10px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    transition: background-color .25s ease, color .25s ease;
+}
+
+.user-profile.active {
+    background: rgba(255,255,255,0.18);
+}
+
+.user-profile.active .user-name {
+    color: #fbbf24;
 }
 
 .user-name {
     font-weight: 500;
     font-size: 0.95rem;
+    transition: color .25s ease;
 }
 
 .user-avatar {
@@ -673,6 +715,7 @@ body {
     font-size: 1.5rem;
     cursor: pointer;
     margin-right: 0;
+    transition: background-color .25s ease, color .25s ease, transform .25s ease;
 }
 
 .sidebar-overlay {
@@ -3164,8 +3207,18 @@ body.profile-modal-open {
     }
 
     .sidebar .nav-menu {
-        padding: 12px 10px;
+        padding: 6px 10px 12px;
         gap: 2px;
+    }
+
+    .sidebar .sidebar-header {
+        display: none;
+    }
+
+    .sidebar-close-btn {
+        display: inline-flex;
+        align-self: flex-start;
+        margin: 12px 0 6px 12px;
     }
 
     .sidebar .nav-item {
@@ -3231,6 +3284,12 @@ body.profile-modal-open {
 .btn-qr-modal:active,
 .btn-ecopoint-qr:active {
     transform: translateY(1px) scale(.98);
+}
+.btn-qr-modal.active,
+.btn-ecopoint-qr.active {
+    filter: brightness(1.05);
+    box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.5), 0 6px 14px rgba(234, 179, 8, 0.28);
+    transform: translateY(0) scale(1);
 }
 .btn-qr-modal:focus-visible,
 .btn-ecopoint-qr:focus-visible {

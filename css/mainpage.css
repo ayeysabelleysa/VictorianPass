@@ -90,6 +90,7 @@ html { scroll-behavior: smooth; }
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
   border: 1px solid rgba(242, 194, 79, 0.68);
   position: relative;
+  transition: background 0.25s ease, color 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease, transform 0.2s ease;
 }
 .page-nav .nav-ecopoint:hover{
   background: linear-gradient(135deg, rgba(50, 35, 20, 0.98) 0%, rgba(35, 65, 46, 1) 100%);
@@ -176,7 +177,11 @@ html { scroll-behavior: smooth; }
 
 .nav-collapse{display:flex; align-items:center; gap:18px}
 .hamburger{display:none; background:#23412e; color:#fff; border:none; border-radius:8px; width:40px; height:36px; align-items:center; justify-content:center}
-.hamburger span{display:block; width:22px; height:2px; background:#fff; margin:2px 0}
+.hamburger span{display:block; width:22px; height:2px; background:#fff; margin:2px 0; transition:transform .25s ease, opacity .25s ease, background-color .25s ease}
+.hamburger.active{background:#2a9d52; box-shadow:0 0 0 3px rgba(42,157,82,0.35)}
+.hamburger.active span:nth-child(1){transform:translateY(5px) rotate(45deg)}
+.hamburger.active span:nth-child(2){opacity:0}
+.hamburger.active span:nth-child(3){transform:translateY(-5px) rotate(-45deg)}
 
 .btn-nav {
   padding: 6px 18px;
@@ -217,8 +222,9 @@ html { scroll-behavior: smooth; }
 }
 
 .profile-icon-wrap{position:relative;display:inline-flex;align-items:center}
-.profile-account-btn{background:transparent;border:none;padding:0;margin:0;display:inline-flex;align-items:center;cursor:pointer}
+.profile-account-btn{background:transparent;border:none;padding:0;margin:0;display:inline-flex;align-items:center;cursor:pointer;border-radius:50%;transition:background-color .25s ease, box-shadow .25s ease}
 .profile-account-btn:focus{outline:2px solid #f2c24f;outline-offset:2px}
+.profile-account-btn.active{box-shadow:0 0 0 3px #2a9d52}
 .profile-icon:hover{transform:scale(1.03);box-shadow:0 0 0 3px rgba(255,255,255,0.2)}
 
 .profile-dropdown {

@@ -1676,15 +1676,16 @@ input:focus-visible {
 .vhecopoint-popup-close{position:absolute;top:10px;right:12px;width:32px;height:32px;border-radius:50%;border:0;background:#e5e7eb;color:#111827;font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1;padding:0;transition:filter .2s ease}
 .vhecopoint-popup-close:hover{filter:brightness(0.92)}
 .vhecopoint-popup-close:focus-visible{outline:2px solid #1d6b3f;outline-offset:2px}
-.vhecopoint-popup-icon{display:inline-flex;align-items:center;justify-content:center;width:58px;height:58px;margin:0 auto 14px;border-radius:50%;background:linear-gradient(135deg,#1d6b3f 0%,#2a9d52 100%);color:#fff;font-size:1.7rem;box-shadow:0 10px 22px rgba(29,107,63,0.35)}
-.vhecopoint-popup-icon i{font-size:1.5rem;line-height:1}
-.vhecopoint-popup-title{font-family:'Poppins',sans-serif;font-size:1.3rem;font-weight:700;color:#14532d;margin:0 0 6px;letter-spacing:.2px}
-.vhecopoint-popup-text{margin:0;font-size:.92rem;line-height:1.6;color:#4b5563}
+.vhecopoint-popup-icon{display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;margin:0 auto 10px;border-radius:50%;background:linear-gradient(135deg,#1d6b3f 0%,#2a9d52 100%);color:#fff;font-size:1.4rem;box-shadow:0 8px 18px rgba(29,107,63,0.3)}
+.vhecopoint-popup-icon i{font-size:1.3rem;line-height:1}
+.vhecopoint-popup-title{font-family:'Poppins',sans-serif;font-size:1.1rem;font-weight:700;color:#14532d;margin:0 0 4px;letter-spacing:.2px}
+.vhecopoint-popup-text{margin:0;font-size:.82rem;line-height:1.5;color:#4b5563}
 @media (max-width:560px){
-  .vhecopoint-popup-card{padding:26px 20px 22px;border-radius:16px;max-height:calc(100dvh - 40px);overflow-y:auto}
-  .vhecopoint-popup-icon{width:52px;height:52px;font-size:1.5rem}
-  .vhecopoint-popup-icon i{font-size:1.3rem}
-  .vhecopoint-popup-title{font-size:1.15rem}
-  .vhecopoint-popup-overlay{padding:16px 12px}
-  .vhecopoint-popup-text{font-size:.86rem}
+  .vhecopoint-popup-card{width:min(340px,100%);padding:22px 18px 18px;border-radius:14px;max-height:calc(100dvh - 40px);overflow-y:auto}
+  .vhecopoint-popup-icon{width:42px;height:42px;margin-bottom:8px}
+  .vhecopoint-popup-icon i{font-size:1.1rem}
+  .vhecopoint-popup-title{font-size:.95rem}
+  .vhecopoint-popup-overlay{padding:14px 10px}
+  .vhecopoint-popup-text{font-size:.78rem;line-height:1.45}
+  .vhecopoint-popup-close{width:28px;height:28px;font-size:15px;top:8px;right:8px}
 }

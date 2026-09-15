@@ -554,7 +554,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
   <script src="js/logout-modal.js"></script>
   <script>
-    (function(){var t=document.getElementById('navToggle');var c=document.getElementById('navCollapse');if(!t||!c)return;t.addEventListener('click',function(){var o=c.classList.toggle('open');t.setAttribute('aria-expanded',o?'true':'false');});window.addEventListener('click',function(e){if(!c.contains(e.target)&&!t.contains(e.target)){c.classList.remove('open');t.setAttribute('aria-expanded','false');}});window.addEventListener('resize',function(){if(window.innerWidth>900){c.classList.remove('open');t.setAttribute('aria-expanded','false');}});})();
+    (function(){var t=document.getElementById('navToggle');var c=document.getElementById('navCollapse');if(!t||!c)return;t.addEventListener('click',function(){var o=c.classList.toggle('open');t.classList.toggle('active',o);t.setAttribute('aria-expanded',o?'true':'false');});window.addEventListener('click',function(e){if(!c.contains(e.target)&&!t.contains(e.target)){c.classList.remove('open');t.classList.remove('active');t.setAttribute('aria-expanded','false');}});window.addEventListener('resize',function(){if(window.innerWidth>900){c.classList.remove('open');t.classList.remove('active');t.setAttribute('aria-expanded','false');}});})();
   </script>
   <script>
     document.addEventListener('DOMContentLoaded', function(){
@@ -594,11 +594,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         setTimeout(function(){
           if(closeBtn) closeBtn.focus();
         }, 0);
+        var ecoBtn = document.getElementById('navEcoPointBtn');
+        if(ecoBtn) ecoBtn.classList.add('active');
       }
 
       function closeModal(){
         if(!modal) return;
         modal.style.display = 'none';
+        var ecoBtn = document.getElementById('navEcoPointBtn');
+        if(ecoBtn) ecoBtn.classList.remove('active');
         if(lastFocus && typeof lastFocus.focus === 'function'){
           lastFocus.focus();
         }
@@ -675,11 +679,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
               requestAnimationFrame(function() {
                   dropdown.classList.add('show');
               });
+              trigger.classList.add('active');
           }
 
           function closeDropdown() {
               closeTimeout = setTimeout(function() {
                   dropdown.classList.remove('show');
+                  trigger.classList.remove('active');
                   setTimeout(function() {
                       if (!dropdown.classList.contains('show')) {
                           dropdown.style.display = 'none';
@@ -704,6 +710,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
               }
               if (dropdown.classList.contains('show')) {
                   dropdown.classList.remove('show');
+                  trigger.classList.remove('active');
                   setTimeout(function() { dropdown.style.display = 'none'; }, 300);
               } else {
                   openDropdown();
@@ -715,6 +722,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
               if (!wrap.contains(e.target)) {
                   if (dropdown.classList.contains('show')) {
                       dropdown.classList.remove('show');
+                      trigger.classList.remove('active');
                       setTimeout(function() { dropdown.style.display = 'none'; }, 300);
                   }
               }

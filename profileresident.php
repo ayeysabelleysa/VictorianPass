@@ -947,6 +947,8 @@ body.account-blocked { overflow: hidden; }
 .main-content.ecopoint-active .top-header .icon-btn i,
 .main-content.ecopoint-active .top-header .user-profile,
 .main-content.ecopoint-active .top-header .menu-toggle i { color: #f4f4f4; }
+.main-content.ecopoint-active .top-header .icon-btn.active i,
+.main-content.ecopoint-active .top-header .menu-toggle.active i { color: #fbbf24; }
 
 /* Panel shell — light background, not dark green */
 .main-content.ecopoint-active #panel-points-history {
@@ -1136,68 +1138,39 @@ body.account-blocked { overflow: hidden; }
   .main-content.ecopoint-active #panel-points-history .ecopoint-live-meta { grid-template-columns: 1fr 1fr; }
 }
 
-/* Compact, balanced VHEcoPoint / dashboard header on mobile */
+/* Compact dashboard header on mobile */
 @media (max-width: 768px) {
-  .top-header {
-    height: 58px;
-    padding: 0 14px;
-  }
-  .header-brand {
-    gap: 0;
-    min-width: 0;
-    overflow: hidden;
-  }
-  .main-content.ecopoint-active .top-header .ecopoint-header-logo { font-size: 32px; }
-  .header-brand img {
-    height: 32px;
-    margin-right: 8px;
-    flex-shrink: 0;
-  }
-  .menu-toggle {
-    width: 36px;
-    height: 34px;
-    font-size: 1.25rem;
-    margin-right: 8px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-  .brand-text {
-    min-width: 0;
-    overflow: hidden;
-  }
-  .brand-main { font-size: 0.95rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .brand-sub { font-size: 0.68rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .header-actions { gap: 10px; }
-  .icon-btn { font-size: 1.05rem; flex-shrink: 0; }
-  .user-name { font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 90px; }
-  .user-avatar { width: 34px; height: 34px; flex-shrink: 0; }
-  .user-profile { gap: 7px; min-width: 0; }
+  .top-header { padding: 6px 10px; }
+  .header-brand { gap: 0; min-width: 0; overflow: hidden; }
+  .main-content.ecopoint-active .top-header .ecopoint-header-logo { font-size: 28px; }
+  .header-brand img { height: 28px; margin-right: 6px; flex-shrink: 0; }
+  .menu-toggle { width: 32px; height: 30px; font-size: 1.1rem; margin-right: 6px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .brand-text { min-width: 0; overflow: hidden; }
+  .brand-main { font-size: 0.88rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .brand-sub { font-size: 0.62rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .header-actions { gap: 7px; flex-shrink: 0; }
+  .icon-btn { font-size: 0.92rem; flex-shrink: 0; }
+  .user-name { font-size: 0.76rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 72px; }
+  .user-avatar { width: 30px; height: 30px; flex-shrink: 0; }
+  .user-profile { gap: 6px; min-width: 0; }
 }
 
 @media (max-width: 430px) {
-  .top-header { padding: 0 10px; }
-  .header-brand img { margin-right: 6px; }
-  .brand-main { font-size: 0.88rem; max-width: 120px; }
-  .brand-sub { font-size: 0.62rem; max-width: 110px; }
-  .header-actions { gap: 8px; }
-  .user-name { font-size: 0.76rem; max-width: 70px; }
-}
-
-@media (max-width: 430px) {
-  .top-header { padding: 0 10px; }
-  .header-brand img { margin-right: 6px; }
-  .brand-main { font-size: 0.88rem; }
-  .brand-sub { font-size: 0.62rem; }
-  .header-actions { gap: 8px; }
-  .user-name { font-size: 0.76rem; }
+  .top-header { padding: 6px 8px; }
+  .header-brand img { height: 26px; margin-right: 5px; }
+  .brand-main { font-size: 0.82rem; max-width: 100px; }
+  .brand-sub { font-size: 0.56rem; max-width: 90px; }
+  .header-actions { gap: 6px; }
+  .icon-btn { font-size: 0.88rem; padding: 6px 8px; }
+  .user-name { font-size: 0.72rem; max-width: 62px; }
+  .user-avatar { width: 28px; height: 28px; }
+  .user-profile { gap: 5px; }
 }
 
 @media (max-width: 320px) {
   .brand-sub { display: none; }
   .user-name { display: none; }
-  .header-actions { gap: 6px; }
+  .header-actions { gap: 5px; }
 }
 @media (max-width: 480px) {
   .main-content.ecopoint-active #panel-points-history .ecopoint-live-meta { grid-template-columns: 1fr; }
@@ -3051,6 +3024,7 @@ body.modal-open{overflow:hidden}
 <div class="app-container">
   <!-- SIDEBAR -->
   <aside class="sidebar">
+    <button type="button" class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="Close navigation"><i class="fa-solid fa-xmark"></i></button>
     <nav class="nav-menu">
       <a href="#" class="nav-item <?php echo $activeSection === 'panel-requests' ? 'active' : ''; ?>" data-section="panel-requests"><i class="fa-solid fa-list"></i> <span>My Requests</span></a>
       <a href="reserve.php" class="nav-item"><i class="fa-solid fa-ticket"></i> <span>Amenity Reservation</span></a>
@@ -3960,18 +3934,25 @@ body.modal-open{overflow:hidden}
       guestPassModal.style.display = "block";
   }
   // QR Choice / View handlers
+  function setQrActive(active){
+    document.querySelectorAll('.btn-ecopoint-qr, .btn-qr-modal').forEach(function(btn){
+      btn.classList.toggle('active', !!active);
+    });
+  }
   function openQRChoice(){
     closeQRView();
     var modal = document.getElementById('qrChoiceModal');
     if(!modal) return;
     modal.style.display = 'flex';
     document.body.classList.add('qr-modal-open');
+    setQrActive(true);
   }
   function closeQRChoice(){
     var m=document.getElementById('qrChoiceModal');
     if(m) m.style.display='none';
     if(!document.getElementById('qrViewModal') || document.getElementById('qrViewModal').style.display==='none'){
       document.body.classList.remove('qr-modal-open');
+      setQrActive(false);
     }
   }
   function openQRView(){
@@ -3992,11 +3973,13 @@ body.modal-open{overflow:hidden}
     }
     view.style.display = 'flex';
     document.body.classList.add('qr-modal-open');
+    setQrActive(true);
   }
   function closeQRView(){
     var m=document.getElementById('qrViewModal');
     if(m) m.style.display='none';
     document.body.classList.remove('qr-modal-open');
+    setQrActive(false);
   }
   // Expose QR actions to the global scope so inline onclick handlers work
   window.openQRChoice = openQRChoice;
@@ -4691,9 +4674,13 @@ body.modal-open{overflow:hidden}
   var overlay = document.getElementById('sidebarOverlay');
 
   if(menuToggle && sidebar && overlay) {
+      function setMenuActive(isOpen) {
+          menuToggle.classList.toggle('active', isOpen);
+      }
       function closeSidebar() {
           sidebar.classList.remove('open');
           overlay.classList.remove('show');
+          setMenuActive(false);
       }
 
       menuToggle.addEventListener('click', function() {
@@ -4702,8 +4689,12 @@ body.modal-open{overflow:hidden}
           } else {
               sidebar.classList.add('open');
               overlay.classList.add('show');
+              setMenuActive(true);
           }
       });
+
+      var sidebarCloseBtn = document.getElementById('sidebarCloseBtn');
+      if(sidebarCloseBtn) { sidebarCloseBtn.addEventListener('click', closeSidebar); }
 
       overlay.addEventListener('click', closeSidebar);
 
@@ -5471,6 +5462,7 @@ body.modal-open{overflow:hidden}
       if(notifPopup){ notifPopup.style.display='none'; }
       if(notifPanel){
         notifPanel.style.display=(notifPanel.style.display==='block'?'none':'block');
+        notifBtn.classList.toggle('active', notifPanel.style.display==='block');
         if(notifPanel.style.display==='block') renderNotifPanel();
       }
       document.querySelectorAll('.item-list .list-item.status-updated').forEach(function(li){
@@ -5490,6 +5482,7 @@ body.modal-open{overflow:hidden}
     if(notifPanel.style.display!=='block' && (!notifPopup || notifPopup.style.display!=='block')) return;
     if((notifPanel && notifPanel.contains(e.target)) || (notifPopup && notifPopup.contains(e.target)) || notifBtn.contains(e.target)) return;
     notifPanel.style.display='none';
+    notifBtn.classList.remove('active');
     if(notifPopup){ notifPopup.style.display='none'; }
   });
 
@@ -6652,6 +6645,7 @@ document.addEventListener('DOMContentLoaded', function() {
       profileModal.classList.remove('profile-modal-closing');
       profileModal.style.display = 'block';
       document.body.classList.add('profile-modal-open');
+      if (profileTrigger) profileTrigger.classList.add('active');
       requestAnimationFrame(function() {
         profileModal.classList.add('profile-modal-open');
       });
@@ -6664,6 +6658,7 @@ document.addEventListener('DOMContentLoaded', function() {
         profileModal.classList.remove('profile-modal-open', 'profile-modal-closing');
         profileModal.style.display = 'none';
         document.body.classList.remove('profile-modal-open');
+        if (profileTrigger) profileTrigger.classList.remove('active');
         return;
       }
       profileModal.classList.add('profile-modal-closing');
@@ -6672,6 +6667,7 @@ document.addEventListener('DOMContentLoaded', function() {
           profileModal.style.display = "none";
           profileModal.classList.remove('profile-modal-open', 'profile-modal-closing');
           document.body.classList.remove('profile-modal-open');
+          if (profileTrigger) profileTrigger.classList.remove('active');
         }
       }, 360);
     }

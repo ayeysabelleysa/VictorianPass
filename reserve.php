@@ -4551,7 +4551,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <div class="vhecopoint-popup-card">
     <button type="button" class="vhecopoint-popup-close" id="vhecopointProTipClose" aria-label="Close announcement">&times;</button>
     <span class="vhecopoint-popup-icon" aria-hidden="true"><i class="fa-solid fa-lightbulb"></i></span>
-    <div class="vhecopoint-popup-title" id="vhecopointProTipTitle">&#128161; Pro Tip!</div>
+    <div class="vhecopoint-popup-title" id="vhecopointProTipTitle">Pro Tip!</div>
     <p class="vhecopoint-popup-text" id="vhecopointProTipText">You can use the points you have collected in the VHEcoPoint Smart Waste Segregation Station when booking an amenity for a FREE 1 hour. Click on an amenity to see if you're eligible!</p>
   </div>
 </div>

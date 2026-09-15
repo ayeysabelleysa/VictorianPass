@@ -754,6 +754,42 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
 }
 </style>
 
+<style>
+/* Compact dashboard header on mobile */
+@media (max-width: 768px) {
+  .top-header { padding: 6px 10px; }
+  .header-brand { gap: 0; min-width: 0; overflow: hidden; }
+  .header-brand img { height: 28px; margin-right: 6px; flex-shrink: 0; }
+  .menu-toggle { width: 32px; height: 30px; font-size: 1.1rem; margin-right: 6px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .brand-text { min-width: 0; overflow: hidden; }
+  .brand-main { font-size: 0.88rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .brand-sub { font-size: 0.62rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .header-actions { gap: 7px; flex-shrink: 0; }
+  .icon-btn { font-size: 0.92rem; flex-shrink: 0; }
+  .user-name { font-size: 0.76rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 72px; }
+  .user-avatar { width: 30px; height: 30px; flex-shrink: 0; }
+  .user-profile { gap: 6px; min-width: 0; }
+}
+
+@media (max-width: 430px) {
+  .top-header { padding: 6px 8px; }
+  .header-brand img { height: 26px; margin-right: 5px; }
+  .brand-main { font-size: 0.82rem; max-width: 100px; }
+  .brand-sub { font-size: 0.56rem; max-width: 90px; }
+  .header-actions { gap: 6px; }
+  .icon-btn { font-size: 0.88rem; padding: 6px 8px; }
+  .user-name { font-size: 0.72rem; max-width: 62px; }
+  .user-avatar { width: 28px; height: 28px; }
+  .user-profile { gap: 5px; }
+}
+
+@media (max-width: 320px) {
+  .brand-sub { display: none; }
+  .user-name { display: none; }
+  .header-actions { gap: 5px; }
+}
+</style>
+
 </head>
 <body class="<?php echo $isAccountBlocked ? 'account-blocked' : ''; ?>">
 <?php if ($flashNotice !== '') { ?>
@@ -781,6 +817,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
 <div class="app-container">
   <!-- SIDEBAR -->
   <aside class="sidebar">
+    <button type="button" class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="Close navigation"><i class="fa-solid fa-xmark"></i></button>
     <div class="sidebar-header">
       <a href="mainpage.php" class="back-btn"><i class="fa-solid fa-arrow-left"></i></a>
     </div>
@@ -2155,9 +2192,13 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
   var overlay = document.getElementById('sidebarOverlay');
 
   if(menuToggle && sidebar && overlay) {
+      function setMenuActive(isOpen) {
+          menuToggle.classList.toggle('active', isOpen);
+      }
       function closeSidebar() {
           sidebar.classList.remove('open');
           overlay.classList.remove('show');
+          setMenuActive(false);
       }
 
       menuToggle.addEventListener('click', function() {
@@ -2166,8 +2207,12 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
           } else {
               sidebar.classList.add('open');
               overlay.classList.add('show');
+              setMenuActive(true);
           }
       });
+
+      var sidebarCloseBtn = document.getElementById('sidebarCloseBtn');
+      if(sidebarCloseBtn) { sidebarCloseBtn.addEventListener('click', closeSidebar); }
 
       overlay.addEventListener('click', closeSidebar);
 
@@ -2255,6 +2300,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
       e.stopPropagation();
       if(notifPopup){ notifPopup.style.display='none'; }
       notifPanel.style.display=(notifPanel.style.display==='block'?'none':'block');
+      notifBtn.classList.toggle('active', notifPanel.style.display==='block');
       if(notifPanel.style.display==='block') renderNotifPanel();
       document.querySelectorAll('.item-list .list-item.status-updated').forEach(function(li){
         li.classList.remove('status-updated');
@@ -2273,6 +2319,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
     if(notifPanel.style.display!=='block' && (!notifPopup || notifPopup.style.display!=='block')) return;
     if((notifPanel && notifPanel.contains(e.target)) || (notifPopup && notifPopup.contains(e.target)) || notifBtn.contains(e.target)) return;
     notifPanel.style.display='none';
+    notifBtn.classList.remove('active');
     if(notifPopup){ notifPopup.style.display='none'; }
   });
   
@@ -2628,6 +2675,7 @@ document.addEventListener('DOMContentLoaded', function() {
       profileModal.classList.remove('profile-modal-closing');
       profileModal.style.display = 'block';
       document.body.classList.add('profile-modal-open');
+      if (profileTrigger) profileTrigger.classList.add('active');
       requestAnimationFrame(function() {
         profileModal.classList.add('profile-modal-open');
       });
@@ -2640,6 +2688,7 @@ document.addEventListener('DOMContentLoaded', function() {
         profileModal.classList.remove('profile-modal-open', 'profile-modal-closing');
         profileModal.style.display = 'none';
         document.body.classList.remove('profile-modal-open');
+        if (profileTrigger) profileTrigger.classList.remove('active');
         return;
       }
       profileModal.classList.add('profile-modal-closing');
@@ -2647,6 +2696,7 @@ document.addEventListener('DOMContentLoaded', function() {
         profileModal.style.display = 'none';
         profileModal.classList.remove('profile-modal-open', 'profile-modal-closing');
         document.body.classList.remove('profile-modal-open');
+        if (profileTrigger) profileTrigger.classList.remove('active');
       }, 360);
     }
 
