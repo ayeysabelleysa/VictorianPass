@@ -33,8 +33,16 @@ $isReserveApiRequest = $_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['acti
 $resetReservation = isset($_GET['reset_reservation']) && $_GET['reset_reservation'] === '1';
 $isGetPageLoad = ($_SERVER['REQUEST_METHOD'] === 'GET' && !$isReserveApiRequest);
 // reset_reservation GETs must persist the session unset below, so they get a writable session.
-if ($isGetPageLoad && !$resetReservation) {
-  define('VP_SESSION_READONLY', true);
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && !$resetReservation) {
+  // Logged-in users carry a signed vp_auth cookie -> skip the session lock
+  // entirely for GET page loads AND API calls (prevents 502/504 from session
+  // lock contention). Everybody else falls back to a read-only (read_and_close)
+  // session for page loads; API calls keep the existing write-close behavior.
+  if (isset($_COOKIE['vp_auth'])) {
+    define('VP_SESSION_COOKIE_AUTH', true);
+  } elseif ($isGetPageLoad) {
+    define('VP_SESSION_READONLY', true);
+  }
 }
 
 require_once __DIR__ . '/session_bootstrap.php';
@@ -47,10 +55,17 @@ vpMark('db_connect');
 $generatedCode = '';
 $errorMsg = '';
 $canSubmit = true;
-if (empty($_SESSION['csrf_token'])) {
-  // Session may be read-only — reopen in write mode to persist the CSRF token.
-  session_start();
-  $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+if (defined('VP_SESSION_COOKIE_AUTH') && VP_SESSION_COOKIE_AUTH === true && function_exists('vpCsrfGetToken')) {
+  // Cookie-auth mode: no session lock held. Use a stateless CSRF token kept in
+  // a signed vp_csrf cookie so the form stays CSRF-protected without a session.
+  $sessionCsrfToken = vpCsrfGetToken();
+} else {
+  if (empty($_SESSION['csrf_token'])) {
+    // Session may be read-only — reopen in write mode to persist the CSRF token.
+    session_start();
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+  }
+  $sessionCsrfToken = isset($_SESSION['csrf_token']) ? $_SESSION['csrf_token'] : '';
 }
 $refFromQuery = isset($_GET['ref_code']) ? trim($_GET['ref_code']) : '';
 if ($resetReservation) {
@@ -60,7 +75,10 @@ if ($resetReservation) {
 // Copy every session value this request may need into local variables BEFORE
 // releasing the session lock. Nothing below may read $_SESSION after the lock
 // is closed unless the session was explicitly reopened (POST booking flow).
-$sessionCsrfToken = isset($_SESSION['csrf_token']) ? $_SESSION['csrf_token'] : '';
+// In cookie-auth mode the CSRF token already came from the signed vp_csrf cookie.
+if (!(defined('VP_SESSION_COOKIE_AUTH') && VP_SESSION_COOKIE_AUTH === true)) {
+  $sessionCsrfToken = isset($_SESSION['csrf_token']) ? $_SESSION['csrf_token'] : '';
+}
 $sessionUserId    = isset($_SESSION['user_id'])    ? $_SESSION['user_id']    : null;
 $sessionUserType  = isset($_SESSION['user_type'])  ? $_SESSION['user_type']  : null;
 
@@ -181,7 +199,15 @@ function generateUniqueRefCode($con){
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $tokenPosted = isset($_POST['csrf_token']) ? $_POST['csrf_token'] : '';
-  if (!is_string($tokenPosted) || !hash_equals($sessionCsrfToken, $tokenPosted)) {
+  $csrfOk = false;
+  if (is_string($tokenPosted) && $tokenPosted !== '') {
+    if ($sessionCsrfToken !== '' && hash_equals($sessionCsrfToken, $tokenPosted)) {
+      $csrfOk = true;
+    } elseif (function_exists('vpCsrfVerify') && vpCsrfVerify($tokenPosted)) {
+      $csrfOk = true;
+    }
+  }
+  if (!$csrfOk) {
     $errorMsg = 'Invalid form submission.';
   } else {
     $use_points_post = isset($_POST['use_points']) ? intval($_POST['use_points']) : 0;
@@ -256,6 +282,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $allowedAmenities = ['Clubhouse','Multi-Purpose Building','Basketball Court','Tennis Court'];
     if (!in_array($amenity, $allowedAmenities, true)) { $errorMsg = 'Please select an amenity.'; }
+
+    // Early points-balance validation: must run BEFORE the session-state write
+    // block (if (!$errorMsg)) to prevent an insufficient-balance POST from
+    // falling through to a cash redirect or creating a pending_reservation.
+    if (!$errorMsg && $use_points_post && $acct === 'resident' && $sessionUserId !== null) {
+      $epPointsRequired = 0;
+      switch ($amenity) {
+        case 'Basketball Court': case 'Tennis Court': $epPointsRequired = 300; break;
+        case 'Clubhouse': $epPointsRequired = 600; break;
+        case 'Multi-Purpose Building': $epPointsRequired = 750; break;
+        default: $errorMsg = 'Invalid amenity for point redemption.';
+      }
+      if (!$errorMsg) {
+        $epBalance = reserveCalcVHEcoBalance($con, intval($sessionUserId));
+        if ($epBalance < $epPointsRequired) {
+          $errorMsg = 'Insufficient VHEcoPoint Balance: You need ' . $epPointsRequired . ' pts to redeem 1 free hour for this amenity, but your current VHEcoPoint ledger balance is ' . $epBalance . ' pts. Earn more points by recycling eligible materials at the VHEcoPoint Smart Waste Segregation Station.';
+          // Force cash mode so downstream logic treats this as a normal cash
+          // reservation attempt (form re-renders with the error alert).
+          $use_points_post = 0;
+          $price = round($basePrice, 2);
+          $downpayment = round($price * 0.5, 2);
+        }
+      }
+    }
     $sdObj = $start ? DateTime::createFromFormat('Y-m-d', $start) : false;
     $edObj = $end ? DateTime::createFromFormat('Y-m-d', $end) : false;
     $stObj = $startTime ? DateTime::createFromFormat('H:i', $startTime) : false;
@@ -955,6 +1005,7 @@ vpMark('household');
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
   <link rel="stylesheet" href="css/reserve.css?v=<?php echo substr(@md5_file(__DIR__ . '/css/reserve.css') ?: '', 0, 12); ?>">
+  <link rel="stylesheet" href="css/navbar.css?v=<?php echo substr(@md5_file(__DIR__ . '/css/navbar.css') ?: '', 0, 12); ?>">
 </head>
 <?php
 // Flush the <head> HTML now so the browser can start loading CSS/JS while the
@@ -965,21 +1016,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
 <body>
   <div id="notifyLayer" class="toast"></div>
    
-<header class="navbar">
-  <div class="logo-wrap">
-    <div class="logo">
-      <a href="mainpage.php"><img src="images/logo.svg" alt="VictorianPass Logo"></a>
-      <div class="brand-text">
-        <h1>VictorianPass</h1>
-        <p>Victorian Heights Subdivision</p>
-      </div>
-    </div>
-  </div>
-  <div class="ecopoint-badge">
-    <span class="ecopoint-icon"><i class="fa-solid fa-recycle"></i></span>
-    <span class="ecopoint-text">VHEcoPoint</span>
-  </div>
-</header>
+<?php include __DIR__ . '/navbar.php'; ?>
 
 <section class="hero">
   <div class="layout">
@@ -1135,13 +1172,6 @@ if (ob_get_level() > 0) { ob_end_flush(); }
 
         </div>
       </div>
-      <?php if ($isResident): ?>
-      <div class="booking-steps-protip-float" id="proTipFloat">
-        <span class="protip-icon"><i class="fa-solid fa-lightbulb" aria-hidden="true"></i></span>
-        <span class="protip-text"><strong>Pro Tip:</strong> You can use the points you have collected in VHEcoPoint Smart Waste Segregation Station when booking an amenity for a free 1 hour. Click on an amenity above to see if you're eligible!</span>
-        <button type="button" class="protip-dismiss" id="proTipDismiss" aria-label="Dismiss pro tip">&times;</button>
-      </div>
-      <?php endif; ?>
 
       <div class="amenities-wrapper">
         <div class="amenities-right">
@@ -1637,8 +1667,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     }
   }
 
-  // Function to show a popup error
-  function showPointsErrorPopup(message, showPayNormally) {
+  function showPointsErrorPopup(message, showBookWithCash) {
     let popup = document.getElementById('points-error-popup');
     let overlay = document.getElementById('points-error-overlay');
     if (!overlay) {
@@ -1649,6 +1678,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
         const p = document.getElementById('points-error-popup');
         if (p) p.classList.remove('open');
         overlay.classList.remove('open');
+        document.body.classList.remove('modal-open');
       });
       document.body.appendChild(overlay);
     }
@@ -1661,11 +1691,11 @@ if (ob_get_level() > 0) { ob_end_flush(); }
 
     popup.innerHTML = `
       <div class="points-error-inner">
-        <h3 class="points-error-title"><i class="fa-solid fa-triangle-exclamation" style="color:#dc2626;"></i> Insufficient VHEcoPoints</h3>
+        <h3 class="points-error-title"><i class="fa-solid fa-triangle-exclamation" style="color:#dc2626;"></i> Insufficient Points</h3>
         <p class="points-error-message">${message}</p>
-        <div class="points-error-actions" style="display:flex;gap:10px;margin-top:16px;justify-content:center;flex-wrap:wrap;">
-          ${showPayNormally ? '<button class="points-error-pay-normal" style="padding:10px 20px;border-radius:8px;border:2px solid #16a34a;background:#d1fae5;color:#065f46;font-weight:700;cursor:pointer;">Pay Normally</button>' : ''}
-          <button class="points-error-close" style="padding:10px 20px;border-radius:8px;border:2px solid #dc2626;background:#fee2e2;color:#991b1b;font-weight:700;cursor:pointer;">Cancel</button>
+        <div class="points-error-actions">
+          ${showBookWithCash ? '<button class="points-error-pay-normal">Book with Cash</button>' : ''}
+          <button class="points-error-close">Cancel</button>
         </div>
       </div>
     `;
@@ -1675,6 +1705,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
       closeBtn.addEventListener('click', () => {
         popup.classList.remove('open');
         overlay.classList.remove('open');
+        document.body.classList.remove('modal-open');
       });
     }
 
@@ -1683,6 +1714,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
       payNormalBtn.addEventListener('click', () => {
         popup.classList.remove('open');
         overlay.classList.remove('open');
+        document.body.classList.remove('modal-open');
         const toggle = document.getElementById('use-points-toggle');
         if (toggle) toggle.checked = false;
         usePoints = false;
@@ -1695,25 +1727,10 @@ if (ob_get_level() > 0) { ob_end_flush(); }
         updateBookingModeCards();
       });
     }
-    const hoursSelect = document.getElementById('hoursSelect');
-    if (hoursSelect) hoursSelect.disabled = lock;
 
-    // Duration container buttons
-    const durationContainer = document.getElementById('durationContainer');
-    if (durationContainer) {
-      Array.from(durationContainer.children).forEach(btn => {
-        if (btn.tagName === 'BUTTON' || btn.classList.contains('duration-btn')) {
-          btn.disabled = lock;
-          if (lock) {
-            btn.style.opacity = '0.5';
-            btn.style.cursor = 'not-allowed';
-          } else {
-            btn.style.opacity = '1';
-            btn.style.cursor = 'pointer';
-          }
-        }
-      });
-    }
+    popup.classList.add('open');
+    overlay.classList.add('open');
+    document.body.classList.add('modal-open');
   }
 
   function updateRedemptionInfo() {
@@ -1739,7 +1756,8 @@ if (ob_get_level() > 0) { ob_end_flush(); }
         if (remainingPoints < 0) {
         toggle.checked = false;
         usePoints = false;
-        showPointsErrorPopup("You do not have enough VHEcoPoints to redeem the 1 free hour for this amenity. Please pay normally or earn more points by recycling at the VHEcoPoint Smart Waste Station.", true);
+        const reqP = getPointsRequired(selectedAmenity);
+        showPointsErrorPopup("You don\u2019t have enough points to redeem this amenity. You need " + reqP.toLocaleString() + " pts for 1 free hour, but your current balance is " + residentPoints.toLocaleString() + " pts. Please earn more points or choose Book with Cash.", true);
           if (redemptionInfo) redemptionInfo.style.display = 'none';
         } else {
           if (requiredPointsEl) requiredPointsEl.textContent = pointsRequired.toLocaleString() + ' pts';
@@ -3351,7 +3369,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
         }
         // First check the cached balance
         if (residentPoints < reqPoints) {
-          showPointsErrorPopup("You do not have enough VHEcoPoints to redeem the 1 free hour for this amenity. You need " + reqPoints.toLocaleString() + " pts but only have " + residentPoints.toLocaleString() + " pts. Please pay normally or earn more points.", true);
+          showPointsErrorPopup("You don\u2019t have enough points to redeem this amenity. You need " + reqPoints.toLocaleString() + " pts for 1 free hour, but your current balance is " + residentPoints.toLocaleString() + " pts. Please earn more points or choose Book with Cash.", true);
           return;
         }
         // Then do a live server check to catch race conditions or stale data
@@ -3359,7 +3377,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
         if (liveBalance !== null && liveBalance < reqPoints) {
           // Update the cached balance so UI reflects reality
           window.__residentPoints = liveBalance;
-          showPointsErrorPopup("You do not have enough VHEcoPoints to redeem the 1 free hour for this amenity. You need " + reqPoints.toLocaleString() + " pts but your current balance is " + liveBalance.toLocaleString() + " pts. Please pay normally or earn more points.", true);
+          showPointsErrorPopup("You don\u2019t have enough points to redeem this amenity. You need " + reqPoints.toLocaleString() + " pts for 1 free hour, but your current balance is " + liveBalance.toLocaleString() + " pts. Please earn more points or choose Book with Cash.", true);
           return;
         }
       }
@@ -3903,16 +3921,6 @@ if (ob_get_level() > 0) { ob_end_flush(); }
         toggle.setAttribute('aria-expanded',collapsed?'false':'true');
       });
     }
-    var proTip=document.getElementById('proTipFloat');
-    var proTipDismiss=document.getElementById('proTipDismiss');
-    if(proTip&&proTipDismiss){
-      proTipDismiss.addEventListener('click',function(){
-        proTip.style.transition='opacity .2s,transform .2s';
-        proTip.style.opacity='0';
-        proTip.style.transform='translateY(-6px)';
-        setTimeout(function(){ proTip.remove(); },200);
-      });
-    }
   });
   function goBack(){ persistForm(); if(document.referrer){ window.history.back(); } else { window.location.href = 'mainpage.php'; } }
   function closeModal(){document.getElementById('refModal').style.display='none'}
@@ -4290,21 +4298,43 @@ if (ob_get_level() > 0) { ob_end_flush(); }
 .points-error-inner { padding: 18px; }
 .points-error-title { margin: 0 0 10px 0; color: #dc2626; font-size: 1.05rem; }
 .points-error-message { margin: 0; color: #374151; line-height: 1.45; }
-.points-error-close {
-  margin-top: 14px;
-  width: 100%;
-  padding: 10px 14px;
-  border-radius: 10px;
-  border: none;
-  background: linear-gradient(135deg,#23412e,#1f5a33);
-  color: #fff;
+.points-error-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+.points-error-pay-normal {
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: 2px solid #16a34a;
+  background: #d1fae5;
+  color: #065f46;
   font-weight: 700;
   cursor: pointer;
+  width: 100%;
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.9rem;
+}
+.points-error-close {
+  margin-top: 0;
+  width: 100%;
+  padding: 10px 20px;
+  border-radius: 10px;
+  border: 2px solid #dc2626;
+  background: #fee2e2;
+  color: #991b1b;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.9rem;
 }
 @media (max-width: 480px) {
   .points-error-popup { width: 94vw; padding: 0; border-radius: 12px; }
   .points-error-inner { padding: 14px; }
   .points-error-title { font-size: 1rem; }
+  .points-error-actions { flex-direction: column; }
+  .points-error-pay-normal, .points-error-close { width: 100%; }
 }
 </style>
 
@@ -4515,6 +4545,40 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 </script>
+
+<?php if ($isResident): ?>
+<div id="vhecopointProTipPopup" class="vhecopoint-popup-overlay" role="dialog" aria-modal="true" aria-labelledby="vhecopointProTipTitle" aria-describedby="vhecopointProTipText" style="display:none;">
+  <div class="vhecopoint-popup-card">
+    <button type="button" class="vhecopoint-popup-close" id="vhecopointProTipClose" aria-label="Close announcement">&times;</button>
+    <span class="vhecopoint-popup-icon" aria-hidden="true"><i class="fa-solid fa-lightbulb"></i></span>
+    <div class="vhecopoint-popup-title" id="vhecopointProTipTitle">&#128161; Pro Tip!</div>
+    <p class="vhecopoint-popup-text" id="vhecopointProTipText">You can use the points you have collected in the VHEcoPoint Smart Waste Segregation Station when booking an amenity for a FREE 1 hour. Click on an amenity to see if you're eligible!</p>
+  </div>
+</div>
+<script>
+(function(){
+  var overlay = document.getElementById('vhecopointProTipPopup');
+  if(!overlay) return;
+  var closeBtn = document.getElementById('vhecopointProTipClose');
+  function hide(){
+    overlay.style.display = 'none';
+    overlay.classList.remove('vhecopoint-popup-open');
+  }
+  closeBtn.addEventListener('click', hide);
+  overlay.addEventListener('click', function(e){
+    if(e.target === overlay) hide();
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape' && overlay.style.display !== 'none') hide();
+  });
+  setTimeout(function(){
+    overlay.style.display = 'flex';
+    requestAnimationFrame(function(){ overlay.classList.add('vhecopoint-popup-open'); });
+    setTimeout(function(){ closeBtn.focus(); }, 350);
+  }, 600);
+})();
+</script>
+<?php endif; ?>
 
 </body>
 </html>

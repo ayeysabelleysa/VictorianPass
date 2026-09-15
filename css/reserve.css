@@ -1,7 +1,7 @@
 /* Modern UI Design */
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&display=swap');
 * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
-body { margin: 0; font-family: 'Poppins', sans-serif; background: #fafbfc; color: #222; animation: fadeIn .6s ease-in-out; padding-top: 76px; }
+body { margin: 0; font-family: 'Poppins', sans-serif; background: #fafbfc; color: #222; animation: fadeIn .6s ease-in-out; }
 html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%; overflow-y: auto; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes modalPop {
@@ -16,15 +16,6 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
   from { opacity: 1; }
   to { opacity: 0; }
 }
-
-/* Navigation */
-.navbar { display: flex; justify-content: space-between; align-items: center; padding: 14px 6%; background: rgba(43, 38, 35, 0.95); backdrop-filter: blur(10px); position: fixed; top: 0; left: 0; right: 0; z-index: 1000; border-bottom: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-.logo { display: flex; align-items: center; gap: 12px; }
-.logo img { width: 42px; height: 42px; }
-.brand-text h1 { margin: 0; font-size: 1.3rem; font-weight: 700; color: #f4f4f4; }
-.brand-text p { margin: 0; font-size: .85rem; color: #aaa; }
-.ecopoint-badge{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;background:linear-gradient(135deg,#23412e,#1f5a33);color:#fff;font-size:.82rem;font-weight:700;letter-spacing:.03em;white-space:nowrap}
-.ecopoint-icon{font-size:1rem}
 
 /* Main Layout */
 .hero { display: flex; justify-content: center; align-items: flex-start; padding: 16px 4%; width: 100%; background: linear-gradient(135deg, #fafbfc 0%, #f5f5f5 100%); }
@@ -42,12 +33,6 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
 .booking-steps-toggle{width:22px;height:22px;border-radius:50%;border:none;background:#23412e;color:#fff;font-size:.9rem;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1;flex-shrink:0;box-shadow:0 1px 4px rgba(35,65,46,0.35)}
 .booking-steps-toggle:hover{background:#1a2f23}
 .booking-steps-toggle-wrap{display:flex;align-items:center}
-.booking-steps-protip-float{position:relative;display:flex;align-items:flex-start;gap:10px;max-width:860px;margin:-6px auto 12px;padding:12px 14px;background:linear-gradient(135deg,#f0faf2,#e8f6ec);border:1px solid #cfe6d4;border-radius:10px;font-size:.82rem;color:#1f5a33;line-height:1.4;z-index:200;box-shadow:0 4px 14px rgba(0,0,0,0.08);animation:protipSlideIn .3s ease}
-.booking-steps-protip-float .protip-icon{font-size:1rem;flex-shrink:0;margin-top:1px}
-.booking-steps-protip-float .protip-text{flex:1}
-.booking-steps-protip-float .protip-dismiss{background:transparent;border:0;color:#6b9e7a;font-size:1.1rem;cursor:pointer;line-height:1;flex-shrink:0;padding:0 2px;margin-top:-2px}
-.booking-steps-protip-float .protip-dismiss:hover{color:#1f5a33}
-@keyframes protipSlideIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
 .booking-steps-body{display:flex;flex-direction:row;gap:10px;align-items:stretch;max-height:400px;opacity:1;overflow:hidden;transition:max-height .28s cubic-bezier(0.2,0.8,0.2,1),opacity .24s ease,margin .24s ease}
 .booking-steps.is-collapsed .booking-steps-body{max-height:0;opacity:0;margin:0}
 .booking-steps.is-collapsed .booking-steps-toggle{transform:rotate(0deg)}
@@ -63,7 +48,6 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
   .booking-steps-body{flex-direction:column;gap:10px}
   .booking-steps-body > div:not(.booking-step){width:100%;max-width:100%;min-width:0}
   .booking-step{flex:1 1 auto}
-  .booking-steps-protip-float{margin:-2px 0 10px;font-size:.8rem}
 }
 
 /* Calendar */
@@ -1463,13 +1447,6 @@ input:focus-visible {
 #viewRewardsModal.closing{ animation: modalFadeOut 0.25s ease-in forwards; }
 #viewRewardsModal.closing > div{ animation: modalClose 0.25s ease-in forwards; }
 @media (max-width:640px){
-  body{padding-top:64px}
-  .navbar{padding:10px 4%}
-  .logo img{width:32px;height:32px}
-  .brand-text h1{font-size:1.05rem}
-  .brand-text p{font-size:0.7rem}
-  .ecopoint-badge{padding:4px 10px;font-size:.72rem;gap:4px}
-  .ecopoint-icon{font-size:.85rem}
   .page-title{font-size:1.3rem}
   .section-header h2{font-size:1.4rem}
   .section-header p{font-size:0.95rem}
@@ -1505,7 +1482,6 @@ input:focus-visible {
   }
 }
 @media (max-width:480px){
-  .brand-text p{display:none}
   .amenity-card{padding:16px}
   .amenity-card .amenity-media{width:100%; height:auto}
   .amenity-desc{padding:16px}
@@ -1690,4 +1666,25 @@ input:focus-visible {
   #viewRewardsModal .view-rewards-card-bottom .view-rewards-card-btn {
     width: 100%;
   }
+}
+
+/* ===== VHEcoPoint Pro Tip announcement popup (reuses dashboard popup component) ===== */
+.vhecopoint-popup-overlay{position:fixed;inset:0;z-index:15000;display:flex;align-items:center;justify-content:center;padding:24px 16px;background:rgba(15,25,17,0.55);backdrop-filter:blur(3px);opacity:0;transition:opacity .25s ease;box-sizing:border-box}
+.vhecopoint-popup-overlay.vhecopoint-popup-open{opacity:1}
+.vhecopoint-popup-card{position:relative;width:min(420px,100%);background:#fff;border-radius:18px;padding:32px 28px 26px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,0.35);border:1px solid #dbe7de;transform:translateY(12px) scale(0.98);transition:transform .25s ease;box-sizing:border-box}
+.vhecopoint-popup-overlay.vhecopoint-popup-open .vhecopoint-popup-card{transform:translateY(0) scale(1)}
+.vhecopoint-popup-close{position:absolute;top:10px;right:12px;width:32px;height:32px;border-radius:50%;border:0;background:#e5e7eb;color:#111827;font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1;padding:0;transition:filter .2s ease}
+.vhecopoint-popup-close:hover{filter:brightness(0.92)}
+.vhecopoint-popup-close:focus-visible{outline:2px solid #1d6b3f;outline-offset:2px}
+.vhecopoint-popup-icon{display:inline-flex;align-items:center;justify-content:center;width:58px;height:58px;margin:0 auto 14px;border-radius:50%;background:linear-gradient(135deg,#1d6b3f 0%,#2a9d52 100%);color:#fff;font-size:1.7rem;box-shadow:0 10px 22px rgba(29,107,63,0.35)}
+.vhecopoint-popup-icon i{font-size:1.5rem;line-height:1}
+.vhecopoint-popup-title{font-family:'Poppins',sans-serif;font-size:1.3rem;font-weight:700;color:#14532d;margin:0 0 6px;letter-spacing:.2px}
+.vhecopoint-popup-text{margin:0;font-size:.92rem;line-height:1.6;color:#4b5563}
+@media (max-width:560px){
+  .vhecopoint-popup-card{padding:26px 20px 22px;border-radius:16px;max-height:calc(100dvh - 40px);overflow-y:auto}
+  .vhecopoint-popup-icon{width:52px;height:52px;font-size:1.5rem}
+  .vhecopoint-popup-icon i{font-size:1.3rem}
+  .vhecopoint-popup-title{font-size:1.15rem}
+  .vhecopoint-popup-overlay{padding:16px 12px}
+  .vhecopoint-popup-text{font-size:.86rem}
 }

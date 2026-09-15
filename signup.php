@@ -211,6 +211,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       $newUserId = $stmt->insert_id;
       $_SESSION['user_id'] = $newUserId;
       $_SESSION['user_type'] = $user_type;
+
+      if (function_exists('vpAuthSetCookie')) {
+        vpAuthSetCookie((int)$newUserId, $user_type);
+      }
       
       $redirect = ($user_type === 'resident') ? 'profileresident.php' : 'dashboardvisitor.php';
 

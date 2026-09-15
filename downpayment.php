@@ -401,15 +401,16 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Downpayment - GCash</title>
     <link rel="icon" type="image/png" href="images/logo.svg">
 
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="css/navbar.css?v=<?php echo substr(@md5_file(__DIR__ . '/css/navbar.css') ?: '', 0, 12); ?>">
   <style>
     *{font-family:'Poppins',sans-serif}
-    body{margin:0;background:#fafbfc;color:#111827;padding-top:76px}
+    body{margin:0;background:#fafbfc;color:#111827}
     .wrap{max-width:720px;margin:60px auto;padding:0 16px}
     .card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:24px;box-shadow:0 4px 16px rgba(15,23,42,0.08)}
     .title{font-weight:700;font-size:1.5rem;margin:0 0 6px;color:#111827}
@@ -477,28 +478,47 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     .proceed-actions .btn:hover{transform:translateY(-2px);box-shadow:0 8px 16px rgba(15,23,42,.12)}
     .proceed-actions .btn.btn-outline{background:#e5e7eb;color:#111}
     .proceed-close{position:absolute;top:10px;right:12px;width:28px;height:28px;border-radius:50%;background:#f3f4f6;color:#111827;border:none;display:inline-flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer}
-    .navbar{display:flex;justify-content:space-between;align-items:center;padding:14px 6%;background:rgba(43,38,35,0.95);backdrop-filter:blur(10px);position:fixed;top:0;left:0;right:0;z-index:1000;border-bottom:1px solid rgba(255,255,255,0.1);box-shadow:0 4px 12px rgba(0,0,0,0.1)}
-    .logo{display:flex;align-items:center;gap:12px}
     .back-row{max-width:720px;margin:14px auto 0;padding:0 16px}
     .back-btn{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;background:#d4a017;color:#fff;border:none;border-radius:999px;font-weight:700;text-decoration:none;font-size:1.1rem;box-shadow:0 6px 14px rgba(212, 160, 23, 0.35);transition:transform .2s ease,box-shadow .2s ease,opacity .2s ease}
     .back-btn i{color:#ffffff;}
     .back-btn:hover{opacity:.95;transform:translateY(-1px);box-shadow:0 8px 16px rgba(212, 160, 23, 0.4);background:#b68912}
-    .logo img{width:42px;height:42px}
-    .brand-text h1{margin:0;font-size:1.3rem;font-weight:700;color:#f4f4f4}
-    .brand-text p{margin:0;font-size:.85rem;color:#aaa}
+    html{overflow-x:hidden;scroll-behavior:smooth}
+    body{overflow-x:hidden;position:relative;width:100%}
     @media (max-width:640px){
-      .wrap{margin:40px auto}
-      .card{padding:18px}
+      html{overflow-x:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+      body{overflow-x:hidden;min-height:100dvh}
+      .wrap{margin:20px auto;padding:0 12px;scroll-margin-top:80px;max-width:100%}
+      .card{padding:18px;overflow-y:auto;-webkit-overflow-scrolling:touch}
       .pay-callout{flex-direction:column;align-items:flex-start}
       .pay-callout .num{margin-left:0;margin-top:4px}
       #receiptInput{max-width:100%}
       .upload-preview{max-width:140px;padding:6px}
       .upload-preview img{max-width:130px}
+      #gcashReferenceNumber{
+        scroll-margin-top:90px;
+        -webkit-appearance:none;
+        appearance:none;
+        font-size:16px !important;
+        touch-action:manipulation;
+      }
+      #gcashReferenceNumber:focus{
+        position:relative;
+        z-index:1;
+      }
+      .field-label{
+        scroll-margin-top:80px;
+      }
+      .upload-area{
+        scroll-margin-top:80px;
+      }
       #imgModal .modal-content{max-width:96vw;padding:10px}
       #imgModal .modal-content img{max-width:94vw;max-height:80vh}
       #imgModal .modal-close{top:8px;right:8px;width:28px;height:28px;font-size:15px}
       #warningModal .modal-content{padding:24px 18px;max-width:96vw}
       #warningModal .modal-close{top:8px;right:8px;font-size:20px}
+      .proceed-actions{flex-direction:column;gap:10px}
+      .proceed-actions .btn{width:100%;padding:12px 16px;font-size:0.95rem}
+      .proceed-content{padding:20px 16px;width:94%}
     }
   </style>
   </head>
@@ -539,15 +559,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     $backParams = ['reset' => 1, 'to' => $backTarget];
     $backLink = 'downpayment.php?' . http_build_query($backParams);
   ?>
-  <header class="navbar">
-    <div class="logo">
-      <a href="mainpage.php"><img src="images/logo.svg" alt="VictorianPass Logo"></a>
-      <div class="brand-text">
-        <h1>VictorianPass</h1>
-        <p>Victorian Heights Subdivision</p>
-      </div>
-    </div>
-  </header>
+  <?php include __DIR__ . '/navbar.php'; ?>
   <div class="back-row">
     <a href="<?php echo htmlspecialchars($backLink); ?>" class="back-btn" id="backBtn" aria-label="Back"><i class="fa-solid fa-arrow-left"></i></a>
   </div>
@@ -868,6 +880,45 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
         if(/receipt|proof of payment/i.test(serverMessage)){ setInlineWarning(receiptWarning, serverMessage); }
         if(/reference/i.test(serverMessage)){ setInlineWarning(refWarning, serverMessage); }
       }
+
+      // Mobile keyboard stabilization
+      (function(){
+        var isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        if (!isMobile || !window.visualViewport) return;
+        var scrollTimeout = null;
+
+        function scrollInputIntoView(el){
+          if (!el) return;
+          clearTimeout(scrollTimeout);
+          scrollTimeout = setTimeout(function(){
+            el.scrollIntoView({ behavior:'smooth', block:'center' });
+          }, 350);
+        }
+
+        if (refInput) {
+          refInput.addEventListener('focus', function(){
+            scrollInputIntoView(refInput);
+          });
+        }
+
+        if (input) {
+          input.addEventListener('focus', function(){
+            setTimeout(function(){
+              input.scrollIntoView({ behavior:'smooth', block:'center' });
+            }, 350);
+          });
+        }
+
+        window.visualViewport.addEventListener('resize', function(){
+          var active = document.activeElement;
+          if (active && (active === refInput || active === input)){
+            clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(function(){
+              active.scrollIntoView({ behavior:'smooth', block:'center' });
+            }, 150);
+          }
+        });
+      })();
     })();
   </script>
 </body>

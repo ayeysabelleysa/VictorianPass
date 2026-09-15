@@ -2,6 +2,9 @@
 require_once __DIR__ . '/session_bootstrap.php';
 $confirmed = isset($_GET['confirm']) && $_GET['confirm'] === 'yes';
 if ($confirmed) {
+  if (function_exists('vpAuthClearCookie')) {
+    vpAuthClearCookie();
+  }
   $_SESSION = [];
   if (ini_get('session.use_cookies')) {
     $params = session_get_cookie_params();

@@ -1,0 +1,165 @@
+/* =========================
+   SHARED TOP-HEADER — Profile Dashboard style
+   Used by reserve.php and downpayment.php.
+   Matches profileresident.php's .top-header: dark fixed bar,
+   logo + brand text left, user profile right.  No hamburger / sidebar.
+   body { padding-top } compensates for the fixed header.
+========================= */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+/* --- Header bar --- */
+.top-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  min-height: 64px;
+  background: rgba(43, 38, 35, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 5%;
+  color: #fff;
+}
+
+/* Brand */
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-brand img {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-main {
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: #f4f4f4;
+}
+
+.brand-sub {
+  font-size: 0.8rem;
+  color: #aaa;
+}
+
+/* Actions */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+}
+
+.user-profile {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  color: #fff;
+  gap: 10px;
+  transition: opacity 0.2s ease;
+}
+
+.user-profile:hover { opacity: 0.88; }
+
+.user-name {
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #fff;
+  flex-shrink: 0;
+}
+
+/* Logged-out buttons */
+.btn-nav {
+  padding: 6px 18px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-decoration: none;
+  display: inline-block;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.btn-login  { background: #23412e; color: #fff; }
+.btn-register { background: #e5ddc6; color: #222; }
+.btn-nav:hover { transform: scale(1.05); opacity: 0.9; }
+
+/* --- Body offset for fixed header --- */
+body { padding-top: 64px; }
+
+/* --- Responsive: tablet / small desktop --- */
+@media (max-width: 768px) {
+  .top-header {
+    height: 58px;
+    padding: 0 14px;
+  }
+  body { padding-top: 58px; }
+
+  .header-brand { gap: 8px; min-width: 0; overflow: hidden; }
+
+  .header-brand img {
+    height: 32px;
+    width: 32px;
+    margin-right: 0;
+    flex-shrink: 0;
+  }
+
+  .brand-text { min-width: 0; overflow: hidden; }
+  .brand-main { font-size: 0.95rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .brand-sub  { font-size: 0.68rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .header-actions { gap: 10px; }
+  .user-name  { font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 90px; }
+  .user-avatar { width: 34px; height: 34px; }
+  .user-profile { gap: 7px; min-width: 0; }
+  .btn-nav { padding: 8px 14px; }
+}
+
+/* --- Responsive: small phone --- */
+@media (max-width: 430px) {
+  .top-header { padding: 0 10px; }
+  body { padding-top: 58px; }
+
+  .header-brand img { margin-right: 0; }
+  .brand-main { font-size: 0.88rem; }
+  .brand-sub  { font-size: 0.62rem; }
+
+  .header-actions { gap: 8px; }
+  .user-name  { font-size: 0.76rem; }
+  .nav-links { gap: 8px; }
+  .btn-nav { padding: 6px 12px; font-size: 0.82rem; }
+}
+
+/* --- Very small: hide subtitle and user-name, keep avatar only --- */
+@media (max-width: 320px) {
+  .brand-sub { display: none; }
+  .user-name { display: none; }
+}
+
+/* --- Prevent horizontal overflow on mobile --- */
+@media (max-width: 480px) {
+  .top-header, .header-brand, .header-actions {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+}
