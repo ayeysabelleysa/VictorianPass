@@ -4792,25 +4792,24 @@ table td.actions .delete-form.show { width: 100%; }
 
 .close {
     position: absolute;
-    top: 12px;
+    top: 10px;
     right: 12px;
-    width: 28px;
-    height: 28px;
+    z-index: 100;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 0;
+    background: #e5e7eb;
+    color: #111827;
+    font-size: 18px;
+    font-weight: 700;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 50%;
-    background: #eef2f0;
-    color: #23412e;
-    border: none;
-    font-size: 16px;
     cursor: pointer;
     line-height: 1;
-    z-index: 100;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    transition: transform 0.2s ease, color 0.2s ease, filter 0.2s ease;
 }
-.close:hover { filter: brightness(0.95); transform: scale(1.05); }
+.close:hover { filter: brightness(0.92); }
 
 /* Animations */
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -4912,7 +4911,7 @@ body.modal-open { overflow: hidden; }
 }
 
 .modal-content h3 {
-    padding: 8px 8px 12px 4px;
+    padding: 8px 44px 12px 4px;
     border-bottom: 1px solid var(--border-light);
     margin: 0;
     font-size: 1.15rem;
@@ -5028,7 +5027,8 @@ body.modal-open { overflow: hidden; }
 #residentReservationModal .modal-content,
 #reservationModal .modal-content,
 #priceDetailsModal .modal-content,
-#incidentDetailsModal .modal-content {
+#incidentDetailsModal .modal-content,
+#userModal .modal-content {
     width: min(92vw, 640px);
     aspect-ratio: auto;
     padding: 0;
@@ -5042,7 +5042,7 @@ body.modal-open { overflow: hidden; }
     border-radius: 12px;
     gap: 8px;
 }
-#denyReasonTitle { margin: 0; padding: 8px 0 10px; }
+#denyReasonTitle { margin: 0; padding: 8px 44px 10px 0; }
 #denyReasonMessage { margin: 6px 0 8px; }
 #denyReasonLabel { margin-top: 6px; }
 #denyReasonInput { min-height: 90px; }
@@ -5051,9 +5051,10 @@ body.modal-open { overflow: hidden; }
 #residentReservationModal .modal-content h3,
 #reservationModal .modal-content h3,
 #priceDetailsModal .modal-content h3,
-#incidentDetailsModal .modal-content h3 {
+#incidentDetailsModal .modal-content h3,
+#userModal .modal-content h3 {
     margin: 0;
-    padding: 12px 16px;
+    padding: 12px 44px 12px 16px;
     background: #fff;
     border-bottom: 1px solid #e6ebe6;
     color: #23412e;
@@ -5063,7 +5064,8 @@ body.modal-open { overflow: hidden; }
 #visitorDetailsContent,
 #residentReservationDetailsContent,
 #reservationDetailsContent,
-#priceDetailsContent {
+#priceDetailsContent,
+#userDetailsContent {
     padding: 18px 20px 22px;
 }
 #visitorDetailsContent .request-details,
@@ -5179,6 +5181,46 @@ body.modal-open { overflow: hidden; }
     font-size: 0.95rem;
     font-weight: 600;
     color: #c2410c;
+}
+
+/* Resident / Visitor Profile modal — align with resident reservation details styling */
+#userDetailsContent {
+    font-family: 'Poppins', sans-serif;
+    color: #333;
+}
+#userDetailsContent > div {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)) !important;
+    gap: 16px !important;
+}
+#userDetailsContent > div > div {
+    background: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 12px;
+    padding: 15px;
+}
+#userDetailsContent h4 {
+    color: #555 !important;
+    font-weight: 600 !important;
+    font-size: 0.95rem !important;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0 0 8px !important;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #eee;
+}
+#userDetailsContent p {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.95rem;
+    margin: 6px 0;
+    line-height: 1.5;
+}
+#userDetailsContent p strong {
+    color: #666;
+    font-weight: 500;
 }
 
 .btn-view { background: var(--info); color: #fff; }
@@ -5313,6 +5355,7 @@ body.modal-open { overflow: hidden; }
     .smart-waste-status-grid { grid-template-columns: 1fr; }
     .smart-waste-kpi-grid { grid-template-columns: 1fr; }
     .smart-waste-bin-grid { grid-template-columns: 1fr; }
+    #userDetailsContent > div { grid-template-columns: 1fr !important; }
 }
 .smart-waste-brand-banner {
     display: flex;
@@ -5465,7 +5508,7 @@ body.modal-open { overflow: hidden; }
           <div id="notifPanel" class="notif-panel" style="display:none"></div>
           <div id="notifModal" class="modal">
             <div class="modal-content">
-              <button type="button" class="close" id="notifModalClose" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+              <button type="button" class="close" id="notifModalClose" aria-label="Close">×</button>
               <h3>Notifications</h3>
              <!--<div class="tabs">
                 <button class="tab-btn active" data-tab="req">Requests</button>
@@ -6594,7 +6637,7 @@ body.modal-open { overflow: hidden; }
 <!-- Price Details Modal -->
 <div id="priceDetailsModal" class="modal">
   <div class="modal-content">
-    <button type="button" class="close" onclick="closePriceDetailsModal()" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    <button type="button" class="close" onclick="closePriceDetailsModal()" aria-label="Close">×</button>
     <h3>Price Details</h3>
     <div id="priceDetailsContent"></div>
   </div>
@@ -6632,7 +6675,7 @@ window.addEventListener('click', function(e){ var m=document.getElementById('pri
 <!-- Receipt Image Modal -->
 <div id="receiptModal" class="modal">
   <div class="modal-content">
-    <button type="button" class="close" onclick="closeReceiptModal()" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    <button type="button" class="close" onclick="closeReceiptModal()" aria-label="Close">×</button>
     <div style="display:flex;flex-direction:column;gap:12px;max-height:85vh;">
       <div style="overflow-y: auto; flex: 1; display: flex; align-items: center; justify-content: center;">
         <img id="receiptModalImg" alt="Receipt" style="width:100%;height:auto;border-radius:8px"/>
@@ -6656,7 +6699,7 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
 
 <div id="denyReasonModal" class="modal modal-top">
   <div class="modal-content" style="max-width:520px;padding:16px;gap:8px;">
-    <button type="button" class="close" id="denyReasonClose" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    <button type="button" class="close" id="denyReasonClose" aria-label="Close">×</button>
     <h3 id="denyReasonTitle">Confirm Rejection</h3>
     <div id="denyReasonMessage" style="margin:6px 0 8px;color:#5a6b7c;font-size:0.9rem;">Are you sure you want to reject this item?</div>
     <div id="denyReasonLabel" style="font-weight:600;margin-top:6px;">Reason</div>
@@ -7378,7 +7421,7 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
 <!-- Visitor Details Modal -->
 <div id="visitorModal" class="modal">
   <div class="modal-content">
-    <button type="button" class="close" onclick="closeVisitorModal()" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    <button type="button" class="close" onclick="closeVisitorModal()" aria-label="Close">×</button>
     <h3>Visitor Details</h3>
     <div id="visitorDetailsContent">
       <!-- Content will be loaded here -->
@@ -7389,7 +7432,7 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
 <!-- Incident Proof Modal -->
 <div id="incidentProofModal" class="modal">
   <div class="modal-content">
-    <button type="button" class="close" onclick="closeIncidentProofModal()" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    <button type="button" class="close" onclick="closeIncidentProofModal()" aria-label="Close">×</button>
     <div style="overflow-y: auto; flex: 1; display: flex; align-items: center; justify-content: center;">
       <img id="incidentProofImg" src="" alt="Proof" />
     </div>
@@ -7398,7 +7441,7 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
 
 <div id="incidentDetailsModal" class="modal">
   <div class="modal-content">
-    <button type="button" class="close" onclick="closeIncidentDetailsModal()" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    <button type="button" class="close" onclick="closeIncidentDetailsModal()" aria-label="Close">×</button>
     <h3>Incident Details</h3>
     <div style="max-height:80vh; overflow:auto;">
       <iframe id="incidentDetailsFrame" src="" style="width:100%; height:70vh; border:0;"></iframe>
@@ -7647,7 +7690,7 @@ window.onclick = function(event) {
 <!-- Reservation Details Modal -->
 <div id="reservationModal" class="modal">
   <div class="modal-content">
-    <button type="button" class="close" onclick="closeReservationModal()" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    <button type="button" class="close" onclick="closeReservationModal()" aria-label="Close">×</button>
     <h3>Reservation Details</h3>
     <div id="reservationDetailsContent"></div>
   </div>
@@ -7775,7 +7818,7 @@ window.addEventListener('click', function(event){
 <!-- Resident Reservation Details Modal -->
 <div id="residentReservationModal" class="modal">
   <div class="modal-content">
-    <button type="button" class="close" onclick="closeResidentReservationModal()" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    <button type="button" class="close" onclick="closeResidentReservationModal()" aria-label="Close">×</button>
     <h3>Resident Reservation</h3>
     <div id="residentReservationDetailsContent"></div>
   </div>
@@ -7942,7 +7985,7 @@ window.addEventListener('click', function(event){
 <!-- User Details Modal -->
 <div id="userModal" class="modal">
   <div class="modal-content">
-    <button type="button" class="close" onclick="closeUserModal()" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    <button type="button" class="close" onclick="closeUserModal()" aria-label="Close">×</button>
     <h3>User Profile</h3>
     <div id="userDetailsContent"></div>
   </div>
@@ -8030,7 +8073,7 @@ window.addEventListener('click', function(event){
 <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 <div id="adminConfirmModal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.6); align-items:center; justify-content:center; z-index:3500;">
   <div style="background:#fff; border-radius:12px; padding:22px 20px; width:380px; max-width:92vw; box-shadow:0 12px 30px rgba(0,0,0,0.25); text-align:center; position:relative;">
-    <button type="button" class="close" id="adminConfirmClose" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    <button type="button" class="close" id="adminConfirmClose" aria-label="Close">×</button>
     <div style="font-weight:700; color:#1f2937; font-size:1.05rem; margin-bottom:8px;">Confirm Action</div>
     <div id="adminConfirmMessage" style="font-size:0.95rem; color:#374151; line-height:1.5; margin-bottom:16px;"></div>
     <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">

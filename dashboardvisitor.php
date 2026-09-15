@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/session_bootstrap.php';
 require_once 'connect.php';
 
@@ -359,7 +359,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<?php $_dashCss = @filemtime(__DIR__ . '/css/dashboard.css') ?: 1; ?>
+<?php $_dashCss = substr(@md5_file(__DIR__ . '/css/dashboard.css') ?: '', 0, 12); ?>
 <link rel="stylesheet" href="css/dashboard.css?v=<?php echo $_dashCss; ?>">
 <!-- FontAwesome for icons -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -403,7 +403,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
   }
   #submitNoticeModal { display: flex; align-items: center; justify-content: center; }
   #submitNoticeModal .modal-content { width: 92%; max-width: 420px; padding: 24px; text-align: center; height: auto; min-height: unset; }
-  #submitNoticeModal .close { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border-radius: 50%; background: #eef2f0; color: #23412e; display: flex; align-items: center; justify-content: center; }
+  #submitNoticeModal .close { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border-radius: 50%; background: #e5e7eb; color: #111827; border: 0; display: flex; align-items: center; justify-content: center; line-height: 1; padding: 0; cursor: pointer; }
   body.account-blocked { overflow: hidden; }
   .account-blocked-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); align-items: center; justify-content: center; z-index: 3000; }
   .account-blocked-content { background: #fff; border-radius: 14px; padding: 28px 30px; width: 92%; max-width: 420px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.25); }
@@ -421,6 +421,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
 .cancel-modal-actions .cancel-modal-keep{background:#e5e7eb;color:#111827}
 .cancel-modal-actions .cancel-modal-confirm{background:#c0392b;color:#fff}
 .cancel-modal-content{width:90%;max-width:450px;padding:30px;border-radius:18px}
+.cancel-modal-body{text-align:center}
 .cancel-modal-note{color:#c0392b;font-weight:600;font-size:0.85rem}
 .item-extra-link.update-proof-btn{background:#7c3aed;color:#ffffff;border:1px solid #7c3aed;padding:8px 16px;border-radius:50px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;font-weight:500;text-decoration:none}
 .item-extra-link.update-proof-btn:hover{background:#6d28d9;color:#ffffff;transform:translateY(-2px);box-shadow:0 4px 6px rgba(124, 58, 237, 0.25);text-decoration:none}
@@ -429,6 +430,330 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
 .item-extra-link.item-extra-move-history:hover{background:#d1d5db;color:#6b7280!important;transform:translateY(-2px);box-shadow:0 4px 6px rgba(0,0,0,0.12);text-decoration:none}
 .item-extra-schedule.status-neutral{background:#ffffff;color:#111827;border:1px solid #e5e7eb;border-radius:12px;padding:12px}
 </style>
+<style>
+@media (max-width: 768px) {
+  /* ============ Profile info modal ============ */
+  #profileModal.profile-modal-open {
+    align-items: center !important;
+    padding: 14px !important;
+    box-sizing: border-box;
+  }
+  #profileModal .profile-modal-content {
+    width: 66vw !important;
+    max-width: 340px !important;
+    max-height: calc(100vh - 24px) !important;
+    max-height: calc(100dvh - 24px) !important;
+    padding: 16px 18px !important;
+    border-radius: 16px;
+    overflow: hidden !important;
+  }
+  #profileModal .profile-header {
+    flex-shrink: 0 !important;
+    padding: 0 0 8px !important;
+  }
+  #profileModal .profile-icon-large {
+    width: 58px !important;
+    height: 58px !important;
+    margin: 0 0 6px !important;
+  }
+  #profileModal .profile-modal-content .profile-title h3 {
+    font-size: 15px !important;
+    margin: 0 0 3px !important;
+    line-height: 1.25 !important;
+  }
+  #profileModal .profile-modal-content .profile-role {
+    padding: 2px 8px !important;
+    font-size: 10px !important;
+  }
+  #profileModal .profile-details {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    margin-top: 4px !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  #profileModal .detail-row {
+    padding: 6px 2px !important;
+    gap: 8px !important;
+  }
+  #profileModal .profile-modal-content .detail-label {
+    font-size: 10px !important;
+    color: #6b7280 !important;
+    gap: 6px !important;
+    line-height: 1.3 !important;
+  }
+  #profileModal .profile-modal-content .detail-value {
+    font-size: 13px !important;
+    line-height: 1.3 !important;
+  }
+  #profileModal .profile-actions {
+    flex-shrink: 0 !important;
+    gap: 6px !important;
+    margin-top: 8px !important;
+  }
+  #profileModal .profile-modal-content .btn-change-password-modal,
+  #profileModal .profile-modal-content .btn-logout-modal {
+    min-height: 36px !important;
+    padding: 6px 10px !important;
+    font-size: 13px !important;
+  }
+
+  /* ============ Generic modal-content cap ============ */
+  .modal-content {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+    margin: 12px auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ============ Small notification / confirm modals ============ */
+  #submitNoticeModal .modal-content {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    padding: 16px 16px 14px !important;
+    text-align: center;
+  }
+  #submitNoticeModal .modal-content > div {
+    margin-bottom: 8px !important;
+    font-size: .8rem !important;
+    line-height: 1.5 !important;
+  }
+  #submitNoticeModal .modal-content > div:first-of-type {
+    font-size: 1.1rem !important;
+    color: #23412e;
+  }
+  #submitNoticeModal #submitNoticeBtn {
+    margin-top: 12px !important;
+  }
+
+  /* ============ Cancel / Move-to-history confirm modals ============ */
+  #cancelModal .cancel-modal-content,
+  #moveHistoryModal .cancel-modal-content {
+    width: 66vw !important;
+    max-width: 340px !important;
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+    padding: 18px 16px 14px !important;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #cancelModal .cancel-modal-close,
+  #moveHistoryModal .cancel-modal-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    z-index: 2;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 0;
+    background: #e5e7eb;
+    color: #111827;
+    font-size: 16px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    line-height: 1;
+    box-shadow: none;
+  }
+  #cancelModal .cancel-modal-close:hover,
+  #moveHistoryModal .cancel-modal-close:hover {
+    filter: brightness(0.92);
+    transform: none;
+  }
+  #cancelModal .cancel-modal-header,
+  #moveHistoryModal .cancel-modal-header {
+    padding: 0 !important;
+  }
+  #cancelModal .cancel-modal-header h3,
+  #moveHistoryModal .cancel-modal-header h3 {
+    margin: 0 0 8px !important;
+    max-width: calc(100% - 40px);
+    width: auto;
+    font-size: 1.1rem !important;
+    font-weight: 800;
+    color: #23412e;
+    text-align: center;
+    line-height: 1.3;
+  }
+  #cancelModal .cancel-modal-body,
+  #moveHistoryModal .cancel-modal-body {
+    padding: 10px 0 0 !important;
+  }
+  #cancelModal .cancel-modal-body p,
+  #moveHistoryModal .cancel-modal-body p {
+    margin: 4px 0 8px !important;
+    font-size: .8rem !important;
+    line-height: 1.5 !important;
+  }
+  #cancelModal .cancel-modal-note,
+  #moveHistoryModal .cancel-modal-note {
+    font-size: .7rem !important;
+    line-height: 1.4 !important;
+    margin-bottom: 4px !important;
+  }
+  #cancelModal .cancel-modal-actions,
+  #moveHistoryModal .cancel-modal-actions {
+    gap: 8px !important;
+    padding-top: 6px !important;
+    flex-wrap: wrap !important;
+  }
+  #cancelModal .cancel-modal-keep,
+  #cancelModal .cancel-modal-confirm,
+  #moveHistoryModal .cancel-modal-keep,
+  #moveHistoryModal .cancel-modal-confirm {
+    padding: 9px 16px !important;
+    font-size: .8rem !important;
+  }
+
+  /* ============ Activity modal ============ */
+  #activityModalBody {
+    padding: 14px !important;
+    max-height: calc(100vh - 60px);
+    max-height: calc(100dvh - 60px);
+  }
+
+  /* ============ Upload proof modal ============ */
+  .update-proof-content {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    padding: 16px !important;
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .update-proof-content h3 {
+    margin: 0 0 8px !important;
+    font-size: 1.1rem !important;
+    color: #23412e;
+  }
+  .update-proof-file,
+  .update-proof-hint,
+  .update-proof-file-name {
+    margin: 0 0 6px !important;
+  }
+  .update-proof-actions {
+    gap: 8px !important;
+    margin-top: 10px !important;
+  }
+  .update-proof-btn {
+    padding: 8px 14px !important;
+  }
+
+  /* ============ Change password modal ============ */
+  #changePasswordModalVisitor .vp-logout-modal {
+    max-height: calc(100vh - 24px) !important;
+    max-height: calc(100dvh - 24px) !important;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #changePasswordModalVisitor .change-password-title {
+    margin-bottom: 6px !important;
+  }
+  #changePasswordModalVisitor form {
+    gap: 6px !important;
+  }
+  #changePasswordModalVisitor form input,
+  #changePasswordModalVisitor form button {
+    padding: 9px 12px !important;
+    font-size: .85rem !important;
+  }
+
+  /* ============ QR warning modal (inline-styled) ============ */
+  #qrWarningModal > div {
+    width: 66vw !important;
+    max-width: 340px !important;
+    padding: 16px 14px !important;
+    box-sizing: border-box;
+  }
+  #qrWarningTitle {
+    font-size: 1.1rem !important;
+    margin-bottom: 6px !important;
+    font-weight: 700;
+    color: #23412e;
+  }
+  #qrWarningMessage {
+    font-size: .75rem !important;
+    line-height: 1.4 !important;
+    color: #6b7280;
+  }
+  #qrWarningModal > div > div:last-of-type {
+    margin-top: 12px !important;
+  }
+  #qrWarningModal button {
+    font-size: 13px !important;
+    padding: 8px 13px !important;
+  }
+
+  /* ============ Account suspended popup ============ */
+  #accountBlockedModal {
+    padding: 14px;
+    box-sizing: border-box;
+  }
+  #accountBlockedModal .account-blocked-content {
+    width: 100% !important;
+    max-width: 340px !important;
+    max-height: calc(100dvh - 24px);
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 18px 16px !important;
+  }
+  #accountBlockedModal .account-blocked-content h3 {
+    font-size: 1.1rem !important;
+    font-weight: 700;
+    color: #23412e;
+    margin: 0 0 8px !important;
+  }
+  #accountBlockedModal .account-blocked-content p {
+    font-size: .8rem !important;
+    line-height: 1.5 !important;
+    margin: 0 0 14px !important;
+  }
+  #accountBlockedModal .account-blocked-content .btn-logout-only {
+    font-size: 13px !important;
+    padding: 9px 16px !important;
+  }
+
+  /* ============ Confirm / notice modal buttons ============ */
+  #submitNoticeModal #submitNoticeBtn {
+    font-size: 13px !important;
+    padding: 9px 16px !important;
+  }
+  #qrWarningModal button {
+    font-size: 13px !important;
+    padding: 8px 13px !important;
+  }
+
+  /* ============ Confirm Logout popup (injected by js/logout-modal.js) ============ */
+  .vp-logout-overlay .vp-logout-modal {
+    width: 66vw !important;
+    max-width: 340px !important;
+    padding: 16px 14px !important;
+  }
+  .vp-logout-overlay .vp-logout-modal .title {
+    font-size: 1.1rem !important;
+    margin: 0 0 6px !important;
+  }
+  .vp-logout-overlay .vp-logout-modal .text {
+    font-size: .8rem !important;
+    line-height: 1.5 !important;
+    margin: 0 0 12px !important;
+  }
+  .vp-logout-overlay .vp-logout-modal .btn {
+    font-size: .8rem !important;
+    padding: 9px 16px !important;
+  }
+}
+</style>
+
 </head>
 <body class="<?php echo $isAccountBlocked ? 'account-blocked' : ''; ?>">
 <?php if ($flashNotice !== '') { ?>
@@ -526,7 +851,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
                   $att = isset($act['attempts']) ? intval($act['attempts']) : 0;
                   $pay = strtolower((string)($act['payment_status'] ?? ''));
                   if ($pay === 'rejected' && $att >= 3) {
-                    $displayStatus = 'Denied – Max Attempts Reached';
+                    $displayStatus = 'Denied 窶・Max Attempts Reached';
                     $statusClass = 'status-denied';
                   }
                   $isReservation = (($act['type'] ?? '') === 'reservation');
@@ -548,7 +873,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
                     }
                     if ($displayTitle === '') { $displayTitle = 'Amenity'; }
                     $amenityName = $displayTitle;
-                    $displayTitle = 'Reservation – ' . $amenityName;
+                    $displayTitle = 'Reservation 窶・' . $amenityName;
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
@@ -613,7 +938,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
                   $att = isset($act['attempts']) ? intval($act['attempts']) : 0;
                   $pay = strtolower((string)($act['payment_status'] ?? ''));
                   if ($pay === 'rejected' && $att >= 3) {
-                    $displayStatus = 'Denied – Max Attempts Reached';
+                    $displayStatus = 'Denied 窶・Max Attempts Reached';
                     $statusClass = 'status-denied';
                   }
                   $isReservation = (($act['type'] ?? '') === 'reservation');
@@ -635,7 +960,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
                     }
                     if ($displayTitle === '') { $displayTitle = 'Amenity'; }
                     $amenityName = $displayTitle;
-                    $displayTitle = 'Reservation – ' . $amenityName;
+                    $displayTitle = 'Reservation 窶・' . $amenityName;
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
@@ -683,7 +1008,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
 </div>
 <div id="qrWarningModal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.6); align-items:center; justify-content:center; z-index:3500;">
   <div style="background:#fff; border-radius:12px; padding:22px 20px; width:360px; max-width:92vw; box-shadow:0 12px 30px rgba(0,0,0,0.25); text-align:center;">
-  <div style="font-weight:700; color:#23412e; font-size:1.05rem; margin-bottom:8px;">Warning</div>
+  <div id="qrWarningTitle" style="font-weight:700; color:#23412e; font-size:1.05rem; margin-bottom:8px;">Warning</div>
   <div id="qrWarningMessage" style="font-size:0.9rem; color:#444; line-height:1.5;">Do not scan. Authorized guards only.</div>
     <div style="display:flex; gap:10px; justify-content:center; margin-top:16px;">
       <button type="button" id="qrWarningCancel" style="background:#e5e7eb; color:#111827; border:none; padding:8px 14px; border-radius:8px; font-weight:600; cursor:pointer;">Cancel</button>
@@ -755,7 +1080,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
 
 <div id="profileModal" class="profile-modal">
   <div class="profile-modal-content">
-    <button class="close-profile-modal">&times;</button>
+    <button type="button" class="close-profile-modal" aria-label="Close">&times;</button>
     <div class="profile-header">
       <div class="profile-icon-large">
         <img src="<?php echo $profilePicUrl; ?>" alt="Profile" id="profileModalImg">
@@ -961,7 +1286,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
   }
   function formatNotifDisplay(message){
     var formatted=formatNotifMessage(message||'');
-    var cleaned=String(formatted).replace(/Code:\s*[A-Z0-9\-]+/ig,'').replace(/\s+•\s*$/,'').replace(/\s{2,}/g,' ').trim();
+    var cleaned=String(formatted).replace(/Code:\s*[A-Z0-9\-]+/ig,'').replace(/\s+窶｢\s*$/,'').replace(/\s{2,}/g,' ').trim();
     return cleaned;
   }
   function extractNotifCode(message){
@@ -1013,7 +1338,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
       var title=String(it.title||'').replace(/[<>]/g,'');
       var message=formatNotifDisplay(it.message||'');
       var time=formatNotifDateTime(it.created_at||it.time||'');
-      html+='<div class="notif-popup-item"><div class="notif-popup-title">'+title+'</div><div class="notif-popup-sub">'+message+(time?' • '+time:'')+'</div></div>';
+      html+='<div class="notif-popup-item"><div class="notif-popup-title">'+title+'</div><div class="notif-popup-sub">'+message+(time?' 窶｢ '+time:'')+'</div></div>';
     }
     notifPopup.innerHTML=html;
     notifPopup.style.display='block';
@@ -1264,7 +1589,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
                 if(displayTitle==='') displayTitle='Amenity';
                 var amenityName=displayTitle;
 
-                displayTitle='Reservation – '+amenityName;
+                displayTitle='Reservation 窶・'+amenityName;
               }
               var detailsText=String(item.details||'');
               var reasonText='';
@@ -2006,7 +2331,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
     if(type==='reservation' && paymentStatus==='rejected'){
         var att = isNaN(attempts)?0:attempts;
         if(att >= 3){
-          statusNote='Denied — Max Attempts Reached.';
+          statusNote='Denied 窶・Max Attempts Reached.';
         }else{
           statusNote='Your reservation payment was rejected. Please upload a clear and legible payment receipt to avoid denial. You have 3 attempts. ';
           statusNote+='Attempt '+Math.max(att,1)+' of 3.';
@@ -2075,7 +2400,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
     if(titleEl){ summaryParts.push(titleEl.textContent.trim()); }
     if(detailsEl){ summaryParts.push(detailsEl.textContent.replace(/^\s*-\s*/,'').trim()); }
     if(refSpan){ summaryParts.push('Code: '+refSpan.textContent.trim()); }
-    var summaryText=summaryParts.join(' • ');
+    var summaryText=summaryParts.join(' 窶｢ ');
 
     var canCancel=(s.indexOf('pending')!==-1||s.indexOf('pending_update')!==-1||s===''||s==='new'||paymentStatus==='pending_update');
     var isHistoryPanel=!!li.closest('#panel-history');
@@ -2092,7 +2417,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
       var att = isNaN(attempts)?0:attempts;
       var headerBadge = li.querySelector('.status-badge');
       if(att >= 3){
-        label = 'Denied – Max Attempts Reached';
+        label = 'Denied 窶・Max Attempts Reached';
         if (headerBadge) { headerBadge.textContent = label; }
         canUpdateProof=false; canCancel=false; canMoveHistory=!isHistoryPanel; canDelete=false;
       }else{

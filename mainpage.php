@@ -250,7 +250,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   <link rel="icon" type="image/png" href="images/logo.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
-  <?php $mainCssVer = @filemtime(__DIR__ . '/css/mainpage.css') ?: time(); $respCssVer = @filemtime(__DIR__ . '/css/responsive.css') ?: time(); ?>
+  <?php $mainCssVer = substr(@md5_file(__DIR__ . '/css/mainpage.css') ?: '', 0, 12); $respCssVer = substr(@md5_file(__DIR__ . '/css/responsive.css') ?: '', 0, 12); ?>
   <link rel="stylesheet" href="css/mainpage.css?v=<?php echo $mainCssVer; ?>">
   <link rel="stylesheet" href="css/responsive.css?v=<?php echo $respCssVer; ?>">
   
@@ -374,7 +374,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   <?php if (!$isVisitor && ($isResident || !$isLoggedIn)): ?>
   <div id="ecopointModal" class="flash-overlay ecopoint-modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="ecopointModalTitle">
     <div class="flash-modal">
-      <button type="button" class="ecopoint-modal-close" id="ecopointModalClose" aria-label="Close">&times;</button>
+      <button type="button" class="close-profile-modal" id="ecopointModalClose" aria-label="Close">&times;</button>
       <div class="ecopoint-shell">
         <div class="ecopoint-intro-card" style="margin-bottom:18px;">
           <h2 class="section-title ecopoint-title" id="ecopointModalTitle"><span class="ecopoint-title-icon" aria-hidden="true"><i class="fa-solid fa-leaf"></i></span><span>Learn About VHEcoPoint</span></h2>
@@ -413,7 +413,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 </div>
               </div>
             </div>
-          </article>
+          </div>
 
           <?php if ($isResident): ?>
           <div class="ecopoint-duo-grid">
@@ -480,12 +480,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
               </div>
             </div>
           </article>
+</div>
+<?php endif; ?>
           </div>
-          <?php endif; ?>
+</div>
         </div>
-      </div>
-    </div>
-  </div>
   <?php endif; ?>
 
   <section id="about-us" class="section reveal-on-scroll">

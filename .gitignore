@@ -4,3 +4,4 @@ schema_flags/
 venv/
 __pycache__/
 *.pyc
+.cdp-tmp/

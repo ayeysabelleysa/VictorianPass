@@ -37,7 +37,11 @@ $sessionCookieParams['httponly'] = true;
 $sessionCookieParams['samesite'] = 'Lax';
 session_set_cookie_params($sessionCookieParams);
 
-session_start();
+if (defined('VP_SESSION_READONLY') && VP_SESSION_READONLY === true) {
+    session_start(['read_and_close' => true]);
+} else {
+    session_start();
+}
 
 // Authenticated pages must never be restored from browser history after logout.
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');

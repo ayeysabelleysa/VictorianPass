@@ -25,9 +25,20 @@ if (!function_exists('vpFlush')) {
 register_shutdown_function('vpFlush');
 // ---
 ob_start(); // Prevents header issues on redirect
+
+// Read-only session for GET page loads: avoids holding the file lock while
+// heavy DB queries run, which prevents 504s when concurrent AJAX requests
+// from the previous page still hold the lock.
+$isReserveApiRequest = $_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && in_array($_GET['action'], ['booked_dates', 'booked_times', 'check_points'], true);
+$resetReservation = isset($_GET['reset_reservation']) && $_GET['reset_reservation'] === '1';
+$isGetPageLoad = ($_SERVER['REQUEST_METHOD'] === 'GET' && !$isReserveApiRequest);
+// reset_reservation GETs must persist the session unset below, so they get a writable session.
+if ($isGetPageLoad && !$resetReservation) {
+  define('VP_SESSION_READONLY', true);
+}
+
 require_once __DIR__ . '/session_bootstrap.php';
 vpMark('session_start');
-$isReserveApiRequest = $_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && in_array($_GET['action'], ['booked_dates', 'booked_times', 'check_points'], true);
 if ($isReserveApiRequest) {
   define('VP_JSON_ERROR_RESPONSE', true);
 }
@@ -37,9 +48,10 @@ $generatedCode = '';
 $errorMsg = '';
 $canSubmit = true;
 if (empty($_SESSION['csrf_token'])) {
+  // Session may be read-only — reopen in write mode to persist the CSRF token.
+  session_start();
   $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
-$resetReservation = isset($_GET['reset_reservation']) && $_GET['reset_reservation'] === '1';
 $refFromQuery = isset($_GET['ref_code']) ? trim($_GET['ref_code']) : '';
 if ($resetReservation) {
   unset($_SESSION['pending_reservation'], $_SESSION['dp_ref_code'], $_SESSION['flash_ref_code'], $_SESSION['reservation_submitted']);
@@ -116,19 +128,25 @@ function reserveTableColumnExists(mysqli $con, string $table, string $column): b
 
 function reserveCalcVHEcoBalance(mysqli $con, int $userId): int {
     if ($userId <= 0) return 0;
-    $condition = "(description LIKE '%VHEcoPoint%' OR description LIKE '%recycling%' OR description LIKE '%Redeemed points%' OR (transaction_type = 'redeem' AND reservation_ref_code IS NOT NULL AND reservation_ref_code <> ''))";
-    $query = "SELECT COALESCE(SUM(CASE WHEN transaction_type = 'redeem' THEN -amount ELSE amount END), 0) AS balance FROM point_transactions WHERE user_id = ? AND ($condition OR ecopoint_session_id IS NOT NULL)";
+    // Modern VHEcoPoint rows carry ecopoint_session_id (index-friendly). Legacy
+    // rows are matched via description/transaction_type patterns, only when the
+    // session id is NULL so no row is double-counted.
+    $legacy = "(description LIKE '%VHEcoPoint%' OR description LIKE '%recycling%' OR description LIKE '%Redeemed points%' OR (transaction_type = 'redeem' AND reservation_ref_code IS NOT NULL AND reservation_ref_code <> ''))";
+    $sumExpr = "CASE WHEN transaction_type = 'redeem' THEN -amount ELSE amount END";
+    $query = "SELECT COALESCE((SELECT SUM(b) FROM (SELECT $sumExpr AS b FROM point_transactions WHERE user_id = ? AND ecopoint_session_id IS NOT NULL UNION ALL SELECT $sumExpr AS b FROM point_transactions WHERE user_id = ? AND (ecopoint_session_id IS NULL) AND $legacy) t), 0) AS balance";
     $stmt = $con->prepare($query);
     if (!$stmt) {
       error_log('reserveCalcVHEcoBalance primary prepare failed: ' . $con->error);
-      $query = "SELECT COALESCE(SUM(CASE WHEN transaction_type = 'redeem' THEN -amount ELSE amount END), 0) AS balance FROM point_transactions WHERE user_id = ? AND $condition";
+      $query = "SELECT COALESCE(SUM($sumExpr), 0) AS balance FROM point_transactions WHERE user_id = ? AND $legacy";
       $stmt = $con->prepare($query);
+      if (!$stmt) {
+        error_log('reserveCalcVHEcoBalance fallback prepare failed: ' . $con->error);
+        return 0;
+      }
+      $stmt->bind_param('i', $userId);
+    } else {
+      $stmt->bind_param('ii', $userId, $userId);
     }
-    if (!$stmt) {
-      error_log('reserveCalcVHEcoBalance fallback prepare failed: ' . $con->error);
-      return 0;
-    }
-    $stmt->bind_param('i', $userId);
     if (!$stmt->execute()) {
       error_log('reserveCalcVHEcoBalance execute failed: ' . $stmt->error);
       $stmt->close(); return 0;
@@ -936,8 +954,14 @@ vpMark('household');
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
-  <link rel="stylesheet" href="css/reserve.css?v=<?php echo @filemtime(__DIR__ . '/css/reserve.css') ?: 12; ?>">
+  <link rel="stylesheet" href="css/reserve.css?v=<?php echo substr(@md5_file(__DIR__ . '/css/reserve.css') ?: '', 0, 12); ?>">
 </head>
+<?php
+// Flush the <head> HTML now so the browser can start loading CSS/JS while the
+// server generates the body. Keeps the upstream connection active on slow
+// Hostinger servers and reduces the chance of nginx 504 timeouts.
+if (ob_get_level() > 0) { ob_end_flush(); }
+?>
 <body>
   <div id="notifyLayer" class="toast"></div>
    
@@ -969,28 +993,28 @@ vpMark('household');
       <?php if ($isResident): ?>
         <!-- View Rewards Modal -->
         <div id="viewRewardsModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:10000; align-items:center; justify-content:center; padding:20px;">
-          <div style="background:#fff; border-radius:20px; max-width:800px; width:100%; max-height:90vh; overflow-y:auto; position:relative;">
+          <div class="view-rewards-content" style="background:#fff; border-radius:20px; max-width:800px; width:100%; max-height:90vh; overflow-y:auto; position:relative;">
             <!-- Modal Header -->
-            <div style="padding:24px 24px 0; display:flex; justify-content:space-between; align-items:center;">
+            <div class="view-rewards-header" style="padding:24px 24px 0; display:flex; justify-content:space-between; align-items:center;">
               <h2 style="margin:0; color:#23412e; font-size:1.5rem; font-weight:800;"><i class="fa-solid fa-gift" aria-hidden="true"></i> View Rewards</h2>
-              <button type="button" id="closeRewardsModal" style="background:#f3f4f6; border:none; width:36px; height:36px; border-radius:50%; font-size:1.25rem; cursor:pointer; color:#4b5563;">
-                ×
+              <button type="button" id="closeRewardsModal" class="close-profile-modal" aria-label="Close">
+                &times;
               </button>
             </div>
             
             <!-- Modal Content -->
-            <div style="padding:24px;">
+            <div class="view-rewards-body" style="padding:24px;">
 
               <!-- Current Points -->
-              <div style="background:linear-gradient(135deg,#23412e,#1f3528); color:#fff; padding:20px; border-radius:16px; margin-bottom:24px;">
+              <div class="view-rewards-balance" style="background:linear-gradient(135deg,#23412e,#1f3528); color:#fff; padding:20px; border-radius:16px; margin-bottom:24px;">
                 <div style="font-size:0.9rem; opacity:0.9; margin-bottom:4px;">Your Current Balance</div>
                 <div style="font-size:2.5rem; font-weight:800;"><?php echo number_format($residentPoints); ?> pts</div>
               </div>
 
               <!-- All Available Amenity Rewards -->
-              <div style="margin-bottom:24px;">
+              <div class="view-rewards-amenities" style="margin-bottom:24px;">
                 <div style="font-size:1.25rem; font-weight:800; color:#23412e; margin-bottom:16px;">All Available Amenities</div>
-                <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px;">
+                <div class="view-rewards-grid" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px;">
                   <?php 
                     $allAmenities = [
                       ['name' => 'Basketball Court', 'points' => 300, 'img' => 'images/basketballcourt.png'],
@@ -1009,22 +1033,22 @@ vpMark('household');
                         </div>
                         <div style="flex:1;">
                           <div style="font-weight:800; font-size:1rem; color:#111827;"><?php echo htmlspecialchars($amenity['name']); ?></div>
-                          <div style="display:flex; gap:8px; align-items:center; font-size:0.8rem; margin-top:4px;">
+                          <div class="view-rewards-card-meta" style="display:flex; gap:8px; align-items:center; font-size:0.8rem; margin-top:4px; flex-wrap:wrap;">
                             <span style="color:#23412e; font-weight:700;"><?php echo number_format($amenity['points']); ?> pts / hour</span>
                             <?php if ($isEligible): ?>
-                              <span style="background:#d1fae5; color:#065f46; padding:2px 8px; border-radius:10px; font-weight:700; font-size:0.75rem;"><i class="fa-solid fa-check" aria-hidden="true"></i> Eligible</span>
+                              <span class="view-rewards-badge view-rewards-badge-ok" style="background:#d1fae5; color:#065f46; padding:2px 8px; border-radius:10px; font-weight:700; font-size:0.75rem;"><i class="fa-solid fa-check" aria-hidden="true"></i> Eligible</span>
                             <?php else: ?>
-                              <span style="background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:10px; font-weight:700; font-size:0.75rem;"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Need <?php echo number_format($amenity['points'] - $residentPoints); ?> more</span>
+                              <span class="view-rewards-badge view-rewards-badge-need" style="background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:10px; font-weight:700; font-size:0.75rem; white-space:nowrap;"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Need <?php echo number_format($amenity['points'] - $residentPoints); ?> more</span>
                             <?php endif; ?>
                           </div>
                         </div>
                       </div>
-                      <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
-                        <div style="display:flex; flex-direction:column;">
+                      <div class="view-rewards-card-bottom" style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                        <div class="view-rewards-card-balance" style="display:flex; flex-direction:column; min-width:0;">
                           <span style="color:#6b7280; font-size:0.8rem;">Your balance:</span>
                           <span style="font-weight:800; color:#111827; font-size:0.9rem;"><?php echo number_format($residentPoints); ?> pts</span>
                         </div>
-                        <button type="button" style="padding:8px 20px; border-radius:10px; border:none; font-weight:700; font-size:0.85rem; cursor:pointer; transition:all 0.2s; <?php echo $isEligible ? 'background:linear-gradient(135deg,#23412e,#1f5a33); color:#fff; box-shadow:0 2px 8px rgba(35,65,46,0.2);' : 'background:#e5e7eb; color:#6b7280; cursor:not-allowed;'; ?>">
+                        <button type="button" class="view-rewards-card-btn" style="padding:8px 16px; border-radius:10px; border:none; font-weight:700; font-size:0.85rem; cursor:pointer; transition:all 0.2s; white-space:nowrap; <?php echo $isEligible ? 'background:linear-gradient(135deg,#23412e,#1f5a33); color:#fff; box-shadow:0 2px 8px rgba(35,65,46,0.2);' : 'background:#e5e7eb; color:#6b7280; cursor:not-allowed;'; ?>">
                           <?php echo $isEligible ? 'Redeem' : 'Not Enough Points'; ?>
                         </button>
                       </div>
@@ -1044,7 +1068,7 @@ vpMark('household');
                 }
                 if ($showEarnPoints): 
               ?>
-                <div style="background:#fffbeb; border:1px solid #fcd34d; border-radius:16px; padding:20px;">
+                <div class="view-rewards-contact" style="background:#fffbeb; border:1px solid #fcd34d; border-radius:16px; padding:20px;">
                   <div style="font-weight:800; color:#92400e; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
                      <i class="fa-solid fa-lightbulb"></i> Earn More Points
                    </div>
@@ -1419,7 +1443,7 @@ vpMark('household');
   </div>
   <div id="amenityImageModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1000; align-items:center; justify-content:center;">
     <div class="amia-box" style="position:relative; background:#fff; border-radius:12px; padding:12px; max-width:90vw; max-height:90vh;">
-      <button type="button" id="amenityImageClose" class="modal-close" aria-label="Close">&times;</button>
+      <button type="button" id="amenityImageClose" class="close-profile-modal" aria-label="Close">&times;</button>
       <img id="amenityImageModalImg" src="" alt="Amenity" style="display:block; max-width:85vw; max-height:80vh;">
     </div>
   </div>
@@ -1428,7 +1452,7 @@ vpMark('household');
 
 <div id="verifyModal" class="modal" style="display:none;">
   <div class="modal-content">
-    <button type="button" class="modal-close" id="verifyCloseBtn" aria-label="Close">&times;</button>
+    <button type="button" class="close-profile-modal" id="verifyCloseBtn" aria-label="Close">&times;</button>
     <h2>Confirm Details</h2>
     <div id="verifySummary" style="text-align:left;margin-top:10px"></div>
     <div class="verify-actions" style="text-align:center;margin-top:12px;display:flex;justify-content:center;flex-wrap:wrap;">
@@ -1441,7 +1465,7 @@ vpMark('household');
 <!-- Error Modal -->
 <div id="errorModal" class="modal" style="display:none;">
   <div class="modal-content">
-    <button type="button" class="modal-close" id="errorModalCloseBtn" aria-label="Close">&times;</button>
+    <button type="button" class="close-profile-modal" id="errorModalCloseBtn" aria-label="Close">&times;</button>
     <h2 style="color:#dc2626;">Error</h2>
     <p id="errorModalMessage" style="margin-top:15px; text-align:left;"></p>
     <div style="text-align:center;margin-top:20px;">
@@ -1452,7 +1476,7 @@ vpMark('household');
 
 <div id="changeAmenityModal" class="modal" style="display:none;">
   <div class="modal-content">
-    <button type="button" class="modal-close" id="changeAmenityCloseBtn" aria-label="Close">&times;</button>
+    <button type="button" class="close-profile-modal" id="changeAmenityCloseBtn" aria-label="Close">&times;</button>
     <h2>Change amenity?</h2>
     <p style="margin:8px 0 16px;color:#4b5563;">Are you sure you want to change amenities? This will reset your current selection.</p>
     <div style="text-align:center;margin-top:12px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
@@ -1463,7 +1487,7 @@ vpMark('household');
 </div>
 <div id="resetReservationModal" class="modal" style="display:none;">
   <div class="modal-content">
-    <button type="button" class="modal-close" id="resetReservationCloseBtn" aria-label="Close">&times;</button>
+    <button type="button" class="close-profile-modal" id="resetReservationCloseBtn" aria-label="Close">&times;</button>
     <h2>Reservation reset</h2>
     <p style="margin:8px 0 16px;color:#4b5563;">You need to make the reservation again since you clicked back on the downpayment page.</p>
     <div style="text-align:center;margin-top:12px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
@@ -2250,25 +2274,86 @@ vpMark('household');
     panel.innerHTML='';
     const body=document.createElement('div');
     body.className='inline-amenity-details';
-    let inner='';
-    inner+=`<div class="inline-title">${info.title}</div>`;
+    let head='';
+    head+=`<div class="inline-details-head"><div class="inline-title">${info.title}</div><button type="button" class="close-profile-modal" aria-label="Close">&times;</button></div>`;
+    let rows='';
     try{
       const hrs=getAmenityHours(info.value);
       if(hrs){
         const minH=parseInt(hrs.min.split(':')[0],10);
         const maxH=parseInt(hrs.max.split(':')[0],10);
-        inner+=`<p class="inline-meta"><strong>Hours:</strong> ${formatTimeSlot(minH)} – ${formatTimeSlot(maxH)}</p>`;
+        rows+=`<p class="inline-meta"><strong>Hours:</strong> ${formatTimeSlot(minH)} – ${formatTimeSlot(maxH)}</p>`;
       }
     }catch(_){ }
-    if(info.days){ inner+=`<p class="inline-meta"><strong>Availability:</strong> ${info.days}</p>`; }
+    if(info.days){ rows+=`<p class="inline-meta"><strong>Availability:</strong> ${info.days}</p>`; }
     const rateLabel=getAmenityPriceLabel(info.value);
-    if(rateLabel){ inner+=`<p class="inline-meta"><strong>Rate:</strong> ${rateLabel}</p>`; }
+    if(rateLabel){ rows+=`<p class="inline-meta"><strong>Rate:</strong> ${rateLabel}</p>`; }
     const bookingNote=getAmenityBookingNote(info.value);
-    if(bookingNote){ inner+=`<p class="inline-note">${bookingNote}</p>`; }
-    if(Number.isFinite(info.capacity)){ inner+=`<p class="inline-meta"><strong>Capacity:</strong> ${info.capacity} guests</p>`; }
-    body.innerHTML=inner;
+    if(bookingNote){ rows+=`<p class="inline-note">${bookingNote}</p>`; }
+    if(Number.isFinite(info.capacity)){ rows+=`<p class="inline-meta"><strong>Capacity:</strong> ${info.capacity} guests</p>`; }
+    const headEl=document.createElement('div');
+    headEl.innerHTML=head;
+    const bodyWrap=document.createElement('div');
+    bodyWrap.className='inline-details-body';
+    bodyWrap.innerHTML=rows;
+    const bookBtn=document.createElement('button');
+    bookBtn.type='button';
+    bookBtn.className='btn-main inline-book-now';
+    bookBtn.textContent='Book Now';
+    body.appendChild(headEl.firstChild);
+    body.appendChild(bodyWrap);
+    body.appendChild(bookBtn);
     panel.appendChild(body);
     panel.style.display='block';
+    const closeBtn=body.querySelector('.close-profile-modal');
+    if(closeBtn){ closeBtn.addEventListener('click',function(e){ e.stopPropagation(); closeAmenityDetails(body, panel); }); }
+    bookBtn.addEventListener('click',function(e){
+      e.stopPropagation();
+      runBookNowFlow(bookBtn);
+    });
+  }
+
+  function closeAmenityDetails(sheet, panel){
+    if(!sheet) return;
+    if(sheet.classList){ sheet.classList.add('closing'); }
+    setTimeout(function(){
+      resetAmenitySelection();
+    },220);
+  }
+
+  function runBookNowFlow(btn){
+    if(!btn) return;
+    const card=btn.closest('.amenity-card');
+    if(!card) return;
+    btn.style.display='none';
+    const key=card.getAttribute('data-key');
+    selectAmenityByKey(key);
+    try{
+      updateAmenityDescription(key);
+      const descBox=document.getElementById('amenityDescBox');
+      if(descBox){ descBox.style.display='flex'; }
+      const descText=document.getElementById('amenityDescText');
+      if(descText){ descText.textContent=''; descText.style.display='none'; }
+    }catch(_){}
+    const viewBtn=card.querySelector('button[data-action="view-desc"]');
+    if(viewBtn){ viewBtn.style.display='none'; }
+    document.querySelectorAll('.amenity-card').forEach(function(c){
+      c.style.display='none';
+    });
+    const amenitiesHeader=document.getElementById('amenitiesHeader');
+    if(amenitiesHeader){ amenitiesHeader.style.display='none'; }
+    const ret=document.getElementById('amenityReturnBtn');
+    if(ret){ ret.style.display='inline-flex'; }
+    try{
+      const rc=document.getElementById('reservationCard');
+      if(rc){
+        rc.style.display='flex';
+        document.getElementById('reservationTitle').textContent='Reservation';
+        document.getElementById('reservationHint').textContent='Select date, time, and persons';
+        refreshAvailabilityFromServer();
+        rc.scrollIntoView({behavior:'smooth',block:'start'});
+      }
+    }catch(_){}
   }
 
   function openAmenityImageModal(key){
@@ -3160,38 +3245,7 @@ vpMark('household');
   document.querySelectorAll('[data-action="book-now"]').forEach(btn=>{
     btn.addEventListener('click',function(e){
       e.stopPropagation();
-      const card=this.closest('.amenity-card');
-      if(card){
-        this.style.display='none';
-        const key=card.getAttribute('data-key');
-        selectAmenityByKey(key);
-        try{
-          updateAmenityDescription(key);
-          const descBox=document.getElementById('amenityDescBox');
-          if(descBox){ descBox.style.display='flex'; }
-          const descText=document.getElementById('amenityDescText');
-          if(descText){ descText.textContent=''; descText.style.display='none'; }
-        }catch(_){}
-        const viewBtn=card.querySelector('button[data-action="view-desc"]');
-        if(viewBtn){ viewBtn.style.display='none'; }
-        document.querySelectorAll('.amenity-card').forEach(function(c){
-          c.style.display='none';
-        });
-        const amenitiesHeader=document.getElementById('amenitiesHeader');
-        if(amenitiesHeader){ amenitiesHeader.style.display='none'; }
-        const ret=document.getElementById('amenityReturnBtn');
-        if(ret){ ret.style.display='inline-flex'; }
-        try{
-          const rc=document.getElementById('reservationCard');
-          if(rc){
-            rc.style.display='flex';
-            document.getElementById('reservationTitle').textContent='Reservation';
-            document.getElementById('reservationHint').textContent='Select date, time, and persons';
-            refreshAvailabilityFromServer();
-            rc.scrollIntoView({behavior:'smooth',block:'start'});
-          }
-        }catch(_){}
-      }
+      runBookNowFlow(this);
     });
   });
   
