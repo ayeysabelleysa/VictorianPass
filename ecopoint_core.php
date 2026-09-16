@@ -638,7 +638,7 @@ function eco_award_points_and_finalize(mysqli $con, int $sessionId, int $station
                 VALUES (?, 'earn', ?, ?, ?, ?, ?, ?)
             ");
             $ins->bind_param(
-                'iisdidi',
+                'iissdii',
                 $userId,
                 $awarded,
                 $desc,
