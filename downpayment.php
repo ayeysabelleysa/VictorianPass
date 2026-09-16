@@ -473,6 +473,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     .proceed-modal{display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);align-items:center;justify-content:center;z-index:2000}
     .proceed-content{background:#fff;border-radius:14px;padding:22px 24px;width:92%;max-width:360px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,0.25);position:relative}
     .proceed-content h3{margin:0;color:#111827;font-size:1.1rem}
+    .proceed-content p{margin:8px 0 0;color:#4b5563;font-size:.9rem}
     .proceed-actions{display:flex;gap:10px;justify-content:center;margin-top:18px}
     .proceed-actions .btn{background:#23412e;color:#fff;border:none;border-radius:10px;padding:10px 18px;font-weight:700;cursor:pointer;transition:transform .2s ease, box-shadow .2s ease}
     .proceed-actions .btn:hover{transform:translateY(-2px);box-shadow:0 8px 16px rgba(15,23,42,.12)}
@@ -487,7 +488,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     @media (max-width:640px){
       html{overflow-x:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%}
       body{overflow-x:hidden;min-height:100dvh}
-      .wrap{margin:20px auto;padding:0 12px;scroll-margin-top:80px;max-width:100%}
+      .wrap{margin:20px auto;padding:0 12px;scroll-margin-top:74px;max-width:100%}
       .card{padding:18px;overflow-y:auto;-webkit-overflow-scrolling:touch}
       .pay-callout{flex-direction:column;align-items:flex-start}
       .pay-callout .num{margin-left:0;margin-top:4px}
@@ -495,7 +496,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
       .upload-preview{max-width:140px;padding:6px}
       .upload-preview img{max-width:130px}
       #gcashReferenceNumber{
-        scroll-margin-top:90px;
+        scroll-margin-top:84px;
         -webkit-appearance:none;
         appearance:none;
         font-size:16px !important;
@@ -506,19 +507,21 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
         z-index:1;
       }
       .field-label{
-        scroll-margin-top:80px;
+        scroll-margin-top:74px;
       }
       .upload-area{
-        scroll-margin-top:80px;
+        scroll-margin-top:74px;
       }
       #imgModal .modal-content{max-width:96vw;padding:10px}
       #imgModal .modal-content img{max-width:94vw;max-height:80vh}
       #imgModal .modal-close{top:8px;right:8px;width:28px;height:28px;font-size:15px}
       #warningModal .modal-content{padding:24px 18px;max-width:96vw}
       #warningModal .modal-close{top:8px;right:8px;font-size:20px}
-      .proceed-actions{flex-direction:column;gap:10px}
-      .proceed-actions .btn{width:100%;padding:12px 16px;font-size:0.95rem}
-      .proceed-content{padding:20px 16px;width:94%}
+      .proceed-actions{flex-direction:column;gap:8px}
+      .proceed-actions .btn{width:100%;padding:10px 12px;font-size:0.9rem}
+      .proceed-content{padding:16px 14px;width:92%;max-width:300px;border-radius:12px}
+      .proceed-content h3{font-size:0.98rem}
+      .proceed-content p{font-size:0.84rem;margin:6px 0 0}
     }
   </style>
   </head>
@@ -641,7 +644,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     <div class="proceed-content">
       <button type="button" class="proceed-close" id="backCloseBtn" aria-label="Close">&times;</button>
       <h3>Going back will reset your reservation.</h3>
-      <p style="margin:10px 0 0;color:#4b5563;font-size:.95rem;">You will need to enter your details again.</p>
+      <p style="margin:8px 0 0;color:#4b5563;">You will need to enter your details again.</p>
       <div class="proceed-actions">
         <button type="button" class="btn btn-outline" id="backCancel">Stay</button>
         <button type="button" class="btn" id="backConfirm">Go Back</button>

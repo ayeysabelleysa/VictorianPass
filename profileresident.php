@@ -293,6 +293,15 @@ $sectionPageTitles = [
 ];
 $dashboardPageTitle = $sectionPageTitles[$activeSection] ?? 'Dashboard';
 
+$sectionPageSubtitles = [
+  'panel-requests' => 'View and manage all of your amenity and guest requests.',
+  'panel-guest-form' => 'Add a guest to your saved list for visitor entry approval.',
+  'panel-my-guests' => 'View and manage the guests you have saved.',
+  'panel-history' => 'See the log of your past passes, reservations, and requests.',
+  'panel-points-history' => 'Earn points by recycling and redeem them for amenity hours.',
+];
+$dashboardPageSubtitle = $sectionPageSubtitles[$activeSection] ?? 'Overview of your VictorianPass dashboard.';
+
 // Fetch point transactions - ONLY those tied to VHEcoPoint sessions so dashboard numbers
 // (balance, weekly points, daily sessions, activity history, expiry) share ONE source of truth.
 $ecoPointTransactions = [];
@@ -3026,6 +3035,7 @@ body.modal-open{overflow:hidden}
   <aside class="sidebar">
     <button type="button" class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="Close navigation"><i class="fa-solid fa-xmark"></i></button>
     <nav class="nav-menu">
+      <a href="mainpage.php" class="nav-item"><i class="fa-solid fa-house"></i> <span>Main Page</span></a>
       <a href="#" class="nav-item <?php echo $activeSection === 'panel-requests' ? 'active' : ''; ?>" data-section="panel-requests"><i class="fa-solid fa-list"></i> <span>My Requests</span></a>
       <a href="reserve.php" class="nav-item"><i class="fa-solid fa-ticket"></i> <span>Amenity Reservation</span></a>
       <a href="#" class="nav-item ecopoint-link <?php echo $activeSection === 'panel-points-history' ? 'active' : ''; ?>" data-section="panel-points-history">
@@ -3166,7 +3176,7 @@ body.modal-open{overflow:hidden}
     <header class="top-header<?php echo $isEcoPointThemeActive ? ' ecopoint-theme-header' : ''; ?>">
       <div class="header-brand">
         <button class="menu-toggle" id="menuToggle"><i class="fa-solid fa-bars"></i></button>
-        <a href="mainpage.php" aria-label="Go to Main Page" class="header-brand-link"><?php echo $isEcoPointThemeActive ? '<i class="fa-solid fa-recycle ecopoint-header-logo" aria-hidden="true"></i>' : '<img src="images/logo.svg" alt="Logo">'; ?></a>
+        <a href="mainpage.php" aria-label="Go to Main Page" class="header-brand-link"><?php echo $isEcoPointThemeActive ? '<img src="images/logo-leaf.svg" alt="VHEcoPoint Logo">' : '<img src="images/logo.svg" alt="Logo">'; ?></a>
         <div class="brand-text">
           <span class="brand-main"><?php echo $isEcoPointThemeActive ? 'VHEcoPoint' : 'VictorianPass'; ?></span>
           <span class="brand-sub"><?php echo $isEcoPointThemeActive ? 'Smart Waste Segregation Station' : 'Victorian Heights Subdivision'; ?></span>
@@ -3184,8 +3194,11 @@ body.modal-open{overflow:hidden}
     </header>
 
     <div class="dashboard-back-row">
-      <a href="mainpage.php" class="back-btn" aria-label="Back to main page"><i class="fa-solid fa-arrow-left"></i></a>
-      <h1 class="page-title" id="dashboardPageTitle"><?php echo htmlspecialchars($dashboardPageTitle); ?></h1>
+      <a href="mainpage.php" class="back-btn" id="dashboardBackBtn" aria-label="Back to main page" style="<?php echo in_array($activeSection, ['panel-requests', 'panel-guest-form', 'panel-my-guests', 'panel-history'], true) ? 'display:none;' : ''; ?>"><i class="fa-solid fa-arrow-left"></i></a>
+      <div class="page-title-wrap">
+        <h1 class="page-title" id="dashboardPageTitle"><?php echo htmlspecialchars($dashboardPageTitle); ?></h1>
+        <p class="page-subtitle" id="dashboardPageSubtitle"><?php echo htmlspecialchars($dashboardPageSubtitle); ?></p>
+      </div>
     </div>
 
     <div class="content-wrapper">
@@ -3642,7 +3655,6 @@ body.modal-open{overflow:hidden}
               </div>
 
               <div class="form-actions">
-                <a href="#" class="btn-back" id="guestFormBackBtn"><i class="fa-solid fa-arrow-left"></i> Back</a>
                 <button type="submit" class="btn-next" id="submitBtn">Save Guest</button>
               </div>
             </form>
@@ -4677,6 +4689,11 @@ body.modal-open{overflow:hidden}
       function setMenuActive(isOpen) {
           menuToggle.classList.toggle('active', isOpen);
       }
+      function openSidebar() {
+          sidebar.classList.add('open');
+          overlay.classList.add('show');
+          setMenuActive(true);
+      }
       function closeSidebar() {
           sidebar.classList.remove('open');
           overlay.classList.remove('show');
@@ -4702,6 +4719,11 @@ body.modal-open{overflow:hidden}
       document.querySelectorAll('.sidebar .nav-menu .nav-item, .sidebar-footer .logout-btn').forEach(function(item) {
           item.addEventListener('click', closeSidebar);
       });
+
+      // Open the drawer automatically on arrival (mobile only; desktop always shows it)
+      if(window.innerWidth <= 900){
+          openSidebar();
+      }
   }
 
   function buildExtraContent(li, extra){
@@ -5494,6 +5516,13 @@ body.modal-open{overflow:hidden}
     'panel-history':'History',
     'panel-points-history':'VHEcoPoint'
   };
+  var sectionSubtitles={
+    'panel-requests':'View and manage all of your amenity and guest requests.',
+    'panel-guest-form':'Add a guest to your saved list for visitor entry approval.',
+    'panel-my-guests':'View and manage the guests you have saved.',
+    'panel-history':'See the log of your past passes, reservations, and requests.',
+    'panel-points-history':'Earn points by recycling and redeem them for amenity hours.'
+  };
   function applyResidentThemeBySection(id){
     var mainContent = document.querySelector('.main-content');
     var brandMain = document.querySelector('.top-header .brand-main');
@@ -5512,9 +5541,15 @@ body.modal-open{overflow:hidden}
     }
     if (brandLogoLink) {
       brandLogoLink.innerHTML = isEcoPoint
-        ? '<i class="fa-solid fa-recycle ecopoint-header-logo" aria-hidden="true"></i>'
+        ? '<img src="images/logo-leaf.svg" alt="VHEcoPoint Logo">'
         : '<img src="images/logo.svg" alt="Logo">';
     }
+  }
+  function updateBackButtonVisibility(id){
+    var backBtn=document.getElementById('dashboardBackBtn');
+    if(!backBtn) return;
+    var noBackSections=['panel-requests','panel-guest-form','panel-my-guests','panel-history'];
+    backBtn.style.display=noBackSections.indexOf(id)!==-1?'none':'';
   }
   function showPanel(id){
     sections.forEach(function(sec){
@@ -5522,8 +5557,11 @@ body.modal-open{overflow:hidden}
       sec.style.display=sec.id===id?'':'none';
     });
     applyResidentThemeBySection(id);
+    updateBackButtonVisibility(id);
     var titleEl=document.getElementById('dashboardPageTitle');
     if(titleEl){ titleEl.textContent=sectionTitles[id]||'Dashboard'; }
+    var subtitleEl=document.getElementById('dashboardPageSubtitle');
+    if(subtitleEl){ subtitleEl.textContent=sectionSubtitles[id]||'Overview of your VictorianPass dashboard.'; }
   }
   document.querySelectorAll('.nav-menu .nav-item[data-section]').forEach(function(item){
     item.addEventListener('click',function(e){
@@ -5543,18 +5581,11 @@ body.modal-open{overflow:hidden}
   });
   if (document.querySelector('.nav-menu .nav-item[data-section="panel-points-history"].active')) {
     applyResidentThemeBySection('panel-points-history');
+    updateBackButtonVisibility('panel-points-history');
   } else {
     applyResidentThemeBySection('panel-requests');
+    updateBackButtonVisibility('panel-requests');
   }
-  var guestFormBackBtn=document.getElementById('guestFormBackBtn');
-  if(guestFormBackBtn){
-    guestFormBackBtn.addEventListener('click',function(e){
-      e.preventDefault();
-      var reqNav=document.querySelector('.nav-menu .nav-item[data-section="panel-requests"]');
-      if(reqNav) reqNav.click();
-    });
-  }
-
   var entryForm=document.getElementById('entryForm');
   var birthdateEl=document.getElementById('birthdate');
   var idInput=document.getElementById('visitor_valid_id');

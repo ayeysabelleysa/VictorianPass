@@ -340,6 +340,19 @@ body {
     overflow-wrap: anywhere;
 }
 
+.page-title-wrap {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.page-subtitle {
+    margin: 2px 0 0;
+    font-size: 0.88rem;
+    font-weight: 400;
+    color: #6b7280;
+    line-height: 1.4;
+}
+
 .right-panel {
     max-width: 1000px;
     margin: 0 auto;
@@ -3187,6 +3200,14 @@ body.profile-modal-open {
     .top-header {
         z-index: 1010 !important;
     }
+
+    .top-header .menu-toggle { margin-right: 0; }
+    .top-header .header-brand { gap: 3px; }
+    .top-header .header-brand img { margin-right: 0; }
+
+    .dashboard-back-row { padding: 14px 15px 0; gap: 12px; }
+    .dashboard-back-row .page-title { font-size: 1.05rem; }
+    .page-subtitle { font-size: 0.8rem; margin-top: 1px; }
 
     .sidebar-overlay {
         display: none !important;

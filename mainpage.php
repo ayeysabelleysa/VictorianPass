@@ -347,7 +347,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         <?php elseif ($isVisitor): ?>
           <button class="btn-change btn-reserve" onclick="window.location.href='reserve.php'">Reserve an Amenity</button>
         <?php else: ?>
-          <button class="btn-change btn-dashboard" onclick="window.location.href='profileresident.php'">My Dashboard</button>
+          <button class="btn-change btn-dashboard" onclick="window.location.href='profileresident.php'" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;"><i class="fa-solid fa-user" aria-hidden="true"></i> My Profile</button>
         <?php endif; ?>
       </div>
       
@@ -386,7 +386,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
           <?php endif; ?>          <p class="section-subtitle ecopoint-description">VHEcoPoint is Victorian Heights Subdivision’s Smart Waste Segregation Station that automatically sorts recyclables and rewards you with points redeemable for free amenity bookings. Scan your VictorianPass QR code, deposit recyclables, and points are credited to your account instantly.</p>
             <?php if ($isResident): ?>
             <div class="ecopoint-home-actions" style="justify-content:center; margin-top:14px;">
-              <a href="profileresident.php?section=panel-points-history" class="btn-change ecopoint-home-cta">View VHEcoPoint</a>
+              <a href="profileresident.php?section=panel-points-history" class="btn-change ecopoint-home-cta"><i class="fa-solid fa-leaf" aria-hidden="true" style="margin-right:8px;"></i>View VHEcoPoint</a>
             </div>
             <?php endif; ?>
             <h3 class="ecopoint-card-title">How It Works</h3>
