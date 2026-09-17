@@ -572,25 +572,8 @@ function eco_award_points_and_finalize(mysqli $con, int $sessionId, int $station
     $material = (string)($session['material_type'] ?? '');
     $weight   = (float)($session['weight_kg']    ?? 0);
     $userId   = (int)$session['user_id'];
-     // Aggregate all waste deposits recorded during this station session.
-    $itemStmt = $con->prepare("
-        SELECT
-            COALESCE(SUM(weight_kg), 0) AS total_weight,
-            COALESCE(SUM(points_calculated), 0) AS total_points
-        FROM ecopoint_waste_items
-        WHERE session_id = ?
-    ");
 
-    $itemStmt->bind_param('i', $sessionId);
-    $itemStmt->execute();
-    $itemTotals = $itemStmt->get_result()->fetch_assoc();
-    $itemStmt->close();
-
-    if ($itemTotals && (float)$itemTotals['total_weight'] > 0) {
-        $weight = (float)$itemTotals['total_weight'];
-        $session['weight_kg'] = $weight;
-        $session['points_calculated'] = (int)$itemTotals['total_points'];
-    }
+     
     $capState = eco_resident_cap_state($con, $userId);
     $bal      = (int)($session['points_awarded'] ?? 0); // pre-existing award if any
 
@@ -610,6 +593,11 @@ function eco_award_points_and_finalize(mysqli $con, int $sessionId, int $station
         WHERE session_id = ?
           AND event_type = 'WASTE_DATA'
     ");
+    
+    if (!$eventStmt) {
+    throw new RuntimeException('Failed to prepare WASTE_DATA aggregation query: ' . $con->error);
+    }
+
 
     $eventStmt->bind_param('i', $sessionId);
     $eventStmt->execute();
@@ -657,7 +645,7 @@ function eco_award_points_and_finalize(mysqli $con, int $sessionId, int $station
                 VALUES (?, 'earn', ?, ?, ?, ?, ?, ?)
             ");
             $ins->bind_param(
-                'iisdidi',
+                'iissdii',
                 $userId,
                 $awarded,
                 $desc,
