@@ -145,6 +145,9 @@ $con->query("CREATE TABLE IF NOT EXISTS guest_forms (
   approved_by INT NULL,
   approval_date DATETIME NULL,
   qr_path VARCHAR(255) NULL,
+  entered_at DATETIME NULL,
+  entered_by INT NULL,
+  scanned_at DATETIME NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NULL,
   INDEX idx_resident_user_id (resident_user_id),
@@ -154,6 +157,15 @@ $con->query("CREATE TABLE IF NOT EXISTS guest_forms (
 $columnCheck = $con->query("SHOW COLUMNS FROM guest_forms LIKE 'visitor_address'");
 if ($columnCheck && $columnCheck->num_rows === 0) {
   $con->query("ALTER TABLE guest_forms ADD COLUMN visitor_address VARCHAR(255) NULL");
+}
+
+$fcChecks = ['entered_at' => 'DATETIME NULL', 'entered_by' => 'INT NULL', 'scanned_at' => 'DATETIME NULL'];
+foreach ($fcChecks as $fcName => $fcDef) {
+  $fc = $con->query("SHOW COLUMNS FROM guest_forms LIKE '" . $con->real_escape_string($fcName) . "'");
+  if ($fc && $fc->num_rows === 0) {
+    $con->query("ALTER TABLE guest_forms ADD COLUMN $fcName $fcDef");
+  }
+  if ($fc instanceof mysqli_result) { $fc->close(); }
 }
 
 // Generate a reference code for this guest form

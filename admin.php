@@ -229,6 +229,18 @@ if (!$isReservationDetailsAjax && !vpSchemaDone($con, 'admin_v1')) {
   vpMarkSchemaDone($con, 'admin_v1');
 }
 
+// Ensure guest_forms has check-in columns (scheduled guest visits)
+if (!$isReservationDetailsAjax && ($con instanceof mysqli)) {
+  $gfCols = ['entered_at' => 'DATETIME NULL', 'entered_by' => 'INT NULL', 'scanned_at' => 'DATETIME NULL'];
+  foreach ($gfCols as $gfCol => $gfDef) {
+    $gfChk = @$con->query("SHOW COLUMNS FROM guest_forms LIKE '" . $con->real_escape_string($gfCol) . "'");
+    if ($gfChk && $gfChk->num_rows === 0) {
+      @$con->query("ALTER TABLE guest_forms ADD COLUMN $gfCol $gfDef");
+    }
+    if ($gfChk) { $gfChk->close(); }
+  }
+}
+
 // Handle AJAX request for user details (admin resident profile)
 if (isset($_GET['action']) && $_GET['action'] == 'get_user_details' && isset($_GET['id'])) {
     if (($_SESSION['role'] ?? '') !== 'admin') {
@@ -1983,6 +1995,9 @@ function ensureGuestFormsTable($con) {
       approval_date DATETIME NULL,
       denial_reason TEXT NULL,
       qr_path VARCHAR(255) NULL,
+      entered_at DATETIME NULL,
+      entered_by INT NULL,
+      scanned_at DATETIME NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NULL,
       INDEX idx_resident_user_id (resident_user_id),

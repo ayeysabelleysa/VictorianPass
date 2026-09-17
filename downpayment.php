@@ -446,8 +446,8 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     .field-warning .warn-icon{width:18px;height:18px;border-radius:50%;background:#c0392b;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;flex-shrink:0;line-height:1}
     #removeFileBtn{padding:5px 14px;font-size:.78rem;border-radius:6px;align-self:flex-start;line-height:1.4}
     #confirmBtn{padding:12px 20px;font-size:1rem;margin-top:8px;align-self:flex-end}
-    .upload-preview{display:flex;flex-direction:column;gap:6px;align-items:flex-start;justify-content:flex-start;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:8px;max-width:180px}
-    .upload-preview img{width:100%;max-width:160px;height:auto;border-radius:6px;cursor:pointer;transition:opacity .2s;border:1px solid #e5e7eb}
+    .upload-preview{display:flex;flex-direction:column;gap:6px;align-items:flex-start;justify-content:flex-start;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:8px;max-width:180px;width:min(180px,100%);box-sizing:border-box}
+    .upload-preview img{width:100%;max-width:160px;max-height:120px;min-height:80px;height:auto;object-fit:contain;border-radius:6px;cursor:pointer;transition:opacity .2s;border:1px solid #e5e7eb;background:#fff;align-self:center}
     .upload-preview img:hover{opacity:.85}
     .upload-preview .file-name{color:#111827;font-weight:600;font-size:.78rem;word-break:break-all}
     @keyframes modalPop{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}
@@ -493,8 +493,8 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
       .pay-callout{flex-direction:column;align-items:flex-start}
       .pay-callout .num{margin-left:0;margin-top:4px}
       #receiptInput{max-width:100%}
-      .upload-preview{max-width:140px;padding:6px}
-      .upload-preview img{max-width:130px}
+      .upload-preview{max-width:140px;padding:6px;width:min(140px,100%)}
+      .upload-preview img{max-width:130px;max-height:110px;min-height:70px}
       #gcashReferenceNumber{
         scroll-margin-top:84px;
         -webkit-appearance:none;
@@ -706,10 +706,15 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
         }
         preview.style.display='flex';
       }
+      let lastFileSig='';
       function update(){
         const hasFile=!!(input && input.files && input.files.length>0);
         removeBtn.disabled=!hasFile;
-        renderPreview(hasFile?input.files[0]:null);
+        const f=hasFile?input.files[0]:null;
+        const sig=f?(f.name+'\u0000'+f.size+'\u0000'+(f.lastModified||0)):'';
+        if(sig===lastFileSig) return;
+        lastFileSig=sig;
+        renderPreview(f);
       }
       function openWarning(title, msg){
         if(!warningModal) return;
@@ -784,7 +789,6 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
           const cleaned = raw.slice(0, 13);
           if (refInput.value !== cleaned) { refInput.value = cleaned; }
           setInlineWarning(refWarning, '');
-          update();
         });
       }
       if(removeBtn){ removeBtn.addEventListener('click', function(){ input.value=''; update(); }); }
@@ -888,37 +892,41 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
       (function(){
         var isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
         if (!isMobile || !window.visualViewport) return;
-        var scrollTimeout = null;
+        var lastScrolledRef = 0;
+        var lastScrolledInput = 0;
 
-        function scrollInputIntoView(el){
+        function recenter(el){
           if (!el) return;
-          clearTimeout(scrollTimeout);
-          scrollTimeout = setTimeout(function(){
-            el.scrollIntoView({ behavior:'smooth', block:'center' });
-          }, 350);
+          var r = el.getBoundingClientRect();
+          var vh = window.visualViewport.height || window.innerHeight || 0;
+          if (r.top < 0 || r.bottom > vh) {
+            el.scrollIntoView({ behavior:'instant', block:'nearest' });
+          }
         }
 
         if (refInput) {
           refInput.addEventListener('focus', function(){
-            scrollInputIntoView(refInput);
+            recenter(refInput);
           });
         }
 
         if (input) {
           input.addEventListener('focus', function(){
-            setTimeout(function(){
-              input.scrollIntoView({ behavior:'smooth', block:'center' });
-            }, 350);
+            recenter(input);
           });
         }
 
         window.visualViewport.addEventListener('resize', function(){
           var active = document.activeElement;
-          if (active && (active === refInput || active === input)){
-            clearTimeout(scrollTimeout);
-            scrollTimeout = setTimeout(function(){
-              active.scrollIntoView({ behavior:'smooth', block:'center' });
-            }, 150);
+          var now = Date.now();
+          if (active === refInput) {
+            if (now - lastScrolledRef < 200) return;
+            lastScrolledRef = now;
+            recenter(refInput);
+          } else if (active === input) {
+            if (now - lastScrolledInput < 200) return;
+            lastScrolledInput = now;
+            recenter(input);
           }
         });
       })();

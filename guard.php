@@ -125,6 +125,7 @@ if (!vpSchemaDone($con, 'guard_v1') && ($con instanceof mysqli)) {
   $con->query("CREATE TABLE IF NOT EXISTS entry_scans (
   id INT AUTO_INCREMENT PRIMARY KEY,
   ref_code VARCHAR(50) NOT NULL,
+  participant_no INT NULL,
   scanned_by_guard_id INT NULL,
   scanned_by_name VARCHAR(150) NULL,
   subject_name VARCHAR(150) NULL,
@@ -137,6 +138,9 @@ if (!vpSchemaDone($con, 'guard_v1') && ($con instanceof mysqli)) {
   INDEX idx_guard (scanned_by_guard_id),
   INDEX idx_scanned_at (scanned_at)
 ) ENGINE=InnoDB");
+  $pc = $con->query("SHOW COLUMNS FROM entry_scans LIKE 'participant_no'");
+  if ($pc && $pc->num_rows === 0) { @$con->query("ALTER TABLE entry_scans ADD COLUMN participant_no INT NULL AFTER ref_code"); }
+  if ($pc) { $pc->close(); }
   vpMarkSchemaDone($con, 'guard_v1');
 }
 function ensureNotificationsTable($con) {
@@ -2385,15 +2389,18 @@ function scanCode(){
   if(!raw){ showToast('Enter a code to scan','error'); return; }
   const basePath = window.location.pathname.replace(/\/[^\/]*$/, '');
   let codeForLog = raw;
+  let pParam = '';
   let openUrl = `${location.origin}${basePath}/qr_view.php?code=${encodeURIComponent(raw)}`;
   let parsedUrl = null;
   try { parsedUrl = new URL(raw); } catch(_){}
   if(parsedUrl){
     const codeParam = parsedUrl.searchParams.get('code');
     const ridParam = parsedUrl.searchParams.get('rid');
+    const pRaw = parsedUrl.searchParams.get('p');
     if(codeParam){
       codeForLog = codeParam;
-      openUrl = `${location.origin}${basePath}/qr_view.php?code=${encodeURIComponent(codeParam)}`;
+      pParam = (pRaw ? '&p=' + encodeURIComponent(pRaw) : '');
+      openUrl = `${location.origin}${basePath}/qr_view.php?code=${encodeURIComponent(codeParam)}${pParam}`;
     } else if(ridParam && parsedUrl.pathname.indexOf('resident_qr_view.php') !== -1){
       codeForLog = raw;
       openUrl = parsedUrl.href;
@@ -2401,16 +2408,19 @@ function scanCode(){
   } else {
     const codeMatch = raw.match(/[?&]code=([^&]+)/i);
     const ridMatch = raw.match(/[?&]rid=(\d+)/i);
+    const pMatch = raw.match(/[?&]p=([^&]+)/i);
     if(codeMatch && codeMatch[1]){
       const codeParam = decodeURIComponent(codeMatch[1]);
+      const pRaw = pMatch && pMatch[1] ? decodeURIComponent(pMatch[1]) : '';
       codeForLog = codeParam;
-      openUrl = `${location.origin}${basePath}/qr_view.php?code=${encodeURIComponent(codeParam)}`;
+      pParam = (pRaw ? '&p=' + encodeURIComponent(pRaw) : '');
+      openUrl = `${location.origin}${basePath}/qr_view.php?code=${encodeURIComponent(codeParam)}${pParam}`;
     } else if(ridMatch && ridMatch[1]){
       codeForLog = raw;
       openUrl = `${location.origin}${basePath}/resident_qr_view.php?rid=${encodeURIComponent(ridMatch[1])}`;
     }
   }
-  fetch(`status.php?code=${encodeURIComponent(codeForLog)}`)
+  fetch(`status.php?code=${encodeURIComponent(codeForLog)}${pParam}`)
     .then(r=>r.json())
     .then(data=>{
       if(!data||!data.success){ showToast(data&&data.message?data.message:'Invalid code','error'); return; }

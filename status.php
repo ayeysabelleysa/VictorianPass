@@ -37,6 +37,7 @@ if (!vpSchemaDone($con, 'status_v1') && ($con instanceof mysqli)) {
     $con->query("CREATE TABLE IF NOT EXISTS entry_scans (
     id INT AUTO_INCREMENT PRIMARY KEY,
     ref_code VARCHAR(50) NOT NULL,
+    participant_no INT NULL,
     scanned_by_guard_id INT NULL,
     scanned_by_name VARCHAR(150) NULL,
     subject_name VARCHAR(150) NULL,
@@ -50,6 +51,12 @@ if (!vpSchemaDone($con, 'status_v1') && ($con instanceof mysqli)) {
     INDEX idx_scanned_at (scanned_at)
   ) ENGINE=InnoDB");
     vpMarkSchemaDone($con, 'status_v1');
+}
+
+if ($con instanceof mysqli) {
+    $pc = $con->query("SHOW COLUMNS FROM entry_scans LIKE 'participant_no'");
+    if ($pc && $pc->num_rows === 0) { @$con->query("ALTER TABLE entry_scans ADD COLUMN participant_no INT NULL AFTER ref_code"); }
+    if ($pc) { $pc->close(); }
 }
 
 function resetPoolPersonsOnCancel($con, $code){
@@ -402,6 +409,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $code = isset($_GET['code']) ? trim($_GET['code']) : '';
+$pNum = isset($_GET['p']) ? max(0, intval($_GET['p'])) : 0;
 if ($code === '') {
     echo json_encode(['success' => false, 'message' => 'Status code is required.']);
     exit;
@@ -690,31 +698,47 @@ if ($resGF && $resGF->num_rows > 0) {
       $resp['scanned_by'] = $gname !== '' ? $gname : 'Guard';
       // Persist scan entry
       if ($con instanceof mysqli) {
+        $totalPax = max(1, intval($resp['persons'] ?? 1));
+        $isMulti = $totalPax > 1;
+        $part = $isMulti ? $pNum : 0;
         $exists = false;
-        $chk = $con->prepare("SELECT 1 FROM entry_scans WHERE ref_code = ? AND DATE(scanned_at) = CURDATE() LIMIT 1");
-        $chk->bind_param('s', $row['ref_code']);
+        if ($part > 0) {
+          $chk = $con->prepare("SELECT 1 FROM entry_scans WHERE ref_code = ? AND participant_no = ? AND DATE(scanned_at) = CURDATE() LIMIT 1");
+          $chk->bind_param('si', $row['ref_code'], $part);
+        } else {
+          $chk = $con->prepare("SELECT 1 FROM entry_scans WHERE ref_code = ? AND DATE(scanned_at) = CURDATE() LIMIT 1");
+          $chk->bind_param('s', $row['ref_code']);
+        }
         $chk->execute();
         $cres = $chk->get_result();
         if ($cres && $cres->num_rows > 0) { $exists = true; }
         $chk->close();
         $resp['first_scan'] = !$exists;
+        $resp['participant_no'] = ($part > 0 ? $part : null);
+        $resp['total_participants'] = $totalPax;
         if (!$exists) {
-          $stmtLog = $con->prepare("INSERT INTO entry_scans (ref_code, scanned_by_guard_id, scanned_by_name, subject_name, entry_type, status, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+          $stmtLog = $con->prepare("INSERT INTO entry_scans (ref_code, participant_no, scanned_by_guard_id, scanned_by_name, subject_name, entry_type, status, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
           $sd = $resp['start_date'] ? date('Y-m-d', strtotime($resp['start_date'])) : null;
           $ed = $resp['end_date'] ? date('Y-m-d', strtotime($resp['end_date'])) : null;
           $subject = $resp['name']; $etype = $resp['type']; $stat = $resp['status'];
-          $stmtLog->bind_param('sissssss', $row['ref_code'], $gid, $gname, $subject, $etype, $stat, $sd, $ed);
+          if ($part > 0) { $subject = 'Participant ' . $part . ' of ' . $totalPax . ' - ' . $subject; }
+          $stmtLog->bind_param('sisssssss', $row['ref_code'], $part, $gid, $gname, $subject, $etype, $stat, $sd, $ed);
           @$stmtLog->execute();
           @$stmtLog->close();
         }
-        if ($resp['first_scan'] && strtolower($statusVal) === 'approved') {
+        if (!$isMulti && $resp['first_scan'] && strtolower($statusVal) === 'approved') {
           $stmtScan = $con->prepare("UPDATE reservations SET scanned_at = NOW(), updated_at = NOW() WHERE ref_code = ? AND scanned_at IS NULL");
           if ($stmtScan) { $stmtScan->bind_param('s', $row['ref_code']); $stmtScan->execute(); $stmtScan->close(); }
           $_SESSION['just_confirmed_ref'] = $row['ref_code'];
+          $_SESSION['just_confirmed_participant'] = ($part > 0 ? $part : 0);
+          $_SESSION['just_confirmed_time'] = time();
+        } elseif ($part > 0) {
+          $_SESSION['just_confirmed_ref'] = $row['ref_code'];
+          $_SESSION['just_confirmed_participant'] = $part;
           $_SESSION['just_confirmed_time'] = time();
         }
         // Auto-archive and mark as permission_granted for valid passes
-        if (strtolower($statusVal) === 'approved') {
+        if (!$isMulti && strtolower($statusVal) === 'approved') {
           try {
             // guest_forms
             $stmtA = $con->prepare("UPDATE guest_forms SET approval_status='permission_granted', scanned_at = NOW(), updated_at = NOW() WHERE ref_code = ? AND (approval_status IS NULL OR approval_status NOT IN ('permission_granted','cancelled','denied','expired'))");
@@ -727,6 +751,8 @@ if ($resGF && $resGF->num_rows > 0) {
             if ($stmtC) { $stmtC->bind_param('s', $row['ref_code']); $stmtC->execute(); $stmtC->close(); }
             $resp['status'] = 'permission_granted';
           } catch (Throwable $e) { /* swallow */ }
+        } elseif ($isMulti && strtolower($statusVal) === 'approved') {
+          $resp['status'] = 'approved';
         }
       }
     }
@@ -870,27 +896,43 @@ if ($result && $result->num_rows > 0) {
       }
       $resp['scanned_by'] = $gname !== '' ? $gname : 'Guard';
       if ($con instanceof mysqli) {
+        $totalPax = max(1, intval($resp['persons'] ?? 1));
+        $isMulti = $totalPax > 1;
+        $part = $isMulti ? $pNum : 0;
         $exists = false;
-        $chk = $con->prepare("SELECT 1 FROM entry_scans WHERE ref_code = ? AND DATE(scanned_at) = CURDATE() LIMIT 1");
-        $chk->bind_param('s', $row['ref_code']);
+        if ($part > 0) {
+          $chk = $con->prepare("SELECT 1 FROM entry_scans WHERE ref_code = ? AND participant_no = ? AND DATE(scanned_at) = CURDATE() LIMIT 1");
+          $chk->bind_param('si', $row['ref_code'], $part);
+        } else {
+          $chk = $con->prepare("SELECT 1 FROM entry_scans WHERE ref_code = ? AND DATE(scanned_at) = CURDATE() LIMIT 1");
+          $chk->bind_param('s', $row['ref_code']);
+        }
         $chk->execute();
         $cres = $chk->get_result();
         if ($cres && $cres->num_rows > 0) { $exists = true; }
         $chk->close();
         $resp['first_scan'] = !$exists;
+        $resp['participant_no'] = ($part > 0 ? $part : null);
+        $resp['total_participants'] = $totalPax;
         if (!$exists) {
-          $stmtLog = $con->prepare("INSERT INTO entry_scans (ref_code, scanned_by_guard_id, scanned_by_name, subject_name, entry_type, status, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+          $stmtLog = $con->prepare("INSERT INTO entry_scans (ref_code, participant_no, scanned_by_guard_id, scanned_by_name, subject_name, entry_type, status, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
           $sd = $resp['start_date'] ? date('Y-m-d', strtotime($resp['start_date'])) : null;
           $ed = $resp['end_date'] ? date('Y-m-d', strtotime($resp['end_date'])) : null;
           $subject = $resp['name']; $etype = $resp['type']; $stat = $resp['status'];
-          $stmtLog->bind_param('sissssss', $row['ref_code'], $gid, $gname, $subject, $etype, $stat, $sd, $ed);
+          if ($part > 0) { $subject = 'Participant ' . $part . ' of ' . $totalPax . ' - ' . $subject; }
+          $stmtLog->bind_param('sisssssss', $row['ref_code'], $part, $gid, $gname, $subject, $etype, $stat, $sd, $ed);
           @$stmtLog->execute();
           @$stmtLog->close();
         }
-        if ($resp['first_scan'] && strtolower($statusVal) === 'approved') {
+        if (!$isMulti && $resp['first_scan'] && strtolower($statusVal) === 'approved') {
           $stmtScan = $con->prepare("UPDATE resident_reservations SET scanned_at = NOW(), updated_at = NOW() WHERE ref_code = ? AND scanned_at IS NULL");
           if ($stmtScan) { $stmtScan->bind_param('s', $row['ref_code']); $stmtScan->execute(); $stmtScan->close(); }
           $_SESSION['just_confirmed_ref'] = $row['ref_code'];
+          $_SESSION['just_confirmed_participant'] = ($part > 0 ? $part : 0);
+          $_SESSION['just_confirmed_time'] = time();
+        } elseif ($part > 0) {
+          $_SESSION['just_confirmed_ref'] = $row['ref_code'];
+          $_SESSION['just_confirmed_participant'] = $part;
           $_SESSION['just_confirmed_time'] = time();
         }
       }

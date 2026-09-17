@@ -273,6 +273,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
       background: #facc6b;
       color: #4b2e12;
       border-color: #fbbf24;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
   }
   .btn-secondary.back-account-btn:hover {
       background: #fbbf24;
@@ -395,7 +398,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     <div class="hero">
         <div class="top-actions" style="display:flex; gap:10px; flex-wrap:wrap;">
-            <button type="button" class="btn-secondary back-account-btn" onclick="window.location.href='profileresident.php'">&#8592; Back to Account</button>
+            <button type="button" class="btn-secondary back-account-btn" onclick="window.location.href='profileresident.php'"><i class="fa-solid fa-arrow-left"></i> Back to Account</button>
             <button type="button" class="btn-secondary" onclick="openModal('myReportsModal')">My Reported Incidents</button>
         </div>
         <div class="report-steps" aria-label="Report steps">

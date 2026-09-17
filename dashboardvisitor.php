@@ -210,9 +210,9 @@ $activities = [];
 // Reservations
 $prevDvResMode = function_exists('mysqli_report') ? mysqli_report(MYSQLI_REPORT_OFF) : null;
 try {
-    $stmt = $con->prepare("SELECT 'reservation' as type, amenity, start_date, end_date, start_time, end_time, status, approval_status, payment_status, denial_reason, receipt_attempts, created_at, ref_code, scanned_at FROM reservations WHERE user_id = ? AND status <> 'deleted' AND approval_status <> 'deleted' ORDER BY created_at DESC");
+    $stmt = $con->prepare("SELECT 'reservation' as type, amenity, start_date, end_date, start_time, end_time, status, approval_status, payment_status, denial_reason, receipt_attempts, created_at, ref_code, scanned_at, persons FROM reservations WHERE user_id = ? AND status <> 'deleted' AND approval_status <> 'deleted' ORDER BY created_at DESC");
 } catch (Throwable $e) {
-    $stmt = $con->prepare("SELECT 'reservation' as type, amenity, start_date, end_date, start_time, end_time, status, approval_status, payment_status, NULL as denial_reason, 0 as receipt_attempts, created_at, ref_code, NULL as scanned_at FROM reservations WHERE user_id = ? AND status <> 'deleted' AND approval_status <> 'deleted' ORDER BY created_at DESC");
+    $stmt = $con->prepare("SELECT 'reservation' as type, amenity, start_date, end_date, start_time, end_time, status, approval_status, payment_status, NULL as denial_reason, 0 as receipt_attempts, created_at, ref_code, NULL as scanned_at, persons FROM reservations WHERE user_id = ? AND status <> 'deleted' AND approval_status <> 'deleted' ORDER BY created_at DESC");
 }
 if ($prevDvResMode !== null && function_exists('mysqli_report')) { mysqli_report($prevDvResMode); }
 if ($stmt) {
@@ -301,6 +301,7 @@ if ($stmt) {
             'payment_status' => $row['payment_status'] ?? null,
             'attempts' => intval($row['receipt_attempts'] ?? 0),
             'scanned_at' => $row['scanned_at'] ?? null,
+            'persons' => isset($row['persons']) ? intval($row['persons']) : 1,
             'start_date_raw' => $row['start_date'] ?? '',
             'end_date_raw' => $row['end_date'] ?? '',
             'start_time_raw' => $row['start_time'] ?? '',
@@ -914,7 +915,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
-              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>">
+              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-persons="<?php echo isset($act['persons']) ? intval($act['persons']) : 1; ?>">
                  <div class="item-icon"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
@@ -1001,7 +1002,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
-              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>">
+              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-persons="<?php echo isset($act['persons']) ? intval($act['persons']) : 1; ?>">
                  <div class="item-icon"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
@@ -1428,7 +1429,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
     return list.slice().sort(function(a,b){
       return String(a.ref_code||'').localeCompare(String(b.ref_code||''));
     }).map(function(it){
-      return [it.ref_code||'', it.status||'', it.payment_status||'', it.attempts||''].join('|');
+      return [it.ref_code||'', it.status||'', it.payment_status||'', it.attempts||'', it.persons||''].join('|');
     }).join('||');
   }
   function hasVisibleModal(){
@@ -1505,6 +1506,9 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
             }
             if(newItem.attempts !== undefined){
               li.setAttribute('data-attempts', String(newItem.attempts || 0));
+            }
+            if(newItem.persons !== undefined){
+              li.setAttribute('data-persons', String(newItem.persons || 1));
             }
 
             var shouldMoveHistory = newStatusLower.indexOf('cancel') !== -1 || newStatusLower.indexOf('expired') !== -1 || newStatusLower.indexOf('moved_to_history') !== -1;
@@ -2304,6 +2308,113 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
     };
   })();
   
+  // Entry Pass helpers (used by expanded cards, lightbox, and the Request Details modal)
+  (function(){
+    function getBase(){ return window.location.pathname.replace(/\/[^\/]*$/,''); }
+    function qrUrl(link, size){ return 'https://api.qrserver.com/v1/create-qr-code/?size='+size+'x'+size+'&data='+encodeURIComponent(link); }
+    function escHtml(t){ return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    window.buildEntryPassView = function(ref, n){
+      var base=getBase();
+      n=parseInt(n||'1',10); if(isNaN(n)||n<1) n=1;
+      var html='';
+      if(n>1){
+        html+='<div class="entry-pass-lb-caption">Participant QR Passes ('+n+')</div>';
+      }
+      html+='<div class="entry-pass-lb-multi">';
+      for(var pi=1; pi<=n; pi++){
+        var pLink=location.origin+base+'/qr_view.php?code='+encodeURIComponent(ref)+'&p='+pi;
+        html+='<div class="entry-pass-lb-tile"><img src="'+qrUrl(pLink,220)+'" alt="Participant '+pi+' QR"><div class="entry-pass-lb-tile-label">Participant '+pi+'</div></div>';
+      }
+      html+='</div>';
+      return html;
+    };
+    window.openEntryPassLightbox = function(title, html){
+      var lb=document.getElementById('entryPassLightbox');
+      if(!lb) return;
+      var t=lb.querySelector('.entry-pass-lightbox-title');
+      var b=lb.querySelector('.entry-pass-lightbox-body');
+      if(t) t.textContent = title || 'Entry QR Pass';
+      if(b) b.innerHTML = html || '';
+      lb.style.display='flex';
+    };
+    window.closeEntryPassLightbox = function(){
+      var lb=document.getElementById('entryPassLightbox');
+      if(lb) lb.style.display='none';
+    };
+    window.openEntryPassViewFrom = function(btn){
+      if(!btn) return;
+      var ref=btn.getAttribute('data-ref')||'';
+      var n=parseInt(btn.getAttribute('data-persons')||'1',10);
+      if(!ref || isNaN(n)||n<1) n=1;
+      var title = n>1 ? 'Participant QR Passes ('+n+')' : 'Entry QR Pass';
+      if(window.buildEntryPassView) window.openEntryPassLightbox(title, window.buildEntryPassView(ref, n));
+    };
+    window.downloadEntryPassQr = function(url, type, ref){
+      if(!url) return;
+      function downloadRaw(){
+        fetch(url).then(function(r){ return r.blob(); }).then(function(blob){
+          var o=window.URL.createObjectURL(blob);
+          var a=document.createElement('a');
+          a.href=o; a.download='QR_'+(ref||'pass')+'.png';
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          window.URL.revokeObjectURL(o);
+        }).catch(function(){});
+      }
+      var msg = String(type||'').toLowerCase()==='reservation'
+        ? 'Do not scan. One-time use only. Valid only on the selected date and time. Authorized guards only.'
+        : 'Do not scan. Authorized guards only.';
+      if(typeof window.openQRWarning==='function'){ window.openQRWarning(downloadRaw, msg); }
+      else { downloadRaw(); }
+    };
+    window.downloadEntryPassAll = function(ref, n){
+      var base=getBase();
+      n=parseInt(n||'0',10); if(!ref||n<1) return;
+      var tasks=[];
+      for(var di=1; di<=n; di++){
+        (function(pi){
+          tasks.push(function(){
+            var pLink=location.origin+base+'/qr_view.php?code='+encodeURIComponent(ref)+'&p='+pi;
+            return fetch(qrUrl(pLink,220)).then(function(r){ return r.blob(); }).then(function(blob){
+              var o=window.URL.createObjectURL(blob);
+              var a=document.createElement('a');
+              a.href=o; a.download='QR_'+ref+'_p'+pi+'.png';
+              document.body.appendChild(a); a.click(); document.body.removeChild(a);
+              window.URL.revokeObjectURL(o);
+            }).catch(function(){});
+          });
+        })(di);
+      }
+      (function run(){ var t=tasks.shift(); if(!t) return; t().then(run).catch(run); }());
+    };
+    window.shareEntryPassAll = function(ref, n){
+      var base=getBase();
+      n=parseInt(n||'0',10); if(!ref||n<1) return;
+      var lines=[];
+      for(var si=1; si<=n; si++){
+        lines.push('Participant '+si+': '+location.origin+base+'/qr_view.php?code='+encodeURIComponent(ref)+'&p='+si);
+      }
+      var text=ref+'\n'+lines.join('\n');
+      if(navigator.share && navigator.canShare && navigator.canShare({text:text})){
+        navigator.share({title:'Entry QR Passes - '+ref, text:text}).catch(function(){});
+      } else if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(function(){
+          if(typeof window.showToast==='function'){ window.showToast('All participant links copied'); }
+        }).catch(function(){});
+      } else {
+        window.prompt('Copy participant QR links', text);
+      }
+    };
+    document.addEventListener('click', function(e){
+      var lb=document.getElementById('entryPassLightbox');
+      if(!lb || lb.style.display==='none') return;
+      if(e.target===lb){ (window.closeEntryPassLightbox||function(){ lb.style.display='none'; })(); return; }
+      try {
+        var closeBtn=e.target.closest ? e.target.closest('.entry-pass-lightbox-close') : null;
+        if(closeBtn){ (window.closeEntryPassLightbox||function(){ lb.style.display='none'; })(); }
+      }catch(_){}
+    });
+  })();
+  
   // Notification button handler
   if(notifBtn && notifPanel){
     notifBtn.addEventListener('click',function(e){
@@ -2356,6 +2467,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
     var status=(li.getAttribute('data-status')||'').toLowerCase();
     var ref=li.getAttribute('data-ref-code')||'';
     var scannedAt=li.getAttribute('data-scanned-at')||'';
+    var persons=parseInt(li.getAttribute('data-persons')||'1',10);
+    if(isNaN(persons)||persons<1) persons=1;
     var hasScan=!!scannedAt;
     var effectiveStatus=(hasScan && status.indexOf('moved_to_history')!==-1) ? 'permission_granted' : status;
     var label=fmtLabel(effectiveStatus);
@@ -2518,14 +2631,20 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
       return;
     }
     html+='<div class="item-extra-section">';
-    var qrSrcForDownload = '';
     if(isApproved && ref){
         var statusLink=location.origin+basePath+'/qr_view.php?code='+encodeURIComponent(ref);
         var qrSrc='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent(statusLink);
-        qrSrcForDownload = qrSrc;
-        html+='<div class="item-extra-title">Entry QR Pass</div>';
+        html+='<div class="entry-pass-bar">';
+        if(persons>1){
+          html+='<button type="button" class="entry-pass-btn download-qr-all-btn" data-ref="'+esc(ref)+'" data-persons="'+persons+'"><i class="fa-solid fa-download"></i> Download All ('+persons+')</button>';
+          html+='<button type="button" class="entry-pass-btn is-view entry-pass-view-btn" data-ref="'+esc(ref)+'" data-persons="'+persons+'"><i class="fa-solid fa-eye"></i> View All</button>';
+          html+='<button type="button" class="entry-pass-btn is-share share-qr-all-btn" data-ref="'+esc(ref)+'" data-persons="'+persons+'"><i class="fa-solid fa-share-nodes"></i> Share All</button>';
+        }else{
+          html+='<button type="button" class="entry-pass-btn download-qr-btn" data-qr="'+esc(qrSrc)+'" data-type="'+esc(type)+'" data-ref="'+esc(ref)+'"><i class="fa-solid fa-download"></i> Download QR</button>';
+          html+='<button type="button" class="entry-pass-btn is-view entry-pass-view-btn" data-ref="'+esc(ref)+'" data-persons="1"><i class="fa-solid fa-eye"></i> View QR</button>';
+        }
+        html+='</div>';
         html+='<div class="item-extra-body">';
-        html+='<div class="item-extra-qr-wrap"><img class="item-extra-qr" src="'+qrSrc+'" alt="Entry QR Code"></div>';
         html+='<div class="item-extra-info">';
     }else{
         html+='<div class="item-extra-body">';
@@ -2563,9 +2682,6 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
     if(summaryText) html+='<div class="item-extra-summary">'+esc(summaryText)+'</div>';
     
     html+='<div class="item-actions">';
-    if(qrSrcForDownload){
-        html+='<button type="button" class="item-extra-link download-qr-btn" data-qr="'+esc(qrSrcForDownload)+'" data-type="'+esc(type)+'"><i class="fa-solid fa-qrcode"></i> Download QR</button>';
-    }
     if(canUpdateProof && ref){
         html+='<button type="button" class="item-extra-link update-proof-btn" data-ref="'+esc(ref)+'"><i class="fa-solid fa-upload"></i> Update Proof</button>';
     }
@@ -2614,7 +2730,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
       });
     }
 
-    var downloadBtn = extra.querySelector('.download-qr-btn');
+    var downloadBtn = extra.querySelector('.entry-pass-bar .download-qr-btn');
     if(downloadBtn) downloadBtn.addEventListener('click', function(e){
         e.stopPropagation();
         var url = downloadBtn.getAttribute('data-qr') || '';
@@ -2623,29 +2739,24 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
           if(img) url = img.src || '';
         }
         if(!url) return;
-        function downloadRaw(){
-          fetch(url)
-            .then(function(resp){ return resp.blob(); })
-            .then(function(blob){
-              var objectUrl = window.URL.createObjectURL(blob);
-              var a = document.createElement('a');
-              a.href = objectUrl;
-              a.download = 'QR_' + (ref || 'pass') + '.png';
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              window.URL.revokeObjectURL(objectUrl);
-            })
-            .catch(function(){});
-        }
-        var warningMsg = String(type || '').toLowerCase() === 'reservation'
-          ? 'Do not scan. One-time use only. Valid only on the selected date and time. Authorized guards only.'
-          : 'Do not scan. Authorized guards only.';
-        if(typeof window.openQRWarning === 'function'){
-          window.openQRWarning(downloadRaw, warningMsg);
-        } else {
-          downloadRaw();
-        }
+        window.downloadEntryPassQr(url, downloadBtn.getAttribute('data-type')||type, String(downloadBtn.getAttribute('data-ref')||ref||''));
+    });
+    var downloadAllBtn = extra.querySelector('.entry-pass-bar .download-qr-all-btn');
+    if(downloadAllBtn) downloadAllBtn.addEventListener('click', function(e){
+        e.stopPropagation();
+        window.downloadEntryPassAll(String(downloadAllBtn.getAttribute('data-ref')||ref||''), parseInt(downloadAllBtn.getAttribute('data-persons')||'0',10));
+    });
+    var shareAllBtn = extra.querySelector('.entry-pass-bar .share-qr-all-btn');
+    if(shareAllBtn) shareAllBtn.addEventListener('click', function(e){
+        e.stopPropagation();
+        window.shareEntryPassAll(String(shareAllBtn.getAttribute('data-ref')||ref||''), parseInt(shareAllBtn.getAttribute('data-persons')||'0',10));
+    });
+    var epViewBtns = extra.querySelectorAll('.entry-pass-view-btn');
+    epViewBtns.forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        window.openEntryPassViewFrom(btn);
+      });
     });
     var updateBtn=extra.querySelector('.update-proof-btn');
     if(updateBtn && ref){
@@ -2776,6 +2887,14 @@ document.addEventListener('DOMContentLoaded', function() {
     <div style="color: #d9534f; font-weight: 600; margin: 15px auto 5px auto; font-size: 0.85rem; line-height: 1.5; border: 1px dashed #d9534f; padding: 10px; border-radius: 8px; background: #fff5f5;">
       Do not scan. One-time use only. Once scanned, the QR code is permanently disabled. Authorized guards only.
     </div>
+  </div>
+</div>
+<div id="entryPassLightbox" class="entry-pass-lightbox" role="dialog" aria-modal="true">
+  <div class="entry-pass-lightbox-content">
+    <button type="button" class="entry-pass-lightbox-close" aria-label="Close">&times;</button>
+    <div class="entry-pass-lightbox-title">Entry QR Pass</div>
+    <div class="entry-pass-lightbox-body"></div>
+    <div class="entry-pass-lightbox-note">Do not scan. One-time use only. Once scanned, the QR code is permanently disabled. Authorized guards only.</div>
   </div>
 </div>
 <div id="changePasswordModalVisitor" class="profile-modal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.6); align-items:center; justify-content:center; z-index:3000;">

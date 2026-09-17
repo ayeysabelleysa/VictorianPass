@@ -560,6 +560,45 @@ body {
     display: none;
 }
 
+.item-extra-qr-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+    width: 100%;
+    margin-top: 2px;
+}
+
+.item-extra-qr-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #fff;
+}
+
+.item-extra-qr-tile .item-extra-qr-wrap {
+    display: block;
+    padding: 8px;
+    background: #fff;
+    border-radius: 8px;
+}
+
+.item-extra-qr-tile .item-extra-qr {
+    display: block;
+    width: 120px;
+    height: 120px;
+    object-fit: contain;
+}
+
+.participant-qr-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #174b3b;
+}
+
 .item-extra-info {
     display: flex;
     flex-direction: column;
@@ -3514,5 +3553,221 @@ body.profile-modal-open {
     .sidebar .nav-item.active {
         font-weight: 700;
         box-shadow: none;
+    }
+}
+
+/* ===== Entry Pass actions (approved reservations) ===== */
+.entry-pass-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 14px;
+}
+
+.entry-pass-btn {
+    -webkit-appearance: none;
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 42px;
+    padding: 0 18px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1;
+    color: #fff;
+    background: #23412e;
+    border: 1.5px solid #23412e;
+    border-radius: 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    text-decoration: none;
+    box-sizing: border-box;
+    transition: all 0.2s ease;
+    margin: 0;
+}
+
+.entry-pass-btn i {
+    font-size: 0.95rem;
+    line-height: 1;
+}
+
+.entry-pass-btn:hover,
+.entry-pass-btn:focus {
+    background: #1b3324;
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(35, 65, 46, 0.25);
+    outline: none;
+}
+
+.entry-pass-btn:active {
+    transform: translateY(0);
+}
+
+.entry-pass-btn.is-view {
+    background: #fff;
+    color: #23412e;
+    border-color: #23412e;
+}
+
+.entry-pass-btn.is-view:hover,
+.entry-pass-btn.is-view:focus {
+    background: #f0faf2;
+    color: #23412e;
+}
+
+.entry-pass-btn.is-share {
+    background: #7c3aed;
+    border-color: #7c3aed;
+}
+
+.entry-pass-btn.is-share:hover,
+.entry-pass-btn.is-share:focus {
+    background: #6d28d9;
+    box-shadow: 0 4px 10px rgba(124, 58, 237, 0.25);
+}
+
+/* Entry Pass section (details modal + expanded cards) */
+.entry-pass-section {
+    background: #f9f9f9;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 12px;
+}
+
+.entry-pass-section .entry-pass-bar {
+    margin-bottom: 12px;
+}
+
+.entry-pass-lb-caption {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #23412e;
+    margin: 0 0 12px;
+    text-align: center;
+}
+
+/* Lightbox for View QR / View All */
+.entry-pass-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 23, 42, 0.65);
+    padding: 20px;
+}
+
+.entry-pass-lightbox-content {
+    background: #fff;
+    border-radius: 16px;
+    width: min(92vw, 520px);
+    max-height: 88vh;
+    overflow-y: auto;
+    padding: 24px;
+    position: relative;
+    box-sizing: border-box;
+}
+
+.entry-pass-lightbox-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 34px;
+    height: 34px;
+    border: none;
+    background: #f3f4f6;
+    color: #374151;
+    border-radius: 50%;
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+}
+
+.entry-pass-lightbox-close:hover {
+    background: #e5e7eb;
+}
+
+.entry-pass-lightbox-title {
+    font-weight: 700;
+    color: #23412e;
+    font-size: 1rem;
+    margin-bottom: 4px;
+    text-align: center;
+}
+
+.entry-pass-lightbox-body {
+    text-align: center;
+    padding-top: 10px;
+}
+
+.entry-pass-lightbox-note {
+    margin-top: 14px;
+    padding: 10px 12px;
+    border: 1px dashed #d9534f;
+    background: #fff5f5;
+    color: #d9534f;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.5;
+    text-align: center;
+}
+
+.entry-pass-lb-multi {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 12px;
+    margin-top: 14px;
+}
+
+.entry-pass-lb-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #fff;
+}
+
+.entry-pass-lb-tile img {
+    width: 110px;
+    height: 110px;
+    object-fit: contain;
+}
+
+.entry-pass-lb-tile-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #174b3b;
+}
+
+@media (max-width: 480px) {
+    .entry-pass-bar {
+        gap: 8px;
+        width: 100%;
+    }
+
+    .entry-pass-btn {
+        flex: 1 1 45%;
+        height: 40px;
+        padding: 0 12px;
+        font-size: 0.85rem;
+    }
+
+    .entry-pass-lightbox-content {
+        padding: 20px;
     }
 }

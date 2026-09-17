@@ -1370,11 +1370,11 @@ if (ob_get_level() > 0) { ob_end_flush(); }
                       <div class="res-label"><small>Total Participants</small></div>
                       <div class="counter">
                         <button type="button" onclick="changePersons(-1)">-</button>
-                        <input type="number" id="personCount" value="0" min="0" step="1" style="width:70px;text-align:center;border:1px solid #e5e7eb;border-radius:8px;padding:6px 10px;font-weight:600;">
+                        <input type="number" id="personCount" value="0" min="0" max="200" step="1" style="width:70px;text-align:center;border:1px solid #e5e7eb;border-radius:8px;padding:6px 10px;font-weight:600;">
                         <button type="button" onclick="changePersons(1)">+</button>
                       </div>
                       <?php endif; ?>
-                      <input type="hidden" name="persons" id="personsInput" value="<?php echo $isResident ? '1' : '0'; ?>">
+                      <input type="hidden" name="persons" id="personsInput" value="0">
                       
                       <?php if ($isResident): ?>
                       <div id="participantWrap" data-mode="resident_only" style="display:block;">
@@ -1382,10 +1382,9 @@ if (ob_get_level() > 0) { ob_end_flush(); }
                           <div class="res-label"><small>Number of Participants</small></div>
                           <div class="counter">
                             <button type="button" onclick="changeReserveTotal(-1)">-</button>
-                            <input type="number" id="reserveTotalCount" value="1" min="1" step="1" style="width:70px;text-align:center;border:1px solid #e5e7eb;border-radius:8px;padding:6px 10px;font-weight:600;">
+                            <input type="number" id="reserveTotalCount" value="0" min="0" max="200" step="1" style="width:70px;text-align:center;border:1px solid #e5e7eb;border-radius:8px;padding:6px 10px;font-weight:600;">
                             <button type="button" onclick="changeReserveTotal(1)">+</button>
                           </div>
-                          <small class="label-help" id="reserveMaxNote">Maximum: 200 participants</small>
                         </div>
                       </div>
                       <?php endif; ?>
@@ -2386,8 +2385,9 @@ if (ob_get_level() > 0) { ob_end_flush(); }
       ids.forEach(function(id){ const el=document.getElementById(id); if(el){ el.value=''; } });
       const sd=document.getElementById('startDate'); if(sd){ sd.textContent='--'; }
       const ed=document.getElementById('endDate'); if(ed){ ed.textContent='--'; }
-      const pc=document.getElementById('personCount'); if(pc){ if('value' in pc){ pc.value = currentUserType === 'resident' ? '1' : '0'; } else { pc.textContent = currentUserType === 'resident' ? '1' : '0'; } }
-      const pi=document.getElementById('personsInput'); if(pi){ pi.value = currentUserType === 'resident' ? '1' : '0'; }
+      const pc=document.getElementById('personCount'); if(pc){ if('value' in pc){ pc.value='0'; } else { pc.textContent='0'; } }
+      const pi=document.getElementById('personsInput'); if(pi){ pi.value='0'; }
+      const rtc=document.getElementById('reserveTotalCount'); if(rtc){ if('value' in rtc){ rtc.value='0'; } else { rtc.textContent='0'; } }
       const rc=document.getElementById('residentsCountInput'); if(rc){ rc.value = currentUserType === 'resident' ? '1' : '0'; }
       const gc=document.getElementById('guestsCountInput'); if(gc){ gc.value = currentUserType === 'resident' ? '0' : '0'; }
       const rText=document.getElementById('residentsCountText'); if(rText){ rText.textContent = currentUserType === 'resident' ? '1' : '0'; }
@@ -2485,7 +2485,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     const amen=document.getElementById('amenityField').value;
     const desiredCount=Math.max(0, parseInt(desired||'0',10) || 0);
     let max=getAmenityMaxPersons(amen);
-    const minAllowed=1;
+    const minAllowed=0;
     const count=Math.min(max,Math.max(minAllowed,desiredCount));
     if(pcEl){ if('value' in pcEl){ pcEl.value=String(count); } else { pcEl.textContent=String(count); } }
     document.getElementById('personsInput').value=count;
@@ -2509,13 +2509,13 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     const amen=document.getElementById('amenityField') ? document.getElementById('amenityField').value : '';
     let max=typeof getAmenityMaxPersons==='function' ? getAmenityMaxPersons(amen) : Infinity;
     const desiredCount=Math.max(0, parseInt(desired||'0',10) || 0);
-    const minAllowed=1;
+    const minAllowed=0;
     const count=Math.min(max,Math.max(minAllowed,desiredCount));
     if('value' in rcEl){ rcEl.value=String(count); } else { rcEl.textContent=String(count); }
     const pInput=document.getElementById('personsInput'); if(pInput){ pInput.value=String(count); }
     const personEl=document.getElementById('participantTotal'); if(personEl){ if('value' in personEl){ personEl.value=String(count); } else { personEl.textContent=String(count); } }
-    const note=document.getElementById('reserveMaxNote'); if(note){ note.textContent = max!==Infinity ? (`Maximum: ${max} participants`) : ''; }
-    if(count>=max){ setFieldWarning('reserveTotalCount',`Maximum is ${max} participants.`); } else { setFieldWarning('reserveTotalCount',''); }
+    const note=document.getElementById('personsMaxNote'); if(note){ note.textContent = max!==Infinity ? (`Maximum: ${max} persons`) : ''; }
+    if(count>=max){ setFieldWarning('reserveTotalCount',`Maximum is ${max} persons.`); } else { setFieldWarning('reserveTotalCount',''); }
     if(typeof updateDisplayedPrice==='function') updateDisplayedPrice();
     if(typeof updateDownpaymentSuggestion==='function') updateDownpaymentSuggestion();
     if(typeof updateBookingSummary==='function') updateBookingSummary();
@@ -2529,87 +2529,11 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     if(!Number.isFinite(count)){ count = 0; }
     await setReserveTotalCount(count + delta);
   }
-  async function changePersons(val){
+async function changePersons(val){
     const pcEl=document.getElementById('personCount');
     let count=parseInt(((pcEl && (pcEl.value||pcEl.textContent))||'0'),10);
     if(!Number.isFinite(count)){ count = 0; }
     await setPersonsCount(count + val);
-  }
-  async function changeResidents(delta){
-    const wrap=document.getElementById('participantWrap');
-    const mode=wrap ? (wrap.getAttribute('data-mode')||'') : '';
-    if(mode==='guest_only'){
-      setFieldWarning('personsInput','Residents cannot be added in Guests Only mode.');
-      return;
-    }
-    const rEl=document.getElementById('residentsCountText');
-    const rInput=document.getElementById('residentsCountInput');
-    const gInput=document.getElementById('guestsCountInput');
-    const pInput=document.getElementById('personsInput');
-    const pText=document.getElementById('personCount');
-    if(!rEl || !rInput || !gInput || !pInput) return;
-    let r=parseInt(rEl.textContent||'0',10);
-    const g=parseInt(gInput.value||'0',10);
-    const nextR=Math.max(0, r+delta);
-    const amen=document.getElementById('amenityField').value;
-    let max=getAmenityMaxPersons(amen);
-    const total=nextR+g;
-    if(total < 1){
-      setFieldWarning('personsInput','At least 1 participant is required.');
-      return;
-    }
-    if(max!==Infinity && total>max){
-      setFieldWarning('personsInput',`Maximum is ${max} persons.`);
-      return;
-    }
-    setFieldWarning('personsInput','');
-    r=nextR;
-    rEl.textContent=String(r);
-    rInput.value=String(r);
-    pInput.value=String(total);
-    if(pText) pText.textContent=String(total);
-    updateDisplayedPrice();
-    updateDownpaymentSuggestion();
-    updateBookingSummary();
-    updateActionStates();
-    if(typeof persistForm === 'function') persistForm();
-  }
-  async function changePersons(val){
-    const gEl=document.getElementById('guestsCountText');
-    const gInput=document.getElementById('guestsCountInput');
-    const rInput=document.getElementById('residentsCountInput');
-    const pInput=document.getElementById('personsInput');
-    const pText=document.getElementById('personCount');
-    if(!gEl || !gInput || !rInput || !pInput) return;
-    let g=parseInt(gEl.textContent||'0',10);
-    const r=parseInt(rInput.value||'0',10);
-    const nextG=Math.max(0, g+delta);
-    const amen=document.getElementById('amenityField').value;
-    let max=getAmenityMaxPersons(amen);
-    const total=r+nextG;
-    if(approvedGuestsMax>=0 && nextG>approvedGuestsMax){
-      setFieldWarning('personsInput',`You can add up to ${approvedGuestsMax} approved guests.`);
-      return;
-    }
-    if(total < 1){
-      setFieldWarning('personsInput','At least 1 participant is required.');
-      return;
-    }
-    if(max!==Infinity && total>max){
-      setFieldWarning('personsInput',`Maximum is ${max} persons.`);
-      return;
-    }
-    setFieldWarning('personsInput','');
-    g=nextG;
-    gEl.textContent=String(g);
-    gInput.value=String(g);
-    pInput.value=String(total);
-    if(pText) pText.textContent=String(total);
-    updateDisplayedPrice();
-    updateDownpaymentSuggestion();
-    updateBookingSummary();
-    updateActionStates();
-    if(typeof persistForm === 'function') persistForm();
   }
   function updateParticipantVisibility(){
     const wrap=document.getElementById('participantWrap');
@@ -3691,11 +3615,11 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     const pText=document.getElementById('personCount');
     if(rInput) rInput.value='0';
     if(rText) rText.textContent='0';
-    const baseCount=parseInt((pInput && pInput.value) || (gText && gText.textContent) || '1',10) || 1;
-    if(gInput) gInput.value=String(Math.max(1, baseCount));
-    if(gText) gText.textContent=String(Math.max(1, baseCount));
-    if(pInput) pInput.value=String(Math.max(1, baseCount));
-    if(pText) pText.textContent=String(Math.max(1, baseCount));
+    const baseCount=Math.max(0, parseInt((pInput && pInput.value) || '0',10) || 0);
+    if(gInput) gInput.value=String(baseCount);
+    if(gText) gText.textContent=String(baseCount);
+    if(pInput) pInput.value=String(baseCount);
+    if(pText) pText.textContent=String(baseCount);
     const btn=wrap.querySelector('.mode-options [data-mode="guest_only"]');
     if(btn){
       btn.addEventListener('click',function(){

@@ -589,6 +589,30 @@ if (!$data) {
         <span class="status-badge-lg <?php echo $stClass; ?>"><?php echo $stLabel; ?></span>
     </div>
 
+    <?php
+        $epStatus = strtolower((string)($data['status'] ?? ''));
+        $epApproved = (strpos($epStatus, 'approv') !== false) || (strpos($epStatus, 'permission') !== false) || (strpos($epStatus, 'granted') !== false);
+        $epCode = trim((string)$code);
+        $epPersons = max(1, intval($data['persons'] ?? 1));
+        $epType = !empty($data['amenity']) ? 'reservation' : 'guest_form';
+        $epMainQr = trim((string)($data['qr'] ?? ''));
+        if ($epMainQr === '') { $epMainQr = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' . urlencode($verificationLink); }
+    ?>
+    <?php if ($epApproved && $epCode !== ''): ?>
+    <div class="entry-pass-section">
+        <div class="entry-pass-bar">
+            <?php if ($epPersons > 1): ?>
+            <button type="button" class="entry-pass-btn download-qr-all-btn" data-ref="<?php echo htmlspecialchars($epCode, ENT_QUOTES); ?>" data-persons="<?php echo $epPersons; ?>" onclick="window.downloadEntryPassAll(this.getAttribute('data-ref'), parseInt(this.getAttribute('data-persons')||'1',10)); return false;"><i class="fa-solid fa-download"></i> Download All (<?php echo $epPersons; ?>)</button>
+            <button type="button" class="entry-pass-btn is-view entry-pass-view-btn" data-ref="<?php echo htmlspecialchars($epCode, ENT_QUOTES); ?>" data-persons="<?php echo $epPersons; ?>" onclick="window.openEntryPassViewFrom(this); return false;"><i class="fa-solid fa-eye"></i> View All</button>
+            <button type="button" class="entry-pass-btn is-share share-qr-all-btn" data-ref="<?php echo htmlspecialchars($epCode, ENT_QUOTES); ?>" data-persons="<?php echo $epPersons; ?>" onclick="window.shareEntryPassAll(this.getAttribute('data-ref'), parseInt(this.getAttribute('data-persons')||'1',10)); return false;"><i class="fa-solid fa-share-nodes"></i> Share All</button>
+            <?php else: ?>
+            <button type="button" class="entry-pass-btn download-qr-btn" data-qr="<?php echo htmlspecialchars($epMainQr, ENT_QUOTES); ?>" data-type="<?php echo htmlspecialchars($epType, ENT_QUOTES); ?>" data-ref="<?php echo htmlspecialchars($epCode, ENT_QUOTES); ?>" onclick="window.downloadEntryPassQr(this.getAttribute('data-qr'), this.getAttribute('data-type'), this.getAttribute('data-ref')); return false;"><i class="fa-solid fa-download"></i> Download QR</button>
+            <button type="button" class="entry-pass-btn is-view entry-pass-view-btn" data-ref="<?php echo htmlspecialchars($epCode, ENT_QUOTES); ?>" data-persons="1" onclick="window.openEntryPassViewFrom(this); return false;"><i class="fa-solid fa-eye"></i> View QR</button>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <?php if ($data['has_reservation'] && !empty($data['amenity'])): ?>
     <div class="section-title">Amenity Booking Details</div>
     <div class="info-grid">

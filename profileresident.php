@@ -3902,6 +3902,111 @@ body.modal-open{overflow:hidden}
       if(modal) modal.style.display = 'flex';
     };
   })();
+  // Entry Pass helpers (used by expanded cards, lightbox, and the Request Details modal)
+  (function(){
+    function getBase(){ return window.location.pathname.replace(/\/[^\/]*$/,''); }
+    function qrUrl(link, size){ return 'https://api.qrserver.com/v1/create-qr-code/?size='+size+'x'+size+'&data='+encodeURIComponent(link); }
+    window.buildEntryPassView = function(ref, n){
+      var base=getBase();
+      n=parseInt(n||'1',10); if(isNaN(n)||n<1) n=1;
+      var html='';
+      if(n>1){
+        html+='<div class="entry-pass-lb-caption">Participant QR Passes ('+n+')</div>';
+      }
+      html+='<div class="entry-pass-lb-multi">';
+      for(var pi=1; pi<=n; pi++){
+        var pLink=location.origin+base+'/qr_view.php?code='+encodeURIComponent(ref)+'&p='+pi;
+        html+='<div class="entry-pass-lb-tile"><img src="'+qrUrl(pLink,220)+'" alt="Participant '+pi+' QR"><div class="entry-pass-lb-tile-label">Participant '+pi+'</div></div>';
+      }
+      html+='</div>';
+      return html;
+    };
+    window.openEntryPassLightbox = function(title, html){
+      var lb=document.getElementById('entryPassLightbox');
+      if(!lb) return;
+      var t=lb.querySelector('.entry-pass-lightbox-title');
+      var b=lb.querySelector('.entry-pass-lightbox-body');
+      if(t) t.textContent = title || 'Entry QR Pass';
+      if(b) b.innerHTML = html || '';
+      lb.style.display='flex';
+    };
+    window.closeEntryPassLightbox = function(){
+      var lb=document.getElementById('entryPassLightbox');
+      if(lb) lb.style.display='none';
+    };
+    window.openEntryPassViewFrom = function(btn){
+      if(!btn) return;
+      var ref=btn.getAttribute('data-ref')||'';
+      var n=parseInt(btn.getAttribute('data-persons')||'1',10);
+      if(!ref || isNaN(n)||n<1) n=1;
+      var title = n>1 ? 'Participant QR Passes ('+n+')' : 'Entry QR Pass';
+      if(window.buildEntryPassView) window.openEntryPassLightbox(title, window.buildEntryPassView(ref, n));
+    };
+    window.downloadEntryPassQr = function(url, type, ref){
+      if(!url) return;
+      function downloadRaw(){
+        fetch(url).then(function(r){ return r.blob(); }).then(function(blob){
+          var o=window.URL.createObjectURL(blob);
+          var a=document.createElement('a');
+          a.href=o; a.download='QR_'+(ref||'pass')+'.png';
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          window.URL.revokeObjectURL(o);
+        }).catch(function(){});
+      }
+      var msg = String(type||'').toLowerCase()==='reservation'
+        ? 'Do not scan. One-time use only. Valid only on the selected date and time. Authorized guards only.'
+        : 'Do not scan. Authorized guards only.';
+      if(typeof window.openQRWarning==='function'){ window.openQRWarning(downloadRaw, msg); }
+      else { downloadRaw(); }
+    };
+    window.downloadEntryPassAll = function(ref, n){
+      var base=getBase();
+      n=parseInt(n||'0',10); if(!ref||n<1) return;
+      var tasks=[];
+      for(var di=1; di<=n; di++){
+        (function(pi){
+          tasks.push(function(){
+            var pLink=location.origin+base+'/qr_view.php?code='+encodeURIComponent(ref)+'&p='+pi;
+            return fetch(qrUrl(pLink,220)).then(function(r){ return r.blob(); }).then(function(blob){
+              var o=window.URL.createObjectURL(blob);
+              var a=document.createElement('a');
+              a.href=o; a.download='QR_'+ref+'_p'+pi+'.png';
+              document.body.appendChild(a); a.click(); document.body.removeChild(a);
+              window.URL.revokeObjectURL(o);
+            }).catch(function(){});
+          });
+        })(di);
+      }
+      (function run(){ var t=tasks.shift(); if(!t) return; t().then(run).catch(run); }());
+    };
+    window.shareEntryPassAll = function(ref, n){
+      var base=getBase();
+      n=parseInt(n||'0',10); if(!ref||n<1) return;
+      var lines=[];
+      for(var si=1; si<=n; si++){
+        lines.push('Participant '+si+': '+location.origin+base+'/qr_view.php?code='+encodeURIComponent(ref)+'&p='+si);
+      }
+      var text=ref+'\n'+lines.join('\n');
+      if(navigator.share && navigator.canShare && navigator.canShare({text:text})){
+        navigator.share({title:'Entry QR Passes - '+ref, text:text}).catch(function(){});
+      } else if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(function(){
+          if(typeof window.showToast==='function'){ window.showToast('All participant links copied'); }
+        }).catch(function(){});
+      } else {
+        window.prompt('Copy participant QR links', text);
+      }
+    };
+    document.addEventListener('click', function(e){
+      var lb=document.getElementById('entryPassLightbox');
+      if(!lb || lb.style.display==='none') return;
+      if(e.target===lb){ (window.closeEntryPassLightbox||function(){ lb.style.display='none'; })(); return; }
+      try {
+        var closeBtn=e.target.closest ? e.target.closest('.entry-pass-lightbox-close') : null;
+        if(closeBtn){ (window.closeEntryPassLightbox||function(){ lb.style.display='none'; })(); }
+      }catch(_){}
+    });
+  })();
   function escapeText(t){
     return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
@@ -5036,15 +5141,23 @@ body.modal-open{overflow:hidden}
     }
     if(type==='reservation'||type==='guest_form'){
       html+='<div class="item-extra-section">';
-      var qrSrcForDownload = '';
       if(type!=='guest_form' && isApproved && ref){
         var basePath=window.location.pathname.replace(/\/[^\/]*$/,'');
         var statusLink=location.origin+basePath+'/qr_view.php?code='+encodeURIComponent(ref);
         var qrSrc='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent(statusLink);
-        qrSrcForDownload = qrSrc;
-        html+='<div class="item-extra-title">Entry QR Pass</div>';
+        var pCount=parseInt(personsRaw||'1',10);
+        if(isNaN(pCount)||pCount<1) pCount=1;
+        html+='<div class="entry-pass-bar">';
+        if(pCount>1){
+          html+='<button type="button" class="entry-pass-btn download-qr-all-btn" data-ref="'+esc(ref)+'" data-persons="'+pCount+'"><i class="fa-solid fa-download"></i> Download All ('+pCount+')</button>';
+          html+='<button type="button" class="entry-pass-btn is-view entry-pass-view-btn" data-ref="'+esc(ref)+'" data-persons="'+pCount+'"><i class="fa-solid fa-eye"></i> View All</button>';
+          html+='<button type="button" class="entry-pass-btn is-share share-qr-all-btn" data-ref="'+esc(ref)+'" data-persons="'+pCount+'"><i class="fa-solid fa-share-nodes"></i> Share All</button>';
+        }else{
+          html+='<button type="button" class="entry-pass-btn download-qr-btn" data-qr="'+esc(qrSrc)+'" data-type="'+esc(type)+'" data-ref="'+esc(ref)+'"><i class="fa-solid fa-download"></i> Download QR</button>';
+          html+='<button type="button" class="entry-pass-btn is-view entry-pass-view-btn" data-ref="'+esc(ref)+'" data-persons="1"><i class="fa-solid fa-eye"></i> View QR</button>';
+        }
+        html+='</div>';
         html+='<div class="item-extra-body">';
-        html+='<div class="item-extra-qr-wrap"><img class="item-extra-qr" src="'+qrSrc+'" alt="Entry QR Code"></div>';
         html+='<div class="item-extra-info">';
       }else{
         html+='<div class="item-extra-body">';
@@ -5139,9 +5252,6 @@ body.modal-open{overflow:hidden}
       if(summaryText && type!=='guest_form') html+='<div class="item-extra-summary">'+esc(summaryText)+'</div>';
       
       html+='<div class="item-actions">';
-      if(qrSrcForDownload){
-        html+='<button type="button" class="item-extra-link download-qr-btn" data-qr="'+esc(qrSrcForDownload)+'" data-type="'+esc(type)+'"><i class="fa-solid fa-qrcode"></i> Download QR</button>';
-      }
       if(canUpdateProof && ref){
         html+='<button type="button" class="item-extra-link update-proof-btn" data-ref="'+esc(ref)+'"><i class="fa-solid fa-upload"></i> Update Proof</button>';
       }
@@ -5229,43 +5339,40 @@ body.modal-open{overflow:hidden}
         openMoveHistoryModal(li, ref);
       });
     }
-    var downloadBtn=extra.querySelector('.download-qr-btn');
+    var downloadBtn=extra.querySelector('.entry-pass-bar .download-qr-btn');
     if(downloadBtn){
       downloadBtn.addEventListener('click',function(ev){
         ev.stopPropagation();
         var url = downloadBtn.getAttribute('data-qr') || '';
-        var itemType = downloadBtn.getAttribute('data-type') || '';
+        if(!url){
+          var img = extra.querySelector('.item-extra-qr');
+          if(img) url = img.src || '';
+        }
         if(!url) return;
-        
-        function downloadRaw() {
-            fetch(url)
-              .then(function(resp){ return resp.blob(); })
-              .then(function(blob){
-                var objectUrl = window.URL.createObjectURL(blob);
-                var a = document.createElement('a');
-                a.href = objectUrl;
-                a.download = 'QR_' + (ref || 'pass') + '.png';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                window.URL.revokeObjectURL(objectUrl);
-              })
-              .catch(function(){});
-        }
-
-        function doDownload(){
-          downloadRaw();
-        }
-        var warningMsg = String(itemType || '').toLowerCase() === 'reservation'
-          ? 'Do not scan. One-time use only. Valid only on the selected date and time. Authorized guards only.'
-          : 'Do not scan. Authorized guards only.';
-        if(typeof window.openQRWarning === 'function'){
-          window.openQRWarning(doDownload, warningMsg);
-        } else {
-          doDownload();
-        }
+        window.downloadEntryPassQr(url, downloadBtn.getAttribute('data-type')||type, String(downloadBtn.getAttribute('data-ref')||ref||''));
       });
     }
+    var downloadAllBtn=extra.querySelector('.entry-pass-bar .download-qr-all-btn');
+    if(downloadAllBtn){
+      downloadAllBtn.addEventListener('click',function(ev){
+        ev.stopPropagation();
+        window.downloadEntryPassAll(String(downloadAllBtn.getAttribute('data-ref')||ref||''), parseInt(downloadAllBtn.getAttribute('data-persons')||'0',10));
+      });
+    }
+    var shareAllBtn=extra.querySelector('.entry-pass-bar .share-qr-all-btn');
+    if(shareAllBtn){
+      shareAllBtn.addEventListener('click',function(ev){
+        ev.stopPropagation();
+        window.shareEntryPassAll(String(shareAllBtn.getAttribute('data-ref')||ref||''), parseInt(shareAllBtn.getAttribute('data-persons')||'0',10));
+      });
+    }
+    var epViewBtns=extra.querySelectorAll('.entry-pass-view-btn');
+    epViewBtns.forEach(function(btn){
+      btn.addEventListener('click',function(ev){
+        ev.stopPropagation();
+        window.openEntryPassViewFrom(btn);
+      });
+    });
     var updateBtn=extra.querySelector('.update-proof-btn');
     if(updateBtn && ref){
       updateBtn.addEventListener('click',function(ev){
@@ -6766,6 +6873,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+<div id="entryPassLightbox" class="entry-pass-lightbox" role="dialog" aria-modal="true">
+  <div class="entry-pass-lightbox-content">
+    <button type="button" class="entry-pass-lightbox-close" aria-label="Close">&times;</button>
+    <div class="entry-pass-lightbox-title">Entry QR Pass</div>
+    <div class="entry-pass-lightbox-body"></div>
+    <div class="entry-pass-lightbox-note">Do not scan. One-time use only. Once scanned, the QR code is permanently disabled. Authorized guards only.</div>
+  </div>
+</div>
 <div id="changePasswordModalResident" class="profile-modal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.6); align-items:center; justify-content:center; z-index:3000;">
   <div class="vp-logout-modal" style="position:relative; top:auto; right:auto; margin:0; width:350px; max-width:90vw; max-height:calc(100vh - 100px);">
     <button class="close-change-password" style="position:absolute; right:12px; top:10px; background:transparent; border:none; font-size:20px; cursor:pointer;">&times;</button>

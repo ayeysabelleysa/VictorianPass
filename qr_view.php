@@ -13,6 +13,7 @@ if (!vpSchemaDone($con, 'qr_view_v1') && ($con instanceof mysqli)) {
     $con->query("CREATE TABLE IF NOT EXISTS entry_scans (
         id INT AUTO_INCREMENT PRIMARY KEY,
         ref_code VARCHAR(50) NOT NULL,
+        participant_no INT NULL,
         scanned_by_guard_id INT NULL,
         scanned_by_name VARCHAR(150) NULL,
         subject_name VARCHAR(150) NULL,
@@ -26,6 +27,11 @@ if (!vpSchemaDone($con, 'qr_view_v1') && ($con instanceof mysqli)) {
         INDEX idx_scanned_at (scanned_at)
     ) ENGINE=InnoDB");
     vpMarkSchemaDone($con, 'qr_view_v1');
+}
+if (($con instanceof mysqli)) {
+    $pc = $con->query("SHOW COLUMNS FROM entry_scans LIKE 'participant_no'");
+    if ($pc && $pc->num_rows === 0) { @$con->query("ALTER TABLE entry_scans ADD COLUMN participant_no INT NULL AFTER ref_code"); }
+    if ($pc) { $pc->close(); }
 }
 
 function calculateAgeYears($birthRaw) {
@@ -47,6 +53,7 @@ function requiresGuardianBlock($birthRaw, $isAmenity) {
 }
 
 $code = isset($_GET['code']) ? trim($_GET['code']) : '';
+$pNum = isset($_GET['p']) ? max(0, intval($_GET['p'])) : 0;
 $error = '';
 if ($code === '') { $error = 'Status code is required.'; }
 
@@ -63,7 +70,7 @@ $isAuthorizedScanner = (isset($_SESSION['role']) && $_SESSION['role'] === 'guard
 $scheme = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')) ? 'https' : 'http';
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
 $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/VictorianPass'), '/\\');
-$verificationLink = sprintf('%s://%s%s/qr_view.php?code=%s', $scheme, $host, $basePath, urlencode($code));
+$verificationLink = sprintf('%s://%s%s/qr_view.php?code=%s%s', $scheme, $host, $basePath, urlencode($code), ($pNum > 0 ? '&p=' . $pNum : ''));
 
 // -------------------------------------------------------------------------
 // POST Action: Mark as Scanned
@@ -79,9 +86,10 @@ if (isset($_POST['action']) && $_POST['action'] === 'confirm_entry' && !empty($_
     $ref = $_POST['ref_code'];
 
     $blocked = false;
+    $postPax = 1;
     if ($con instanceof mysqli) {
         if ($tbl === 'guest_forms') {
-            $stmt = $con->prepare("SELECT visitor_birthdate, amenity, wants_amenity FROM guest_forms WHERE id = ? AND ref_code = ? LIMIT 1");
+            $stmt = $con->prepare("SELECT visitor_birthdate, amenity, wants_amenity, persons FROM guest_forms WHERE id = ? AND ref_code = ? LIMIT 1");
             $stmt->bind_param('is', $sid, $ref);
             $stmt->execute();
             $res = $stmt->get_result();
@@ -89,34 +97,73 @@ if (isset($_POST['action']) && $_POST['action'] === 'confirm_entry' && !empty($_
                 $birthRaw = $row['visitor_birthdate'] ?? null;
                 $isAmenity = (!empty($row['amenity'])) || (isset($row['wants_amenity']) && intval($row['wants_amenity']) === 1);
                 if (requiresGuardianBlock($birthRaw, $isAmenity)) { $blocked = true; }
+                if (isset($row['persons']) && intval($row['persons']) > 1) { $postPax = intval($row['persons']); }
             }
             $stmt->close();
         } elseif ($tbl === 'reservations') {
-            $stmt = $con->prepare("SELECT r.amenity, u.birthdate AS user_birthdate, e.birthdate AS ep_birthdate FROM reservations r LEFT JOIN users u ON r.user_id = u.id LEFT JOIN entry_passes e ON r.entry_pass_id = e.id WHERE r.id = ? AND r.ref_code = ? LIMIT 1");
+            $stmt = $con->prepare("SELECT r.amenity, r.persons, u.birthdate AS user_birthdate, e.birthdate AS ep_birthdate FROM reservations r LEFT JOIN users u ON r.user_id = u.id LEFT JOIN entry_passes e ON r.entry_pass_id = e.id WHERE r.id = ? AND r.ref_code = ? LIMIT 1");
             $stmt->bind_param('is', $sid, $ref);
             $stmt->execute();
             $res = $stmt->get_result();
             if ($res && ($row = $res->fetch_assoc())) {
                 $birthRaw = !empty($row['ep_birthdate']) ? $row['ep_birthdate'] : ($row['user_birthdate'] ?? null);
                 if (requiresGuardianBlock($birthRaw, true)) { $blocked = true; }
+                if (isset($row['persons']) && intval($row['persons']) > 1) { $postPax = intval($row['persons']); }
             }
             $stmt->close();
         } elseif ($tbl === 'resident_reservations') {
-            $stmt = $con->prepare("SELECT rr.amenity, u.birthdate AS user_birthdate FROM resident_reservations rr LEFT JOIN users u ON rr.user_id = u.id WHERE rr.id = ? AND rr.ref_code = ? LIMIT 1");
+            $stmt = $con->prepare("SELECT rr.amenity, rr.persons, u.birthdate AS user_birthdate FROM resident_reservations rr LEFT JOIN users u ON rr.user_id = u.id WHERE rr.id = ? AND rr.ref_code = ? LIMIT 1");
             $stmt->bind_param('is', $sid, $ref);
             $stmt->execute();
             $res = $stmt->get_result();
             if ($res && ($row = $res->fetch_assoc())) {
                 $birthRaw = $row['user_birthdate'] ?? null;
                 if (requiresGuardianBlock($birthRaw, true)) { $blocked = true; }
+                if (isset($row['persons']) && intval($row['persons']) > 1) { $postPax = intval($row['persons']); }
             }
             $stmt->close();
         }
     }
+    $postPNum = isset($_POST['participant_no']) ? max(0, intval($_POST['participant_no'])) : 0;
+    $isMultiPost = $postPax > 1;
+    $validPostPNum = $isMultiPost && $postPNum >= 1 && $postPNum <= $postPax;
 
     if ($blocked) {
         $error = 'Guardian required: Approved for entry once accompanied by a guardian for amenity reservations.';
-    } elseif (in_array($tbl, ['guest_forms', 'reservations', 'resident_reservations'])) {
+    } elseif ($validPostPNum) {
+        $gid = isset($_SESSION['staff_id']) ? intval($_SESSION['staff_id']) : null;
+        $gname = isset($_SESSION['guard_surname']) ? trim($_SESSION['guard_surname']) : '';
+        if ($gname === '' && isset($_SESSION['email'])) {
+            $local = explode('@', $_SESSION['email'])[0] ?? '';
+            $s = $local;
+            if (strpos($local, '_') !== false) { $parts = explode('_', $local); $s = end($parts); }
+            if (substr($s, -3) === 'gar') { $s = substr($s, 0, -3); }
+            $s = preg_replace('/[^a-zA-Z]/', '', $s);
+            $gname = strlen($s) ? ucfirst(strtolower($s)) : 'Guard';
+        }
+        if ($gname === '') { $gname = 'Guard'; }
+        if ($con instanceof mysqli) {
+            $chk = $con->prepare("SELECT id FROM entry_scans WHERE ref_code = ? AND participant_no = ? AND DATE(scanned_at) = CURDATE() LIMIT 1");
+            $chk->bind_param('si', $ref, $postPNum);
+            $chk->execute();
+            $cres = $chk->get_result();
+            $alreadyEntered = ($cres && $cres->num_rows > 0);
+            $chk->close();
+            if (!$alreadyEntered) {
+                $subject = 'Participant ' . $postPNum . ' of ' . $postPax;
+                $etype = 'Participant Entry';
+                $stmtLog = $con->prepare("INSERT INTO entry_scans (ref_code, participant_no, scanned_by_guard_id, scanned_by_name, subject_name, entry_type, status, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?, 'permission_granted', NULL, NULL)");
+                $stmtLog->bind_param('siisss', $ref, $postPNum, $gid, $gname, $subject, $etype);
+                @$stmtLog->execute();
+                @$stmtLog->close();
+            }
+        }
+        $_SESSION['just_confirmed_ref'] = $ref;
+        $_SESSION['just_confirmed_participant'] = $postPNum;
+        $_SESSION['just_confirmed_time'] = time();
+        header("Location: guard.php");
+        exit;
+    } elseif (in_array($tbl, ['guest_forms', 'reservations', 'resident_reservations']) && !$isMultiPost) {
         if ($tbl === 'guest_forms') {
             $upStmt = $con->prepare("UPDATE guest_forms SET approval_status='permission_granted', scanned_at = NOW(), updated_at = NOW() WHERE id = ? AND ref_code = ? AND (approval_status IS NULL OR approval_status NOT IN ('permission_granted','cancelled','denied','expired','moved_to_history','deleted'))");
             $upStmt->bind_param('is', $sid, $ref);
@@ -481,13 +528,30 @@ if (empty($error)) {
 
     // Prepare UI Data
     if ($data) {
+        $data['total_participants'] = max(1, isset($data['pax']) ? intval($data['pax']) : 1);
+        $isMultiParticipants = $data['total_participants'] > 1;
+        $participantScans = [];
+        if ($con instanceof mysqli) {
+            $stPc = $con->prepare("SELECT participant_no, scanned_at FROM entry_scans WHERE ref_code = ? AND participant_no IS NOT NULL ORDER BY participant_no");
+            if ($stPc) {
+                $stPc->bind_param('s', $data['code']);
+                $stPc->execute();
+                $resPc = $stPc->get_result();
+                if ($resPc) {
+                    while ($rwPc = $resPc->fetch_assoc()) { $participantScans[intval($rwPc['participant_no'])] = $rwPc['scanned_at']; }
+                }
+                $stPc->close();
+            }
+        }
         $justConfirmed = false;
+        $justConfirmedParticipant = 0;
         if (!empty($_SESSION['just_confirmed_ref']) && $_SESSION['just_confirmed_ref'] === $data['code']) {
             $age = time() - intval($_SESSION['just_confirmed_time'] ?? 0);
             if ($age >= 0 && $age < 120) {
                 $justConfirmed = true;
+                $justConfirmedParticipant = intval($_SESSION['just_confirmed_participant'] ?? 0);
             }
-            unset($_SESSION['just_confirmed_ref'], $_SESSION['just_confirmed_time']);
+            unset($_SESSION['just_confirmed_ref'], $_SESSION['just_confirmed_time'], $_SESSION['just_confirmed_participant']);
         }
         if (isset($_GET['just_scanned']) && $_GET['just_scanned'] === '1') {
             $justConfirmed = true;
@@ -505,7 +569,16 @@ if (empty($error)) {
             $s = strtolower($data['status']);
             if ($s === 'approved' || $s === 'permission_granted') {
             $oneTimeTables = ['guest_forms', 'reservations', 'resident_reservations'];
-            if ($data['scanned_at'] && in_array($data['table'], $oneTimeTables, true) && !$justConfirmed) {
+            $validPNum = $isMultiParticipants && $pNum >= 1 && $pNum <= $data['total_participants'];
+            $participantEntered = false;
+            if ($validPNum && isset($participantScans[$pNum])) { $participantEntered = true; }
+            $suppressed = $isMultiParticipants ? ($justConfirmed && $justConfirmedParticipant === $pNum) : $justConfirmed;
+            if ($isMultiParticipants && $validPNum && $participantEntered && !$suppressed) {
+                $data['ui_state'] = 'used';
+                $data['ui_title'] = 'PARTICIPANT ALREADY USED';
+                $data['ui_color'] = '#f59e0b'; // Orange
+                $data['ui_msg'] = 'Participant ' . $pNum . ' of ' . $data['total_participants'] . ' has already been scanned.';
+            } elseif (!$isMultiParticipants && $data['scanned_at'] && in_array($data['table'], $oneTimeTables, true) && !$justConfirmed) {
                 $data['ui_state'] = 'used';
                 $data['ui_title'] = 'PASS ALREADY USED';
                 $data['ui_color'] = '#f59e0b'; // Orange
@@ -514,7 +587,7 @@ if (empty($error)) {
                 $data['ui_state'] = 'valid';
                 $data['ui_title'] = 'VALID ENTRY PASS';
                 $data['ui_color'] = '#22c55e'; // Green
-                $data['ui_msg'] = 'Access Granted';
+                $data['ui_msg'] = $isMultiParticipants && $validPNum ? ('Access Granted - Participant ' . $pNum . ' of ' . $data['total_participants']) : 'Access Granted';
             }
             } elseif ($s === 'deleted') {
             $data['ui_state'] = 'invalid';
@@ -538,6 +611,7 @@ if (empty($error)) {
             $data['ui_msg'] = 'Access Denied.';
             }
         }
+        $data['participant_scans'] = $participantScans;
     } else {
         $error = 'Invalid or Unknown QR Code.';
     }
@@ -915,6 +989,13 @@ if (empty($error)) {
                 </div>
                 <?php endif; ?>
 
+                <?php if (($data['total_participants'] ?? 1) > 1 && $pNum >= 1 && $pNum <= ($data['total_participants'] ?? 1)): ?>
+                <div class="detail-row">
+                    <span class="label">Participant</span>
+                    <span class="value"><?php echo htmlspecialchars($pNum . ' of ' . $data['total_participants']); ?></span>
+                </div>
+                <?php endif; ?>
+
                 <?php if (!empty($data['house']) && (!isset($data['type_label']) || $data['type_label'] !== 'Guest')): ?>
                 <div class="detail-row">
                     <span class="label">House No.</span>
@@ -923,15 +1004,58 @@ if (empty($error)) {
                 <?php endif; ?>
             </div>
 
+            <?php if (($data['total_participants'] ?? 1) > 1): ?>
+            <div class="details-section" style="padding-top:0;">
+                <details class="participant-status" <?php echo ($isAuthorizedScanner && $data['ui_state']==='valid') ? 'open' : ''; ?>>
+                    <summary class="details-title" style="cursor:pointer; margin-bottom:12px; list-style:none;">
+                        Participant Status (<?php
+                            $enteredCount = 0;
+                            for ($_ci = 1; $_ci <= $data['total_participants']; $_ci++) { if (isset($data['participant_scans'][$_ci])) { $enteredCount++; } }
+                            echo $enteredCount . ' of ' . htmlspecialchars($data['total_participants']) . ' entered';
+                        ?>)
+                    </summary>
+                    <?php for ($pi = 1; $pi <= $data['total_participants']; $pi++): ?>
+                        <?php $entered = isset($data['participant_scans'][$pi]); ?>
+                        <div class="participant-row" style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border:1px solid #333; border-radius:8px; margin-bottom:8px;">
+                            <div>
+                                <div style="color:#fff; font-weight:600; font-size:0.9rem;">Participant <?php echo $pi; ?> of <?php echo htmlspecialchars($data['total_participants']); ?></div>
+                                <?php if ($entered): ?>
+                                    <div style="color:#6ee7b7; font-size:0.8rem;">Entered ✓ at <?php echo htmlspecialchars(date('g:i A', strtotime($data['participant_scans'][$pi]))); ?></div>
+                                <?php else: ?>
+                                    <div style="color:#f59e0b; font-size:0.8rem;">Not Entered</div>
+                                <?php endif; ?>
+                            </div>
+                            <?php if ($isAuthorizedScanner && $data['ui_state']==='valid' && !$entered): ?>
+                                <form method="POST" style="margin:0;">
+                                    <input type="hidden" name="action" value="confirm_entry">
+                                    <input type="hidden" name="ref_code" value="<?php echo htmlspecialchars($data['code']); ?>">
+                                    <input type="hidden" name="source_table" value="<?php echo htmlspecialchars($data['table']); ?>">
+                                    <input type="hidden" name="source_id" value="<?php echo htmlspecialchars($data['id']); ?>">
+                                    <input type="hidden" name="participant_no" value="<?php echo $pi; ?>">
+                                    <button type="submit" class="btn-confirm" style="width:auto; padding:8px 14px; font-size:0.8rem;">CONFIRM</button>
+                                </form>
+                            <?php endif; ?>
+                        </div>
+                    <?php endfor; ?>
+                </details>
+            </div>
+            <?php endif; ?>
+
             <!-- Actions -->
             <div class="action-area">
-                <?php if ($isAuthorizedScanner && $data['ui_state'] === 'valid'): ?>
+                <?php
+                    $isMultiView = ($data['total_participants'] ?? 1) > 1;
+                    $isParticipantView = $isMultiView && $pNum >= 1 && $pNum <= ($data['total_participants'] ?? 1);
+                    $showMainConfirm = !$isMultiView || $isParticipantView;
+                ?>
+                <?php if ($showMainConfirm && $isAuthorizedScanner && $data['ui_state'] === 'valid'): ?>
                     <form method="POST">
                         <input type="hidden" name="action" value="confirm_entry">
                         <input type="hidden" name="ref_code" value="<?php echo htmlspecialchars($data['code']); ?>">
                         <input type="hidden" name="source_table" value="<?php echo htmlspecialchars($data['table']); ?>">
                         <input type="hidden" name="source_id" value="<?php echo htmlspecialchars($data['id']); ?>">
-                        <button type="submit" class="btn-confirm">CONFIRM ENTRY</button>
+                        <?php if ($isParticipantView): ?><input type="hidden" name="participant_no" value="<?php echo $pNum; ?>"><?php endif; ?>
+                        <button type="submit" class="btn-confirm"><?php echo $isParticipantView ? 'CONFIRM PARTICIPANT ENTRY' : 'CONFIRM ENTRY'; ?></button>
                     </form>
                 <?php elseif ($data['ui_state'] === 'used'): ?>
                      <button class="btn-confirm" style="background:#f59e0b; cursor:default;">ALREADY USED</button>

@@ -1344,6 +1344,15 @@ input:focus-visible {
   margin-top: 8px;
 }
 
+.persons .counter button {
+  min-width: 36px;
+  padding: 7px 12px;
+}
+
+.persons .counter input[type="number"] {
+  min-width: 56px;
+}
+
 .persons .res-label{
   justify-content:center;
   text-align:center;
@@ -1352,6 +1361,21 @@ input:focus-visible {
 @media (max-width:640px){
   .slot-btn{
     flex:0 0 100%;
+  }
+  .persons{
+    padding: 12px;
+  }
+  .persons .counter{
+    gap: 8px;
+  }
+  .persons .counter button{
+    min-width: 34px;
+    padding: 7px 10px;
+  }
+  #personsMaxNote{
+    margin-top: 6px;
+    padding: 6px 10px;
+    font-size: 0.8rem;
   }
 }
 
