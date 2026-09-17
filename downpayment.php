@@ -479,7 +479,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     .proceed-actions .btn:hover{transform:translateY(-2px);box-shadow:0 8px 16px rgba(15,23,42,.12)}
     .proceed-actions .btn.btn-outline{background:#e5e7eb;color:#111}
     .proceed-close{position:absolute;top:10px;right:12px;width:28px;height:28px;border-radius:50%;background:#f3f4f6;color:#111827;border:none;display:inline-flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer}
-    .back-row{max-width:720px;margin:14px auto 0;padding:0 16px}
+    .back-row{max-width:720px;margin:24px auto 0;padding:0 16px}
     .back-btn{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;background:#d4a017;color:#fff;border:none;border-radius:999px;font-weight:700;text-decoration:none;font-size:1.1rem;box-shadow:0 6px 14px rgba(212, 160, 23, 0.35);transition:transform .2s ease,box-shadow .2s ease,opacity .2s ease}
     .back-btn i{color:#ffffff;}
     .back-btn:hover{opacity:.95;transform:translateY(-1px);box-shadow:0 8px 16px rgba(212, 160, 23, 0.4);background:#b68912}

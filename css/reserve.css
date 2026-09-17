@@ -125,7 +125,7 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
 .section-header p{color:#4b5563;font-size:1.05rem;font-weight:600}
 .section-actions{display:flex;justify-content:flex-end;gap:12px;align-items:center;margin-bottom:12px}
 
-.top-actions{display:flex;justify-content:flex-start;align-items:center;margin-bottom:8px;position:relative;z-index:10}
+.top-actions{display:flex;justify-content:flex-start;align-items:center;margin-top:10px;margin-bottom:8px;position:relative;z-index:10}
 .back-account-btn{display:inline-flex;align-items:center;gap:6px}
 
 /* Amenity Description */
@@ -1166,6 +1166,54 @@ input:focus-visible {
   font-size:1rem;
   font-weight:800;
   color:#111827;
+}
+.mode-radio-option{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  border:1.5px solid #d1d5db;
+  border-radius:12px;
+  padding:12px 14px;
+  cursor:pointer;
+  background:#fff;
+  transition:border-color .2s ease, box-shadow .2s ease, background .2s ease;
+}
+.mode-radio-option:hover{
+  border-color:#94a3b8;
+  box-shadow:0 4px 10px rgba(15,23,42,0.06);
+}
+.mode-radio-option:has(.mode-radio-input:checked){
+  border-color:#166534;
+  background:linear-gradient(135deg,#f0fdf4,#ffffff);
+  box-shadow:0 0 0 3px rgba(22,101,52,0.12);
+}
+.mode-radio-input{
+  margin-top:3px;
+  accent-color:#166534;
+  width:17px;
+  height:17px;
+  flex:0 0 auto;
+  cursor:pointer;
+}
+.mode-radio-body{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+.mode-radio-title{
+  font-weight:700;
+  color:#111827;
+  font-size:0.95rem;
+}
+.mode-radio-desc{
+  color:#4b5563;
+  font-size:0.82rem;
+  line-height:1.45;
+}
+.mode-radio-option.is-active{
+  border-color:#166534;
+  background:linear-gradient(135deg,#f0fdf4,#ffffff);
+  box-shadow:0 0 0 3px rgba(22,101,52,0.12);
 }
 .booking-mode-meta{
   font-size:0.82rem;

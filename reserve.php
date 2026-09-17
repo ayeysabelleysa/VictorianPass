@@ -1374,80 +1374,21 @@ if (ob_get_level() > 0) { ob_end_flush(); }
                         <button type="button" onclick="changePersons(1)">+</button>
                       </div>
                       <?php endif; ?>
-                      <input type="hidden" name="persons" id="personsInput" value="0">
+                      <input type="hidden" name="persons" id="personsInput" value="<?php echo $isResident ? '1' : '0'; ?>">
                       
                       <?php if ($isResident): ?>
-                      <div id="participantWrap" style="display:block;">
-                        <div class="participant-selector" style="margin-top:14px; border:1px solid #e5e7eb; border-radius:12px; padding:12px; background:#fafafa;">
-                          <div style="font-weight:700; margin-bottom:8px;">Who will attend?</div>
-                          <div class="mode-options" style="display:flex;flex-direction:column;gap:8px;">
-                            <button type="button" class="btn-secondary" data-mode="resident_only">Residents Only</button>
-                            <div style="color:#555;font-size:0.85rem;">All selected residents receive a 33.33% discount.</div>
-                            <button type="button" class="btn-secondary" data-mode="resident_guest">Residents + Guests</button>
-                            <div style="color:#555;font-size:0.85rem;">Residents receive a 33.33% discount. Guests pay full price.</div>
-                            <button type="button" class="btn-secondary" data-mode="guest_only">Guests Only</button>
-                            <div style="color:#555;font-size:0.85rem;">Guests are charged the regular rate.</div>
+                      <div id="participantWrap" data-mode="resident_only" style="display:block;">
+                        <div class="pers-total">
+                          <div class="res-label"><small>Number of Participants</small></div>
+                          <div class="counter">
+                            <button type="button" onclick="changeReserveTotal(-1)">-</button>
+                            <input type="number" id="reserveTotalCount" value="1" min="1" step="1" style="width:70px;text-align:center;border:1px solid #e5e7eb;border-radius:8px;padding:6px 10px;font-weight:600;">
+                            <button type="button" onclick="changeReserveTotal(1)">+</button>
                           </div>
-                          <div class="resident-group" style="display:none; margin-top:12px; border:1px solid #e5e7eb; border-radius:12px; padding:12px; background:#fff;">
-                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-                              <div style="width:8px;height:8px;border-radius:50%;background:#1f8a3a;"></div>
-                              <div style="font-weight:600;">Residents (Discounted)</div>
-                            </div>
-                            <div style="display:flex;flex-direction:column;gap:8px;max-height:220px;overflow:auto;">
-                              <label style="display:flex;align-items:center;gap:8px;">
-                                <input type="checkbox" class="resident-check" value="<?php echo isset($currentResident['id']) ? (int)$currentResident['id'] : 0; ?>" data-name="Me (Primary Resident)" checked>
-                                <span>Me (Primary Resident)</span>
-                              </label>
-                              <?php foreach ($householdResidents as $hr): ?>
-                              <?php $hrName = trim(($hr['first_name'] ?? '') . ' ' . ($hr['middle_name'] ?? '') . ' ' . ($hr['last_name'] ?? '')); if ($hrName==='') { $hrName='Resident'; } ?>
-                              <label style="display:flex;align-items:center;gap:8px;">
-                                <input type="checkbox" class="resident-check" value="<?php echo (int)$hr['id']; ?>" data-name="<?php echo htmlspecialchars($hrName); ?>">
-                                <span><?php echo htmlspecialchars($hrName); ?> (Resident)</span>
-                              </label>
-                              <?php endforeach; ?>
-                            </div>
-                          </div>
-                          <div class="guest-group" style="display:none; margin-top:12px; border:1px solid #e5e7eb; border-radius:12px; padding:12px; background:#fff;">
-                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-                              <div style="width:8px;height:8px;border-radius:50%;background:#2a4fe5;"></div>
-                              <div style="font-weight:600;">Approved Guests (Full Price)</div>
-                            </div>
-                            <div style="display:flex;flex-direction:column;gap:8px;max-height:220px;overflow:auto;">
-                              <?php foreach ($residentGuests as $g): ?>
-                              <?php $gName = trim(($g['visitor_first_name'] ?? '') . ' ' . ($g['visitor_middle_name'] ?? '') . ' ' . ($g['visitor_last_name'] ?? '')); if ($gName==='') { $gName='Guest'; } ?>
-                              <label style="display:flex;align-items:center;gap:8px;">
-                                <input type="checkbox" class="guest-check" value="<?php echo (int)$g['id']; ?>" data-ref="<?php echo htmlspecialchars($g['ref_code']); ?>" data-name="<?php echo htmlspecialchars($gName); ?>">
-                                <span><?php echo htmlspecialchars($gName); ?></span>
-                              </label>
-                              <?php endforeach; ?>
-                            </div>
-                          </div>
+                          <small class="label-help" id="reserveMaxNote">Maximum: 200 participants</small>
                         </div>
-                        <div style="margin-top:10px; border-top:1px dashed #ddd; padding-top:10px;">
-                          <div class="res-label"><small>Participants Breakdown</small></div>
-                          <div style="display:flex; gap:16px; flex-wrap:wrap;">
-                            <div style="flex:1; min-width:180px;">
-                              <div style="font-weight:600; color:#23412e; margin-bottom:6px;">Residents</div>
-                              <div class="counter">
-                                <button type="button" onclick="changeResidents(-1)">-</button>
-                                <span id="residentsCountText"><?php echo ($sessionUserType === 'resident') ? '1' : '0'; ?></span>
-                                <button type="button" onclick="changeResidents(1)">+</button>
-                              </div>
-                              <small class="label-help">33.33% discount per resident</small>
-                            </div>
-                            <div style="flex:1; min-width:180px;">
-                              <div style="font-weight:600; color:#8a2a2a; margin-bottom:6px;">Approved Guests</div>
-                              <div class="counter">
-                                <button type="button" onclick="changeGuests(-1)">-</button>
-                                <span id="guestsCountText">0</span>
-                                <button type="button" onclick="changeGuests(1)">+</button>
-                              </div>
-                              <small class="label-help">Full price per guest</small>
-                            </div>
-                          </div>
-                        </div>
-                    </div>
-                    <?php endif; ?>
+                      </div>
+                      <?php endif; ?>
                     </div>
                     <div class="res-item price-row">
                       <div class="price-box">
@@ -2562,6 +2503,32 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     updateBookingSummary();
     updateActionStates();
   }
+  async function setReserveTotalCount(desired){
+    const rcEl=document.getElementById('reserveTotalCount');
+    if(!rcEl) return;
+    const amen=document.getElementById('amenityField') ? document.getElementById('amenityField').value : '';
+    let max=typeof getAmenityMaxPersons==='function' ? getAmenityMaxPersons(amen) : Infinity;
+    const desiredCount=Math.max(0, parseInt(desired||'0',10) || 0);
+    const minAllowed=1;
+    const count=Math.min(max,Math.max(minAllowed,desiredCount));
+    if('value' in rcEl){ rcEl.value=String(count); } else { rcEl.textContent=String(count); }
+    const pInput=document.getElementById('personsInput'); if(pInput){ pInput.value=String(count); }
+    const personEl=document.getElementById('participantTotal'); if(personEl){ if('value' in personEl){ personEl.value=String(count); } else { personEl.textContent=String(count); } }
+    const note=document.getElementById('reserveMaxNote'); if(note){ note.textContent = max!==Infinity ? (`Maximum: ${max} participants`) : ''; }
+    if(count>=max){ setFieldWarning('reserveTotalCount',`Maximum is ${max} participants.`); } else { setFieldWarning('reserveTotalCount',''); }
+    if(typeof updateDisplayedPrice==='function') updateDisplayedPrice();
+    if(typeof updateDownpaymentSuggestion==='function') updateDownpaymentSuggestion();
+    if(typeof updateBookingSummary==='function') updateBookingSummary();
+    if(typeof updateActionStates==='function') updateActionStates();
+    if(typeof persistForm==='function') persistForm();
+  }
+  async function changeReserveTotal(delta){
+    const rcEl=document.getElementById('reserveTotalCount');
+    if(!rcEl) return;
+    let count=parseInt((('value' in rcEl) ? rcEl.value : rcEl.textContent)||'0',10);
+    if(!Number.isFinite(count)){ count = 0; }
+    await setReserveTotalCount(count + delta);
+  }
   async function changePersons(val){
     const pcEl=document.getElementById('personCount');
     let count=parseInt(((pcEl && (pcEl.value||pcEl.textContent))||'0'),10);
@@ -2607,13 +2574,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     updateActionStates();
     if(typeof persistForm === 'function') persistForm();
   }
-  async function changeGuests(delta){
-    const wrap=document.getElementById('participantWrap');
-    const mode=wrap ? (wrap.getAttribute('data-mode')||'') : '';
-    if(mode==='resident_only'){
-      setFieldWarning('personsInput','Guests cannot be added in Residents Only mode.');
-      return;
-    }
+  async function changePersons(val){
     const gEl=document.getElementById('guestsCountText');
     const gInput=document.getElementById('guestsCountInput');
     const rInput=document.getElementById('residentsCountInput');
@@ -3328,6 +3289,13 @@ if (ob_get_level() > 0) { ob_end_flush(); }
         await setPersonsCount(desired);
       });
     }
+    const reserveTotalInput=document.getElementById('reserveTotalCount');
+    if(reserveTotalInput){
+      reserveTotalInput.addEventListener('input', async function(){
+        const desired=parseInt(reserveTotalInput.value||'0',10);
+        await setReserveTotalCount(desired);
+      });
+    }
   });
   const cs=document.getElementById('clearStartBtn'); if(cs){ cs.addEventListener('click',clearStartDate); }
   const ce=document.getElementById('clearEndBtn'); if(ce){ ce.addEventListener('click',clearEndDate); }
@@ -3660,6 +3628,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
       if(!rGroup || !gGroup) return;
       const wrap=document.getElementById('participantWrap');
       if(wrap){ wrap.setAttribute('data-mode', m); }
+      sel.querySelectorAll('.mode-radio-input').forEach(function(r){ r.checked = (r.value === m); });
       if(m==='resident_only'){
         rGroup.style.display='block';
         gGroup.style.display='none';
@@ -3684,6 +3653,15 @@ if (ob_get_level() > 0) { ob_end_flush(); }
       sel.querySelectorAll('.mode-options [data-mode]').forEach(function(btn){
         btn.addEventListener('click',function(){
           applyModeTo(sel, btn.getAttribute('data-mode')||'resident_only');
+        });
+      });
+      sel.querySelectorAll('.mode-radio-input').forEach(function(radio){
+        radio.addEventListener('change',function(){
+          if(radio.checked){
+            const rb=sel.querySelector('.mode-options [data-mode="'+radio.value+'"]')||null;
+            applyModeTo(sel, radio.value||'resident_only');
+            if(rb){ rb.classList.add('is-active'); }
+          }
         });
       });
       sel.addEventListener('change',function(e){
@@ -3821,7 +3799,11 @@ if (ob_get_level() > 0) { ob_end_flush(); }
       if(data.end_date){ document.getElementById('endDateInput').value=data.end_date; }
       if(data.start_time){ document.getElementById('startTimeInput').value=data.start_time; }
       if(data.end_time){ document.getElementById('endTimeInput').value=data.end_time; }
-      if(data.persons){ document.getElementById('personsInput').value=data.persons; document.getElementById('personCount').textContent=String(data.persons); }
+      if(data.persons){
+        document.getElementById('personsInput').value=data.persons;
+        const pcR=document.getElementById('personCount'); if(pcR){ if('value' in pcR){ pcR.value=String(data.persons); } else { pcR.textContent=String(data.persons); } }
+        const rtcR=document.getElementById('reserveTotalCount'); if(rtcR){ if('value' in rtcR){ rtcR.value=String(data.persons); } else { rtcR.textContent=String(data.persons); } }
+      }
       if(data.booking_for){
         const bookingForField=document.getElementById('bookingForField');
         if(bookingForField) bookingForField.value=data.booking_for;

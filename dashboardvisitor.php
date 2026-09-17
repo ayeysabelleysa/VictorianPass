@@ -823,7 +823,6 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
     </div>
 
     <nav class="nav-menu">
-      <a href="mainpage.php" class="nav-item"><i class="fa-solid fa-house"></i> <span>Main Page</span></a>
       <a href="#" class="nav-item active" data-section="panel-requests"><i class="fa-solid fa-list"></i> <span>My Requests</span></a>
       <a href="reserve.php" class="nav-item"><i class="fa-solid fa-ticket"></i> <span>Amenity Reservation</span></a>
       <a href="#" class="nav-item" data-section="panel-history"><i class="fa-solid fa-clock-rotate-left"></i> <span>History</span></a>

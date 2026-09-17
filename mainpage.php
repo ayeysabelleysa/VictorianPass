@@ -384,6 +384,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             <small>This feature is available to Victorian Heights Subdivision residents only. Please register as a resident to participate.</small>
           </div>
           <?php endif; ?>          <p class="section-subtitle ecopoint-description">VHEcoPoint is Victorian Heights Subdivision’s Smart Waste Segregation Station that automatically sorts recyclables and rewards you with points redeemable for free amenity bookings. Scan your VictorianPass QR code, deposit recyclables, and points are credited to your account instantly.</p>
+            <div style="background:#ecfdf5; border:1px solid #86efac; border-radius:10px; padding:12px 14px; margin-top:12px; color:#166534; font-size:0.88rem; line-height:1.55;">
+              <strong style="display:block; margin-bottom:4px;"><i class="fa-solid fa-clock" style="margin-right:5px;"></i>Station Availability</strong>
+              The VHEcoPoint Station is located at the <strong>Clubhouse</strong> and is available <strong>weekdays only (Monday to Friday)</strong>, from <strong>9:00 AM to 9:00 PM</strong>.
+            </div>
             <?php if ($isResident): ?>
             <div class="ecopoint-home-actions" style="justify-content:center; margin-top:14px;">
               <a href="profileresident.php?section=panel-points-history" class="btn-change ecopoint-home-cta"><i class="fa-solid fa-leaf" aria-hidden="true" style="margin-right:8px;"></i>View VHEcoPoint</a>

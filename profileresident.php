@@ -830,7 +830,7 @@ foreach ($activities as $act) {
     $s = strtolower($act['status']);
     $isHistory = false;
 
-    if (strpos($s, 'deleted') !== false || strpos($s, 'cancel') !== false || strpos($s, 'complete') !== false || strpos($s, 'finish') !== false || strpos($s, 'moved_to_history') !== false || strpos($s, 'permission_granted') !== false) {
+    if (strpos($s, 'deleted') !== false || strpos($s, 'cancel') !== false || strpos($s, 'complete') !== false || strpos($s, 'finish') !== false || strpos($s, 'moved_to_history') !== false || strpos($s, 'permission_granted') !== false || strpos($s, 'expired') !== false) {
         $isHistory = true;
     }
 
@@ -1215,17 +1215,17 @@ body.account-blocked { overflow: hidden; }
 .toast-item.toast-warning { border-left-color: #d97706; }
 .toast-item.toast-error { border-left-color: #c0392b; }
 .nav-item.ecopoint-link {
-  color: #14532d;
-  background-color: #dcfce7;
-  border-left: 4px solid #16a34a;
+  color: #ecfdf5;
+  background-color: #14532d;
+  border-left: 4px solid #22c55e;
 }
 .nav-item.ecopoint-link:hover {
-  background-color: #bbf7d0;
-  color: #14532d;
+  background-color: #1a6b3a;
+  color: #ffffff;
 }
 .nav-item.ecopoint-link.active {
-  background-color: #bbf7d0;
-  color: #14532d;
+  background-color: #166534;
+  color: #ffffff;
   font-weight: 700;
 }
 .field-warning {
@@ -3034,15 +3034,17 @@ body.modal-open{overflow:hidden}
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <button type="button" class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="Close navigation"><i class="fa-solid fa-xmark"></i></button>
+    <div class="sidebar-header">
+      <a href="mainpage.php" class="back-btn" aria-label="Back to Main Page"><i class="fa-solid fa-arrow-left"></i></a>
+    </div>
     <nav class="nav-menu">
-      <a href="mainpage.php" class="nav-item"><i class="fa-solid fa-house"></i> <span>Main Page</span></a>
       <a href="#" class="nav-item <?php echo $activeSection === 'panel-requests' ? 'active' : ''; ?>" data-section="panel-requests"><i class="fa-solid fa-list"></i> <span>My Requests</span></a>
       <a href="reserve.php" class="nav-item"><i class="fa-solid fa-ticket"></i> <span>Amenity Reservation</span></a>
       <a href="#" class="nav-item ecopoint-link <?php echo $activeSection === 'panel-points-history' ? 'active' : ''; ?>" data-section="panel-points-history">
         <i class="fa-solid fa-coins"></i>
         <span>
           VHEcoPoint
-          <small style="display:block; font-size:0.7rem; color:#166534; font-weight:700; margin-top:2px;">Smart Waste Segregation Station</small>
+          <small style="display:block; font-size:0.7rem; color:#bbf7d0; font-weight:700; margin-top:2px;">Smart Waste Segregation Station</small>
         </span>
       </a>
       <a href="#" class="nav-item <?php echo $activeSection === 'panel-guest-form' ? 'active' : ''; ?>" data-section="panel-guest-form"><i class="fa-solid fa-user-plus"></i> <span>Guest Form</span></a>
@@ -3194,7 +3196,7 @@ body.modal-open{overflow:hidden}
     </header>
 
     <div class="dashboard-back-row">
-      <a href="mainpage.php" class="back-btn" id="dashboardBackBtn" aria-label="Back to main page" style="<?php echo in_array($activeSection, ['panel-requests', 'panel-guest-form', 'panel-my-guests', 'panel-history'], true) ? 'display:none;' : ''; ?>"><i class="fa-solid fa-arrow-left"></i></a>
+      <a href="mainpage.php" class="back-btn" id="dashboardBackBtn" aria-label="Back to main page" style="<?php echo in_array($activeSection, ['panel-requests', 'panel-guest-form', 'panel-my-guests', 'panel-history', 'panel-points-history'], true) ? 'display:none;' : ''; ?>"><i class="fa-solid fa-arrow-left"></i></a>
       <div class="page-title-wrap">
         <h1 class="page-title" id="dashboardPageTitle"><?php echo htmlspecialchars($dashboardPageTitle); ?></h1>
         <p class="page-subtitle" id="dashboardPageSubtitle"><?php echo htmlspecialchars($dashboardPageSubtitle); ?></p>
@@ -3298,6 +3300,7 @@ body.modal-open{overflow:hidden}
               <div class="ecopoint-header-kicker">Resident Dashboard</div>
               <div class="ecopoint-header-title"><i class="fa-solid fa-leaf" style="margin-right:8px; font-size:0.9em;"></i>Your VHEcoPoint Dashboard</div>
               <div class="ecopoint-header-desc"><i class="fa-solid fa-circle-info ecopoint-info" style="float:left; margin:2px 6px 0 0;" title="Your personal VHEcoPoint dashboard: see your point balance, weekly progress, daily session usage, expiry countdown, and station-ready QR access all in one place."></i>Track your current point balance, weekly recycling progress, daily session usage, expiry countdown, and station-ready QR access in one place.</div>
+              <div style="background:#ecfdf5; border:1px solid #86efac; border-radius:10px; padding:10px 14px; margin-top:10px; color:#166534; font-size:0.85rem; line-height:1.5;"><i class="fa-solid fa-clock" style="margin-right:5px;"></i><strong>Station Availability:</strong> The VHEcoPoint Station is located at the <strong>Clubhouse</strong>, available <strong>weekdays only (Monday to Friday)</strong>, from <strong>9:00 AM to 9:00 PM</strong>.</div>
             </div>
 
             <?php if (!$isAccountBlocked): ?>
@@ -3316,7 +3319,7 @@ body.modal-open{overflow:hidden}
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label"><i class="fa-solid fa-coins" style="margin-right:5px; opacity:0.7;"></i>Current Point Balance</div>
                 <div class="ecopoint-kpi-value"><i class="fa-solid fa-star" style="font-size:0.6em; margin-right:4px; opacity:0.6;"></i><?php echo number_format($currentPoints); ?> pts</div>
-                <div class="ecopoint-kpi-subtext"><i class="fa-solid fa-circle-info ecopoint-info" title="Earned points add to this balance; redeemed or adjusted points subtract from it."></i> Net balance from VHEcoPoint recycling ledger (earn − redeem ± adjustments).</div>
+                <div class="ecopoint-kpi-subtext"><i class="fa-solid fa-circle-info ecopoint-info" title="Earned points add to this balance; redeemed or adjusted points subtract from it. The maximum balance is 3,000 points."></i> Net balance from VHEcoPoint recycling ledger (earn − redeem ± adjustments). Maximum balance is 3,000 pts.</div>
               </div>
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label"><i class="fa-solid fa-chart-line" style="margin-right:5px; opacity:0.7;"></i>Weekly Points Earned</div>
@@ -5548,7 +5551,7 @@ body.modal-open{overflow:hidden}
   function updateBackButtonVisibility(id){
     var backBtn=document.getElementById('dashboardBackBtn');
     if(!backBtn) return;
-    var noBackSections=['panel-requests','panel-guest-form','panel-my-guests','panel-history'];
+    var noBackSections=['panel-requests','panel-guest-form','panel-my-guests','panel-history','panel-points-history'];
     backBtn.style.display=noBackSections.indexOf(id)!==-1?'none':'';
   }
   function showPanel(id){

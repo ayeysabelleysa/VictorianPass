@@ -22,8 +22,9 @@ body {
 /* Sidebar */
 .sidebar {
     width: 220px;
-    background-color: #ffffff;
-    border-right: 1px solid #e0e0e0;
+    background: radial-gradient(circle at top left, #3a332f 0%, #2b2623 55%, #211b18 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    color: #f4efe6;
     display: flex;
     flex-direction: column;
     position: fixed;
@@ -79,6 +80,14 @@ body {
 .sidebar-close-btn i { color: #ffffff; }
 .sidebar-close-btn:hover { filter: brightness(0.95); }
 
+.sidebar-header .back-btn {
+    background: #d4a017;
+    color: #ffffff;
+    border: none;
+}
+.sidebar-header .back-btn:hover { background: #b8860b; filter: brightness(1); }
+.sidebar-header .back-btn i { color: #ffffff; }
+
 .nav-menu {
     flex: 1;
     padding: 16px 12px;
@@ -93,34 +102,37 @@ body {
     align-items: center;
     padding: 10px 12px;
     text-decoration: none;
-    color: #555;
+    color: rgba(255, 255, 255, 0.82);
     font-size: 0.9rem;
+    font-weight: 500;
     transition: background 0.2s, color 0.2s;
-    border-radius: 8px;
+    border-radius: 10px;
     margin-bottom: 2px;
 }
 
 .nav-item:hover {
-    background-color: #f5f5f5;
-    color: #111;
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    font-weight: 600;
 }
 
 .nav-item.active {
-    background-color: #e5ddc6;
-    color: #23412e;
-    font-weight: 600;
+    background-color: rgba(255, 255, 255, 0.16);
+    color: #ffffff;
+    font-weight: 700;
 }
 
 .nav-item i, .nav-item img {
     margin-right: 12px;
     width: 20px;
     text-align: center;
+    color: rgba(255, 255, 255, 0.65);
 }
 
 .nav-badge {
     margin-left: auto;
-    background-color: #e0e0e0;
-    color: #555;
+    background-color: rgba(255, 255, 255, 0.18);
+    color: #ffffff;
     padding: 2px 8px;
     border-radius: 10px;
     font-size: 0.75rem;
@@ -128,7 +140,7 @@ body {
 
 .sidebar-footer {
     padding: 16px;
-    border-top: 1px solid #eee;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -209,10 +221,8 @@ body {
 
 .top-header {
     min-height: 64px;
-    background: rgba(43, 38, 35, 0.95);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: radial-gradient(circle at top left, #3a332f 0%, #2b2623 55%, #211b18 100%);
+    border-bottom: 1px solid #1a1512;
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     display: flex;
     align-items: center;
@@ -323,7 +333,7 @@ body {
     display: flex;
     align-items: center;
     gap: 14px;
-    padding: 16px 30px 0;
+    padding: 24px 30px 0;
 }
 
 .dashboard-back-row .back-btn {
@@ -1326,7 +1336,7 @@ body {
     }
 
     .dashboard-back-row {
-        padding: 14px 15px 0;
+        padding: 20px 15px 0;
         gap: 10px;
     }
 
@@ -3205,7 +3215,7 @@ body.profile-modal-open {
     .top-header .header-brand { gap: 3px; }
     .top-header .header-brand img { margin-right: 0; }
 
-    .dashboard-back-row { padding: 14px 15px 0; gap: 12px; }
+    .dashboard-back-row { padding: 20px 15px 0; gap: 12px; }
     .dashboard-back-row .page-title { font-size: 1.05rem; }
     .page-subtitle { font-size: 0.8rem; margin-top: 1px; }
 
@@ -3244,15 +3254,23 @@ body.profile-modal-open {
 
     .sidebar .nav-item {
         padding: 13px 14px;
-        font-size: 13.5px;
-        line-height: 1.3;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.35;
         min-height: 46px;
         box-sizing: border-box;
     }
 
+    .sidebar .nav-item > span {
+        flex: 1;
+        min-width: 0;
+    }
+
     .sidebar .nav-item i {
-        width: 20px;
+        width: 21px;
         margin-right: 10px;
+        font-size: 1.05rem;
+        flex-shrink: 0;
     }
 
     .sidebar .nav-item.ecopoint-link small {
@@ -3448,4 +3466,53 @@ body.profile-modal-open {
   .vhecopoint-popup-card{padding:26px 20px 22px;border-radius:16px}
   .vhecopoint-popup-icon{width:52px;height:52px;font-size:1.5rem}
   .vhecopoint-popup-title{font-size:1.15rem}
+}
+
+/* ================= Desktop sidebar — larger & more prominent (web/desktop only) ================= */
+@media (min-width: 901px) {
+    .sidebar {
+        width: 264px;
+    }
+
+    .main-content {
+        margin-left: 264px;
+        width: calc(100% - 264px);
+    }
+
+    .sidebar .nav-menu {
+        padding: 20px 14px;
+        gap: 8px;
+    }
+
+    .sidebar .nav-item {
+        padding: 14px 16px;
+        font-size: 1.02rem;
+        font-weight: 500;
+        line-height: 1.35;
+        border-radius: 10px;
+    }
+
+    .sidebar .nav-item > span {
+        flex: 1;
+        min-width: 0;
+        line-height: 1.35;
+    }
+
+    .sidebar .nav-item i,
+    .sidebar .nav-item img {
+        width: 22px;
+        margin-right: 14px;
+        font-size: 1.1rem;
+        flex-shrink: 0;
+    }
+
+    .sidebar .nav-item.ecopoint-link small {
+        font-size: 0.72rem;
+        margin-top: 2px;
+    }
+
+    .sidebar .nav-item.active {
+        font-weight: 700;
+        box-shadow: none;
+    }
 }
