@@ -393,9 +393,7 @@ foreach ($ecoPointTransactions as $tx) {
         'points_earned' => $pointsEarned,
         'description' => (string)($tx['description'] ?? '')
     ];
-    if ($createdDateKey === $todayDateKey) {
-        $ecoPointTodaySessionsUsed++;
-    }
+
     if ($createdDateKey !== '' && $createdDateKey >= $weekStartDateKey && $createdDateKey <= $weekEndDateKey) {
         $ecoPointWeeklyPoints += $pointsEarned;
         if (isset($ecoPointWeeklyStats[$materialLabel])) {
@@ -408,6 +406,26 @@ foreach ($ecoPointTransactions as $tx) {
         if ($expiryTs && $expiryTs > time() && ($ecoPointNextExpiryTs === null || $expiryTs < $ecoPointNextExpiryTs)) {
             $ecoPointNextExpiryTs = $expiryTs;
         }
+    }
+}
+
+// Get today's completed VHEcoPoint sessions
+if ($con instanceof mysqli) {
+    $stmt = $con->prepare("
+        SELECT COUNT(*) AS c
+        FROM ecopoint_waste_sessions
+        WHERE user_id = ?
+          AND status = 'COMPLETED'
+          AND DATE(completed_at) = ?
+    ");
+
+    if ($stmt) {
+        $stmt->bind_param('is', $userId, $todayDateKey);
+        $stmt->execute();
+        $r = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        $ecoPointTodaySessionsUsed = (int)($r['c'] ?? 0);
     }
 }
 

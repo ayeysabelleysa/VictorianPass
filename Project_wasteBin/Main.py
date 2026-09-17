@@ -889,20 +889,24 @@ try:
 
                 print(
                     "No item detected for "
-                    "2 minutes."
+                    "90 seconds."
                 )
 
                 print(
-                    "Your session has expired."
+                    "Your session has ended."
                 )
 
+                if sessions > 0:
+                    print()
+                    print("Completing resident session...")
+                    break
                 # -------------------------------------------------
                 # CANCEL ONLY THIS HOSTINGER SESSION
                 # -------------------------------------------------
 
                 cancel_api_session(
                     session_token,
-                    "No item detected for 2 minutes"
+                    "No item detected for 90 seconds"
                 )
 
                 print()
@@ -1034,6 +1038,7 @@ try:
         # COMPLETE HOSTINGER SESSION
         # =================================================
 
+        completed = None
         if sessions > 0:
 
             completed = complete_api_session(

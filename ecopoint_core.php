@@ -591,6 +591,11 @@ function eco_award_points_and_finalize(mysqli $con, int $sessionId, int $station
         WHERE session_id = ?
           AND event_type = 'WASTE_DATA'
     ");
+    
+    if (!$eventStmt) {
+    throw new RuntimeException('Failed to prepare WASTE_DATA aggregation query: ' . $con->error);
+    }
+
 
     $eventStmt->bind_param('i', $sessionId);
     $eventStmt->execute();
