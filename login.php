@@ -123,6 +123,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && !$staffSessionActive) {
                       $_SESSION['user_type'] = strtolower(trim((string)$row['user_type']));
                       $_SESSION['role']      = $_SESSION['user_type'];
 
+                      if (function_exists('vpAuthSetCookie')) {
+                        vpAuthSetCookie((int)$row['id'], $_SESSION['user_type']);
+                      }
+
                       if ($_SESSION['user_type'] === 'resident') {
                         redirectAfterLogin('profileresident.php');
                         } else {

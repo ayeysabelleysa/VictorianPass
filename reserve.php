@@ -25,9 +25,28 @@ if (!function_exists('vpFlush')) {
 register_shutdown_function('vpFlush');
 // ---
 ob_start(); // Prevents header issues on redirect
+
+// Read-only session for GET page loads: avoids holding the file lock while
+// heavy DB queries run, which prevents 504s when concurrent AJAX requests
+// from the previous page still hold the lock.
+$isReserveApiRequest = $_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && in_array($_GET['action'], ['booked_dates', 'booked_times', 'check_points'], true);
+$resetReservation = isset($_GET['reset_reservation']) && $_GET['reset_reservation'] === '1';
+$isGetPageLoad = ($_SERVER['REQUEST_METHOD'] === 'GET' && !$isReserveApiRequest);
+// reset_reservation GETs must persist the session unset below, so they get a writable session.
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && !$resetReservation) {
+  // Logged-in users carry a signed vp_auth cookie -> skip the session lock
+  // entirely for GET page loads AND API calls (prevents 502/504 from session
+  // lock contention). Everybody else falls back to a read-only (read_and_close)
+  // session for page loads; API calls keep the existing write-close behavior.
+  if (isset($_COOKIE['vp_auth'])) {
+    define('VP_SESSION_COOKIE_AUTH', true);
+  } elseif ($isGetPageLoad) {
+    define('VP_SESSION_READONLY', true);
+  }
+}
+
 require_once __DIR__ . '/session_bootstrap.php';
 vpMark('session_start');
-$isReserveApiRequest = $_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && in_array($_GET['action'], ['booked_dates', 'booked_times', 'check_points'], true);
 if ($isReserveApiRequest) {
   define('VP_JSON_ERROR_RESPONSE', true);
 }
@@ -36,10 +55,18 @@ vpMark('db_connect');
 $generatedCode = '';
 $errorMsg = '';
 $canSubmit = true;
-if (empty($_SESSION['csrf_token'])) {
-  $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+if (defined('VP_SESSION_COOKIE_AUTH') && VP_SESSION_COOKIE_AUTH === true && function_exists('vpCsrfGetToken')) {
+  // Cookie-auth mode: no session lock held. Use a stateless CSRF token kept in
+  // a signed vp_csrf cookie so the form stays CSRF-protected without a session.
+  $sessionCsrfToken = vpCsrfGetToken();
+} else {
+  if (empty($_SESSION['csrf_token'])) {
+    // Session may be read-only — reopen in write mode to persist the CSRF token.
+    session_start();
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+  }
+  $sessionCsrfToken = isset($_SESSION['csrf_token']) ? $_SESSION['csrf_token'] : '';
 }
-$resetReservation = isset($_GET['reset_reservation']) && $_GET['reset_reservation'] === '1';
 $refFromQuery = isset($_GET['ref_code']) ? trim($_GET['ref_code']) : '';
 if ($resetReservation) {
   unset($_SESSION['pending_reservation'], $_SESSION['dp_ref_code'], $_SESSION['flash_ref_code'], $_SESSION['reservation_submitted']);
@@ -48,7 +75,10 @@ if ($resetReservation) {
 // Copy every session value this request may need into local variables BEFORE
 // releasing the session lock. Nothing below may read $_SESSION after the lock
 // is closed unless the session was explicitly reopened (POST booking flow).
-$sessionCsrfToken = isset($_SESSION['csrf_token']) ? $_SESSION['csrf_token'] : '';
+// In cookie-auth mode the CSRF token already came from the signed vp_csrf cookie.
+if (!(defined('VP_SESSION_COOKIE_AUTH') && VP_SESSION_COOKIE_AUTH === true)) {
+  $sessionCsrfToken = isset($_SESSION['csrf_token']) ? $_SESSION['csrf_token'] : '';
+}
 $sessionUserId    = isset($_SESSION['user_id'])    ? $_SESSION['user_id']    : null;
 $sessionUserType  = isset($_SESSION['user_type'])  ? $_SESSION['user_type']  : null;
 
@@ -116,19 +146,25 @@ function reserveTableColumnExists(mysqli $con, string $table, string $column): b
 
 function reserveCalcVHEcoBalance(mysqli $con, int $userId): int {
     if ($userId <= 0) return 0;
-    $condition = "(description LIKE '%VHEcoPoint%' OR description LIKE '%recycling%' OR description LIKE '%Redeemed points%' OR (transaction_type = 'redeem' AND reservation_ref_code IS NOT NULL AND reservation_ref_code <> ''))";
-    $query = "SELECT COALESCE(SUM(CASE WHEN transaction_type = 'redeem' THEN -amount ELSE amount END), 0) AS balance FROM point_transactions WHERE user_id = ? AND ($condition OR ecopoint_session_id IS NOT NULL)";
+    // Modern VHEcoPoint rows carry ecopoint_session_id (index-friendly). Legacy
+    // rows are matched via description/transaction_type patterns, only when the
+    // session id is NULL so no row is double-counted.
+    $legacy = "(description LIKE '%VHEcoPoint%' OR description LIKE '%recycling%' OR description LIKE '%Redeemed points%' OR (transaction_type = 'redeem' AND reservation_ref_code IS NOT NULL AND reservation_ref_code <> ''))";
+    $sumExpr = "CASE WHEN transaction_type = 'redeem' THEN -amount ELSE amount END";
+    $query = "SELECT COALESCE((SELECT SUM(b) FROM (SELECT $sumExpr AS b FROM point_transactions WHERE user_id = ? AND ecopoint_session_id IS NOT NULL UNION ALL SELECT $sumExpr AS b FROM point_transactions WHERE user_id = ? AND (ecopoint_session_id IS NULL) AND $legacy) t), 0) AS balance";
     $stmt = $con->prepare($query);
     if (!$stmt) {
       error_log('reserveCalcVHEcoBalance primary prepare failed: ' . $con->error);
-      $query = "SELECT COALESCE(SUM(CASE WHEN transaction_type = 'redeem' THEN -amount ELSE amount END), 0) AS balance FROM point_transactions WHERE user_id = ? AND $condition";
+      $query = "SELECT COALESCE(SUM($sumExpr), 0) AS balance FROM point_transactions WHERE user_id = ? AND $legacy";
       $stmt = $con->prepare($query);
+      if (!$stmt) {
+        error_log('reserveCalcVHEcoBalance fallback prepare failed: ' . $con->error);
+        return 0;
+      }
+      $stmt->bind_param('i', $userId);
+    } else {
+      $stmt->bind_param('ii', $userId, $userId);
     }
-    if (!$stmt) {
-      error_log('reserveCalcVHEcoBalance fallback prepare failed: ' . $con->error);
-      return 0;
-    }
-    $stmt->bind_param('i', $userId);
     if (!$stmt->execute()) {
       error_log('reserveCalcVHEcoBalance execute failed: ' . $stmt->error);
       $stmt->close(); return 0;
@@ -163,7 +199,15 @@ function generateUniqueRefCode($con){
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $tokenPosted = isset($_POST['csrf_token']) ? $_POST['csrf_token'] : '';
-  if (!is_string($tokenPosted) || !hash_equals($sessionCsrfToken, $tokenPosted)) {
+  $csrfOk = false;
+  if (is_string($tokenPosted) && $tokenPosted !== '') {
+    if ($sessionCsrfToken !== '' && hash_equals($sessionCsrfToken, $tokenPosted)) {
+      $csrfOk = true;
+    } elseif (function_exists('vpCsrfVerify') && vpCsrfVerify($tokenPosted)) {
+      $csrfOk = true;
+    }
+  }
+  if (!$csrfOk) {
     $errorMsg = 'Invalid form submission.';
   } else {
     $use_points_post = isset($_POST['use_points']) ? intval($_POST['use_points']) : 0;
@@ -238,6 +282,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $allowedAmenities = ['Clubhouse','Multi-Purpose Building','Basketball Court','Tennis Court'];
     if (!in_array($amenity, $allowedAmenities, true)) { $errorMsg = 'Please select an amenity.'; }
+
+    // Early points-balance validation: must run BEFORE the session-state write
+    // block (if (!$errorMsg)) to prevent an insufficient-balance POST from
+    // falling through to a cash redirect or creating a pending_reservation.
+    if (!$errorMsg && $use_points_post && $acct === 'resident' && $sessionUserId !== null) {
+      $epPointsRequired = 0;
+      switch ($amenity) {
+        case 'Basketball Court': case 'Tennis Court': $epPointsRequired = 300; break;
+        case 'Clubhouse': $epPointsRequired = 600; break;
+        case 'Multi-Purpose Building': $epPointsRequired = 750; break;
+        default: $errorMsg = 'Invalid amenity for point redemption.';
+      }
+      if (!$errorMsg) {
+        $epBalance = reserveCalcVHEcoBalance($con, intval($sessionUserId));
+        if ($epBalance < $epPointsRequired) {
+          $errorMsg = 'Insufficient VHEcoPoint Balance: You need ' . $epPointsRequired . ' pts to redeem 1 free hour for this amenity, but your current VHEcoPoint ledger balance is ' . $epBalance . ' pts. Earn more points by recycling eligible materials at the VHEcoPoint Smart Waste Segregation Station.';
+          // Force cash mode so downstream logic treats this as a normal cash
+          // reservation attempt (form re-renders with the error alert).
+          $use_points_post = 0;
+          $price = round($basePrice, 2);
+          $downpayment = round($price * 0.5, 2);
+        }
+      }
+    }
     $sdObj = $start ? DateTime::createFromFormat('Y-m-d', $start) : false;
     $edObj = $end ? DateTime::createFromFormat('Y-m-d', $end) : false;
     $stObj = $startTime ? DateTime::createFromFormat('H:i', $startTime) : false;
@@ -936,26 +1004,19 @@ vpMark('household');
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
-  <link rel="stylesheet" href="css/reserve.css?v=<?php echo @filemtime(__DIR__ . '/css/reserve.css') ?: 12; ?>">
+  <link rel="stylesheet" href="css/reserve.css?v=<?php echo substr(@md5_file(__DIR__ . '/css/reserve.css') ?: '', 0, 12); ?>">
+  <link rel="stylesheet" href="css/navbar.css?v=<?php echo substr(@md5_file(__DIR__ . '/css/navbar.css') ?: '', 0, 12); ?>">
 </head>
+<?php
+// Flush the <head> HTML now so the browser can start loading CSS/JS while the
+// server generates the body. Keeps the upstream connection active on slow
+// Hostinger servers and reduces the chance of nginx 504 timeouts.
+if (ob_get_level() > 0) { ob_end_flush(); }
+?>
 <body>
   <div id="notifyLayer" class="toast"></div>
    
-<header class="navbar">
-  <div class="logo-wrap">
-    <div class="logo">
-      <a href="mainpage.php"><img src="images/logo.svg" alt="VictorianPass Logo"></a>
-      <div class="brand-text">
-        <h1>VictorianPass</h1>
-        <p>Victorian Heights Subdivision</p>
-      </div>
-    </div>
-  </div>
-  <div class="ecopoint-badge">
-    <span class="ecopoint-icon"><i class="fa-solid fa-recycle"></i></span>
-    <span class="ecopoint-text">VHEcoPoint</span>
-  </div>
-</header>
+<?php include __DIR__ . '/navbar.php'; ?>
 
 <section class="hero">
   <div class="layout">
@@ -969,9 +1030,9 @@ vpMark('household');
       <?php if ($isResident): ?>
         <!-- View Rewards Modal -->
         <div id="viewRewardsModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:10000; align-items:center; justify-content:center; padding:20px;">
-          <div style="background:#fff; border-radius:20px; max-width:800px; width:100%; max-height:90vh; overflow-y:auto; position:relative;">
+          <div class="view-rewards-content" style="background:#fff; border-radius:20px; max-width:800px; width:100%; max-height:90vh; overflow-y:auto; position:relative;">
             <!-- Modal Header -->
-            <div style="padding:24px 24px 0; display:flex; justify-content:space-between; align-items:center;">
+            <div class="view-rewards-header" style="padding:24px 24px 0; display:flex; justify-content:space-between; align-items:center;">
               <h2 style="margin:0; color:#23412e; font-size:1.5rem; font-weight:800;"><i class="fa-solid fa-gift" aria-hidden="true"></i> View Rewards</h2>
               <button type="button" id="closeRewardsModal" class="close-profile-modal" aria-label="Close">
                 &times;
@@ -979,18 +1040,18 @@ vpMark('household');
             </div>
             
             <!-- Modal Content -->
-            <div style="padding:24px;">
+            <div class="view-rewards-body" style="padding:24px;">
 
               <!-- Current Points -->
-              <div style="background:linear-gradient(135deg,#23412e,#1f3528); color:#fff; padding:20px; border-radius:16px; margin-bottom:24px;">
+              <div class="view-rewards-balance" style="background:linear-gradient(135deg,#23412e,#1f3528); color:#fff; padding:20px; border-radius:16px; margin-bottom:24px;">
                 <div style="font-size:0.9rem; opacity:0.9; margin-bottom:4px;">Your Current Balance</div>
                 <div style="font-size:2.5rem; font-weight:800;"><?php echo number_format($residentPoints); ?> pts</div>
               </div>
 
               <!-- All Available Amenity Rewards -->
-              <div style="margin-bottom:24px;">
+              <div class="view-rewards-amenities" style="margin-bottom:24px;">
                 <div style="font-size:1.25rem; font-weight:800; color:#23412e; margin-bottom:16px;">All Available Amenities</div>
-                <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px;">
+                <div class="view-rewards-grid" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px;">
                   <?php 
                     $allAmenities = [
                       ['name' => 'Basketball Court', 'points' => 300, 'img' => 'images/basketballcourt.png'],
@@ -1009,22 +1070,22 @@ vpMark('household');
                         </div>
                         <div style="flex:1;">
                           <div style="font-weight:800; font-size:1rem; color:#111827;"><?php echo htmlspecialchars($amenity['name']); ?></div>
-                          <div style="display:flex; gap:8px; align-items:center; font-size:0.8rem; margin-top:4px;">
+                          <div class="view-rewards-card-meta" style="display:flex; gap:8px; align-items:center; font-size:0.8rem; margin-top:4px; flex-wrap:wrap;">
                             <span style="color:#23412e; font-weight:700;"><?php echo number_format($amenity['points']); ?> pts / hour</span>
                             <?php if ($isEligible): ?>
-                              <span style="background:#d1fae5; color:#065f46; padding:2px 8px; border-radius:10px; font-weight:700; font-size:0.75rem;"><i class="fa-solid fa-check" aria-hidden="true"></i> Eligible</span>
+                              <span class="view-rewards-badge view-rewards-badge-ok" style="background:#d1fae5; color:#065f46; padding:2px 8px; border-radius:10px; font-weight:700; font-size:0.75rem;"><i class="fa-solid fa-check" aria-hidden="true"></i> Eligible</span>
                             <?php else: ?>
-                              <span style="background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:10px; font-weight:700; font-size:0.75rem;"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Need <?php echo number_format($amenity['points'] - $residentPoints); ?> more</span>
+                              <span class="view-rewards-badge view-rewards-badge-need" style="background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:10px; font-weight:700; font-size:0.75rem; white-space:nowrap;"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Need <?php echo number_format($amenity['points'] - $residentPoints); ?> more</span>
                             <?php endif; ?>
                           </div>
                         </div>
                       </div>
-                      <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
-                        <div style="display:flex; flex-direction:column;">
+                      <div class="view-rewards-card-bottom" style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                        <div class="view-rewards-card-balance" style="display:flex; flex-direction:column; min-width:0;">
                           <span style="color:#6b7280; font-size:0.8rem;">Your balance:</span>
                           <span style="font-weight:800; color:#111827; font-size:0.9rem;"><?php echo number_format($residentPoints); ?> pts</span>
                         </div>
-                        <button type="button" style="padding:8px 20px; border-radius:10px; border:none; font-weight:700; font-size:0.85rem; cursor:pointer; transition:all 0.2s; <?php echo $isEligible ? 'background:linear-gradient(135deg,#23412e,#1f5a33); color:#fff; box-shadow:0 2px 8px rgba(35,65,46,0.2);' : 'background:#e5e7eb; color:#6b7280; cursor:not-allowed;'; ?>">
+                        <button type="button" class="view-rewards-card-btn" style="padding:8px 16px; border-radius:10px; border:none; font-weight:700; font-size:0.85rem; cursor:pointer; transition:all 0.2s; white-space:nowrap; <?php echo $isEligible ? 'background:linear-gradient(135deg,#23412e,#1f5a33); color:#fff; box-shadow:0 2px 8px rgba(35,65,46,0.2);' : 'background:#e5e7eb; color:#6b7280; cursor:not-allowed;'; ?>">
                           <?php echo $isEligible ? 'Redeem' : 'Not Enough Points'; ?>
                         </button>
                       </div>
@@ -1044,7 +1105,7 @@ vpMark('household');
                 }
                 if ($showEarnPoints): 
               ?>
-                <div style="background:#fffbeb; border:1px solid #fcd34d; border-radius:16px; padding:20px;">
+                <div class="view-rewards-contact" style="background:#fffbeb; border:1px solid #fcd34d; border-radius:16px; padding:20px;">
                   <div style="font-weight:800; color:#92400e; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
                      <i class="fa-solid fa-lightbulb"></i> Earn More Points
                    </div>
@@ -1111,13 +1172,6 @@ vpMark('household');
 
         </div>
       </div>
-      <?php if ($isResident): ?>
-      <div class="booking-steps-protip-float" id="proTipFloat">
-        <span class="protip-icon"><i class="fa-solid fa-lightbulb" aria-hidden="true"></i></span>
-        <span class="protip-text"><strong>Pro Tip:</strong> You can use the points you have collected in VHEcoPoint Smart Waste Segregation Station when booking an amenity for a free 1 hour. Click on an amenity above to see if you're eligible!</span>
-        <button type="button" class="protip-dismiss" id="proTipDismiss" aria-label="Dismiss pro tip">&times;</button>
-      </div>
-      <?php endif; ?>
 
       <div class="amenities-wrapper">
         <div class="amenities-right">
@@ -1320,80 +1374,21 @@ vpMark('household');
                         <button type="button" onclick="changePersons(1)">+</button>
                       </div>
                       <?php endif; ?>
-                      <input type="hidden" name="persons" id="personsInput" value="0">
+                      <input type="hidden" name="persons" id="personsInput" value="<?php echo $isResident ? '1' : '0'; ?>">
                       
                       <?php if ($isResident): ?>
-                      <div id="participantWrap" style="display:block;">
-                        <div class="participant-selector" style="margin-top:14px; border:1px solid #e5e7eb; border-radius:12px; padding:12px; background:#fafafa;">
-                          <div style="font-weight:700; margin-bottom:8px;">Who will attend?</div>
-                          <div class="mode-options" style="display:flex;flex-direction:column;gap:8px;">
-                            <button type="button" class="btn-secondary" data-mode="resident_only">Residents Only</button>
-                            <div style="color:#555;font-size:0.85rem;">All selected residents receive a 33.33% discount.</div>
-                            <button type="button" class="btn-secondary" data-mode="resident_guest">Residents + Guests</button>
-                            <div style="color:#555;font-size:0.85rem;">Residents receive a 33.33% discount. Guests pay full price.</div>
-                            <button type="button" class="btn-secondary" data-mode="guest_only">Guests Only</button>
-                            <div style="color:#555;font-size:0.85rem;">Guests are charged the regular rate.</div>
+                      <div id="participantWrap" data-mode="resident_only" style="display:block;">
+                        <div class="pers-total">
+                          <div class="res-label"><small>Number of Participants</small></div>
+                          <div class="counter">
+                            <button type="button" onclick="changeReserveTotal(-1)">-</button>
+                            <input type="number" id="reserveTotalCount" value="1" min="1" step="1" style="width:70px;text-align:center;border:1px solid #e5e7eb;border-radius:8px;padding:6px 10px;font-weight:600;">
+                            <button type="button" onclick="changeReserveTotal(1)">+</button>
                           </div>
-                          <div class="resident-group" style="display:none; margin-top:12px; border:1px solid #e5e7eb; border-radius:12px; padding:12px; background:#fff;">
-                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-                              <div style="width:8px;height:8px;border-radius:50%;background:#1f8a3a;"></div>
-                              <div style="font-weight:600;">Residents (Discounted)</div>
-                            </div>
-                            <div style="display:flex;flex-direction:column;gap:8px;max-height:220px;overflow:auto;">
-                              <label style="display:flex;align-items:center;gap:8px;">
-                                <input type="checkbox" class="resident-check" value="<?php echo isset($currentResident['id']) ? (int)$currentResident['id'] : 0; ?>" data-name="Me (Primary Resident)" checked>
-                                <span>Me (Primary Resident)</span>
-                              </label>
-                              <?php foreach ($householdResidents as $hr): ?>
-                              <?php $hrName = trim(($hr['first_name'] ?? '') . ' ' . ($hr['middle_name'] ?? '') . ' ' . ($hr['last_name'] ?? '')); if ($hrName==='') { $hrName='Resident'; } ?>
-                              <label style="display:flex;align-items:center;gap:8px;">
-                                <input type="checkbox" class="resident-check" value="<?php echo (int)$hr['id']; ?>" data-name="<?php echo htmlspecialchars($hrName); ?>">
-                                <span><?php echo htmlspecialchars($hrName); ?> (Resident)</span>
-                              </label>
-                              <?php endforeach; ?>
-                            </div>
-                          </div>
-                          <div class="guest-group" style="display:none; margin-top:12px; border:1px solid #e5e7eb; border-radius:12px; padding:12px; background:#fff;">
-                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-                              <div style="width:8px;height:8px;border-radius:50%;background:#2a4fe5;"></div>
-                              <div style="font-weight:600;">Approved Guests (Full Price)</div>
-                            </div>
-                            <div style="display:flex;flex-direction:column;gap:8px;max-height:220px;overflow:auto;">
-                              <?php foreach ($residentGuests as $g): ?>
-                              <?php $gName = trim(($g['visitor_first_name'] ?? '') . ' ' . ($g['visitor_middle_name'] ?? '') . ' ' . ($g['visitor_last_name'] ?? '')); if ($gName==='') { $gName='Guest'; } ?>
-                              <label style="display:flex;align-items:center;gap:8px;">
-                                <input type="checkbox" class="guest-check" value="<?php echo (int)$g['id']; ?>" data-ref="<?php echo htmlspecialchars($g['ref_code']); ?>" data-name="<?php echo htmlspecialchars($gName); ?>">
-                                <span><?php echo htmlspecialchars($gName); ?></span>
-                              </label>
-                              <?php endforeach; ?>
-                            </div>
-                          </div>
+                          <small class="label-help" id="reserveMaxNote">Maximum: 200 participants</small>
                         </div>
-                        <div style="margin-top:10px; border-top:1px dashed #ddd; padding-top:10px;">
-                          <div class="res-label"><small>Participants Breakdown</small></div>
-                          <div style="display:flex; gap:16px; flex-wrap:wrap;">
-                            <div style="flex:1; min-width:180px;">
-                              <div style="font-weight:600; color:#23412e; margin-bottom:6px;">Residents</div>
-                              <div class="counter">
-                                <button type="button" onclick="changeResidents(-1)">-</button>
-                                <span id="residentsCountText"><?php echo ($sessionUserType === 'resident') ? '1' : '0'; ?></span>
-                                <button type="button" onclick="changeResidents(1)">+</button>
-                              </div>
-                              <small class="label-help">33.33% discount per resident</small>
-                            </div>
-                            <div style="flex:1; min-width:180px;">
-                              <div style="font-weight:600; color:#8a2a2a; margin-bottom:6px;">Approved Guests</div>
-                              <div class="counter">
-                                <button type="button" onclick="changeGuests(-1)">-</button>
-                                <span id="guestsCountText">0</span>
-                                <button type="button" onclick="changeGuests(1)">+</button>
-                              </div>
-                              <small class="label-help">Full price per guest</small>
-                            </div>
-                          </div>
-                        </div>
-                    </div>
-                    <?php endif; ?>
+                      </div>
+                      <?php endif; ?>
                     </div>
                     <div class="res-item price-row">
                       <div class="price-box">
@@ -1613,8 +1608,7 @@ vpMark('household');
     }
   }
 
-  // Function to show a popup error
-  function showPointsErrorPopup(message, showPayNormally) {
+  function showPointsErrorPopup(message, showBookWithCash) {
     let popup = document.getElementById('points-error-popup');
     let overlay = document.getElementById('points-error-overlay');
     if (!overlay) {
@@ -1625,6 +1619,7 @@ vpMark('household');
         const p = document.getElementById('points-error-popup');
         if (p) p.classList.remove('open');
         overlay.classList.remove('open');
+        document.body.classList.remove('modal-open');
       });
       document.body.appendChild(overlay);
     }
@@ -1637,11 +1632,11 @@ vpMark('household');
 
     popup.innerHTML = `
       <div class="points-error-inner">
-        <h3 class="points-error-title"><i class="fa-solid fa-triangle-exclamation" style="color:#dc2626;"></i> Insufficient VHEcoPoints</h3>
+        <h3 class="points-error-title"><i class="fa-solid fa-triangle-exclamation" style="color:#dc2626;"></i> Insufficient Points</h3>
         <p class="points-error-message">${message}</p>
-        <div class="points-error-actions" style="display:flex;gap:10px;margin-top:16px;justify-content:center;flex-wrap:wrap;">
-          ${showPayNormally ? '<button class="points-error-pay-normal" style="padding:10px 20px;border-radius:8px;border:2px solid #16a34a;background:#d1fae5;color:#065f46;font-weight:700;cursor:pointer;">Pay Normally</button>' : ''}
-          <button class="points-error-close" style="padding:10px 20px;border-radius:8px;border:2px solid #dc2626;background:#fee2e2;color:#991b1b;font-weight:700;cursor:pointer;">Cancel</button>
+        <div class="points-error-actions">
+          ${showBookWithCash ? '<button class="points-error-pay-normal">Book with Cash</button>' : ''}
+          <button class="points-error-close">Cancel</button>
         </div>
       </div>
     `;
@@ -1651,6 +1646,7 @@ vpMark('household');
       closeBtn.addEventListener('click', () => {
         popup.classList.remove('open');
         overlay.classList.remove('open');
+        document.body.classList.remove('modal-open');
       });
     }
 
@@ -1659,6 +1655,7 @@ vpMark('household');
       payNormalBtn.addEventListener('click', () => {
         popup.classList.remove('open');
         overlay.classList.remove('open');
+        document.body.classList.remove('modal-open');
         const toggle = document.getElementById('use-points-toggle');
         if (toggle) toggle.checked = false;
         usePoints = false;
@@ -1671,25 +1668,10 @@ vpMark('household');
         updateBookingModeCards();
       });
     }
-    const hoursSelect = document.getElementById('hoursSelect');
-    if (hoursSelect) hoursSelect.disabled = lock;
 
-    // Duration container buttons
-    const durationContainer = document.getElementById('durationContainer');
-    if (durationContainer) {
-      Array.from(durationContainer.children).forEach(btn => {
-        if (btn.tagName === 'BUTTON' || btn.classList.contains('duration-btn')) {
-          btn.disabled = lock;
-          if (lock) {
-            btn.style.opacity = '0.5';
-            btn.style.cursor = 'not-allowed';
-          } else {
-            btn.style.opacity = '1';
-            btn.style.cursor = 'pointer';
-          }
-        }
-      });
-    }
+    popup.classList.add('open');
+    overlay.classList.add('open');
+    document.body.classList.add('modal-open');
   }
 
   function updateRedemptionInfo() {
@@ -1715,7 +1697,8 @@ vpMark('household');
         if (remainingPoints < 0) {
         toggle.checked = false;
         usePoints = false;
-        showPointsErrorPopup("You do not have enough VHEcoPoints to redeem the 1 free hour for this amenity. Please pay normally or earn more points by recycling at the VHEcoPoint Smart Waste Station.", true);
+        const reqP = getPointsRequired(selectedAmenity);
+        showPointsErrorPopup("You don\u2019t have enough points to redeem this amenity. You need " + reqP.toLocaleString() + " pts for 1 free hour, but your current balance is " + residentPoints.toLocaleString() + " pts. Please earn more points or choose Book with Cash.", true);
           if (redemptionInfo) redemptionInfo.style.display = 'none';
         } else {
           if (requiredPointsEl) requiredPointsEl.textContent = pointsRequired.toLocaleString() + ' pts';
@@ -2520,6 +2503,32 @@ vpMark('household');
     updateBookingSummary();
     updateActionStates();
   }
+  async function setReserveTotalCount(desired){
+    const rcEl=document.getElementById('reserveTotalCount');
+    if(!rcEl) return;
+    const amen=document.getElementById('amenityField') ? document.getElementById('amenityField').value : '';
+    let max=typeof getAmenityMaxPersons==='function' ? getAmenityMaxPersons(amen) : Infinity;
+    const desiredCount=Math.max(0, parseInt(desired||'0',10) || 0);
+    const minAllowed=1;
+    const count=Math.min(max,Math.max(minAllowed,desiredCount));
+    if('value' in rcEl){ rcEl.value=String(count); } else { rcEl.textContent=String(count); }
+    const pInput=document.getElementById('personsInput'); if(pInput){ pInput.value=String(count); }
+    const personEl=document.getElementById('participantTotal'); if(personEl){ if('value' in personEl){ personEl.value=String(count); } else { personEl.textContent=String(count); } }
+    const note=document.getElementById('reserveMaxNote'); if(note){ note.textContent = max!==Infinity ? (`Maximum: ${max} participants`) : ''; }
+    if(count>=max){ setFieldWarning('reserveTotalCount',`Maximum is ${max} participants.`); } else { setFieldWarning('reserveTotalCount',''); }
+    if(typeof updateDisplayedPrice==='function') updateDisplayedPrice();
+    if(typeof updateDownpaymentSuggestion==='function') updateDownpaymentSuggestion();
+    if(typeof updateBookingSummary==='function') updateBookingSummary();
+    if(typeof updateActionStates==='function') updateActionStates();
+    if(typeof persistForm==='function') persistForm();
+  }
+  async function changeReserveTotal(delta){
+    const rcEl=document.getElementById('reserveTotalCount');
+    if(!rcEl) return;
+    let count=parseInt((('value' in rcEl) ? rcEl.value : rcEl.textContent)||'0',10);
+    if(!Number.isFinite(count)){ count = 0; }
+    await setReserveTotalCount(count + delta);
+  }
   async function changePersons(val){
     const pcEl=document.getElementById('personCount');
     let count=parseInt(((pcEl && (pcEl.value||pcEl.textContent))||'0'),10);
@@ -2565,13 +2574,7 @@ vpMark('household');
     updateActionStates();
     if(typeof persistForm === 'function') persistForm();
   }
-  async function changeGuests(delta){
-    const wrap=document.getElementById('participantWrap');
-    const mode=wrap ? (wrap.getAttribute('data-mode')||'') : '';
-    if(mode==='resident_only'){
-      setFieldWarning('personsInput','Guests cannot be added in Residents Only mode.');
-      return;
-    }
+  async function changePersons(val){
     const gEl=document.getElementById('guestsCountText');
     const gInput=document.getElementById('guestsCountInput');
     const rInput=document.getElementById('residentsCountInput');
@@ -3286,6 +3289,13 @@ vpMark('household');
         await setPersonsCount(desired);
       });
     }
+    const reserveTotalInput=document.getElementById('reserveTotalCount');
+    if(reserveTotalInput){
+      reserveTotalInput.addEventListener('input', async function(){
+        const desired=parseInt(reserveTotalInput.value||'0',10);
+        await setReserveTotalCount(desired);
+      });
+    }
   });
   const cs=document.getElementById('clearStartBtn'); if(cs){ cs.addEventListener('click',clearStartDate); }
   const ce=document.getElementById('clearEndBtn'); if(ce){ ce.addEventListener('click',clearEndDate); }
@@ -3327,7 +3337,7 @@ vpMark('household');
         }
         // First check the cached balance
         if (residentPoints < reqPoints) {
-          showPointsErrorPopup("You do not have enough VHEcoPoints to redeem the 1 free hour for this amenity. You need " + reqPoints.toLocaleString() + " pts but only have " + residentPoints.toLocaleString() + " pts. Please pay normally or earn more points.", true);
+          showPointsErrorPopup("You don\u2019t have enough points to redeem this amenity. You need " + reqPoints.toLocaleString() + " pts for 1 free hour, but your current balance is " + residentPoints.toLocaleString() + " pts. Please earn more points or choose Book with Cash.", true);
           return;
         }
         // Then do a live server check to catch race conditions or stale data
@@ -3335,7 +3345,7 @@ vpMark('household');
         if (liveBalance !== null && liveBalance < reqPoints) {
           // Update the cached balance so UI reflects reality
           window.__residentPoints = liveBalance;
-          showPointsErrorPopup("You do not have enough VHEcoPoints to redeem the 1 free hour for this amenity. You need " + reqPoints.toLocaleString() + " pts but your current balance is " + liveBalance.toLocaleString() + " pts. Please pay normally or earn more points.", true);
+          showPointsErrorPopup("You don\u2019t have enough points to redeem this amenity. You need " + reqPoints.toLocaleString() + " pts for 1 free hour, but your current balance is " + liveBalance.toLocaleString() + " pts. Please earn more points or choose Book with Cash.", true);
           return;
         }
       }
@@ -3618,6 +3628,7 @@ vpMark('household');
       if(!rGroup || !gGroup) return;
       const wrap=document.getElementById('participantWrap');
       if(wrap){ wrap.setAttribute('data-mode', m); }
+      sel.querySelectorAll('.mode-radio-input').forEach(function(r){ r.checked = (r.value === m); });
       if(m==='resident_only'){
         rGroup.style.display='block';
         gGroup.style.display='none';
@@ -3642,6 +3653,15 @@ vpMark('household');
       sel.querySelectorAll('.mode-options [data-mode]').forEach(function(btn){
         btn.addEventListener('click',function(){
           applyModeTo(sel, btn.getAttribute('data-mode')||'resident_only');
+        });
+      });
+      sel.querySelectorAll('.mode-radio-input').forEach(function(radio){
+        radio.addEventListener('change',function(){
+          if(radio.checked){
+            const rb=sel.querySelector('.mode-options [data-mode="'+radio.value+'"]')||null;
+            applyModeTo(sel, radio.value||'resident_only');
+            if(rb){ rb.classList.add('is-active'); }
+          }
         });
       });
       sel.addEventListener('change',function(e){
@@ -3779,7 +3799,11 @@ vpMark('household');
       if(data.end_date){ document.getElementById('endDateInput').value=data.end_date; }
       if(data.start_time){ document.getElementById('startTimeInput').value=data.start_time; }
       if(data.end_time){ document.getElementById('endTimeInput').value=data.end_time; }
-      if(data.persons){ document.getElementById('personsInput').value=data.persons; document.getElementById('personCount').textContent=String(data.persons); }
+      if(data.persons){
+        document.getElementById('personsInput').value=data.persons;
+        const pcR=document.getElementById('personCount'); if(pcR){ if('value' in pcR){ pcR.value=String(data.persons); } else { pcR.textContent=String(data.persons); } }
+        const rtcR=document.getElementById('reserveTotalCount'); if(rtcR){ if('value' in rtcR){ rtcR.value=String(data.persons); } else { rtcR.textContent=String(data.persons); } }
+      }
       if(data.booking_for){
         const bookingForField=document.getElementById('bookingForField');
         if(bookingForField) bookingForField.value=data.booking_for;
@@ -3877,16 +3901,6 @@ vpMark('household');
         var collapsed=panel.classList.toggle('is-collapsed');
         toggle.textContent=collapsed?'+':'−';
         toggle.setAttribute('aria-expanded',collapsed?'false':'true');
-      });
-    }
-    var proTip=document.getElementById('proTipFloat');
-    var proTipDismiss=document.getElementById('proTipDismiss');
-    if(proTip&&proTipDismiss){
-      proTipDismiss.addEventListener('click',function(){
-        proTip.style.transition='opacity .2s,transform .2s';
-        proTip.style.opacity='0';
-        proTip.style.transform='translateY(-6px)';
-        setTimeout(function(){ proTip.remove(); },200);
       });
     }
   });
@@ -4266,21 +4280,43 @@ vpMark('household');
 .points-error-inner { padding: 18px; }
 .points-error-title { margin: 0 0 10px 0; color: #dc2626; font-size: 1.05rem; }
 .points-error-message { margin: 0; color: #374151; line-height: 1.45; }
-.points-error-close {
-  margin-top: 14px;
-  width: 100%;
-  padding: 10px 14px;
-  border-radius: 10px;
-  border: none;
-  background: linear-gradient(135deg,#23412e,#1f5a33);
-  color: #fff;
+.points-error-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+.points-error-pay-normal {
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: 2px solid #16a34a;
+  background: #d1fae5;
+  color: #065f46;
   font-weight: 700;
   cursor: pointer;
+  width: 100%;
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.9rem;
+}
+.points-error-close {
+  margin-top: 0;
+  width: 100%;
+  padding: 10px 20px;
+  border-radius: 10px;
+  border: 2px solid #dc2626;
+  background: #fee2e2;
+  color: #991b1b;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.9rem;
 }
 @media (max-width: 480px) {
   .points-error-popup { width: 94vw; padding: 0; border-radius: 12px; }
   .points-error-inner { padding: 14px; }
   .points-error-title { font-size: 1rem; }
+  .points-error-actions { flex-direction: column; }
+  .points-error-pay-normal, .points-error-close { width: 100%; }
 }
 </style>
 
@@ -4491,6 +4527,40 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 </script>
+
+<?php if ($isResident): ?>
+<div id="vhecopointProTipPopup" class="vhecopoint-popup-overlay" role="dialog" aria-modal="true" aria-labelledby="vhecopointProTipTitle" aria-describedby="vhecopointProTipText" style="display:none;">
+  <div class="vhecopoint-popup-card">
+    <button type="button" class="vhecopoint-popup-close" id="vhecopointProTipClose" aria-label="Close announcement">&times;</button>
+    <span class="vhecopoint-popup-icon" aria-hidden="true"><i class="fa-solid fa-lightbulb"></i></span>
+    <div class="vhecopoint-popup-title" id="vhecopointProTipTitle">Pro Tip!</div>
+    <p class="vhecopoint-popup-text" id="vhecopointProTipText">You can use the points you have collected in the VHEcoPoint Smart Waste Segregation Station when booking an amenity for a FREE 1 hour. Click on an amenity to see if you're eligible!</p>
+  </div>
+</div>
+<script>
+(function(){
+  var overlay = document.getElementById('vhecopointProTipPopup');
+  if(!overlay) return;
+  var closeBtn = document.getElementById('vhecopointProTipClose');
+  function hide(){
+    overlay.style.display = 'none';
+    overlay.classList.remove('vhecopoint-popup-open');
+  }
+  closeBtn.addEventListener('click', hide);
+  overlay.addEventListener('click', function(e){
+    if(e.target === overlay) hide();
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape' && overlay.style.display !== 'none') hide();
+  });
+  setTimeout(function(){
+    overlay.style.display = 'flex';
+    requestAnimationFrame(function(){ overlay.classList.add('vhecopoint-popup-open'); });
+    setTimeout(function(){ closeBtn.focus(); }, 350);
+  }, 600);
+})();
+</script>
+<?php endif; ?>
 
 </body>
 </html>

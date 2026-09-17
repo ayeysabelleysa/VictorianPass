@@ -293,6 +293,15 @@ $sectionPageTitles = [
 ];
 $dashboardPageTitle = $sectionPageTitles[$activeSection] ?? 'Dashboard';
 
+$sectionPageSubtitles = [
+  'panel-requests' => 'View and manage all of your amenity and guest requests.',
+  'panel-guest-form' => 'Add a guest to your saved list for visitor entry approval.',
+  'panel-my-guests' => 'View and manage the guests you have saved.',
+  'panel-history' => 'See the log of your past passes, reservations, and requests.',
+  'panel-points-history' => 'Earn points by recycling and redeem them for amenity hours.',
+];
+$dashboardPageSubtitle = $sectionPageSubtitles[$activeSection] ?? 'Overview of your VictorianPass dashboard.';
+
 // Fetch point transactions - ONLY those tied to VHEcoPoint sessions so dashboard numbers
 // (balance, weekly points, daily sessions, activity history, expiry) share ONE source of truth.
 $ecoPointTransactions = [];
@@ -821,7 +830,7 @@ foreach ($activities as $act) {
     $s = strtolower($act['status']);
     $isHistory = false;
 
-    if (strpos($s, 'deleted') !== false || strpos($s, 'cancel') !== false || strpos($s, 'complete') !== false || strpos($s, 'finish') !== false || strpos($s, 'moved_to_history') !== false || strpos($s, 'permission_granted') !== false) {
+    if (strpos($s, 'deleted') !== false || strpos($s, 'cancel') !== false || strpos($s, 'complete') !== false || strpos($s, 'finish') !== false || strpos($s, 'moved_to_history') !== false || strpos($s, 'permission_granted') !== false || strpos($s, 'expired') !== false) {
         $isHistory = true;
     }
 
@@ -919,7 +928,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
 <title>Resident Dashboard - Victorian Heights</title>
 <link rel="icon" type="image/png" href="images/logo.svg">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<?php $_dashCss = @filemtime(__DIR__ . '/css/dashboard.css') ?: 1; $_gfCss = @filemtime(__DIR__ . '/css/guestform.css') ?: 1; ?>
+<?php $_dashCss = substr(@md5_file(__DIR__ . '/css/dashboard.css') ?: '', 0, 12); $_gfCss = substr(@md5_file(__DIR__ . '/css/guestform.css') ?: '', 0, 12); ?>
 <link rel="stylesheet" href="css/dashboard.css?v=<?php echo $_dashCss; ?>">
 <link rel="stylesheet" href="css/guestform.css?v=<?php echo $_gfCss; ?>">
 <!-- FontAwesome for icons -->
@@ -947,6 +956,8 @@ body.account-blocked { overflow: hidden; }
 .main-content.ecopoint-active .top-header .icon-btn i,
 .main-content.ecopoint-active .top-header .user-profile,
 .main-content.ecopoint-active .top-header .menu-toggle i { color: #f4f4f4; }
+.main-content.ecopoint-active .top-header .icon-btn.active i,
+.main-content.ecopoint-active .top-header .menu-toggle.active i { color: #fbbf24; }
 
 /* Panel shell — light background, not dark green */
 .main-content.ecopoint-active #panel-points-history {
@@ -1136,68 +1147,39 @@ body.account-blocked { overflow: hidden; }
   .main-content.ecopoint-active #panel-points-history .ecopoint-live-meta { grid-template-columns: 1fr 1fr; }
 }
 
-/* Compact, balanced VHEcoPoint / dashboard header on mobile */
+/* Compact dashboard header on mobile */
 @media (max-width: 768px) {
-  .top-header {
-    height: 58px;
-    padding: 0 14px;
-  }
-  .header-brand {
-    gap: 0;
-    min-width: 0;
-    overflow: hidden;
-  }
-  .main-content.ecopoint-active .top-header .ecopoint-header-logo { font-size: 32px; }
-  .header-brand img {
-    height: 32px;
-    margin-right: 8px;
-    flex-shrink: 0;
-  }
-  .menu-toggle {
-    width: 36px;
-    height: 34px;
-    font-size: 1.25rem;
-    margin-right: 8px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-  .brand-text {
-    min-width: 0;
-    overflow: hidden;
-  }
-  .brand-main { font-size: 0.95rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .brand-sub { font-size: 0.68rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .header-actions { gap: 10px; }
-  .icon-btn { font-size: 1.05rem; flex-shrink: 0; }
-  .user-name { font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 90px; }
-  .user-avatar { width: 34px; height: 34px; flex-shrink: 0; }
-  .user-profile { gap: 7px; min-width: 0; }
+  .top-header { padding: 6px 10px; }
+  .header-brand { gap: 0; min-width: 0; overflow: hidden; }
+  .main-content.ecopoint-active .top-header .ecopoint-header-logo { font-size: 28px; }
+  .header-brand img { height: 28px; margin-right: 6px; flex-shrink: 0; }
+  .menu-toggle { width: 32px; height: 30px; font-size: 1.1rem; margin-right: 6px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .brand-text { min-width: 0; overflow: hidden; }
+  .brand-main { font-size: 0.88rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .brand-sub { font-size: 0.62rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .header-actions { gap: 7px; flex-shrink: 0; }
+  .icon-btn { font-size: 0.92rem; flex-shrink: 0; }
+  .user-name { font-size: 0.76rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 72px; }
+  .user-avatar { width: 30px; height: 30px; flex-shrink: 0; }
+  .user-profile { gap: 6px; min-width: 0; }
 }
 
 @media (max-width: 430px) {
-  .top-header { padding: 0 10px; }
-  .header-brand img { margin-right: 6px; }
-  .brand-main { font-size: 0.88rem; max-width: 120px; }
-  .brand-sub { font-size: 0.62rem; max-width: 110px; }
-  .header-actions { gap: 8px; }
-  .user-name { font-size: 0.76rem; max-width: 70px; }
-}
-
-@media (max-width: 430px) {
-  .top-header { padding: 0 10px; }
-  .header-brand img { margin-right: 6px; }
-  .brand-main { font-size: 0.88rem; }
-  .brand-sub { font-size: 0.62rem; }
-  .header-actions { gap: 8px; }
-  .user-name { font-size: 0.76rem; }
+  .top-header { padding: 6px 8px; }
+  .header-brand img { height: 26px; margin-right: 5px; }
+  .brand-main { font-size: 0.82rem; max-width: 100px; }
+  .brand-sub { font-size: 0.56rem; max-width: 90px; }
+  .header-actions { gap: 6px; }
+  .icon-btn { font-size: 0.88rem; padding: 6px 8px; }
+  .user-name { font-size: 0.72rem; max-width: 62px; }
+  .user-avatar { width: 28px; height: 28px; }
+  .user-profile { gap: 5px; }
 }
 
 @media (max-width: 320px) {
   .brand-sub { display: none; }
   .user-name { display: none; }
-  .header-actions { gap: 6px; }
+  .header-actions { gap: 5px; }
 }
 @media (max-width: 480px) {
   .main-content.ecopoint-active #panel-points-history .ecopoint-live-meta { grid-template-columns: 1fr; }
@@ -1233,17 +1215,17 @@ body.account-blocked { overflow: hidden; }
 .toast-item.toast-warning { border-left-color: #d97706; }
 .toast-item.toast-error { border-left-color: #c0392b; }
 .nav-item.ecopoint-link {
-  color: #14532d;
-  background-color: #dcfce7;
-  border-left: 4px solid #16a34a;
+  color: #ecfdf5;
+  background-color: #14532d;
+  border-left: 4px solid #22c55e;
 }
 .nav-item.ecopoint-link:hover {
-  background-color: #bbf7d0;
-  color: #14532d;
+  background-color: #1a6b3a;
+  color: #ffffff;
 }
 .nav-item.ecopoint-link.active {
-  background-color: #bbf7d0;
-  color: #14532d;
+  background-color: #166534;
+  color: #ffffff;
   font-weight: 700;
 }
 .field-warning {
@@ -1567,6 +1549,439 @@ body.qr-modal-open{ overflow:hidden }
   #qrViewCardContainer .resident-id-card .id-body{ padding:8px 12px; }
   #qrViewCardContainer .resident-id-card .row{ margin:4px 0; }
 }
+
+/* ---------- Mobile fit: ALL Profile dashboard modals compact inside the viewport ---------- */
+@media (max-width: 768px) {
+  /* ============ Profile info modal ============ */
+  #profileModal.profile-modal-open {
+    align-items: center !important;
+    padding: 14px !important;
+    box-sizing: border-box;
+  }
+  #profileModal .profile-modal-content {
+    width: 66vw !important;
+    max-width: 340px !important;
+    max-height: calc(100vh - 24px) !important;
+    max-height: calc(100dvh - 24px) !important;
+    padding: 16px 18px 16px 18px !important;
+    border-radius: 16px;
+    overflow: hidden !important;
+  }
+  #profileModal .profile-header {
+    flex-shrink: 0 !important;
+    padding: 0 0 8px !important;
+  }
+  #profileModal .profile-icon-large {
+    width: 58px !important;
+    height: 58px !important;
+    margin: 0 0 6px !important;
+  }
+  #profileModal .profile-modal-content .profile-title h3 {
+    font-size: 15px !important;
+    margin: 0 0 3px !important;
+    line-height: 1.25 !important;
+  }
+  #profileModal .profile-modal-content .profile-role {
+    padding: 2px 8px !important;
+    font-size: 10px !important;
+  }
+  #profileModal .profile-details {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    margin-top: 4px !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  #profileModal .detail-row {
+    padding: 6px 2px !important;
+    gap: 8px !important;
+  }
+  #profileModal .profile-modal-content .detail-label {
+    font-size: 10px !important;
+    color: #6b7280 !important;
+    gap: 6px !important;
+    line-height: 1.3 !important;
+  }
+  #profileModal .profile-modal-content .detail-value {
+    font-size: 13px !important;
+    line-height: 1.3 !important;
+  }
+  #profileModal .profile-modal-content .btn-qr-modal {
+    flex-shrink: 0 !important;
+    min-height: 36px !important;
+    margin-top: 8px !important;
+    padding: 6px 12px !important;
+    font-size: 13px !important;
+  }
+  #profileModal .profile-actions {
+    flex-shrink: 0 !important;
+    gap: 6px !important;
+    margin-top: 8px !important;
+  }
+  #profileModal .profile-modal-content .btn-change-password-modal,
+  #profileModal .profile-modal-content .btn-logout-modal {
+    min-height: 36px !important;
+    padding: 6px 10px !important;
+    font-size: 13px !important;
+  }
+
+  /* ============ Generic modal-content cap (kept minimal; imgModal has its own rules) ============ */
+  .modal-content {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+    margin: 12px auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ============ Small notification / confirm modals (ref, verify, guest pass, notice, report wait) ============ */
+  #refModal .modal-content,
+  #verifyModal .modal-content,
+  #guestPassModal .modal-content,
+  #submitNoticeModal .modal-content,
+  #reportWaitModal .modal-content {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    padding: 16px 16px 14px !important;
+    text-align: center;
+  }
+  #refModal .modal-content h2,
+  #verifyModal .modal-content h2,
+  #guestPassModal .modal-content h3,
+  #reportWaitModal .modal-content h3 {
+    font-size: 1.1rem !important;
+    font-weight: 700;
+    color: #23412e;
+    margin: 0 0 8px !important;
+    line-height: 1.3 !important;
+  }
+  #refModal .modal-content p,
+  #verifyModal .modal-content p,
+  #reportWaitModal .modal-content p {
+    margin: 4px 0 10px !important;
+    font-size: .8rem !important;
+    line-height: 1.5 !important;
+  }
+  #reportWaitModal .modal-content,
+  #reportWaitModal .report-wait-content p {
+    text-align: center;
+  }
+  #submitNoticeModal .modal-content > div {
+    margin-bottom: 8px !important;
+    font-size: .8rem !important;
+    line-height: 1.5 !important;
+  }
+  #submitNoticeModal .modal-content > div:first-of-type {
+    font-size: 1.1rem !important;
+    color: #23412e;
+  }
+  #submitNoticeModal #submitNoticeBtn {
+    margin-top: 12px !important;
+  }
+  #verifyModal #verifySummary {
+    margin-top: 6px !important;
+    font-size: .8rem !important;
+    line-height: 1.5;
+  }
+  #guestPassModal .modal-content {
+    padding-top: 12px !important;
+  }
+
+  /* ============ Cancel / Move-to-history confirm modals ============ */
+  #cancelModal .cancel-modal-content,
+  #moveHistoryModal .cancel-modal-content {
+    width: 66vw !important;
+    max-width: 340px !important;
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+    padding: 18px 16px 14px !important;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #cancelModal .cancel-modal-close,
+  #moveHistoryModal .cancel-modal-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    z-index: 2;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 0;
+    background: #e5e7eb;
+    color: #111827;
+    font-size: 16px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    line-height: 1;
+    box-shadow: none;
+  }
+  #cancelModal .cancel-modal-close:hover,
+  #moveHistoryModal .cancel-modal-close:hover {
+    filter: brightness(0.92);
+    transform: none;
+  }
+  #cancelModal .cancel-modal-header,
+  #moveHistoryModal .cancel-modal-header {
+    padding: 0 !important;
+  }
+  #cancelModal .cancel-modal-header h3,
+  #moveHistoryModal .cancel-modal-header h3 {
+    margin: 0 0 8px !important;
+    max-width: calc(100% - 40px);
+    width: auto;
+    font-size: 1.1rem !important;
+    font-weight: 800;
+    color: #23412e;
+    text-align: center;
+    line-height: 1.3;
+  }
+  #cancelModal .cancel-modal-body,
+  #moveHistoryModal .cancel-modal-body {
+    padding: 10px 0 0 !important;
+  }
+  #cancelModal .cancel-modal-body p,
+  #moveHistoryModal .cancel-modal-body p {
+    margin: 4px 0 8px !important;
+    font-size: .8rem !important;
+    line-height: 1.5 !important;
+  }
+  #cancelModal .cancel-modal-note,
+  #moveHistoryModal .cancel-modal-note {
+    font-size: .7rem !important;
+    line-height: 1.4 !important;
+    margin-bottom: 4px !important;
+  }
+  #cancelModal .cancel-modal-actions,
+  #moveHistoryModal .cancel-modal-actions {
+    gap: 8px !important;
+    padding-top: 6px !important;
+    flex-wrap: wrap !important;
+  }
+  #cancelModal .cancel-modal-keep,
+  #cancelModal .cancel-modal-confirm,
+  #moveHistoryModal .cancel-modal-keep,
+  #moveHistoryModal .cancel-modal-confirm {
+    padding: 9px 16px !important;
+    font-size: .8rem !important;
+  }
+
+  /* ============ My QR modals (choice + view) ============ */
+  .qr-modal-content {
+    width: 66vw !important;
+    max-width: 340px !important;
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+    padding: 36px 14px 14px;
+  }
+  .qr-modal-content h3 {
+    font-size: 1.1rem !important;
+    margin: 0 0 4px !important;
+    font-weight: 700;
+    color: #23412e;
+  }
+  .qr-modal-body {
+    margin: 0 0 10px !important;
+    font-size: .75rem !important;
+    line-height: 1.5 !important;
+    color: #6b7280;
+  }
+  .qr-modal-actions {
+    gap: 8px !important;
+  }
+  .qr-modal-actions .btn-confirm {
+    padding: 9px 16px !important;
+    font-size: .8rem !important;
+  }
+  .qr-modal-note {
+    margin-top: 6px !important;
+    font-size: .7rem !important;
+    line-height: 1.4;
+    color: #6b7280;
+  }
+  #qrViewModal .qr-modal-content {
+    padding: 32px 14px 14px;
+  }
+  #qrViewCardContainer {
+    margin: 6px auto !important;
+  }
+  /* QR ID card preview: shrink oversized elements to fit the viewport */
+  #qrViewCardContainer .resident-id-card .id-top {
+    padding: 10px 12px !important;
+    gap: 8px !important;
+  }
+  #qrViewCardContainer .resident-id-card .avatar {
+    width: 84px !important;
+    height: 84px !important;
+  }
+  #qrViewCardContainer .resident-id-card .id-body {
+    padding: 8px 12px !important;
+  }
+  #qrViewCardContainer .resident-id-card .top-info .name {
+    font-size: .95rem !important;
+  }
+  #qrViewCardContainer .resident-id-card .contact {
+    font-size: .8rem !important;
+  }
+  #qrViewCardContainer .resident-id-card .row {
+    margin: 4px 0 !important;
+  }
+  #qrViewCardContainer .resident-id-card .label {
+    font-size: .78rem !important;
+  }
+
+  /* ============ Activity modal ============ */
+  #activityModalBody {
+    padding: 14px !important;
+    max-height: calc(100vh - 60px);
+    max-height: calc(100dvh - 60px);
+  }
+
+  /* ============ Upload proof modal ============ */
+  .update-proof-content {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    padding: 16px !important;
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .update-proof-content h3 {
+    margin: 0 0 8px !important;
+    font-size: 1.1rem !important;
+    color: #23412e;
+  }
+  .update-proof-file,
+  .update-proof-hint,
+  .update-proof-file-name {
+    margin: 0 0 6px !important;
+  }
+  .update-proof-actions {
+    gap: 8px !important;
+    margin-top: 10px !important;
+  }
+  .update-proof-btn {
+    padding: 8px 14px !important;
+  }
+
+  /* ============ Resident proof modal (upload) ============ */
+  #residentProofModal .resident-proof-modal-content {
+    max-height: calc(100vh - 20px);
+    max-height: calc(100dvh - 20px);
+  }
+
+  /* ============ Change password modal ============ */
+  #changePasswordModalResident .vp-logout-modal {
+    max-height: calc(100vh - 24px) !important;
+    max-height: calc(100dvh - 24px) !important;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #changePasswordModalResident .change-password-title {
+    margin-bottom: 6px !important;
+  }
+  #changePasswordModalResident form {
+    gap: 6px !important;
+  }
+  #changePasswordModalResident form input,
+  #changePasswordModalResident form button {
+    padding: 9px 12px !important;
+    font-size: .85rem !important;
+  }
+
+  /* ============ QR warning modal (inline-styled) ============ */
+  #qrWarningModal > div {
+    width: 66vw !important;
+    max-width: 340px !important;
+    padding: 16px 14px !important;
+    box-sizing: border-box;
+  }
+  #qrWarningTitle {
+    font-size: 1.1rem !important;
+    margin-bottom: 6px !important;
+    font-weight: 700;
+    color: #23412e;
+  }
+  #qrWarningMessage {
+    font-size: .75rem !important;
+    line-height: 1.4 !important;
+    color: #6b7280;
+  }
+  #qrWarningModal > div > div:last-of-type {
+    margin-top: 12px !important;
+  }
+
+  /* ============ Account suspended popup ============ */
+  #accountBlockedModal {
+    padding: 14px;
+    box-sizing: border-box;
+  }
+  #accountBlockedModal .account-blocked-content {
+    width: 100% !important;
+    max-width: 340px !important;
+    max-height: calc(100dvh - 24px);
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 18px 16px !important;
+  }
+  #accountBlockedModal .account-blocked-content h3 {
+    font-size: 1.1rem !important;
+    font-weight: 700;
+    color: #23412e;
+    margin: 0 0 8px !important;
+  }
+  #accountBlockedModal .account-blocked-content p {
+    font-size: .8rem !important;
+    line-height: 1.5 !important;
+    margin: 0 0 14px !important;
+  }
+  #accountBlockedModal .account-blocked-content .btn-logout-only {
+    font-size: 13px !important;
+    padding: 9px 16px !important;
+  }
+
+  /* ============ Confirm / notice modal buttons → compact text ============ */
+  #refModal .modal-content .btn-confirm,
+  #verifyModal .modal-content .btn-confirm,
+  #verifyModal .modal-content .btn-cancel,
+  #submitNoticeModal #submitNoticeBtn {
+    font-size: 13px !important;
+    padding: 9px 16px !important;
+  }
+  /* QR warning modal buttons handled below; cancel modal buttons sized in their own section above. */
+  #qrWarningModal button {
+    font-size: 13px !important;
+    padding: 8px 13px !important;
+  }
+
+  /* ============ Confirm Logout popup (injected by js/logout-modal.js) ============ */
+  .vp-logout-overlay .vp-logout-modal {
+    width: 66vw !important;
+    max-width: 340px !important;
+    padding: 16px 14px !important;
+  }
+  .vp-logout-overlay .vp-logout-modal .title {
+    font-size: 1.1rem !important;
+    margin: 0 0 6px !important;
+  }
+  .vp-logout-overlay .vp-logout-modal .text {
+    font-size: .8rem !important;
+    line-height: 1.5 !important;
+    margin: 0 0 12px !important;
+  }
+  .vp-logout-overlay .vp-logout-modal .btn {
+    font-size: .8rem !important;
+    padding: 9px 16px !important;
+  }
+}
 </style>
 <style>
 .item-extra-link.item-extra-cancel{background:#ef4444;color:#ffffff;border:1px solid #ef4444;padding:8px 16px;border-radius:50px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;font-weight:500;text-decoration:none}
@@ -1728,9 +2143,10 @@ body.qr-modal-open{ overflow:hidden }
   min-width: 0;
 }
 .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
-.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(2) { grid-column: 2; grid-row: 1; }
-.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(3) { grid-column: 1; grid-row: 2; }
-.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(4) { grid-column: 2; grid-row: 2; }
+.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(2) { grid-column: 1; grid-row: 2; }
+.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(3) { grid-column: 1; grid-row: 3; }
+.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(4) { grid-column: 2; grid-row: 1; }
+.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(5) { grid-column: 2; grid-row: 2; }
 .list-item.expanded[data-type="guest_form"] .rst-key {
   margin-bottom: 4px;
   color: #718078;
@@ -1762,6 +2178,102 @@ body.qr-modal-open{ overflow:hidden }
   display: inline-block;
   color: #174b3b;
   font-weight: 600;
+}
+
+/* Report Incident request card — inline details (mirrors Amenity Booking / Guest Form green cards) */
+.list-item.expanded[data-type="report"] .rst-section {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0 0 14px;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: #f2faf6;
+  border: 1px solid #d7e9df;
+  border-radius: 14px;
+  padding: 20px;
+  color: #20342b;
+}
+.list-item.expanded[data-type="report"] .rst-section:last-child {
+  margin-bottom: 0;
+}
+.list-item.expanded[data-type="report"] .rst-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #d7e9df;
+  color: #174b3b;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.list-item.expanded[data-type="report"] .rst-title::before {
+  content: "\f071";
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  font-size: 0.95rem;
+}
+.list-item.expanded[data-type="report"] .rst-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 24px;
+  row-gap: 20px;
+  position: relative;
+}
+.list-item.expanded[data-type="report"] .rst-grid::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: #d7e9df;
+  transform: translateX(-12px);
+}
+.list-item.expanded[data-type="report"] .rst-col {
+  min-width: 0;
+}
+.list-item.expanded[data-type="report"] .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
+.list-item.expanded[data-type="report"] .rst-col:nth-child(2) { grid-column: 1; grid-row: 2; }
+.list-item.expanded[data-type="report"] .rst-col:nth-child(3) { grid-column: 1; grid-row: 3; }
+.list-item.expanded[data-type="report"] .rst-col:nth-child(4) { grid-column: 1; grid-row: 4; }
+.list-item.expanded[data-type="report"] .rst-col:nth-child(5) { grid-column: 2; grid-row: 1; }
+.list-item.expanded[data-type="report"] .rst-col:nth-child(6) { grid-column: 2; grid-row: 2; }
+.list-item.expanded[data-type="report"] .rst-col:nth-child(7) { grid-column: 2; grid-row: 3; }
+.list-item.expanded[data-type="report"] .rst-col:nth-child(8) { grid-column: 2; grid-row: 4; }
+.list-item.expanded[data-type="report"] .rst-key {
+  margin-bottom: 4px;
+  color: #718078;
+  font-size: 0.84rem;
+  line-height: 1.3;
+}
+.list-item.expanded[data-type="report"] .rst-val {
+  color: #1f2f28;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+/* Incident Status section — centered */
+.list-item.expanded[data-type="report"] .rst-status-section {
+  text-align: center;
+}
+.list-item.expanded[data-type="report"] .rst-status-section .rst-title {
+  justify-content: center;
+}
+.list-item.expanded[data-type="report"] .rst-status-section .item-extra-status {
+  display: flex;
+  justify-content: center;
+}
+.list-item.expanded[data-type="report"] .rst-status-section .item-extra-note {
+  margin: 0 auto;
+  max-width: 100%;
+  text-align: center;
+}
+/* Single Cancel Request action centered */
+.list-item.expanded[data-type="report"] .item-actions {
+  justify-content: center;
 }
 
 /* Resident request-card header only */
@@ -2230,26 +2742,32 @@ body.modal-open{overflow:hidden}
     font-size: 0.9rem;
   }
   .list-item.expanded[data-type="guest_form"] .rst-grid {
+    display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    column-gap: 10px;
-    row-gap: 10px;
+    column-gap: 16px;
+    row-gap: 12px;
   }
   .list-item.expanded[data-type="guest_form"] .rst-grid::before {
     display: block;
     left: 50%;
-    transform: translateX(-5px);
+    transform: translateX(-8px);
   }
   .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
-  .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(2) { grid-column: 2; grid-row: 1; }
-  .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(3) { grid-column: 1; grid-row: 2; }
-  .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(4) { grid-column: 2; grid-row: 2; }
+  .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(2) { grid-column: 1; grid-row: 2; }
+  .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(3) { grid-column: 1; grid-row: 3; }
+  .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(4) { grid-column: 2; grid-row: 1; }
+.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(5) { grid-column: 2; grid-row: 2; }
+.list-item.expanded[data-type="guest_form"] .rst-guest-resident .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
+.list-item.expanded[data-type="guest_form"] .rst-guest-resident .rst-col:nth-child(2) { grid-column: 2; grid-row: 1; }
+  .list-item.expanded[data-type="guest_form"] .rst-guest-resident .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
+  .list-item.expanded[data-type="guest_form"] .rst-guest-resident .rst-col:nth-child(2) { grid-column: 2; grid-row: 1; }
   .list-item.expanded[data-type="guest_form"] .rst-key {
     margin-bottom: 2px;
-    font-size: 0.76rem;
+    font-size: 0.66rem;
   }
   .list-item.expanded[data-type="guest_form"] .rst-val {
-    font-size: 0.9rem;
-    line-height: 1.25;
+    font-size: 0.85rem;
+    line-height: 1.3;
   }
   .list-item.expanded[data-type="guest_form"] .rst-guest-email {
     margin-top: 12px;
@@ -2257,6 +2775,44 @@ body.modal-open{overflow:hidden}
   }
   .list-item.expanded[data-type="guest_form"] .rst-guest-id-img {
     max-width: 160px;
+  }
+  /* Report Incident request card — mobile */
+  .list-item.expanded[data-type="report"] .rst-section {
+    padding: 12px;
+    border-radius: 12px;
+  }
+  .list-item.expanded[data-type="report"] .rst-section:last-child {
+    margin-bottom: 0;
+  }
+  .list-item.expanded[data-type="report"] .rst-title {
+    margin-bottom: 9px;
+    padding-bottom: 8px;
+    font-size: 0.9rem;
+  }
+  .list-item.expanded[data-type="report"] .rst-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 16px;
+    row-gap: 12px;
+  }
+  .list-item.expanded[data-type="report"] .rst-grid::before {
+    display: block;
+    left: 50%;
+    transform: translateX(-8px);
+  }
+  .list-item.expanded[data-type="report"] .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
+  .list-item.expanded[data-type="report"] .rst-col:nth-child(2) { grid-column: 1; grid-row: 2; }
+  .list-item.expanded[data-type="report"] .rst-col:nth-child(3) { grid-column: 1; grid-row: 3; }
+  .list-item.expanded[data-type="report"] .rst-col:nth-child(4) { grid-column: 2; grid-row: 1; }
+  .list-item.expanded[data-type="report"] .rst-col:nth-child(5) { grid-column: 2; grid-row: 2; }
+  .list-item.expanded[data-type="report"] .rst-col:nth-child(6) { grid-column: 2; grid-row: 3; }
+  .list-item.expanded[data-type="report"] .rst-key {
+    margin-bottom: 2px;
+    font-size: 0.66rem;
+  }
+  .list-item.expanded[data-type="report"] .rst-val {
+    font-size: 0.85rem;
+    line-height: 1.3;
   }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type {
     width: calc(100% - 4px);
@@ -2275,11 +2831,11 @@ body.modal-open{overflow:hidden}
   }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-key {
     margin-bottom: 2px;
-    font-size: 0.76rem;
+    font-size: 0.66rem;
   }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-val {
-    font-size: 0.9rem;
-    line-height: 1.25;
+    font-size: 0.85rem;
+    line-height: 1.3;
   }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-col:nth-child(7) .rst-val,
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-col:nth-child(8) .rst-val {
@@ -2296,13 +2852,13 @@ body.modal-open{overflow:hidden}
   }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-grid {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    column-gap: 10px;
-    row-gap: 10px;
+    column-gap: 16px;
+    row-gap: 12px;
   }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-grid::before {
     display: block;
     left: 50%;
-    transform: translateX(-5px);
+    transform: translateX(-8px);
   }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
   #panel-requests .list-item.expanded[data-type="reservation"] .rst-section:first-of-type .rst-col:nth-child(2) { grid-column: 1; grid-row: 2; }
@@ -2477,6 +3033,10 @@ body.modal-open{overflow:hidden}
 <div class="app-container">
   <!-- SIDEBAR -->
   <aside class="sidebar">
+    <button type="button" class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="Close navigation"><i class="fa-solid fa-xmark"></i></button>
+    <div class="sidebar-header">
+      <a href="mainpage.php" class="back-btn" aria-label="Back to Main Page"><i class="fa-solid fa-arrow-left"></i></a>
+    </div>
     <nav class="nav-menu">
       <a href="#" class="nav-item <?php echo $activeSection === 'panel-requests' ? 'active' : ''; ?>" data-section="panel-requests"><i class="fa-solid fa-list"></i> <span>My Requests</span></a>
       <a href="reserve.php" class="nav-item"><i class="fa-solid fa-ticket"></i> <span>Amenity Reservation</span></a>
@@ -2484,7 +3044,7 @@ body.modal-open{overflow:hidden}
         <i class="fa-solid fa-coins"></i>
         <span>
           VHEcoPoint
-          <small style="display:block; font-size:0.7rem; color:#166534; font-weight:700; margin-top:2px;">Smart Waste Segregation Station</small>
+          <small style="display:block; font-size:0.7rem; color:#bbf7d0; font-weight:700; margin-top:2px;">Smart Waste Segregation Station</small>
         </span>
       </a>
       <a href="#" class="nav-item <?php echo $activeSection === 'panel-guest-form' ? 'active' : ''; ?>" data-section="panel-guest-form"><i class="fa-solid fa-user-plus"></i> <span>Guest Form</span></a>
@@ -2618,7 +3178,7 @@ body.modal-open{overflow:hidden}
     <header class="top-header<?php echo $isEcoPointThemeActive ? ' ecopoint-theme-header' : ''; ?>">
       <div class="header-brand">
         <button class="menu-toggle" id="menuToggle"><i class="fa-solid fa-bars"></i></button>
-        <a href="mainpage.php" aria-label="Go to Main Page" class="header-brand-link"><?php echo $isEcoPointThemeActive ? '<i class="fa-solid fa-recycle ecopoint-header-logo" aria-hidden="true"></i>' : '<img src="images/logo.svg" alt="Logo">'; ?></a>
+        <a href="mainpage.php" aria-label="Go to Main Page" class="header-brand-link"><?php echo $isEcoPointThemeActive ? '<img src="images/logo-leaf.svg" alt="VHEcoPoint Logo">' : '<img src="images/logo.svg" alt="Logo">'; ?></a>
         <div class="brand-text">
           <span class="brand-main"><?php echo $isEcoPointThemeActive ? 'VHEcoPoint' : 'VictorianPass'; ?></span>
           <span class="brand-sub"><?php echo $isEcoPointThemeActive ? 'Smart Waste Segregation Station' : 'Victorian Heights Subdivision'; ?></span>
@@ -2636,8 +3196,11 @@ body.modal-open{overflow:hidden}
     </header>
 
     <div class="dashboard-back-row">
-      <a href="mainpage.php" class="back-btn" aria-label="Back to main page"><i class="fa-solid fa-arrow-left"></i></a>
-      <h1 class="page-title" id="dashboardPageTitle"><?php echo htmlspecialchars($dashboardPageTitle); ?></h1>
+      <a href="mainpage.php" class="back-btn" id="dashboardBackBtn" aria-label="Back to main page" style="<?php echo in_array($activeSection, ['panel-requests', 'panel-guest-form', 'panel-my-guests', 'panel-history', 'panel-points-history'], true) ? 'display:none;' : ''; ?>"><i class="fa-solid fa-arrow-left"></i></a>
+      <div class="page-title-wrap">
+        <h1 class="page-title" id="dashboardPageTitle"><?php echo htmlspecialchars($dashboardPageTitle); ?></h1>
+        <p class="page-subtitle" id="dashboardPageSubtitle"><?php echo htmlspecialchars($dashboardPageSubtitle); ?></p>
+      </div>
     </div>
 
     <div class="content-wrapper">
@@ -2737,6 +3300,7 @@ body.modal-open{overflow:hidden}
               <div class="ecopoint-header-kicker">Resident Dashboard</div>
               <div class="ecopoint-header-title"><i class="fa-solid fa-leaf" style="margin-right:8px; font-size:0.9em;"></i>Your VHEcoPoint Dashboard</div>
               <div class="ecopoint-header-desc"><i class="fa-solid fa-circle-info ecopoint-info" style="float:left; margin:2px 6px 0 0;" title="Your personal VHEcoPoint dashboard: see your point balance, weekly progress, daily session usage, expiry countdown, and station-ready QR access all in one place."></i>Track your current point balance, weekly recycling progress, daily session usage, expiry countdown, and station-ready QR access in one place.</div>
+              <div style="background:#ecfdf5; border:1px solid #86efac; border-radius:10px; padding:10px 14px; margin-top:10px; color:#166534; font-size:0.85rem; line-height:1.5;"><i class="fa-solid fa-clock" style="margin-right:5px;"></i><strong>Station Availability:</strong> The VHEcoPoint Station is located at the <strong>Clubhouse</strong>, available <strong>weekdays only (Monday to Friday)</strong>, from <strong>9:00 AM to 9:00 PM</strong>.</div>
             </div>
 
             <?php if (!$isAccountBlocked): ?>
@@ -2755,7 +3319,7 @@ body.modal-open{overflow:hidden}
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label"><i class="fa-solid fa-coins" style="margin-right:5px; opacity:0.7;"></i>Current Point Balance</div>
                 <div class="ecopoint-kpi-value"><i class="fa-solid fa-star" style="font-size:0.6em; margin-right:4px; opacity:0.6;"></i><?php echo number_format($currentPoints); ?> pts</div>
-                <div class="ecopoint-kpi-subtext"><i class="fa-solid fa-circle-info ecopoint-info" title="Earned points add to this balance; redeemed or adjusted points subtract from it."></i> Net balance from VHEcoPoint recycling ledger (earn − redeem ± adjustments).</div>
+                <div class="ecopoint-kpi-subtext"><i class="fa-solid fa-circle-info ecopoint-info" title="Earned points add to this balance; redeemed or adjusted points subtract from it. The maximum balance is 3,000 points."></i> Net balance from VHEcoPoint recycling ledger (earn − redeem ± adjustments). Maximum balance is 3,000 pts.</div>
               </div>
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label"><i class="fa-solid fa-chart-line" style="margin-right:5px; opacity:0.7;"></i>Weekly Points Earned</div>
@@ -3094,7 +3658,6 @@ body.modal-open{overflow:hidden}
               </div>
 
               <div class="form-actions">
-                <a href="#" class="btn-back" id="guestFormBackBtn"><i class="fa-solid fa-arrow-left"></i> Back</a>
                 <button type="submit" class="btn-next" id="submitBtn">Save Guest</button>
               </div>
             </form>
@@ -3386,18 +3949,25 @@ body.modal-open{overflow:hidden}
       guestPassModal.style.display = "block";
   }
   // QR Choice / View handlers
+  function setQrActive(active){
+    document.querySelectorAll('.btn-ecopoint-qr, .btn-qr-modal').forEach(function(btn){
+      btn.classList.toggle('active', !!active);
+    });
+  }
   function openQRChoice(){
     closeQRView();
     var modal = document.getElementById('qrChoiceModal');
     if(!modal) return;
     modal.style.display = 'flex';
     document.body.classList.add('qr-modal-open');
+    setQrActive(true);
   }
   function closeQRChoice(){
     var m=document.getElementById('qrChoiceModal');
     if(m) m.style.display='none';
     if(!document.getElementById('qrViewModal') || document.getElementById('qrViewModal').style.display==='none'){
       document.body.classList.remove('qr-modal-open');
+      setQrActive(false);
     }
   }
   function openQRView(){
@@ -3418,11 +3988,13 @@ body.modal-open{overflow:hidden}
     }
     view.style.display = 'flex';
     document.body.classList.add('qr-modal-open');
+    setQrActive(true);
   }
   function closeQRView(){
     var m=document.getElementById('qrViewModal');
     if(m) m.style.display='none';
     document.body.classList.remove('qr-modal-open');
+    setQrActive(false);
   }
   // Expose QR actions to the global scope so inline onclick handlers work
   window.openQRChoice = openQRChoice;
@@ -4117,9 +4689,18 @@ body.modal-open{overflow:hidden}
   var overlay = document.getElementById('sidebarOverlay');
 
   if(menuToggle && sidebar && overlay) {
+      function setMenuActive(isOpen) {
+          menuToggle.classList.toggle('active', isOpen);
+      }
+      function openSidebar() {
+          sidebar.classList.add('open');
+          overlay.classList.add('show');
+          setMenuActive(true);
+      }
       function closeSidebar() {
           sidebar.classList.remove('open');
           overlay.classList.remove('show');
+          setMenuActive(false);
       }
 
       menuToggle.addEventListener('click', function() {
@@ -4128,8 +4709,12 @@ body.modal-open{overflow:hidden}
           } else {
               sidebar.classList.add('open');
               overlay.classList.add('show');
+              setMenuActive(true);
           }
       });
+
+      var sidebarCloseBtn = document.getElementById('sidebarCloseBtn');
+      if(sidebarCloseBtn) { sidebarCloseBtn.addEventListener('click', closeSidebar); }
 
       overlay.addEventListener('click', closeSidebar);
 
@@ -4137,6 +4722,11 @@ body.modal-open{overflow:hidden}
       document.querySelectorAll('.sidebar .nav-menu .nav-item, .sidebar-footer .logout-btn').forEach(function(item) {
           item.addEventListener('click', closeSidebar);
       });
+
+      // Open the drawer automatically on arrival (mobile only; desktop always shows it)
+      if(window.innerWidth <= 900){
+          openSidebar();
+      }
   }
 
   function buildExtraContent(li, extra){
@@ -4215,9 +4805,9 @@ body.modal-open{overflow:hidden}
       var gBirthLabel=formatRawDate(gBirthRaw)||gBirthRaw||'—';
       gh+='<div class="rst-col"><div class="rst-key">Birthdate</div><div class="rst-val">'+esc(gBirthLabel)+'</div></div>';
       gh+='<div class="rst-col"><div class="rst-key">Contact Number</div><div class="rst-val">'+esc(li.getAttribute('data-guest-contact')||'—')+'</div></div>';
-      gh+='</div>';
       var gEmail=li.getAttribute('data-guest-email')||'';
-      if(gEmail){ gh+='<div class="rst-guest-email"><div class="rst-key">Email Address</div><div class="rst-val">'+esc(gEmail)+'</div></div>'; }
+      if(gEmail){ gh+='<div class="rst-col"><div class="rst-key">Email Address</div><div class="rst-val">'+esc(gEmail)+'</div></div>'; }
+      gh+='</div>';
       gh+='</div>';
       return gh;
     }
@@ -4567,9 +5157,7 @@ body.modal-open{overflow:hidden}
       var curStat=(String(effectiveStatus||'').toLowerCase());
       if(curStat==='new'){ label='Pending'; }
       html+='<div class="item-extra-section">';
-      html+='<div class="item-extra-title">Incident Status</div>';
-      html+='<div class="item-extra-body">';
-      html+='<div class="item-extra-info-only">';
+      html+='<div class="rst-section rst-status-section"><div class="rst-title">Incident Status</div>';
       var lowerLabel=String(label||'').toLowerCase();
       if(lowerLabel !== 'pending' && lowerLabel !== 'approved'){
         html+='<div class="item-extra-status"><span class="status-label '+statusClassFor(status)+'">'+label+'</span></div>';
@@ -4582,37 +5170,22 @@ body.modal-open{overflow:hidden}
       var reportNature = li.getAttribute('data-report-nature') || '';
       var reportOther = li.getAttribute('data-report-other') || '';
       var reportId = li.getAttribute('data-report-id') || '';
-      var reportRows = '';
-      if(reportSubject){
-        reportRows+='<div class="schedule-row"><div class="schedule-key">Subject:</div><div class="schedule-val">'+esc(reportSubject)+'</div></div>';
-      }
-      if(reportAddress){
-        reportRows+='<div class="schedule-row"><div class="schedule-key">Address:</div><div class="schedule-val">'+esc(reportAddress)+'</div></div>';
-      }
-      if(reportDate){
-        reportRows+='<div class="schedule-row"><div class="schedule-key">Date:</div><div class="schedule-val">'+esc(reportDate)+'</div></div>';
-      }
-      if(reportNature){
-        reportRows+='<div class="schedule-row"><div class="schedule-key">Nature:</div><div class="schedule-val">'+esc(reportNature)+'</div></div>';
-      }
-      if(reportOther){
-        reportRows+='<div class="schedule-row"><div class="schedule-key">Details:</div><div class="schedule-val">'+esc(reportOther)+'</div></div>';
-      }
-      if(ref){
-        reportRows+='<div class="schedule-row"><div class="schedule-key">Code:</div><div class="schedule-val">'+esc(ref)+'</div></div>';
-      }
-      if(reportRows){
-        html+='<div class="item-extra-schedule report-details"><div class="schedule-title">Report Details</div>'+reportRows+'</div>';
+      var reportCells = '';
+      var reportCell = function(key,val){ return '<div class="rst-col"><div class="rst-key">'+esc(key)+'</div><div class="rst-val">'+esc(val)+'</div></div>'; };
+      if(reportSubject){ reportCells+=reportCell('Subject', reportSubject); }
+      if(reportAddress){ reportCells+=reportCell('Address', reportAddress); }
+      if(reportDate){ reportCells+=reportCell('Date', reportDate); }
+      if(reportNature){ reportCells+=reportCell('Nature', reportNature); }
+      if(reportOther){ reportCells+=reportCell('Details', reportOther); }
+      if(ref){ reportCells+=reportCell('Code', ref); }
+      if(reportCells){
+        html+='<div class="rst-section"><div class="rst-title">Report Details</div><div class="rst-grid">'+reportCells+'</div></div>';
       }
       html+='<div class="item-actions">';
-      if(reportId){
-        html+='<button type="button" class="view-details-btn view-report-btn" data-report-id="'+esc(reportId)+'">View details</button>';
-      }
       if(canCancelReport && ref){
         html+='<button type="button" class="item-extra-link item-extra-cancel"><i class="fa-solid fa-xmark"></i> Cancel Request</button>';
       }
       html+='</div>';
-      html+='</div></div>';
       html+='</div>';
     }else{
       html+='<div class="item-extra-section">';
@@ -4654,14 +5227,6 @@ body.modal-open{overflow:hidden}
       dropdownMove.addEventListener('click', function(ev){
         ev.stopPropagation();
         openMoveHistoryModal(li, ref);
-      });
-    }
-    var viewReportBtn = extra.querySelector('.view-report-btn');
-    if(viewReportBtn){
-      viewReportBtn.addEventListener('click', function(ev){
-        ev.stopPropagation();
-        var rid = viewReportBtn.getAttribute('data-report-id') || '';
-        if(rid){ openReportDetailsModal(rid); }
       });
     }
     var downloadBtn=extra.querySelector('.download-qr-btn');
@@ -4922,6 +5487,7 @@ body.modal-open{overflow:hidden}
       if(notifPopup){ notifPopup.style.display='none'; }
       if(notifPanel){
         notifPanel.style.display=(notifPanel.style.display==='block'?'none':'block');
+        notifBtn.classList.toggle('active', notifPanel.style.display==='block');
         if(notifPanel.style.display==='block') renderNotifPanel();
       }
       document.querySelectorAll('.item-list .list-item.status-updated').forEach(function(li){
@@ -4941,6 +5507,7 @@ body.modal-open{overflow:hidden}
     if(notifPanel.style.display!=='block' && (!notifPopup || notifPopup.style.display!=='block')) return;
     if((notifPanel && notifPanel.contains(e.target)) || (notifPopup && notifPopup.contains(e.target)) || notifBtn.contains(e.target)) return;
     notifPanel.style.display='none';
+    notifBtn.classList.remove('active');
     if(notifPopup){ notifPopup.style.display='none'; }
   });
 
@@ -4951,6 +5518,13 @@ body.modal-open{overflow:hidden}
     'panel-my-guests':'My Guests',
     'panel-history':'History',
     'panel-points-history':'VHEcoPoint'
+  };
+  var sectionSubtitles={
+    'panel-requests':'View and manage all of your amenity and guest requests.',
+    'panel-guest-form':'Add a guest to your saved list for visitor entry approval.',
+    'panel-my-guests':'View and manage the guests you have saved.',
+    'panel-history':'See the log of your past passes, reservations, and requests.',
+    'panel-points-history':'Earn points by recycling and redeem them for amenity hours.'
   };
   function applyResidentThemeBySection(id){
     var mainContent = document.querySelector('.main-content');
@@ -4970,9 +5544,15 @@ body.modal-open{overflow:hidden}
     }
     if (brandLogoLink) {
       brandLogoLink.innerHTML = isEcoPoint
-        ? '<i class="fa-solid fa-recycle ecopoint-header-logo" aria-hidden="true"></i>'
+        ? '<img src="images/logo-leaf.svg" alt="VHEcoPoint Logo">'
         : '<img src="images/logo.svg" alt="Logo">';
     }
+  }
+  function updateBackButtonVisibility(id){
+    var backBtn=document.getElementById('dashboardBackBtn');
+    if(!backBtn) return;
+    var noBackSections=['panel-requests','panel-guest-form','panel-my-guests','panel-history','panel-points-history'];
+    backBtn.style.display=noBackSections.indexOf(id)!==-1?'none':'';
   }
   function showPanel(id){
     sections.forEach(function(sec){
@@ -4980,8 +5560,11 @@ body.modal-open{overflow:hidden}
       sec.style.display=sec.id===id?'':'none';
     });
     applyResidentThemeBySection(id);
+    updateBackButtonVisibility(id);
     var titleEl=document.getElementById('dashboardPageTitle');
     if(titleEl){ titleEl.textContent=sectionTitles[id]||'Dashboard'; }
+    var subtitleEl=document.getElementById('dashboardPageSubtitle');
+    if(subtitleEl){ subtitleEl.textContent=sectionSubtitles[id]||'Overview of your VictorianPass dashboard.'; }
   }
   document.querySelectorAll('.nav-menu .nav-item[data-section]').forEach(function(item){
     item.addEventListener('click',function(e){
@@ -5001,18 +5584,11 @@ body.modal-open{overflow:hidden}
   });
   if (document.querySelector('.nav-menu .nav-item[data-section="panel-points-history"].active')) {
     applyResidentThemeBySection('panel-points-history');
+    updateBackButtonVisibility('panel-points-history');
   } else {
     applyResidentThemeBySection('panel-requests');
+    updateBackButtonVisibility('panel-requests');
   }
-  var guestFormBackBtn=document.getElementById('guestFormBackBtn');
-  if(guestFormBackBtn){
-    guestFormBackBtn.addEventListener('click',function(e){
-      e.preventDefault();
-      var reqNav=document.querySelector('.nav-menu .nav-item[data-section="panel-requests"]');
-      if(reqNav) reqNav.click();
-    });
-  }
-
   var entryForm=document.getElementById('entryForm');
   var birthdateEl=document.getElementById('birthdate');
   var idInput=document.getElementById('visitor_valid_id');
@@ -6103,6 +6679,7 @@ document.addEventListener('DOMContentLoaded', function() {
       profileModal.classList.remove('profile-modal-closing');
       profileModal.style.display = 'block';
       document.body.classList.add('profile-modal-open');
+      if (profileTrigger) profileTrigger.classList.add('active');
       requestAnimationFrame(function() {
         profileModal.classList.add('profile-modal-open');
       });
@@ -6115,6 +6692,7 @@ document.addEventListener('DOMContentLoaded', function() {
         profileModal.classList.remove('profile-modal-open', 'profile-modal-closing');
         profileModal.style.display = 'none';
         document.body.classList.remove('profile-modal-open');
+        if (profileTrigger) profileTrigger.classList.remove('active');
         return;
       }
       profileModal.classList.add('profile-modal-closing');
@@ -6123,6 +6701,7 @@ document.addEventListener('DOMContentLoaded', function() {
           profileModal.style.display = "none";
           profileModal.classList.remove('profile-modal-open', 'profile-modal-closing');
           document.body.classList.remove('profile-modal-open');
+          if (profileTrigger) profileTrigger.classList.remove('active');
         }
       }, 360);
     }
@@ -6349,7 +6928,7 @@ function replaceProof(reportId, proofId){
         if (statusUp === 'COMPLETED') {
           pointsEl.textContent = fmtPts(s.points_awarded || s.total_points);
         } else {
-          pointsEl.textContent = fmtPts(s.points_calculated);
+          pointsEl.textContent = fmtPts(s.total_points);
         }
         // If a session just became final, reload the page once to refresh the
         // history/KPI cards on the dashboard.

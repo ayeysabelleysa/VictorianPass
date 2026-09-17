@@ -572,8 +572,6 @@ function eco_award_points_and_finalize(mysqli $con, int $sessionId, int $station
     $material = (string)($session['material_type'] ?? '');
     $weight   = (float)($session['weight_kg']    ?? 0);
     $userId   = (int)$session['user_id'];
-
-     
     $capState = eco_resident_cap_state($con, $userId);
     $bal      = (int)($session['points_awarded'] ?? 0); // pre-existing award if any
 

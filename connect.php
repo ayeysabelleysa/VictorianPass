@@ -149,4 +149,82 @@ if (!function_exists('vpMarkSchemaDone')) {
     @file_put_contents($flag, '1');
   }
 }
+
+// ---------------------------------------------------------------------------
+// Signed auth cookie helpers.
+// Used to read user_id/user_type on GET page loads WITHOUT starting a PHP
+// session (session_start() blocks behind the file lock when other requests
+// hold it, which causes 502/504 gateway errors under concurrent AJAX load).
+// The cookie holds an HMAC-signed payload so it cannot be forged.
+// ---------------------------------------------------------------------------
+if (!defined('VP_AUTH_KEY')) {
+  define('VP_AUTH_KEY', hash('sha256', __DIR__ . '::VictorianPass::auth::v2'));
+}
+if (!function_exists('vpBase64UrlEncode')) {
+  function vpBase64UrlEncode(string $data): string {
+    return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+  }
+}
+if (!function_exists('vpBase64UrlDecode')) {
+  function vpBase64UrlDecode(string $data): string {
+    return (string)base64_decode(strtr($data, '-_', '+/'));
+  }
+}
+if (!function_exists('vpAuthSetCookie')) {
+  function vpAuthSetCookie(int $userId, string $userType): void {
+    $payload = vpBase64UrlEncode(json_encode(['uid' => $userId, 'ut' => $userType, 'exp' => time() + 604800], JSON_UNESCAPED_SLASHES));
+    $sig = hash_hmac('sha256', $payload, VP_AUTH_KEY);
+    @setcookie('vp_auth', $payload . '.' . $sig, [
+      'expires' => time() + 604800,
+      'path' => '/',
+      'secure' => (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off'),
+      'httponly' => true,
+      'samesite' => 'Lax',
+    ]);
+  }
+}
+if (!function_exists('vpAuthClearCookie')) {
+  function vpAuthClearCookie(): void {
+    @setcookie('vp_auth', '', [
+      'expires' => time() - 3600,
+      'path' => '/',
+      'secure' => (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off'),
+      'httponly' => true,
+      'samesite' => 'Lax',
+    ]);
+  }
+}
+if (!function_exists('vpAuthReadCookie')) {
+  /**
+   * Read + verify the signed auth cookie. Returns [userId, userType] or [null, null].
+   * Never trusts the client-supplied values without verifying the HMAC signature.
+   */
+  function vpAuthReadCookie(): array {
+    if (empty($_COOKIE['vp_auth']) || !defined('VP_AUTH_KEY')) {
+      return [null, null];
+    }
+    $parts = explode('.', $_COOKIE['vp_auth'], 2);
+    if (count($parts) !== 2) {
+      return [null, null];
+    }
+    [$payload, $sig] = $parts;
+    $expected = hash_hmac('sha256', $payload, VP_AUTH_KEY);
+    if (!is_string($sig) || !hash_equals($expected, $sig)) {
+      return [null, null];
+    }
+    $data = json_decode(vpBase64UrlDecode($payload), true);
+    if (!is_array($data) || empty($data['uid']) || empty($data['ut'])) {
+      return [null, null];
+    }
+    $exp = isset($data['exp']) ? intval($data['exp']) : 0;
+    if ($exp < time()) {
+      return [null, null];
+    }
+    $userType = (string)$data['ut'];
+    if (!in_array($userType, ['resident', 'visitor'], true)) {
+      return [null, null];
+    }
+    return [intval($data['uid']), $userType];
+  }
+}
 ?>

@@ -22,8 +22,9 @@ body {
 /* Sidebar */
 .sidebar {
     width: 220px;
-    background-color: #ffffff;
-    border-right: 1px solid #e0e0e0;
+    background: radial-gradient(circle at top left, #3a332f 0%, #2b2623 55%, #211b18 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    color: #f4efe6;
     display: flex;
     flex-direction: column;
     position: fixed;
@@ -59,6 +60,34 @@ body {
     filter: brightness(0.95);
 }
 
+.sidebar-close-btn {
+    display: none;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: none;
+    background-color: #d4a017;
+    color: #ffffff;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    font-size: 1.2rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+.sidebar-close-btn i { color: #ffffff; }
+.sidebar-close-btn:hover { filter: brightness(0.95); }
+
+.sidebar-header .back-btn {
+    background: #d4a017;
+    color: #ffffff;
+    border: none;
+}
+.sidebar-header .back-btn:hover { background: #b8860b; filter: brightness(1); }
+.sidebar-header .back-btn i { color: #ffffff; }
+
 .nav-menu {
     flex: 1;
     padding: 16px 12px;
@@ -73,34 +102,37 @@ body {
     align-items: center;
     padding: 10px 12px;
     text-decoration: none;
-    color: #555;
+    color: rgba(255, 255, 255, 0.82);
     font-size: 0.9rem;
+    font-weight: 500;
     transition: background 0.2s, color 0.2s;
-    border-radius: 8px;
+    border-radius: 10px;
     margin-bottom: 2px;
 }
 
 .nav-item:hover {
-    background-color: #f5f5f5;
-    color: #111;
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    font-weight: 600;
 }
 
 .nav-item.active {
-    background-color: #e5ddc6;
-    color: #23412e;
-    font-weight: 600;
+    background-color: rgba(255, 255, 255, 0.16);
+    color: #ffffff;
+    font-weight: 700;
 }
 
 .nav-item i, .nav-item img {
     margin-right: 12px;
     width: 20px;
     text-align: center;
+    color: rgba(255, 255, 255, 0.65);
 }
 
 .nav-badge {
     margin-left: auto;
-    background-color: #e0e0e0;
-    color: #555;
+    background-color: rgba(255, 255, 255, 0.18);
+    color: #ffffff;
     padding: 2px 8px;
     border-radius: 10px;
     font-size: 0.75rem;
@@ -108,7 +140,7 @@ body {
 
 .sidebar-footer {
     padding: 16px;
-    border-top: 1px solid #eee;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -189,10 +221,8 @@ body {
 
 .top-header {
     min-height: 64px;
-    background: rgba(43, 38, 35, 0.95);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: radial-gradient(circle at top left, #3a332f 0%, #2b2623 55%, #211b18 100%);
+    border-bottom: 1px solid #1a1512;
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     display: flex;
     align-items: center;
@@ -248,6 +278,16 @@ body {
     color: #f5f5f5;
     cursor: pointer;
     position: relative;
+    padding: 9px 11px;
+    border-radius: 50%;
+    transition: background-color .25s ease, color .25s ease;
+}
+
+.icon-btn.active,
+.menu-toggle.active {
+    background: rgba(255,255,255,0.18);
+    border-radius: 50%;
+    color: #fbbf24;
 }
 
 .user-profile {
@@ -256,11 +296,23 @@ body {
     text-decoration: none;
     color: #fff;
     gap: 10px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    transition: background-color .25s ease, color .25s ease;
+}
+
+.user-profile.active {
+    background: rgba(255,255,255,0.18);
+}
+
+.user-profile.active .user-name {
+    color: #fbbf24;
 }
 
 .user-name {
     font-weight: 500;
     font-size: 0.95rem;
+    transition: color .25s ease;
 }
 
 .user-avatar {
@@ -281,7 +333,7 @@ body {
     display: flex;
     align-items: center;
     gap: 14px;
-    padding: 16px 30px 0;
+    padding: 24px 30px 0;
 }
 
 .dashboard-back-row .back-btn {
@@ -296,6 +348,19 @@ body {
     line-height: 1.3;
     min-width: 0;
     overflow-wrap: anywhere;
+}
+
+.page-title-wrap {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.page-subtitle {
+    margin: 2px 0 0;
+    font-size: 0.88rem;
+    font-weight: 400;
+    color: #6b7280;
+    line-height: 1.4;
 }
 
 .right-panel {
@@ -673,6 +738,7 @@ body {
     font-size: 1.5rem;
     cursor: pointer;
     margin-right: 0;
+    transition: background-color .25s ease, color .25s ease, transform .25s ease;
 }
 
 .sidebar-overlay {
@@ -1270,7 +1336,7 @@ body {
     }
 
     .dashboard-back-row {
-        padding: 14px 15px 0;
+        padding: 20px 15px 0;
         gap: 10px;
     }
 
@@ -1427,27 +1493,26 @@ body {
 
 .cancel-modal-close {
     position: absolute;
-    top: 14px;
-    right: 14px;
+    top: 10px;
+    right: 12px;
     border: none;
-    background: #eef2f0;
+    background: #e5e7eb;
     font-size: 16px;
+    font-weight: 700;
     cursor: pointer;
-    color: #23412e;
-    width: 32px;
-    height: 32px;
+    color: #111827;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 6px rgba(35, 65, 46, 0.12);
-    transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+    line-height: 1;
+    z-index: 2;
+    transition: filter 0.2s ease;
 }
 .cancel-modal-close:hover {
-    background: #dfeee5;
-    color: #1a2f22;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 10px rgba(35, 65, 46, 0.18);
+    filter: brightness(0.92);
 }
 @keyframes cancelModalFadeIn {
     from { opacity: 0; }
@@ -3146,6 +3211,14 @@ body.profile-modal-open {
         z-index: 1010 !important;
     }
 
+    .top-header .menu-toggle { margin-right: 0; }
+    .top-header .header-brand { gap: 3px; }
+    .top-header .header-brand img { margin-right: 0; }
+
+    .dashboard-back-row { padding: 20px 15px 0; gap: 12px; }
+    .dashboard-back-row .page-title { font-size: 1.05rem; }
+    .page-subtitle { font-size: 0.8rem; margin-top: 1px; }
+
     .sidebar-overlay {
         display: none !important;
         position: fixed !important;
@@ -3165,21 +3238,39 @@ body.profile-modal-open {
     }
 
     .sidebar .nav-menu {
-        padding: 12px 10px;
+        padding: 6px 10px 12px;
         gap: 2px;
+    }
+
+    .sidebar .sidebar-header {
+        display: none;
+    }
+
+    .sidebar-close-btn {
+        display: inline-flex;
+        align-self: flex-start;
+        margin: 12px 0 6px 12px;
     }
 
     .sidebar .nav-item {
         padding: 13px 14px;
-        font-size: 13.5px;
-        line-height: 1.3;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.35;
         min-height: 46px;
         box-sizing: border-box;
     }
 
+    .sidebar .nav-item > span {
+        flex: 1;
+        min-width: 0;
+    }
+
     .sidebar .nav-item i {
-        width: 20px;
+        width: 21px;
         margin-right: 10px;
+        font-size: 1.05rem;
+        flex-shrink: 0;
     }
 
     .sidebar .nav-item.ecopoint-link small {
@@ -3232,6 +3323,12 @@ body.profile-modal-open {
 .btn-qr-modal:active,
 .btn-ecopoint-qr:active {
     transform: translateY(1px) scale(.98);
+}
+.btn-qr-modal.active,
+.btn-ecopoint-qr.active {
+    filter: brightness(1.05);
+    box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.5), 0 6px 14px rgba(234, 179, 8, 0.28);
+    transform: translateY(0) scale(1);
 }
 .btn-qr-modal:focus-visible,
 .btn-ecopoint-qr:focus-visible {
@@ -3369,4 +3466,53 @@ body.profile-modal-open {
   .vhecopoint-popup-card{padding:26px 20px 22px;border-radius:16px}
   .vhecopoint-popup-icon{width:52px;height:52px;font-size:1.5rem}
   .vhecopoint-popup-title{font-size:1.15rem}
+}
+
+/* ================= Desktop sidebar — larger & more prominent (web/desktop only) ================= */
+@media (min-width: 901px) {
+    .sidebar {
+        width: 264px;
+    }
+
+    .main-content {
+        margin-left: 264px;
+        width: calc(100% - 264px);
+    }
+
+    .sidebar .nav-menu {
+        padding: 20px 14px;
+        gap: 8px;
+    }
+
+    .sidebar .nav-item {
+        padding: 14px 16px;
+        font-size: 1.02rem;
+        font-weight: 500;
+        line-height: 1.35;
+        border-radius: 10px;
+    }
+
+    .sidebar .nav-item > span {
+        flex: 1;
+        min-width: 0;
+        line-height: 1.35;
+    }
+
+    .sidebar .nav-item i,
+    .sidebar .nav-item img {
+        width: 22px;
+        margin-right: 14px;
+        font-size: 1.1rem;
+        flex-shrink: 0;
+    }
+
+    .sidebar .nav-item.ecopoint-link small {
+        font-size: 0.72rem;
+        margin-top: 2px;
+    }
+
+    .sidebar .nav-item.active {
+        font-weight: 700;
+        box-shadow: none;
+    }
 }

@@ -1,0 +1,189 @@
+/* =========================
+   SHARED TOP-HEADER — Profile Dashboard style
+   Used by reserve.php and downpayment.php.
+   Matches profileresident.php's .top-header: dark fixed bar,
+   logo + brand text left, user profile right.  No hamburger / sidebar.
+   body { padding-top } compensates for the fixed header.
+========================= */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+/* --- Header bar --- */
+.top-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  min-height: 58px;
+  background: radial-gradient(circle at top left, #3a332f 0%, #2b2623 55%, #211b18 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 4%;
+  color: #fff;
+}
+
+/* Brand */
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-brand img {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-main {
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: #f4f4f4;
+}
+
+.brand-sub {
+  font-size: 0.8rem;
+  color: #aaa;
+}
+
+/* Actions */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+}
+
+.user-profile {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  color: #fff;
+  gap: 10px;
+  transition: opacity 0.2s ease;
+}
+
+.user-profile:hover { opacity: 0.88; }
+
+.user-name {
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #fff;
+  flex-shrink: 0;
+}
+
+/* Logged-out buttons */
+.btn-nav {
+  padding: 6px 18px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-decoration: none;
+  display: inline-block;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.btn-login  { background: #23412e; color: #fff; }
+.btn-register { background: #e5ddc6; color: #222; }
+.btn-nav:hover { transform: scale(1.05); opacity: 0.9; }
+
+/* --- Body offset for fixed header --- */
+body { padding-top: 58px; }
+
+/* --- Responsive: tablet / landscape phones --- */
+@media (max-width: 900px) {
+  .top-header {
+    height: 44px;
+    padding: 5px 4%;
+  }
+  body { padding-top: 44px; }
+
+  .header-brand img {
+    height: 26px;
+    width: 26px;
+    margin-right: 0;
+    flex-shrink: 0;
+  }
+  .brand-main { font-size: 0.82rem; }
+  .brand-sub  { font-size: 0.58rem; }
+
+  .user-name  { font-size: 0.72rem; max-width: 64px; }
+  .user-avatar { width: 28px; height: 28px; }
+  .user-profile { gap: 5px; }
+  .btn-nav { padding: 6px 11px; font-size: 0.84rem; }
+}
+
+/* --- Responsive: tablet / small desktop --- */
+@media (max-width: 768px) {
+  .top-header {
+    height: 40px;
+    padding: 4px 4%;
+  }
+  body { padding-top: 40px; }
+
+  .header-brand { gap: 6px; min-width: 0; overflow: hidden; }
+
+  .header-brand img {
+    height: 24px;
+    width: 24px;
+    margin-right: 0;
+    flex-shrink: 0;
+  }
+
+  .brand-text { min-width: 0; overflow: hidden; }
+  .brand-main { font-size: 0.8rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .brand-sub  { font-size: 0.55rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .header-actions { gap: 6px; }
+  .user-name  { font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60px; }
+  .user-avatar { width: 26px; height: 26px; }
+  .user-profile { gap: 5px; min-width: 0; }
+  .btn-nav { padding: 6px 10px; font-size: 0.82rem; }
+}
+
+/* --- Responsive: small phone --- */
+@media (max-width: 430px) {
+  .top-header { padding: 4px 4%; }
+  body { padding-top: 40px; }
+
+  .header-brand img { width: 24px; height: 24px; }
+  .brand-main { font-size: 0.8rem; }
+  .brand-sub  { font-size: 0.55rem; }
+
+  .header-actions { gap: 5px; }
+  .user-name  { font-size: 0.68rem; max-width: 60px; }
+  .nav-links { gap: 6px; }
+  .btn-nav { padding: 5px 9px; font-size: 0.78rem; }
+}
+
+/* --- Very small: hide subtitle and user-name, keep avatar only --- */
+@media (max-width: 320px) {
+  .top-header { padding: 4px 3%; }
+  .header-brand img { width: 22px; height: 22px; }
+  .brand-main { font-size: 0.75rem; }
+  .brand-sub { display: none; }
+  .user-name { display: none; }
+}
+
+/* --- Prevent horizontal overflow on mobile --- */
+@media (max-width: 480px) {
+  .top-header, .header-brand, .header-actions {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+}
