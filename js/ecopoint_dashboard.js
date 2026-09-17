@@ -576,13 +576,13 @@
       eventSource.addEventListener('error', function(event) {
         log('SSE error event', event.type);
         closeSSE();
-        scheduleReconnect();
+        startPolling();
       });
 
       eventSource.onerror = function(event) {
         log('EventSource onerror', event.type);
         closeSSE();
-        scheduleReconnect();
+        startPolling();
       };
 
       isConnecting = false;
