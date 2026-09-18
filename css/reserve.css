@@ -339,7 +339,8 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
 .price-inline{margin-top:8px;color:#23412e;font-weight:700;display:inline-block;font-size:1.1rem}
 .res-item{flex:0 0 auto;text-align:left;min-width:120px;padding:10px 0}
 .date-item{padding:8px 0}
-.res-label{display:flex;align-items:center;justify-content:flex-start;gap:6px;margin-bottom:6px;font-size:0.85rem;color:#666;font-weight:500;text-transform:capitalize}
+.res-label{display:block;margin-bottom:6px;font-size:0.85rem;color:#666;font-weight:500;text-transform:capitalize}
+.res-hint{display:block;margin-top:4px;font-size:0.8rem;color:#6b7280;font-weight:400;text-transform:none;line-height:1.4}
 .persons .counter{justify-content:center;margin-top:10px}
 .note{display:block;color:#666;font-size:.85rem;margin-top:6px}
 .reservation-card p{margin:0;font-weight:500;color:#374151;line-height:1.5}
@@ -362,10 +363,12 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
 
 @media (min-width:1024px){
   .reservation-left .res-item{
-    max-width:420px;
+    width:100%;
+    max-width:none;
   }
   .reservation-left .price-row{
-    max-width:720px;
+    width:100%;
+    max-width:none;
   }
 }
 /* Button Styles - Updated from signup.css */
@@ -1313,6 +1316,22 @@ input:focus-visible {
   border-color: #e5e7eb;
 }
 
+.slot-btn.taken {
+  background: #ffedd5;
+  color: #9a3412;
+  border: 1.5px solid #fdba74;
+  font-weight: 700;
+  opacity: 1;
+  cursor: not-allowed;
+}
+.slot-btn.taken:hover {
+  transform: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  border-color: #fb923c;
+  color: #9a3412;
+  background: #fed7aa;
+}
+
 .slot-btn.available {
   border: 2px solid #16a34a;
   background: #d1fae5;
@@ -1354,7 +1373,6 @@ input:focus-visible {
 }
 
 .persons .res-label{
-  justify-content:center;
   text-align:center;
 }
 
@@ -1409,6 +1427,82 @@ input:focus-visible {
   border: 1.5px solid #e5e7eb;
 }
 
+.time-slot-error {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.5;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+.time-slot-error .msg {
+  flex: 1 1 auto;
+}
+.time-slot-error .close-warn {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fecaca;
+  color: #b91c1c;
+  border: none;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  font-weight: 700;
+  transition: background 0.15s ease;
+}
+.time-slot-error .close-warn:hover {
+  background: #fca5a5;
+}
+
+.slot-legend {
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 14px;
+  row-gap: 6px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  font-size: 0.78rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+.slot-legend .legend-title {
+  font-weight: 700;
+  color: #374151;
+}
+.slot-legend .legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.slot-legend .legend-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex: 0 0 auto;
+}
+.slot-legend .legend-dot-taken {
+  background: #ffedd5;
+  border: 1.5px solid #fdba74;
+}
+.slot-legend .legend-dot-closing {
+  background: #f9f9f9;
+  border: 1.5px solid #e5e7eb;
+}
+
 .hours-select {
   width: 100%;
   padding: 12px;
@@ -1443,6 +1537,12 @@ input:focus-visible {
   font-size: 0.85rem;
   font-weight: 600;
   transition: all 0.2s;
+}
+
+.date-clear-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
 }
 
 .clear-date:hover {

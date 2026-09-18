@@ -1159,7 +1159,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
             <div class="step-index">2</div>
             <div class="step-content">
               <div class="step-title">Set schedule</div>
-              <div class="step-subtitle">Pick an available date and time from the calendar</div>
+              <div class="step-subtitle">Select a date and time from the calendar</div>
             </div>
           </div>
           <div class="booking-step" id="step-review">
@@ -1284,27 +1284,31 @@ if (ob_get_level() > 0) { ob_end_flush(); }
               </div>
               <div class="reservation-left">
                 <div class="res-item" id="singleDayRow">
+
+                 <div class="note">Reservations must be made at least 1 day in advance. Same-day bookings are not allowed.</div>
                   <label class="single-day"><input type="checkbox" id="singleDayToggle"> Single-day reservation</label>
                 </div>
-                <div class="date-row" id="dateRow">
-                  <div class="res-item date-item" id="startDateGroup">
-                    <div class="res-label"><small>Start Date</small></div>
-                    <div class="date-line"><p id="startDate">--</p><button type="button" class="clear-date" id="clearStartBtn" title="Clear start date">Clear</button></div>
-                    <input type="hidden" name="startDate" id="startDateInput">
-                    <div id="startDateError" class="time-error" style="display:none;"></div>
-                  </div>
-                    <div class="res-item date-item" id="endDateGroup">
-                    <div class="res-label"><small>End Date</small></div>
-                    <div class="date-line"><p id="endDate">--</p><button type="button" class="clear-date" id="clearEndBtn" title="Clear end date">Clear</button></div>
-                    <input type="hidden" name="endDate" id="endDateInput">
-                    <div id="dateError" class="time-error" style="display:none;"></div>
-                    <input type="time" name="endTime" id="endTimeInput" min="08:00" max="23:00" style="display:none;">
-                    <div id="timeError" class="time-error" style="display:none;"></div>
-                  </div>
-                  </div>
-                    <div class="note">Reservations must be made at least 1 day in advance. Same-day bookings are not allowed.</div>
-                  <div class="rsv-time-attendees" style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start; width:100%;">
-                    <div class="date-extra" style="flex:1 1 340px; min-width:280px; margin-top:0;">
+<div class="date-row">
+                <div class="res-item date-item" id="startDateGroup">
+                  <div class="res-label"><small>Start Date</small></div>
+                  <div class="date-line"><p id="startDate">--</p></div>
+                  <input type="hidden" name="startDate" id="startDateInput">
+                  <div id="startDateError" class="time-error" style="display:none;"></div>
+                </div>
+                <div class="res-item date-item" id="endDateGroup">
+                  <div class="res-label"><small>End Date</small></div>
+                  <div class="date-line"><p id="endDate">--</p></div>
+                  <input type="hidden" name="endDate" id="endDateInput">
+                  <div id="dateError" class="time-error" style="display:none;"></div>
+                  <input type="time" name="endTime" id="endTimeInput" min="08:00" max="23:00" style="display:none;">
+                  <div id="timeError" class="time-error" style="display:none;"></div>
+                </div>
+              </div>
+              <div class="date-clear-row">
+                <button type="button" class="clear-date" id="clearDatesBtn" title="Clear start and end date">Clear Dates</button>
+              </div>
+             
+              <div class="res-item time-item">
                     <input type="time" name="startTime" id="startTimeInput" min="08:00" max="23:00" style="display:none;">
                     <div class="res-label" id="hoursLabel" style="margin-top:8px; display:none;"><small>Number of Hours</small></div>
                     <div class="counter" id="hoursCounter" style="display:none;">
@@ -1314,14 +1318,48 @@ if (ob_get_level() > 0) { ob_end_flush(); }
                     </div>
                     <input type="hidden" name="hours" id="hoursInput">
                     <input type="hidden" id="hoursChosen" value="0">
-                    <div class="res-label" id="hoursSectionLabel" style="margin-top:8px; display:none;"><small>How many hours</small></div>
+                    <div class="res-label" id="hoursSectionLabel" style="margin-top:8px; display:none;"><small>Number of Hours</small><small class="res-hint">Select the total number of hours for this reservation.</small></div>
                     <select id="hoursSelect" class="hours-select" style="display:none;" disabled></select>
                     <div id="durationContainer" style="display:none;"></div>
-                    <div class="res-label" id="timeSectionLabel" style="margin-top:8px; display:none;"><small>Start Time</small></div>
-                    <div id="timeSlotContainer"></div>
-                    <div id="selectedTimeRange" class="selected-time-range" style="display:none;"></div>
-                    <div id="selectedTimeNote" class="selected-time-note" style="display:none;">Note: This is the available time. Please leave by closing time.</div>
                     <div id="availabilityNotice" class="avail-notice" style="display:none;"></div>
+                    <div class="slot-legend" id="slotLegend" style="display:none;">
+                      <span class="legend-title">Time Slot Availability:</span>
+                      <span class="legend-item"><span class="legend-dot legend-dot-taken"></span> Taken &mdash; already booked by another guest</span>
+                      <span class="legend-item"><span class="legend-dot legend-dot-closing"></span> Unavailable &mdash; exceeds the amenity closing time</span>
+                    </div>
+                    <div class="res-label" id="timeSectionLabel" style="margin-top:8px; display:none;"><small>Start Time</small><small class="res-hint">Select an available start time below. The end time is calculated automatically, and the full time range is displayed after you select.</small></div>
+                    <div id="timeSlotContainer"></div>
+                    <div id="timeSlotError" class="time-slot-error" style="display:none;"></div>
+                    <div id="selectedTimeRange" class="selected-time-range" style="display:none;"></div>
+                    <div id="selectedTimeNote" class="selected-time-note" style="display:none;">Note: This is the scheduled time. Please vacate the amenity by the closing time.</div>
+                  </div>
+
+              <div class="res-item persons">
+                    <div id="personsMaxNote" class="label-help"></div>
+                      <?php if (!$isResident): ?>
+                      <div class="res-label"><small>Total Participants</small></div>
+                      <div class="counter">
+                        <button type="button" onclick="changePersons(-1)">-</button>
+                        <input type="number" id="personCount" value="0" min="0" max="200" step="1" style="width:70px;text-align:center;border:1px solid #e5e7eb;border-radius:8px;padding:6px 10px;font-weight:600;">
+                        <button type="button" onclick="changePersons(1)">+</button>
+                      </div>
+                      <?php endif; ?>
+                      <input type="hidden" name="persons" id="personsInput" value="0">
+                      
+                      <?php if ($isResident): ?>
+                      <div id="participantWrap" data-mode="resident_only" style="display:block;">
+                        <div class="pers-total">
+                          <div class="res-label"><small>Number of Participants</small></div>
+                          <div class="counter">
+                            <button type="button" onclick="changeReserveTotal(-1)">-</button>
+                            <input type="number" id="reserveTotalCount" value="0" min="0" max="200" step="1" style="width:70px;text-align:center;border:1px solid #e5e7eb;border-radius:8px;padding:6px 10px;font-weight:600;">
+                            <button type="button" onclick="changeReserveTotal(1)">+</button>
+                          </div>
+                        </div>
+                      </div>
+                      <?php endif; ?>
+                  </div>
+
                     <!-- Points Redemption Toggle -->
 <?php if ($sessionUserType === 'resident'): ?>
                     <div class="res-item booking-mode-row">
@@ -1330,8 +1368,8 @@ if (ob_get_level() > 0) { ob_end_flush(); }
                         <div class="booking-mode-grid">
                           <button type="button" class="booking-mode-card is-active" id="bookingModeCash">
                             <span class="booking-mode-label">Cash</span>
-                            <span class="booking-mode-value">Pay online downpayment</span>
-                            <span class="booking-mode-meta">Use the regular VictorianPass booking flow.</span>
+                            <span class="booking-mode-value">Pay with Cash</span>
+                            <span class="booking-mode-meta">Pay 50% of the reservation fee as an online downpayment. The remaining 50% must be paid in cash at the Admin Office.</span>
                           </button>
                           <button type="button" class="booking-mode-card" id="bookingModePoints">
                             <span class="booking-mode-label">Redeem Points</span>
@@ -1362,33 +1400,6 @@ if (ob_get_level() > 0) { ob_end_flush(); }
                         <div id="priceBreakdown" class="price-breakdown" style="display:none;"></div>
                       </div>
                     </div>
-                  </div>
-                    <div class="res-item right-col" style="flex:1 1 320px; min-width:280px; margin-top:0;">
-                    <div class="res-item persons" style="flex:1 1 320px; min-width:280px; margin-top:0;">
-                    <div id="personsMaxNote" class="label-help"></div>
-                      <?php if (!$isResident): ?>
-                      <div class="res-label"><small>Total Participants</small></div>
-                      <div class="counter">
-                        <button type="button" onclick="changePersons(-1)">-</button>
-                        <input type="number" id="personCount" value="0" min="0" max="200" step="1" style="width:70px;text-align:center;border:1px solid #e5e7eb;border-radius:8px;padding:6px 10px;font-weight:600;">
-                        <button type="button" onclick="changePersons(1)">+</button>
-                      </div>
-                      <?php endif; ?>
-                      <input type="hidden" name="persons" id="personsInput" value="0">
-                      
-                      <?php if ($isResident): ?>
-                      <div id="participantWrap" data-mode="resident_only" style="display:block;">
-                        <div class="pers-total">
-                          <div class="res-label"><small>Number of Participants</small></div>
-                          <div class="counter">
-                            <button type="button" onclick="changeReserveTotal(-1)">-</button>
-                            <input type="number" id="reserveTotalCount" value="0" min="0" max="200" step="1" style="width:70px;text-align:center;border:1px solid #e5e7eb;border-radius:8px;padding:6px 10px;font-weight:600;">
-                            <button type="button" onclick="changeReserveTotal(1)">+</button>
-                          </div>
-                        </div>
-                      </div>
-                      <?php endif; ?>
-                    </div>
                     <div class="res-item price-row">
                       <div class="price-box">
                         <div class="price-label">Downpayment (50% Online)</div>
@@ -1401,8 +1412,6 @@ if (ob_get_level() > 0) { ob_end_flush(); }
                     </div>
                     <div id="submitWrap" class="res-item submit-wrap">
                       <button id="submitBtn" class="btn-submit disabled" type="submit" disabled>Next</button>
-                    </div>
-                    </div>
                     </div>
               </div>
             </div>
@@ -1897,14 +1906,14 @@ if (ob_get_level() > 0) { ob_end_flush(); }
         if(!ds) continue;
         if(ds < minDateStr){
           cell.classList.add('disabled');
-          cell.title = ds < todayStr ? 'Past date — cannot be booked.' : 'Reservations must be made at least 1 day in advance.';
+          cell.title = ds < todayStr ? 'Past dates cannot be booked.' : 'Reservations must be made at least 1 day in advance.';
           continue;
         }
         cell.classList.remove('disabled','partly','available','fully-booked');
         const dayBooked = byDate[ds] || [];
         const reservedHours = getReservedHoursForDay(dayBooked, minH, maxH, ds, amen);
-        if(reservedHours>=totalHours){ cell.classList.add('disabled'); cell.classList.add('fully-booked'); cell.title='Fully Booked — no time slots available for this date.'; }
-        else if(reservedHours>0){ cell.classList.add('partly'); cell.title='Partially Booked — some time slots are unavailable.'; }
+        if(reservedHours>=totalHours){ cell.classList.add('disabled'); cell.classList.add('fully-booked'); cell.title='Fully Booked — no start times are available for this date.'; }
+        else if(reservedHours>0){ cell.classList.add('partly'); cell.title='Partially Booked — some start times are unavailable.'; }
         else { cell.classList.add('available'); cell.title=''; }
       }
     }catch(_){ }
@@ -1913,13 +1922,13 @@ if (ob_get_level() > 0) { ob_end_flush(); }
   async function handleDateClick(cell,dateString){
     if(cell.classList.contains('disabled')){
       if(cell.classList.contains('fully-booked')){
-        showStartDateError('Fully Booked — no time slots available for this date.');
+        showStartDateError('Fully Booked — no start times are available for this date.');
       } else if(dateString && dateString < todayStr){
         showStartDateError('Past date — cannot be booked.');
       } else if(dateString && dateString < minDateStr){
         showStartDateError('Reservations must be made at least 1 day in advance.');
       } else {
-        showStartDateError('Unavailable date — cannot be booked.');
+        showStartDateError('The selected date is not available for booking.');
       }
       return;
     }
@@ -2037,38 +2046,26 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     });
   }
 
-  function clearStartDate(){
+  function clearDates(){
     selectedStart=null;
-    document.getElementById('startDate').textContent='--';
-    document.getElementById('startDateInput').value='';
-    const single = document.getElementById('singleDayToggle')?.checked;
-    if(single){ selectedEnd=null; document.getElementById('endDate').textContent='--'; document.getElementById('endDateInput').value=''; endDateRangeError=false; }
-    document.querySelectorAll('.calendar .cal-cell').forEach(td=>{ td.classList.remove('active'); td.classList.remove('active-start'); td.classList.remove('active-end'); });
-    evaluateCalendarAvailability();
-    computeAvailability();
-    renderTimeSlotButtons();
-    markDirty('startDateInput');
-    showIncompleteWarnings(false);
-    updateActionStates();
-    updateSelectedTimeRange();
-    updateBookingSummary();
-    updateHoursSelectEnabled();
-  }
-  function clearEndDate(){
     selectedEnd=null;
-    document.getElementById('endDate').textContent='--';
-    document.getElementById('endDateInput').value='';
+    const ds=document.getElementById('startDate'); if(ds) ds.textContent='--';
+    const dsi=document.getElementById('startDateInput'); if(dsi) dsi.value='';
+    const de=document.getElementById('endDate'); if(de) de.textContent='--';
+    const dei=document.getElementById('endDateInput'); if(dei) dei.value='';
     endDateRangeError=false;
     document.querySelectorAll('.calendar .cal-cell').forEach(td=>{ td.classList.remove('active'); td.classList.remove('active-start'); td.classList.remove('active-end'); });
     updateSelectedDateRangeHighlight();
     evaluateCalendarAvailability();
     computeAvailability();
     renderTimeSlotButtons();
+    markDirty('startDateInput');
     markDirty('endDateInput');
     showIncompleteWarnings(false);
     updateActionStates();
     updateSelectedTimeRange();
     updateBookingSummary();
+    updateHoursSelectEnabled();
   }
 
   function updateHoursSelectEnabled(){
@@ -2402,7 +2399,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
       const tn=document.getElementById('selectedTimeNote'); if(tn){ tn.style.display='none'; }
       const tsl=document.getElementById('timeSectionLabel'); if(tsl){ tsl.style.display='none'; }
       const tCont=document.getElementById('timeSlotContainer'); if(tCont){ tCont.innerHTML=''; tCont.style.display='none'; }
-      const avail=document.getElementById('availabilityNotice'); if(avail){ avail.style.display='none'; avail.textContent=''; }
+      const avail=document.getElementById('availabilityNotice'); if(avail){ avail.style.display='none'; avail.textContent=''; avail.classList.remove('notice-available','notice-partly','notice-disabled'); }
       const toggle = document.getElementById('use-points-toggle'); if(toggle){ toggle.checked = false; }
       usePoints = false;
       showStartDateError(''); showDateError(''); setFieldWarning('startTimeInput',''); setFieldWarning('endTimeInput',''); setFieldWarning('personsInput',''); setFieldWarning('hoursInput','');
@@ -2542,9 +2539,8 @@ async function changePersons(val){
   }
   function requireDateBeforeHours(){
     const s=document.getElementById('startDateInput')?.value||'';
-    const e=document.getElementById('endDateInput')?.value||'';
-    if(!s || !e){
-      setFieldWarning('hoursInput','Please select a start date and end date before choosing hours.');
+    if(!s){
+      setFieldWarning('hoursInput','Please select a reservation date before choosing the number of hours.');
       return false;
     }
     setFieldWarning('hoursInput','');
@@ -3184,7 +3180,7 @@ async function changePersons(val){
 
   ['startTimeInput','endTimeInput'].forEach(id=>{const el=document.getElementById(id);if(el){el.addEventListener('input',function(){ if(isHourBasedAmenity(document.getElementById('amenityField').value) && id==='startTimeInput'){ computeEndTimeFromHours(); } else { checkTimeAvailability(); } })}});
   const hoursEl=document.getElementById('hoursInput'); if(hoursEl){ hoursEl.addEventListener('input',function(){ computeEndTimeFromHours(); updateDisplayedPrice(); updateDownpaymentSuggestion(); }); }
-  const hoursSelect=document.getElementById('hoursSelect'); if(hoursSelect){ hoursSelect.addEventListener('change',function(){ if(!requireDateBeforeHours()) return; const val=parseInt(hoursSelect.value||'0',10); if(!val) return; const hid=document.getElementById('hoursInput'); if(hid){ hid.value=String(val); const hc=document.getElementById('hoursCount'); if(hc){ hc.textContent=String(val); } }
+  const hoursSelect=document.getElementById('hoursSelect'); if(hoursSelect){ hoursSelect.addEventListener('focus',function(){ requireDateBeforeHours(); }); hoursSelect.addEventListener('change',function(){ if(!requireDateBeforeHours()){ hoursSelect.value=''; const hcChoice=document.getElementById('hoursChosen'); if(hcChoice) hcChoice.value='0'; return; } const val=parseInt(hoursSelect.value||'0',10); if(!val) return; const hid=document.getElementById('hoursInput'); if(hid){ hid.value=String(val); const hc=document.getElementById('hoursCount'); if(hc){ hc.textContent=String(val); } }
     const tsl=document.getElementById('timeSectionLabel'); if(tsl){ tsl.style.display='block'; }
     computeEndTimeFromHours();
     updateDisplayedPrice();
@@ -3202,7 +3198,7 @@ async function changePersons(val){
         const s=document.getElementById('startDateInput')?.value||'';
         if(!s){
           e.preventDefault();
-          setFieldWarning('hoursInput','You must pick a date first.');
+          setFieldWarning('hoursInput','Please select a reservation date first.');
         }
       });
     }
@@ -3221,8 +3217,7 @@ async function changePersons(val){
       });
     }
   });
-  const cs=document.getElementById('clearStartBtn'); if(cs){ cs.addEventListener('click',clearStartDate); }
-  const ce=document.getElementById('clearEndBtn'); if(ce){ ce.addEventListener('click',clearEndDate); }
+  const cd=document.getElementById('clearDatesBtn'); if(cd){ cd.addEventListener('click',clearDates); }
   const formEl=document.querySelector('form');
   if(formEl){
     let submitting = false;
@@ -3861,6 +3856,7 @@ async function changePersons(val){
   function formatTimeHM(h,m){ const ap=h>=12?'PM':'AM'; let hh=h%12; if(hh===0) hh=12; const mm=String(m).padStart(2,'0'); return `${hh}:${mm} ${ap}`; }
   function generateTimeSlots(amenity){ const hrs=getAmenityHours(amenity); const min=parseInt(hrs.min.split(':')[0],10); const max=parseInt(hrs.max.split(':')[0],10); const out=[]; for(let h=min; h<max; h++){ out.push({ label: formatTimeSlot(h), value: `${String(h).padStart(2,'0')}:00` }); } return out; }
   function computeMaxDuration(amenity,startHour,booked,selectedDate){ const hrs=getAmenityHours(amenity); const maxHour=parseInt(hrs.max.split(':')[0],10); let max=0; for(let h=1; startHour+h<=maxHour; h++){ const thisStart=`${String(startHour).padStart(2,'0')}:00`; const thisEnd=`${String(startHour+h).padStart(2,'0')}:00`; const sM=toMinutes(thisStart), eM=toMinutes(thisEnd); const overlaps=(booked||[]).some(function(t){ if(selectedDate && t.start_date && t.end_date && (t.end_date < selectedDate || t.start_date > selectedDate)) return false; if(!t.has_time){ const bS=parseInt(hrs.min.split(':')[0],10); return !(eM<=bS || sM>=maxHour); } const ts=toMinutes(t.start), te=toMinutes(t.end); return !(eM<=ts || sM>=te); }); if(overlaps) break; max=h; } return max; }
+  function isSlotTakenByBooking(amenity,startHour,requestedHours,booked,selectedDate){ const hrs=getAmenityHours(amenity); const maxHour=parseInt(hrs.max.split(':')[0],10); const wHours=Math.max(1,requestedHours||1); const sM=toMinutes(`${String(startHour).padStart(2,'0')}:00`); const eM=toMinutes(`${String(startHour+wHours).padStart(2,'0')}:00`); return (booked||[]).some(function(t){ if(selectedDate && t.start_date && t.end_date && (t.end_date < selectedDate || t.start_date > selectedDate)) return false; if(!t.has_time){ const bS=parseInt(hrs.min.split(':')[0],10); return !(eM<=bS || sM>=maxHour); } const ts=toMinutes(t.start), te=toMinutes(t.end); return !(eM<=ts || sM>=te); }); }
 
   function renderHoursChipsForAmenity(){ const amen=document.getElementById('amenityField').value; const dc=document.getElementById('durationContainer'); const lbl=document.getElementById('hoursSectionLabel'); if(!dc) return; dc.innerHTML=''; if(!isHourBasedAmenity(amen)){ dc.style.display='none'; if(lbl) lbl.style.display='none'; return; } dc.style.display='flex'; if(lbl) lbl.style.display='block'; dc.style.flexWrap='wrap'; dc.style.gap='8px'; dc.style.margin='8px 0 0 0'; const maxH=(amen==='Clubhouse' || amen==='Multi-Purpose Building')?12:9; for(let h=1; h<=maxH; h++){ const b=document.createElement('button'); b.type='button'; b.className='dur-btn'; b.textContent=`${h}h`; b.dataset.hours=String(h); b.onclick=function(){ selectDuration(h); }; dc.appendChild(b); } const currentH=parseInt(document.getElementById('hoursInput').value||'',10); if(currentH){ const sel=Array.from(dc.children).find(b=>b.dataset.hours===String(currentH)); if(sel) sel.classList.add('selected'); } }
 
@@ -3871,7 +3867,8 @@ async function changePersons(val){
     const notice=document.getElementById('availabilityNotice');
     if(!container) return;
     container.innerHTML='';
-    if(notice){ notice.style.display='none'; notice.textContent=''; }
+    if(notice){ notice.style.display='none'; notice.textContent=''; notice.classList.remove('notice-available','notice-partly','notice-disabled'); }
+    const slotErrReset=document.getElementById('timeSlotError'); if(slotErrReset){ slotErrReset.style.display='none'; slotErrReset.textContent=''; }
 
     if(!isHourBasedAmenity(amen)){
       container.style.display='none';
@@ -3909,15 +3906,15 @@ async function changePersons(val){
         btn.className='slot-btn unavailable';
         btn.textContent=slot.label;
         btn.onclick=function(){
-          showTimeError('Select number of hours first to pick a start time.');
+displaySlotError('Please select the number of hours before choosing a start time.');
         };
         container.appendChild(btn);
       });
       return;
     }
-    window.__slotRenderTokenCounter=(window.__slotRenderTokenCounter||0)+1; const __token=window.__slotRenderTokenCounter; window.__activeSlotRenderToken=__token; if(!date){ container.innerHTML=''; if(notice){ notice.style.display='none'; notice.textContent=''; } return; } fetchBookedTimesFor(date).then(data=>{ if(window.__activeSlotRenderToken!==__token) return; const booked=data.times||[]; window.__bookedTimesForDate=booked||[]; let anyEnabled=false; let disabledCount=0; slots.forEach(slot=>{ const startHour=parseInt(slot.value.split(':')[0],10); const maxPossible=computeMaxDuration(amen,startHour,booked,date); const valid=(maxPossible>=hours); const btn=document.createElement('button'); btn.type='button'; btn.className='slot-btn airbnb'; btn.textContent=slot.label; btn.dataset.slot=slot.value; if(!valid){ disabledCount++; btn.classList.add('unavailable'); btn.setAttribute('aria-disabled','true'); btn.onclick=function(){ showToast('This start time cannot fit your selected duration. Try a different start time or duration.','warning'); }; } else { anyEnabled=true; btn.classList.add('available'); btn.onclick=function(){ selectTimeSlot(slot.value); }; } container.appendChild(btn); }); let hasBookedHours=false; (booked||[]).forEach(function(t){ if(!t.has_time){ hasBookedHours=true; return; } const bS=parseInt(String(t.start).split(':')[0],10); const bE=parseInt(String(t.end).split(':')[0],10); if(bE>bS){ hasBookedHours=true; } }); if(notice){ if(!anyEnabled){ notice.style.display='block'; notice.textContent = hasBookedHours ? 'Fully Booked — no time slots available for this date.' : ''; } else if(disabledCount>0){ notice.style.display='block'; notice.textContent = hasBookedHours ? 'Partially Booked — some time slots are unavailable.' : ''; } else { notice.style.display='none'; notice.textContent=''; } } if(!anyEnabled){ showTimeError('No start times fit the selected hours. Try a different duration.'); } else { showTimeError(''); } const st=document.getElementById('startTimeInput').value; if(st){ const selBtn=Array.from(container.children).find(b=>b.tagName==='BUTTON' && b.dataset.slot===st); if(selBtn) selBtn.classList.add('selected'); } updateActionStates(); }); }
+    window.__slotRenderTokenCounter=(window.__slotRenderTokenCounter||0)+1; const __token=window.__slotRenderTokenCounter; window.__activeSlotRenderToken=__token; if(!date){ container.innerHTML=''; if(notice){ notice.style.display='none'; notice.textContent=''; notice.classList.remove('notice-available','notice-partly','notice-disabled'); } const sErr2=document.getElementById('timeSlotError'); if(sErr2){ sErr2.style.display='none'; sErr2.textContent=''; } return; } fetchBookedTimesFor(date).then(data=>{ if(window.__activeSlotRenderToken!==__token) return; const booked=data.times||[]; window.__bookedTimesForDate=booked||[]; let anyEnabled=false; let disabledCount=0; slots.forEach(slot=>{ const startHour=parseInt(slot.value.split(':')[0],10); const maxPossible=computeMaxDuration(amen,startHour,booked,date); const valid=(maxPossible>=hours); const btn=document.createElement('button'); btn.type='button'; btn.className='slot-btn airbnb'; btn.textContent=slot.label; btn.dataset.slot=slot.value; if(!valid){ disabledCount++; const taken=isSlotTakenByBooking(amen,startHour,hours,booked,date); btn.classList.add(taken?'taken':'unavailable'); btn.setAttribute('aria-disabled','true'); btn.onclick=function(){ showToast(taken ? 'This start time has already been booked by another guest. Please select a different start time or date.' : 'This start time cannot accommodate the selected duration. Please choose a different start time or duration.','warning'); }; } else { anyEnabled=true; btn.classList.add('available'); btn.onclick=function(){ selectTimeSlot(slot.value); }; } container.appendChild(btn); }); let hasBookedHours=false; (booked||[]).forEach(function(t){ if(!t.has_time){ hasBookedHours=true; return; } const bS=parseInt(String(t.start).split(':')[0],10); const bE=parseInt(String(t.end).split(':')[0],10); if(bE>bS){ hasBookedHours=true; } }); if(notice){ notice.classList.remove('notice-available','notice-partly','notice-disabled'); if(hasBookedHours && !anyEnabled){ notice.style.display='block'; notice.textContent='Fully Booked — no start times are available for this date.'; notice.classList.add('notice-disabled'); } else if(hasBookedHours && disabledCount>0){ notice.style.display='block'; notice.textContent='Partially Booked — some start times are unavailable.'; notice.classList.add('notice-partly'); } else { notice.style.display='block'; notice.textContent='All start times are available — please select your preferred start time.'; notice.classList.add('notice-available'); } } if(!anyEnabled){ showTimeError('No start times are available for the selected duration. Please adjust the number of hours.'); } else { showTimeError(''); } const st=document.getElementById('startTimeInput').value; if(st){ const selBtn=Array.from(container.children).find(b=>b.tagName==='BUTTON' && b.dataset.slot===st); if(selBtn) selBtn.classList.add('selected'); } updateActionStates(); }); }
 
-  function selectTimeSlot(start){ const hInput=document.getElementById('hoursInput'); const hrs=parseInt(hInput?.value||'0',10); if(!hrs || hrs<1){ showTimeError('Please select number of hours before choosing a start time.'); return; } const amen=document.getElementById('amenityField').value; const booked=window.__bookedTimesForDate||[]; const startHour=parseInt(start.split(':')[0],10); const selDate=document.getElementById('startDateInput')?.value||''; if(computeMaxDuration(amen,startHour,booked,selDate) < Math.max(1,hrs)){ showTimeError('This start time cannot fit your selected duration. Try a different start time or duration.'); showToast(`<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Not enough free hours starting from this time to complete ${hrs} hour${hrs>1?'s':''}.`,'warning'); return; } document.getElementById('startTimeInput').value=start; computeEndTimeFromHours(); const sh=startHour, eh=sh+hrs; const tr=document.getElementById('selectedTimeRange'); if(tr){ tr.innerHTML='<i class="fa-regular fa-clock" aria-hidden="true"></i> Selected Time: '+formatTimeSlot(sh)+' - '+formatTimeSlot(eh); tr.style.display='block'; } const tn=document.getElementById('selectedTimeNote'); if(tn){ tn.style.display='none'; } const cont=document.getElementById('timeSlotContainer'); if(cont){ Array.from(cont.querySelectorAll('.slot-btn')).forEach(function(b){ b.classList.remove('selected'); }); const sel=Array.from(cont.querySelectorAll('.slot-btn')).find(function(b){ return b.dataset.slot===start; }); if(sel){ sel.classList.add('selected'); } } showTimeError(''); updateActionStates(); }
+  function selectTimeSlot(start){ const hInput=document.getElementById('hoursInput'); const hrs=parseInt(hInput?.value||'0',10); if(!hrs || hrs<1){ showTimeError('Please select the number of hours before choosing a start time.'); return; } const amen=document.getElementById('amenityField').value; const booked=window.__bookedTimesForDate||[]; const startHour=parseInt(start.split(':')[0],10); const selDate=document.getElementById('startDateInput')?.value||''; if(computeMaxDuration(amen,startHour,booked,selDate) < Math.max(1,hrs)){ displaySlotError('This start time cannot accommodate the selected duration. Please choose a different start time or duration.'); showToast(`<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Not enough consecutive open hours remain from this start time to accommodate ${hrs} hour${hrs>1?'s':''}.`,'warning'); return; } document.getElementById('startTimeInput').value=start; computeEndTimeFromHours(); const sh=startHour, eh=sh+hrs; const tr=document.getElementById('selectedTimeRange'); if(tr){ tr.innerHTML='<i class="fa-regular fa-clock" aria-hidden="true"></i> Selected Time: '+formatTimeSlot(sh)+' - '+formatTimeSlot(eh); tr.style.display='block'; } const tn=document.getElementById('selectedTimeNote'); if(tn){ tn.style.display='none'; } const cont=document.getElementById('timeSlotContainer'); if(cont){ Array.from(cont.querySelectorAll('.slot-btn')).forEach(function(b){ b.classList.remove('selected'); }); const sel=Array.from(cont.querySelectorAll('.slot-btn')).find(function(b){ return b.dataset.slot===start; }); if(sel){ sel.classList.add('selected'); } } displaySlotError(''); showTimeError(''); updateActionStates(); }
   function renderHoursDropdownForAmenity(){
     const amen=document.getElementById('amenityField').value;
     const sel=document.getElementById('hoursSelect');
@@ -3944,21 +3941,60 @@ async function changePersons(val){
     const todayStrLocal = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
     const currentHour=now.getHours();
     const currentMinute=now.getMinutes();
+    const hrs=getAmenityHours(amen);
+    const closingSlot=formatTimeSlot(parseInt((hrs.max||'18:00').split(':')[0],10));
     Array.from(container.querySelectorAll('.slot-btn')).forEach(function(btn){
       const ds=btn.dataset.slot; if(!ds) return;
       const sh=parseInt(ds.split(':')[0],10);
       const maxPossible=computeMaxDuration(amen,sh,booked,selectedDate);
       const isPastOnToday = (selectedDate===todayStrLocal) && (sh<currentHour || (sh===currentHour && currentMinute>0));
-      if(btn.disabled || isPastOnToday || maxPossible<Math.max(1,hours)){
+      btn.classList.remove('available','unavailable','taken');
+      if(btn.disabled || isPastOnToday || hours<1 || maxPossible<Math.max(1,hours)){
         btn.disabled=true;
-        btn.classList.add('unavailable');
         btn.dataset.past = isPastOnToday ? '1' : '0';
-        if(isPastOnToday){ btn.title=''; }
-        else { btn.title=''; }
+        if(isPastOnToday){ btn.classList.add('unavailable'); btn.title='This time slot has already passed for today.'; }
+        else if(hours<1){ btn.classList.add('unavailable'); btn.title='Please select the number of hours before choosing a start time.'; }
+        else if(isSlotTakenByBooking(amen,sh,Math.max(1,hours),booked,selectedDate)){ btn.classList.add('taken'); btn.title='Already booked by another guest — please select a different start time or date.'; }
+        else { btn.classList.add('unavailable'); btn.title='This amenity closes at '+closingSlot+'. A '+hours+'-hour reservation would exceed the closing time. Please select an earlier start time or reduce the number of hours.'; }
       } else {
+        btn.classList.add('available');
         btn.title='';
       }
     });
+    const legendEl=document.getElementById('slotLegend');
+    if(legendEl){
+      const hasTaken=Array.from(container.querySelectorAll('.slot-btn')).some(function(bb){ return bb.classList.contains('taken'); });
+      legendEl.style.display = hasTaken ? 'flex' : 'none';
+    }
+  }
+
+  function hideSlotError(){
+    const el=document.getElementById('timeSlotError');
+    if(!el) return;
+    el.style.display='none';
+  }
+
+  function displaySlotError(msg){
+    const el=document.getElementById('timeSlotError');
+    if(!el) return;
+    if(msg){
+      el.innerHTML='';
+      const m=document.createElement('span');
+      m.className='msg';
+      m.textContent=msg;
+      el.appendChild(m);
+      const close=document.createElement('button');
+      close.className='close-warn';
+      close.type='button';
+      close.textContent='\u00d7';
+      close.setAttribute('aria-label','Dismiss');
+      close.addEventListener('click',function(){ hideSlotError(); });
+      el.appendChild(close);
+      el.style.display='flex';
+    } else {
+      el.innerHTML='';
+      el.style.display='none';
+    }
   }
 
   (function observeSlotContainer(){
@@ -3966,7 +4002,7 @@ async function changePersons(val){
     if(!container) return;
     const obs=new MutationObserver(function(){ decorateSlotButtons(); });
     obs.observe(container,{childList:true});
-    container.addEventListener('pointerdown',function(e){ const b=e.target.closest('.slot-btn'); if(!b) return; if(b.disabled || b.classList.contains('unavailable')){ const isPast=(b.dataset.past==='1'); showTimeError(isPast ? 'This time has already passed and cannot be booked.' : 'This start time cannot fit your selected duration. Try a different start time or duration.'); e.preventDefault(); } });
+    container.addEventListener('pointerdown',function(e){ const b=e.target.closest('.slot-btn'); if(!b) return; if(b.disabled || b.classList.contains('unavailable') || b.classList.contains('taken')){ const isPast=(b.dataset.past==='1'); const msg = isPast ? 'This time slot has already passed for today and cannot be booked.' : (b.classList.contains('taken') ? 'Already booked by another guest — please select a different start time or date.' : (b.title || 'This start time cannot accommodate the selected duration. Please choose an earlier start time or reduce the number of hours.')); displaySlotError(msg); e.preventDefault(); } });
   })();
 
 </script>
