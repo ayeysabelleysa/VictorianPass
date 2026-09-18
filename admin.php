@@ -2241,8 +2241,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $conflict = ($cnt > 0);
                     // Do NOT override approval_status. Just warn admin via redirect if conflict.
                 }
-                $stmtUp = $con->prepare("UPDATE guest_forms SET approval_status = ?, approved_by = ?, approval_date = NOW(), denial_reason = ? WHERE id = ?");
-                $stmtUp->bind_param('sisi', $approval_status, $staff_id, $reasonToSave, $reservation_id);
+                $confirmDate = trim($_POST['visit_date'] ?? '');
+                $confirmTime = trim($_POST['visit_time'] ?? '');
+                if ($approval_status === 'approved' && $confirmDate !== '') {
+                    if (preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $confirmTime)) { $confirmTime .= ':00'; }
+                    $stmtUp = $con->prepare("UPDATE guest_forms SET approval_status = ?, approved_by = ?, approval_date = NOW(), denial_reason = ?, visit_date = ?, visit_time = ? WHERE id = ?");
+                    $stmtUp->bind_param('sisssi', $approval_status, $staff_id, $reasonToSave, $confirmDate, $confirmTime, $reservation_id);
+                } else {
+                    $stmtUp = $con->prepare("UPDATE guest_forms SET approval_status = ?, approved_by = ?, approval_date = NOW(), denial_reason = ? WHERE id = ?");
+                    $stmtUp->bind_param('sisi', $approval_status, $staff_id, $reasonToSave, $reservation_id);
+                }
                 $stmtUp->execute();
                 $stmtUp->close();
                 if ($approval_status === 'approved') {
@@ -2262,11 +2270,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
                 $stmtNotif->close();
                 if ($notifUserId) {
-                    $title = ($approval_status === 'approved') ? 'Request Approved' : 'Request Denied';
-                    $msg = ($approval_status === 'approved') ? 'Your request has been approved.' : 'Your request has been denied.';
-                    if ($approval_status !== 'approved' && $denialReason) { $msg .= ' Reason: ' . $denialReason; }
+                    $title = ($approval_status === 'approved') ? 'Guest Entry Pass Approved' : 'Guest Request Denied';
+                    if ($approval_status === 'approved') {
+                        $msg = 'Your guest request has been approved.';
+                        if ($confirmDate !== '') { $msg .= ' Confirmed arrival: ' . $confirmDate . ($confirmTime !== '' ? ' ' . $confirmTime : '') . '.'; }
+                        $msg .= ' The entry pass with a unique QR code is now available in your My Requests list and is valid only on the approved date and time.';
+                    } else {
+                        $msg = 'Your guest request has been denied.';
+                        if ($denialReason) { $msg .= ' Reason: ' . $denialReason; }
+                    }
                     if (!empty($notifRef)) { $msg .= ' Code: ' . $notifRef . '.'; }
-                    if (!empty($notifAmenity)) { $msg .= ' Amenity: ' . $notifAmenity . '.'; }
                     notifyUser($con, $notifUserId, $title, $msg, ($approval_status === 'approved' ? 'success' : 'error'));
                 }
             } else {
@@ -5786,7 +5799,7 @@ body.modal-open { overflow: hidden; }
     </div>
     <div class="dashboard-widget">
       <div class="dashboard-widget-value"><?php echo intval($cards['resident_activities_total'] ?? 0); ?></div>
-      <div class="dashboard-widget-label">Resident Activities (Approved Guests + Incidents)</div>
+      <div class="dashboard-widget-label">Resident Activities (Guest Requests + Incidents)</div>
     </div>
     <div class="dashboard-widget">
       <div class="dashboard-widget-value"><?php echo intval($cards['most_requested_total'] ?? 0); ?></div>
@@ -6314,7 +6327,10 @@ body.modal-open { overflow: hidden; }
           <tr>
             <th>Resident</th>
             <th>Guest Name</th>
-            <th>Request Date</th>
+            <th>Contact</th>
+            <th>Valid ID</th>
+            <th>Visit Schedule</th>
+            <th>Requested On</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -6339,6 +6355,17 @@ body.modal-open { overflow: hidden; }
 
                   $fullName = trim(($req['full_name'] ?? '') . ' ' . ($req['middle_name'] ?? '') . ' ' . ($req['last_name'] ?? ''));
                   echo "<td><strong>" . htmlspecialchars($fullName) . "</strong></td>";
+                  $gContact = trim((string)($req['visitor_contact'] ?? ''));
+                  echo "<td>" . (($gContact !== '') ? htmlspecialchars($gContact) : '<span class="muted">&mdash;</span>') . "</td>";
+                  $idPath = trim((string)($req['valid_id_path'] ?? ''));
+                  if ($idPath !== '') {
+                    echo "<td><a class='btn btn-view' style='padding:5px 10px;font-size:0.8rem;' href='" . htmlspecialchars($idPath) . "' target='_blank' title='View uploaded valid ID'><i class='fa-solid fa-id-card'></i> View ID</a></td>";
+                  } else {
+                    echo "<td><span class='muted'>&mdash;</span></td>";
+                  }
+                  $visitDateLabel = !empty($req['visit_date']) ? date('M d, Y', strtotime($req['visit_date'])) : '-';
+                  $visitTimeLabel = !empty($req['visit_time']) ? date('h:i A', strtotime($req['visit_time'])) : '';
+                  echo "<td>" . htmlspecialchars($visitDateLabel) . ($visitTimeLabel !== '' ? "<div style='font-size:0.82rem;color:#666;'>" . htmlspecialchars($visitTimeLabel) . "</div>" : '') . "</td>";
                   $reqDate = !empty($req['created_at']) ? date('M d, Y', strtotime($req['created_at'])) : '-';
                   echo "<td>" . $reqDate . "</td>";
                   
@@ -6402,6 +6429,17 @@ body.modal-open { overflow: hidden; }
                   echo "<input type='hidden' name='reservation_id' value='" . $req['id'] . "'>";
                   echo "<input type='hidden' name='action' value='approve_request'>";
                   echo "<input type='hidden' name='redirect_page' value='resident_guest_forms'>";
+                  if (!$isAmenity) {
+                      $reqDateVal = htmlspecialchars($req['visit_date'] ?? '');
+                      $reqTimeVal = htmlspecialchars($req['visit_time'] ?? '');
+                      echo "<div class='approve-schedule' style='margin:6px 0 8px;'>";
+                      echo "<div class='muted' style='font-size:0.75rem;color:#777;margin-bottom:4px;'>Confirm arrival schedule for the approved Entry Pass</div>";
+                      echo "<div style='display:flex;gap:6px;flex-wrap:wrap;'>";
+                      echo "<input type='date' name='visit_date' value='" . $reqDateVal . "' required style='padding:5px 8px;font-size:0.8rem;border:1px solid #ccc;border-radius:6px;'>";
+                      echo "<input type='time' name='visit_time' value='" . $reqTimeVal . "' required style='padding:5px 8px;font-size:0.8rem;border:1px solid #ccc;border-radius:6px;'>";
+                      echo "</div>";
+                      echo "</div>";
+                  }
                   echo "<button type='submit' class='btn " . ($disabled ? "btn-disabled" : "btn-approve") . "' " . ($disabled ? "disabled title='Verify payment receipt first'" : "") . "><i class='fa-solid fa-check'></i> Approve</button>";
                   echo "</form>";
                   echo "<form method='post' class='action-form action-deny' onsubmit='return openDenyModal(this)'>";
@@ -6435,7 +6473,7 @@ body.modal-open { overflow: hidden; }
               }
           }
           if (!$hasResidentRequests) {
-              echo "<tr><td colspan='4' style='text-align:center;'>No resident guest requests found</td></tr>";
+              echo "<tr><td colspan='7' style='text-align:center;'>No resident guest requests found</td></tr>";
           }
           ?>
         </tbody>

@@ -228,22 +228,6 @@ if (preg_match('/^\+63(9\d{9})$/', $phoneNormalized)) {
 }
 $displayPhone = $phoneNormalized ?: $phoneRaw;
 
-// Fetch saved guests for resident (Approved only)
-$guestRows = [];
-if ($con instanceof mysqli) {
-  $stmtG = $con->prepare("SELECT id, visitor_first_name, visitor_middle_name, visitor_last_name, visitor_email, visitor_contact, created_at, ref_code FROM guest_forms WHERE resident_user_id = ? AND approval_status IN ('approved','permission_granted') ORDER BY created_at DESC");
-  if ($stmtG) {
-    $stmtG->bind_param('i', $userId);
-    $stmtG->execute();
-    $resG = $stmtG->get_result();
-    while ($rowG = $resG->fetch_assoc()) {
-      $guestRows[] = $rowG;
-    }
-    $stmtG->close();
-  }
-}
-
-
 // Prepare resident QR link and local image path
 $userStatus = $user['status'] ?? 'pending';
 $normalizedUserStatus = strtolower(trim($userStatus));
@@ -277,7 +261,7 @@ if (!$isAccountBlocked) {
 }
 __pm('qr_setup');
 
-$allowedSections = ['panel-requests', 'panel-points-history', 'panel-guest-form', 'panel-my-guests', 'panel-history'];
+$allowedSections = ['panel-requests', 'panel-points-history', 'panel-guest-form', 'panel-history'];
 $activeSection = $_GET['section'] ?? 'panel-requests';
 $activeSection = is_string($activeSection) ? trim($activeSection) : 'panel-requests';
 if (!in_array($activeSection, $allowedSections, true)) {
@@ -287,7 +271,6 @@ if (!in_array($activeSection, $allowedSections, true)) {
 $sectionPageTitles = [
   'panel-requests' => 'My Requests',
   'panel-guest-form' => 'Guest Form',
-  'panel-my-guests' => 'My Guests',
   'panel-history' => 'History',
   'panel-points-history' => 'VHEcoPoint',
 ];
@@ -295,8 +278,7 @@ $dashboardPageTitle = $sectionPageTitles[$activeSection] ?? 'Dashboard';
 
 $sectionPageSubtitles = [
   'panel-requests' => 'View and manage all of your amenity and guest requests.',
-  'panel-guest-form' => 'Add a guest to your saved list for visitor entry approval.',
-  'panel-my-guests' => 'View and manage the guests you have saved.',
+  'panel-guest-form' => 'Submit a guest entry request with a scheduled date and time for admin approval.',
   'panel-history' => 'See the log of your past passes, reservations, and requests.',
   'panel-points-history' => 'Earn points by recycling and redeem them for amenity hours.',
 ];
@@ -826,6 +808,8 @@ if ($stmt) {
             'resident_email' => $row['res_email'] ?? '',
             'resident_house' => $row['res_house_number'] ?? '',
             'valid_id' => $row['valid_id_path'] ?? '',
+            'visit_date' => $row['visit_date'] ?? '',
+            'visit_time' => $row['visit_time'] ?? '',
             'status' => $statusVal,
             'date' => $actionDate,
             'event_timestamp' => $visitTs,
@@ -873,50 +857,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $stmt->execute();
             $stmt->close();
         }
-    }
-    echo json_encode(['success' => true]);
-    exit;
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_guest') {
-    header('Content-Type: application/json');
-    $code = trim($_POST['code'] ?? '');
-    if ($code === '' || !($con instanceof mysqli)) {
-        echo json_encode(['success' => false, 'message' => 'Invalid request.']);
-        exit;
-    }
-    $stmt = $con->prepare("SELECT id FROM guest_forms WHERE ref_code = ? AND resident_user_id = ? LIMIT 1");
-    if (!$stmt) {
-        echo json_encode(['success' => false, 'message' => 'Server error.']);
-        exit;
-    }
-    $stmt->bind_param('si', $code, $userId);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    $stmt->close();
-    if (!$res || $res->num_rows === 0) {
-        echo json_encode(['success' => false, 'message' => 'Guest not found.']);
-        exit;
-    }
-    $row = $res->fetch_assoc();
-    $guestId = intval($row['id']);
-    $stmtU = $con->prepare("UPDATE guest_forms SET approval_status='deleted', qr_path=NULL, scanned_at=NULL, updated_at=NOW() WHERE id = ?");
-    if ($stmtU) {
-        $stmtU->bind_param('i', $guestId);
-        $stmtU->execute();
-        $stmtU->close();
-    }
-    $stmtR = $con->prepare("UPDATE reservations SET approval_status='deleted', status='deleted', updated_at=NOW() WHERE ref_code = ?");
-    if ($stmtR) {
-        $stmtR->bind_param('s', $code);
-        $stmtR->execute();
-        $stmtR->close();
-    }
-    $stmtRR = $con->prepare("UPDATE resident_reservations SET approval_status='deleted', updated_at=NOW() WHERE ref_code = ?");
-    if ($stmtRR) {
-        $stmtRR->bind_param('s', $code);
-        $stmtRR->execute();
-        $stmtRR->close();
     }
     echo json_encode(['success' => true]);
     exit;
@@ -3066,7 +3006,6 @@ body.modal-open{overflow:hidden}
         </span>
       </a>
       <a href="#" class="nav-item <?php echo $activeSection === 'panel-guest-form' ? 'active' : ''; ?>" data-section="panel-guest-form"><i class="fa-solid fa-user-plus"></i> <span>Guest Form</span></a>
-      <a href="#" class="nav-item <?php echo $activeSection === 'panel-my-guests' ? 'active' : ''; ?>" data-section="panel-my-guests"><i class="fa-solid fa-user-group"></i> <span>My Guests</span></a>
       <a href="report_incident.php" class="nav-item"><i class="fa-solid fa-triangle-exclamation"></i> <span>Report Incident</span></a>
       <a href="#" class="nav-item <?php echo $activeSection === 'panel-history' ? 'active' : ''; ?>" data-section="panel-history"><i class="fa-solid fa-clock-rotate-left"></i> <span>History</span></a>
     </nav>
@@ -3275,7 +3214,7 @@ body.modal-open{overflow:hidden}
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
-              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($act['amenity'] ?? ''); ?>" data-price="<?php echo ($act['price'] ?? null) !== null ? number_format((float)$act['price'], 2, '.', '') : ''; ?>" data-downpayment="<?php echo ($act['downpayment'] ?? null) !== null ? number_format((float)$act['downpayment'], 2, '.', '') : ''; ?>" data-receipt-path="<?php echo htmlspecialchars($act['receipt_path'] ?? ''); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars($act['receipt_uploaded_at'] ?? ''); ?>" data-persons="<?php echo ($act['persons'] ?? null) !== null ? intval($act['persons']) : ''; ?>"<?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; echo ' data-guest-sex="' . htmlspecialchars($act['guest_sex'] ?? '') . '"'; echo ' data-guest-birthdate="' . htmlspecialchars($act['guest_birthdate'] ?? '') . '"'; echo ' data-guest-contact="' . htmlspecialchars($act['guest_contact'] ?? '') . '"'; echo ' data-guest-email="' . htmlspecialchars($act['guest_email'] ?? '') . '"'; echo ' data-res-name="' . htmlspecialchars($act['resident_name'] ?? '') . '"'; echo ' data-res-contact="' . htmlspecialchars($act['resident_contact'] ?? '') . '"'; echo ' data-res-email="' . htmlspecialchars($act['resident_email'] ?? '') . '"'; echo ' data-res-house="' . htmlspecialchars($act['resident_house'] ?? '') . '"'; echo ' data-valid-id="' . htmlspecialchars($act['valid_id'] ?? '') . '"'; } ?>>
+              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($act['amenity'] ?? ''); ?>" data-price="<?php echo ($act['price'] ?? null) !== null ? number_format((float)$act['price'], 2, '.', '') : ''; ?>" data-downpayment="<?php echo ($act['downpayment'] ?? null) !== null ? number_format((float)$act['downpayment'], 2, '.', '') : ''; ?>" data-receipt-path="<?php echo htmlspecialchars($act['receipt_path'] ?? ''); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars($act['receipt_uploaded_at'] ?? ''); ?>" data-persons="<?php echo ($act['persons'] ?? null) !== null ? intval($act['persons']) : ''; ?>"<?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; echo ' data-guest-sex="' . htmlspecialchars($act['guest_sex'] ?? '') . '"'; echo ' data-guest-birthdate="' . htmlspecialchars($act['guest_birthdate'] ?? '') . '"'; echo ' data-guest-contact="' . htmlspecialchars($act['guest_contact'] ?? '') . '"'; echo ' data-guest-email="' . htmlspecialchars($act['guest_email'] ?? '') . '"'; echo ' data-res-name="' . htmlspecialchars($act['resident_name'] ?? '') . '"'; echo ' data-res-contact="' . htmlspecialchars($act['resident_contact'] ?? '') . '"'; echo ' data-res-email="' . htmlspecialchars($act['resident_email'] ?? '') . '"'; echo ' data-res-house="' . htmlspecialchars($act['resident_house'] ?? '') . '"'; echo ' data-valid-id="' . htmlspecialchars($act['valid_id'] ?? '') . '"'; echo ' data-visit-date="' . htmlspecialchars($act['visit_date'] ?? '') . '"'; echo ' data-visit-time="' . htmlspecialchars($act['visit_time'] ?? '') . '"'; } ?>>
                  <div class="item-icon request-toggle"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
@@ -3546,7 +3485,7 @@ body.modal-open{overflow:hidden}
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
-              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($act['amenity'] ?? ''); ?>" data-price="<?php echo ($act['price'] ?? null) !== null ? number_format((float)$act['price'], 2, '.', '') : ''; ?>" data-downpayment="<?php echo ($act['downpayment'] ?? null) !== null ? number_format((float)$act['downpayment'], 2, '.', '') : ''; ?>" data-receipt-path="<?php echo htmlspecialchars($act['receipt_path'] ?? ''); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars($act['receipt_uploaded_at'] ?? ''); ?>" data-persons="<?php echo ($act['persons'] ?? null) !== null ? intval($act['persons']) : ''; ?>"<?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; echo ' data-guest-sex="' . htmlspecialchars($act['guest_sex'] ?? '') . '"'; echo ' data-guest-birthdate="' . htmlspecialchars($act['guest_birthdate'] ?? '') . '"'; echo ' data-guest-contact="' . htmlspecialchars($act['guest_contact'] ?? '') . '"'; echo ' data-guest-email="' . htmlspecialchars($act['guest_email'] ?? '') . '"'; echo ' data-res-name="' . htmlspecialchars($act['resident_name'] ?? '') . '"'; echo ' data-res-contact="' . htmlspecialchars($act['resident_contact'] ?? '') . '"'; echo ' data-res-email="' . htmlspecialchars($act['resident_email'] ?? '') . '"'; echo ' data-res-house="' . htmlspecialchars($act['resident_house'] ?? '') . '"'; echo ' data-valid-id="' . htmlspecialchars($act['valid_id'] ?? '') . '"'; } ?>>
+              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($act['amenity'] ?? ''); ?>" data-price="<?php echo ($act['price'] ?? null) !== null ? number_format((float)$act['price'], 2, '.', '') : ''; ?>" data-downpayment="<?php echo ($act['downpayment'] ?? null) !== null ? number_format((float)$act['downpayment'], 2, '.', '') : ''; ?>" data-receipt-path="<?php echo htmlspecialchars($act['receipt_path'] ?? ''); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars($act['receipt_uploaded_at'] ?? ''); ?>" data-persons="<?php echo ($act['persons'] ?? null) !== null ? intval($act['persons']) : ''; ?>"<?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; echo ' data-guest-sex="' . htmlspecialchars($act['guest_sex'] ?? '') . '"'; echo ' data-guest-birthdate="' . htmlspecialchars($act['guest_birthdate'] ?? '') . '"'; echo ' data-guest-contact="' . htmlspecialchars($act['guest_contact'] ?? '') . '"'; echo ' data-guest-email="' . htmlspecialchars($act['guest_email'] ?? '') . '"'; echo ' data-res-name="' . htmlspecialchars($act['resident_name'] ?? '') . '"'; echo ' data-res-contact="' . htmlspecialchars($act['resident_contact'] ?? '') . '"'; echo ' data-res-email="' . htmlspecialchars($act['resident_email'] ?? '') . '"'; echo ' data-res-house="' . htmlspecialchars($act['resident_house'] ?? '') . '"'; echo ' data-valid-id="' . htmlspecialchars($act['valid_id'] ?? '') . '"'; echo ' data-visit-date="' . htmlspecialchars($act['visit_date'] ?? '') . '"'; echo ' data-visit-time="' . htmlspecialchars($act['visit_time'] ?? '') . '"'; } ?>>
                  <div class="item-icon request-toggle"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
@@ -3608,15 +3547,15 @@ body.modal-open{overflow:hidden}
                   <div class="booking-step" id="step-upload">
                     <div class="step-index">3</div>
                     <div class="step-content">
-                      <div class="step-title">Upload ID &amp; save</div>
-                      <div class="step-subtitle">Add a valid ID and save the guest to your list</div>
+                      <div class="step-title">Upload ID &amp; submit</div>
+                      <div class="step-subtitle">Add a valid ID and submit the guest request</div>
                     </div>
                   </div>
                 </div>
               </div>
               <div class="form-header">
                 <img src="images/mainpage/ticket.svg" alt="Entry Icon">
-                <span>Add Guest</span>
+                <span>Guest Request</span>
               </div>
 
               <h4 style="margin:10px 0 5px;color:#111827;">Resident Information</h4>
@@ -3659,6 +3598,21 @@ body.modal-open{overflow:hidden}
                 <input type="text" id="visitor_address" name="visitor_address" placeholder="Guest Address (e.g., Blk 00 Lot 00)*" required>
               </div>
 
+              <h4 style="margin:20px 0 5px;color:#111827;">Entry Schedule</h4>
+              <div class="form-row">
+                <div class="form-group">
+                  <input type="date" id="visit_date" name="visit_date" placeholder=" " required>
+                  <label for="visit_date">Date of Entry*</label>
+                </div>
+                <div class="form-group">
+                  <input type="time" id="visit_time" name="visit_time" placeholder=" " required>
+                  <label for="visit_time">Time of Entry*</label>
+                </div>
+              </div>
+              <div class="privacy-note" style="background:#f9fafb;border:1px solid #e5e7eb;color:#374151;padding:10px 12px;border-radius:8px;margin:10px 0;font-size:0.92rem;line-height:1.35;">
+                The admin will review this request and confirm the arrival schedule. Once approved, a unique QR entry pass will be generated that is valid only on the approved date and time.
+              </div>
+
               <label class="upload-box">
                 <input type="file" id="visitor_valid_id" name="visitor_valid_id" accept="image/*" hidden required>
                 <img src="images/mainpage/upload.svg" alt="Upload">
@@ -3676,75 +3630,12 @@ body.modal-open{overflow:hidden}
               </div>
 
               <div class="form-actions">
-                <button type="submit" class="btn-next" id="submitBtn">Save Guest</button>
+                <button type="submit" class="btn-next" id="submitBtn">Submit Guest Request</button>
               </div>
             </form>
-          </div>
+</div>
         </div>
 
-        <div class="panel-section" id="panel-my-guests" style="<?php echo $activeSection === 'panel-my-guests' ? '' : 'display:none;'; ?>">
-          <div id="guestListSection" style="margin-top:8px;background:#ffffff;border-radius:16px;padding:20px 22px;box-shadow:0 4px 16px rgba(15,23,42,0.08);border:1px solid #e5e7eb;max-width:860px;width:100%;margin-left:auto;margin-right:auto;">
-            <h4 style="margin:0 0 10px;color:#111827;">My Saved Guests</h4>
-            <?php if (empty($guestRows)): ?>
-              <p style="margin:4px 0 0;font-size:0.95rem;color:#555;">You have not added any guests yet. Use the Guest Form to add a guest.</p>
-            <?php else: ?>
-              <div style="overflow-x:auto;">
-                <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
-                  <thead>
-                    <tr style="background:#f5f7f5;color:#333;">
-                      <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e2e6e2;">Name</th>
-                      <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e2e6e2;">Contact</th>
-                      <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e2e6e2;">Email</th>
-                      <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e2e6e2;">Added</th>
-                      <th style="text-align:center;padding:8px 10px;border-bottom:1px solid #e2e6e2;">Entry Pass</th>
-                      <th style="text-align:center;padding:8px 10px;border-bottom:1px solid #e2e6e2;">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <?php foreach ($guestRows as $g): ?>
-                      <?php
-                        $nameParts = [];
-                        if (!empty($g['visitor_first_name'])) { $nameParts[] = $g['visitor_first_name']; }
-                        if (!empty($g['visitor_middle_name'])) { $nameParts[] = $g['visitor_middle_name']; }
-                        if (!empty($g['visitor_last_name'])) { $nameParts[] = $g['visitor_last_name']; }
-                        $guestName = trim(implode(' ', $nameParts));
-                        if ($guestName === '') { $guestName = 'Guest'; }
-                        $contact = $g['visitor_contact'] ?? '';
-                        $emailG = $g['visitor_email'] ?? '';
-                        $created = $g['created_at'] ?? '';
-                        $createdLabel = $created ? date('m/d/y', strtotime($created)) : '';
-                        $refCode = $g['ref_code'] ?? '';
-                      ?>
-                      <tr>
-                        <td style="padding:7px 10px;border-bottom:1px solid #e9ece9;font-weight:600;"><?php echo htmlspecialchars($guestName); ?></td>
-                        <td style="padding:7px 10px;border-bottom:1px solid #e9ece9;"><?php echo htmlspecialchars($contact); ?></td>
-                        <td style="padding:7px 10px;border-bottom:1px solid #e9ece9;"><?php echo htmlspecialchars($emailG); ?></td>
-                        <td style="padding:7px 10px;border-bottom:1px solid #e9ece9;color:#777;"><?php echo htmlspecialchars($createdLabel); ?></td>
-                        <td style="padding:7px 10px;border-bottom:1px solid #e9ece9;text-align:center;">
-                          <button type="button" class="btn-view-pass" 
-                                  data-ref="<?php echo htmlspecialchars($refCode); ?>"
-                                  data-name="<?php echo htmlspecialchars($guestName); ?>"
-                                  data-resident="<?php echo htmlspecialchars($fullName); ?>"
-                                  style="padding:6px 12px;background:#4f46e5;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;">
-                            View Pass
-                          </button>
-                        </td>
-                        <td style="padding:7px 10px;border-bottom:1px solid #e9ece9;text-align:center;">
-                          <button type="button" class="btn-delete-guest"
-                                  data-ref="<?php echo htmlspecialchars($refCode); ?>"
-                                  data-name="<?php echo htmlspecialchars($guestName); ?>"
-                                  style="padding:6px 12px;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;">
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    <?php endforeach; ?>
-                  </tbody>
-                </table>
-              </div>
-            <?php endif; ?>
-          </div>
-        </div>
 
 
 
@@ -3801,8 +3692,8 @@ body.modal-open{overflow:hidden}
   <div id="refModal" class="modal">
     <div class="modal-content">
       <h2>Request Submitted!</h2>
-      <p>Your guest has been successfully saved to your account.</p>
-      <p><small><em>You can view and manage all guests from your resident dashboard.</em></small></p>
+      <p>Your guest request is now <strong>Pending Approval</strong>.</p>
+      <p><small><em>The admin will review the request and confirm the arrival schedule. Check the status in your requests list.</em></small></p>
       <div style="display:flex;gap:10px;justify-content:center;margin-top:10px;flex-wrap:wrap;">
         <button type="button" class="btn-confirm" id="refModalCloseBtn">Back to My Requests</button>
       </div>
@@ -3832,13 +3723,6 @@ body.modal-open{overflow:hidden}
     </div>
   </div>
   
-  <div id="guestPassModal" class="modal">
-    <div class="modal-content">
-      <span class="close" id="closeGuestPassModal">&times;</span>
-      <h3>Guest Entry Pass</h3>
-      <div id="guestPassContent" class="guest-pass-content"></div>
-    </div>
-  </div>
   <div id="qrWarningModal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.6); align-items:center; justify-content:center; z-index:3500;">
     <div style="background:#fff; border-radius:12px; padding:22px 20px; width:360px; max-width:92vw; box-shadow:0 12px 30px rgba(0,0,0,0.25); text-align:center;">
       <div id="qrWarningTitle" style="font-weight:700; color:#23412e; font-size:1.05rem; margin-bottom:8px;">Warning</div>
@@ -3879,16 +3763,6 @@ body.modal-open{overflow:hidden}
     accountBlockedShown = true;
   };
   // Guest Pass Modal Logic
-  var guestPassModal = document.getElementById('guestPassModal');
-  var closeGuestPassBtn = document.getElementById('closeGuestPassModal');
-  if(closeGuestPassBtn) {
-      closeGuestPassBtn.onclick = function() { if(guestPassModal) guestPassModal.style.display = "none"; }
-  }
-  window.addEventListener('click', function(e) {
-      if (guestPassModal && e.target == guestPassModal) {
-          guestPassModal.style.display = "none";
-      }
-  });
   (function(){
     var modal = document.getElementById('qrWarningModal');
     var cancelBtn = document.getElementById('qrWarningCancel');
@@ -4028,49 +3902,6 @@ body.modal-open{overflow:hidden}
   function escapeText(t){
     return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
-  function downloadGuestPassQR(qrSrc, filename){
-    function doDownload(){
-      var link = document.createElement('a');
-      link.href = qrSrc;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-    if(typeof window.openQRWarning === 'function'){
-      window.openQRWarning(doDownload, 'Do not scan. Authorized guards only.');
-    } else {
-      doDownload();
-    }
-  }
-  function openGuestPassModal(ref, name, resident) {
-      if(!guestPassModal) return;
-      var basePath = window.location.pathname.replace(/\/[^\/]*$/, '');
-      var statusLink = location.origin + basePath + '/qr_view.php?code=' + encodeURIComponent(ref);
-      var qrSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(statusLink);
-      
-      var html = '';
-      html += '<div class="guest-pass-header">';
-      html += '<div class="guest-pass-name">' + escapeText(name) + '</div>';
-      html += '<div class="guest-pass-sub">Referred by Resident: ' + escapeText(resident) + '</div>';
-      html += '</div>';
-      html += '<div class="guest-pass-note">Present this QR code at the gate for entry.</div>';
-      html += '<div class="guest-pass-actions">';
-      html += '<button type="button" class="btn-confirm guest-pass-download" data-qr="' + qrSrc + '" data-fn="GuestPass_' + escapeText(ref) + '.png">Download QR</button>';
-      html += '</div>';
-      
-      var contentEl = document.getElementById('guestPassContent');
-      if(contentEl) contentEl.innerHTML = html;
-      var downloadBtn = contentEl ? contentEl.querySelector('.guest-pass-download') : null;
-      if(downloadBtn){
-        downloadBtn.onclick = function(){
-          var src = this.getAttribute('data-qr') || '';
-          var fn = this.getAttribute('data-fn') || 'GuestPass.png';
-          downloadGuestPassQR(src, fn);
-        };
-      }
-      guestPassModal.style.display = "block";
-  }
   // QR Choice / View handlers
   function setQrActive(active){
     document.querySelectorAll('.btn-ecopoint-qr, .btn-qr-modal').forEach(function(btn){
@@ -4137,24 +3968,6 @@ body.modal-open{overflow:hidden}
     var qc = document.getElementById('qrChoiceModal'); if(qc && e.target === qc) closeQRChoice();
     var qv = document.getElementById('qrViewModal'); if(qv && e.target === qv) closeQRView();
   });
-  // Event Delegation for View Pass buttons
-  document.addEventListener('click', function(e){
-      if(e.target.classList.contains('btn-view-pass')){
-          var ref = e.target.getAttribute('data-ref');
-          var name = e.target.getAttribute('data-name');
-          var resident = e.target.getAttribute('data-resident');
-          openGuestPassModal(ref, name, resident);
-      }
-      if(e.target.classList.contains('btn-delete-guest')){
-          var refDel = e.target.getAttribute('data-ref');
-          var nameDel = e.target.getAttribute('data-name') || '';
-          var row = e.target.closest('tr');
-          if(refDel && row){
-            openDeleteGuestModal(row, refDel, nameDel);
-          }
-      }
-  });
-
   var searchInput=document.getElementById('requestSearch');
     function filterList(){
     var q=(searchInput.value||'').trim().toLowerCase();
@@ -4347,24 +4160,6 @@ body.modal-open{overflow:hidden}
     if(btnKeep) btnKeep.textContent = 'Keep Request';
     if(btnConfirm) btnConfirm.textContent = 'Confirm Delete';
     
-    cancelModal.style.display='flex';
-  }
-
-  function openDeleteGuestModal(row, ref, name){
-    if(!cancelModal) return;
-    cancelModalRef=ref;
-    cancelModalLi=row;
-    modalAction = 'delete_guest';
-    var h3 = cancelModal.querySelector('h3');
-    var pBody = cancelModal.querySelector('.cancel-modal-body p:first-child');
-    var pNote = cancelModal.querySelector('.cancel-modal-note');
-    var btnKeep = cancelModal.querySelector('.cancel-modal-keep');
-    var btnConfirm = cancelModal.querySelector('.cancel-modal-confirm');
-    if(h3) h3.textContent = 'Delete Guest';
-    if(pBody) pBody.textContent = 'Are you sure you want to remove this guest? The guest pass will be revoked.';
-    if(pNote) pNote.style.display = 'none';
-    if(btnKeep) btnKeep.textContent = 'Keep Guest';
-    if(btnConfirm) btnConfirm.textContent = 'Confirm Delete';
     cancelModal.style.display='flex';
   }
 
@@ -4639,38 +4434,6 @@ body.modal-open{overflow:hidden}
     });
   }
 
-  function performDeleteGuest(){
-    var ref=cancelModalRef;
-    var row=cancelModalLi;
-    if(!ref||!row){
-      closeCancelModalResident();
-      return;
-    }
-    fetch('profileresident.php',{
-      method:'POST',
-      headers:{'Content-Type':'application/x-www-form-urlencoded'},
-      body:new URLSearchParams({action:'delete_guest',code:ref})
-    }).then(function(r){return r.json();}).then(function(data){
-      if(!data||!data.success){
-        alert(data && data.message ? data.message : 'Unable to delete guest.');
-        return;
-      }
-      var tbody=row.closest('tbody');
-      row.remove();
-      if(tbody){
-        var remaining=tbody.querySelectorAll('tr');
-        if(remaining.length===0){
-          var tr=document.createElement('tr');
-          tr.innerHTML='<td colspan="6" style="text-align:center;color:#6b6b6b;padding:10px 0;">No saved guests.</td>';
-          tbody.appendChild(tr);
-        }
-      }
-      closeCancelModalResident();
-    })["catch"](function(){
-      alert('Network error. Please try again.');
-    });
-  }
-  
   if(cancelModalKeep){
     cancelModalKeep.addEventListener('click',function(){
       closeCancelModalResident();
@@ -4685,8 +4448,6 @@ body.modal-open{overflow:hidden}
     cancelModalConfirm.addEventListener('click',function(){
       if(modalAction === 'delete'){
         performDeleteResident();
-      } else if(modalAction === 'delete_guest'){
-        performDeleteGuest();
       } else if(modalAction === 'cancel_report'){
         performCancelReport();
       } else {
@@ -4889,7 +4650,7 @@ body.modal-open{overflow:hidden}
     else if(s.indexOf('denied')!==-1||s.indexOf('reject')!==-1) statusNote='This request was denied. Please contact the subdivision office for details.';
     else if(s.indexOf('cancelled')!==-1) statusNote='This request was cancelled by the user.';
     else if(s.indexOf('pending')!==-1||s===''||s==='new') {
-        if(type==='guest_form') statusNote='Wait until the guest is approved. Once approved, a unique QR code will be available in "My Guests" under the guest\'s name.';
+        if(type==='guest_form') statusNote='Wait until the guest is approved. Once approved, an Entry Pass with a unique QR code will appear on this request and will be valid only on the approved date and time.';
         else statusNote='This request is pending. Wait for the admin to review it. The QR entry pass will be available after approval.';
     }
     else if(s.indexOf('resolved')!==-1) statusNote='This item has been marked as resolved by the admin.';
@@ -4930,6 +4691,15 @@ body.modal-open{overflow:hidden}
       gh+='<div class="rst-col"><div class="rst-key">Contact Number</div><div class="rst-val">'+esc(li.getAttribute('data-guest-contact')||'—')+'</div></div>';
       var gEmail=li.getAttribute('data-guest-email')||'';
       if(gEmail){ gh+='<div class="rst-col"><div class="rst-key">Email Address</div><div class="rst-val">'+esc(gEmail)+'</div></div>'; }
+      gh+='</div>';
+      gh+='</div>';
+      var vDateRaw=li.getAttribute('data-visit-date')||'';
+      var vTimeRaw=li.getAttribute('data-visit-time')||'';
+      var vDateLabel=formatRawDate(vDateRaw)||vDateRaw||'—';
+      var vTimeLabel=formatRawTime(vTimeRaw)||'—';
+      gh+='<div class="rst-section rst-guest"><div class="rst-title">Entry Schedule</div><div class="rst-grid">';
+      gh+='<div class="rst-col"><div class="rst-key">Date of Entry</div><div class="rst-val">'+esc(vDateLabel)+'</div></div>';
+      gh+='<div class="rst-col"><div class="rst-key">Time of Entry</div><div class="rst-val">'+esc(vTimeLabel)+'</div></div>';
       gh+='</div>';
       gh+='</div>';
       return gh;
@@ -5159,12 +4929,13 @@ body.modal-open{overflow:hidden}
     }
     if(type==='reservation'||type==='guest_form'){
       html+='<div class="item-extra-section">';
-      if(type!=='guest_form' && isApproved && ref){
+      if(isApproved && ref){
         var basePath=window.location.pathname.replace(/\/[^\/]*$/,'');
         var statusLink=location.origin+basePath+'/qr_view.php?code='+encodeURIComponent(ref);
         var qrSrc='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent(statusLink);
         var pCount=parseInt(personsRaw||'1',10);
         if(isNaN(pCount)||pCount<1) pCount=1;
+        if(type==='guest_form') pCount=1;
         html+='<div class="entry-pass-bar">';
         if(pCount>1){
           html+='<button type="button" class="entry-pass-btn download-qr-all-btn" data-ref="'+esc(ref)+'" data-persons="'+pCount+'"><i class="fa-solid fa-download"></i> Download All ('+pCount+')</button>';
@@ -5870,7 +5641,7 @@ body.modal-open{overflow:hidden}
 
   function validateGuestForm(){
     var valid=true;
-    var reqIds=['resident_full_name','resident_house','resident_email','resident_contact','visitor_first_name','visitor_last_name','visitor_address','birthdate','visitor_contact'];
+    var reqIds=['resident_full_name','resident_house','resident_email','resident_contact','visitor_first_name','visitor_last_name','visitor_address','birthdate','visitor_contact','visit_date','visit_time'];
     reqIds.forEach(function(id){
       var el=document.getElementById(id);
       if(!el) return;
@@ -5897,6 +5668,16 @@ body.modal-open{overflow:hidden}
         valid=false;
       }else{
         setWarning('birthdate','');
+      }
+    }
+    var visitDateEl=document.getElementById('visit_date');
+    if(visitDateEl && visitDateEl.value){
+      var todayStr2=new Date().toISOString().split('T')[0];
+      if(visitDateEl.value<todayStr2){
+        setWarning('visit_date','Date of Entry cannot be in the past.');
+        valid=false;
+      }else{
+        setWarning('visit_date','');
       }
     }
     var rc=document.getElementById('resident_contact');
@@ -5948,6 +5729,10 @@ body.modal-open{overflow:hidden}
     var visAddress=visAddressEl?visAddressEl.value.trim():'';
     var vSex=vSexEl?vSexEl.value:'';
     var vBirth=birthdateEl?birthdateEl.value:'';
+    var vDateEl2=document.getElementById('visit_date');
+    var vTimeEl2=document.getElementById('visit_time');
+    var vDate=vDateEl2?vDateEl2.value:'';
+    var vTime=vTimeEl2?vTimeEl2.value:'';
     var items=[
       ['Resident',resName||'-'],
       ['House/Unit',resHouse||'-'],
@@ -5957,7 +5742,9 @@ body.modal-open{overflow:hidden}
       ['Guest Birthdate',vBirth||'-'],
       ['Guest Contact',visContact||'-'],
       ['Guest Email',visEmail||'-'],
-      ['Guest Address',visAddress||'-']
+      ['Guest Address',visAddress||'-'],
+      ['Date of Entry',vDate||'-'],
+      ['Time of Entry',vTime||'-']
     ];
     verifySummary.innerHTML=items.map(function(x){
       return '<div style="display:flex;justify-content:space-between;margin:4px 0"><span style="font-weight:600">'+x[0]+'</span><span>'+x[1]+'</span></div>';
@@ -6191,6 +5978,8 @@ body.modal-open{overflow:hidden}
                       li.setAttribute('data-res-email', item.resident_email || '');
                       li.setAttribute('data-res-house', item.resident_house || '');
                       li.setAttribute('data-valid-id', item.valid_id || '');
+                      li.setAttribute('data-visit-date', item.visit_date || '');
+                      li.setAttribute('data-visit-time', item.visit_time || '');
                     }
                     var reservedEl = li.querySelector('.item-reserved-by');
                     if(item.type === 'reservation' && reservedBy){
@@ -6371,6 +6160,8 @@ body.modal-open{overflow:hidden}
                 li.setAttribute('data-res-email', item.resident_email || '');
                 li.setAttribute('data-res-house', item.resident_house || '');
                 li.setAttribute('data-valid-id', item.valid_id || '');
+                li.setAttribute('data-visit-date', item.visit_date || '');
+                li.setAttribute('data-visit-time', item.visit_time || '');
               }
               li.innerHTML='<div class="item-icon request-toggle"><i class="fa-solid fa-chevron-right"></i></div>'
                 +'<div class="item-content">'

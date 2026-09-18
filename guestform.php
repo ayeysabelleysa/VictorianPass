@@ -43,20 +43,6 @@ if (strlen($pClean) === 11 && strpos($pClean, '09') === 0) {
 } elseif (strlen($pClean) === 10 && strpos($pClean, '9') === 0) {
     $phoneNormalized = '0' . $pClean;
 }
-
-$guestRows = [];
-if ($con instanceof mysqli) {
-  $stmtG = $con->prepare("SELECT id, visitor_first_name, visitor_middle_name, visitor_last_name, visitor_email, visitor_contact, created_at, ref_code FROM guest_forms WHERE resident_user_id = ? AND approval_status <> 'deleted' ORDER BY created_at DESC");
-  if ($stmtG) {
-    $stmtG->bind_param('i', $userId);
-    $stmtG->execute();
-    $resG = $stmtG->get_result();
-    while ($rowG = $resG->fetch_assoc()) {
-      $guestRows[] = $rowG;
-    }
-    $stmtG->close();
-  }
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -177,15 +163,15 @@ echo $gfCss !== false ? $gfCss : '';
         <div class="booking-step" id="step-upload">
           <div class="step-index">3</div>
           <div class="step-content">
-            <div class="step-title">Upload ID &amp; save</div>
-            <div class="step-subtitle">Add a valid ID and save the guest to your list</div>
+            <div class="step-title">Upload ID &amp; submit</div>
+            <div class="step-subtitle">Add a valid ID and submit the guest request</div>
           </div>
         </div>
       </div>
     </div>
     <div class="form-header">
       <img src="images/mainpage/ticket.svg" alt="Entry Icon">
-      <span>Add Guest</span>
+      <span>Guest Request</span>
     </div>
 
     <h4 style="margin:10px 0 5px;color:#111827;">Resident Information</h4>
@@ -229,10 +215,19 @@ echo $gfCss !== false ? $gfCss : '';
     <div class="input-wrap">
       <input type="text" id="visitor_address" name="visitor_address" placeholder="Guest Address (e.g., Blk 00 Lot 00)*" required>
     </div>
-    <h4 style="margin:20px 0 5px;color:#111827;">Visit Schedule</h4>
+    <h4 style="margin:20px 0 5px;color:#111827;">Entry Schedule</h4>
     <div class="form-row">
-      <input type="date" id="visit_date" name="visit_date" required>
-      <input type="time" id="visit_time" name="visit_time" required>
+      <div class="form-group">
+        <input type="date" id="visit_date" name="visit_date" placeholder=" " required>
+        <label for="visit_date">Date of Entry*</label>
+      </div>
+      <div class="form-group">
+        <input type="time" id="visit_time" name="visit_time" placeholder=" " required>
+        <label for="visit_time">Time of Entry*</label>
+      </div>
+    </div>
+    <div class="privacy-note" style="background:#f9fafb;border:1px solid #e5e7eb;color:#374151;padding:10px 12px;border-radius:8px;margin:10px 0;font-size:0.92rem;line-height:1.35;">
+      The admin will review this request and confirm the arrival schedule. Once approved, a unique QR entry pass will be generated that is valid only on the approved date and time.
     </div>
 
     <label class="upload-box">
@@ -253,59 +248,17 @@ echo $gfCss !== false ? $gfCss : '';
 
     <div class="form-actions">
       <a href="profileresident.php" class="btn-back"><i class="fa-solid fa-arrow-left"></i> Back</a>
-      <button type="submit" class="btn-next" id="submitBtn">Save Guest</button>
+      <button type="submit" class="btn-next" id="submitBtn">Submit Guest Request</button>
     </div>
   </form>
-
-  <div id="guestListSection" style="margin-top:28px;background:#ffffff;border-radius:16px;padding:20px 22px;box-shadow:0 4px 16px rgba(15,23,42,0.08);border:1px solid #e5e7eb;max-width:860px;width:100%;">
-    <h4 style="margin:0 0 10px;color:#111827;">My Saved Guests</h4>
-    <?php if (empty($guestRows)): ?>
-      <p style="margin:4px 0 0;font-size:0.95rem;color:#555;">You have not added any guests yet. Use the form above to add a guest.</p>
-    <?php else: ?>
-      <div style="overflow-x:auto;">
-        <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
-          <thead>
-            <tr style="background:#f5f7f5;color:#333;">
-              <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e2e6e2;">Name</th>
-              <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e2e6e2;">Contact</th>
-              <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e2e6e2;">Email</th>
-              <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e2e6e2;">Added</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php foreach ($guestRows as $g): ?>
-              <?php
-                $nameParts = [];
-                if (!empty($g['visitor_first_name'])) { $nameParts[] = $g['visitor_first_name']; }
-                if (!empty($g['visitor_middle_name'])) { $nameParts[] = $g['visitor_middle_name']; }
-                if (!empty($g['visitor_last_name'])) { $nameParts[] = $g['visitor_last_name']; }
-                $guestName = trim(implode(' ', $nameParts));
-                if ($guestName === '') { $guestName = 'Guest'; }
-                $contact = $g['visitor_contact'] ?? '';
-                $emailG = $g['visitor_email'] ?? '';
-                $created = $g['created_at'] ?? '';
-                $createdLabel = $created ? date('m/d/y', strtotime($created)) : '';
-              ?>
-              <tr>
-                <td style="padding:7px 10px;border-bottom:1px solid #e9ece9;font-weight:600;"><?php echo htmlspecialchars($guestName); ?></td>
-                <td style="padding:7px 10px;border-bottom:1px solid #e9ece9;"><?php echo htmlspecialchars($contact); ?></td>
-                <td style="padding:7px 10px;border-bottom:1px solid #e9ece9;"><?php echo htmlspecialchars($emailG); ?></td>
-                <td style="padding:7px 10px;border-bottom:1px solid #e9ece9;color:#777;"><?php echo htmlspecialchars($createdLabel); ?></td>
-              </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
-      </div>
-    <?php endif; ?>
-  </div>
 </section>
 
 <!-- Modal -->
 <div id="refModal" class="modal">
   <div class="modal-content">
     <h2>Request Submitted!</h2>
-    <p>Your guest has been successfully saved to your account.</p>
-    <p><small><em>You can view and manage all guests from your resident dashboard.</em></small></p>
+    <p>Your guest request is now <strong>Pending Approval</strong>.</p>
+    <p>The admin will review the request and confirm the arrival schedule. Check the status below for updates.</p>
     <div style="display:flex;gap:10px;justify-content:center;margin-top:10px;flex-wrap:wrap;">
       <button type="button" class="close-btn" onclick="window.location.href='profileresident.php'">Go to Resident Profile</button>
     </div>
@@ -478,6 +431,11 @@ if (birthdateEl) {
   var d=new Date();
   birthdateEl.setAttribute('max', d.toISOString().split('T')[0]);
 }
+const visitDateEl = document.getElementById('visit_date');
+if (visitDateEl) {
+  var todayStr0 = new Date().toISOString().split('T')[0];
+  visitDateEl.setAttribute('min', todayStr0);
+}
 
 function openTerms(){ document.getElementById('termsModal').style.display='flex'; }
 function closeTerms(){ document.getElementById('termsModal').style.display='none'; }
@@ -513,6 +471,15 @@ function validateForm(){
       valid = false;
     } else {
       setWarning('birthdate','');
+    }
+  }
+  if (visitDateEl && visitDateEl.value){
+    var todayStrV = new Date().toISOString().split('T')[0];
+    if (visitDateEl.value < todayStrV){
+      setWarning('visit_date','Date of Entry cannot be in the past.');
+      valid = false;
+    } else {
+      setWarning('visit_date','');
     }
   }
   const rc=document.getElementById('resident_contact');

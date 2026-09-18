@@ -696,6 +696,30 @@ if ($resGF && $resGF->num_rows > 0) {
         $gname = strlen($s) ? ucfirst(strtolower($s)) : 'Guard';
       }
       $resp['scanned_by'] = $gname !== '' ? $gname : 'Guard';
+      // Guest entry passes: one-time use + validity window
+      if (!$isAmenity) {
+        $enteredAt = $row['entered_at'] ?? null;
+        if (!empty($enteredAt)) {
+          echo json_encode(['success' => false, 'status' => 'used', 'message' => 'Entry Pass Already Used.']);
+          exit;
+        }
+        if (strtolower($statusVal) === 'approved' && !empty($row['visit_date'])) {
+          $vTime = $row['visit_time'] ?? '';
+          $vTime24 = $vTime;
+          if (preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $vTime24)) { $vTime24 .= ':00'; }
+          $visitStartTs = strtotime($row['visit_date'] . ' ' . ($vTime24 ?: '00:00:00'));
+          $visitEndTs = strtotime($row['visit_date'] . ' 23:59:59');
+          $nowTs = time();
+          if ($visitStartTs !== false && $nowTs < $visitStartTs) {
+            echo json_encode(['success' => false, 'status' => 'not_yet_valid', 'message' => 'Entry Pass is not yet valid. Approved for entry on ' . date('M d, Y', $visitStartTs) . ($vTime !== '' ? ' at ' . date('h:i A', strtotime($vTime)) : '') . '.']);
+            exit;
+          }
+          if ($visitEndTs !== false && $nowTs > $visitEndTs) {
+            echo json_encode(['success' => false, 'status' => 'expired', 'message' => 'Entry Pass Expired. It was valid on ' . date('M d, Y', $visitStartTs) . '.']);
+            exit;
+          }
+        }
+      }
       // Persist scan entry
       if ($con instanceof mysqli) {
         $totalPax = max(1, intval($resp['persons'] ?? 1));
@@ -741,8 +765,8 @@ if ($resGF && $resGF->num_rows > 0) {
         if (!$isMulti && strtolower($statusVal) === 'approved') {
           try {
             // guest_forms
-            $stmtA = $con->prepare("UPDATE guest_forms SET approval_status='permission_granted', scanned_at = NOW(), updated_at = NOW() WHERE ref_code = ? AND (approval_status IS NULL OR approval_status NOT IN ('permission_granted','cancelled','denied','expired'))");
-            if ($stmtA) { $stmtA->bind_param('s', $row['ref_code']); $stmtA->execute(); $stmtA->close(); }
+            $stmtA = $con->prepare("UPDATE guest_forms SET approval_status='permission_granted', scanned_at = NOW(), updated_at = NOW(), entered_at = COALESCE(entered_at, NOW()), entered_by = COALESCE(entered_by, ?) WHERE ref_code = ? AND (approval_status IS NULL OR approval_status NOT IN ('permission_granted','cancelled','denied','expired'))");
+            if ($stmtA) { $stmtA->bind_param('is', $gid, $row['ref_code']); $stmtA->execute(); $stmtA->close(); }
             // reservations
             $stmtB = $con->prepare("UPDATE reservations SET approval_status='permission_granted', status='permission_granted', scanned_at = NOW(), updated_at = NOW() WHERE ref_code = ? AND (status IS NULL OR status NOT IN ('permission_granted','cancelled','denied','expired'))");
             if ($stmtB) { $stmtB->bind_param('s', $row['ref_code']); $stmtB->execute(); $stmtB->close(); }

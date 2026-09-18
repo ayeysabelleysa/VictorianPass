@@ -291,7 +291,9 @@ if (empty($error)) {
             $table = 'guest_forms';
             $statusVal = $row['approval_status'] ?? 'pending';
             $visitDate = $row['visit_date'] ?? null;
+            $visitTime = $row['visit_time'] ?? null;
             $scannedAt = $row['scanned_at'] ?? null;
+            $enteredAt = $row['entered_at'] ?? null;
 
             $fullName = trim(implode(' ', array_filter([$row['visitor_first_name']??'', $row['visitor_middle_name']??'', $row['visitor_last_name']??''])));
             $residentName = trim(($row['res_first_name']??'') . ' ' . ($row['res_last_name']??''));
@@ -302,6 +304,21 @@ if (empty($error)) {
             $contact = $row['visitor_contact'] ?? '';
             $residentContact = $row['res_phone'] ?? '';
             $residentEmail = $row['res_email'] ?? '';
+
+            $guestNotYetValid = false;
+            $guestExpired = false;
+            if (!$isAmenity && strtolower(trim($statusVal)) === 'approved' && !empty($visitDate)) {
+                $nowDtG = new DateTime('now');
+                $visitStartG = new DateTime($visitDate . ' ' . (!empty($visitTime) ? $visitTime : '00:00:00'));
+                $visitEndG = new DateTime($visitDate . ' 23:59:59');
+                if ($nowDtG < $visitStartG) { $guestNotYetValid = true; }
+                elseif ($nowDtG > $visitEndG) { $guestExpired = true; }
+            }
+
+            $entryDateDisplay = (!empty($visitDate)) ? date('M d, Y', strtotime($visitDate)) : '';
+            $entryTimeDisplay = (!empty($visitTime)) ? date('g:i A', strtotime($visitTime)) : '';
+            $entryDisplay = $entryDateDisplay . (!empty($entryTimeDisplay) ? ' at ' . $entryTimeDisplay : '');
+
             $data = [
                 'id' => $id,
                 'table' => $table,
@@ -316,6 +333,13 @@ if (empty($error)) {
                 'pax' => isset($row['persons']) && $row['persons'] !== null ? (int)$row['persons'] : 1,
                 'status' => $statusVal,
                 'scanned_at' => $scannedAt,
+                'entered_at' => $enteredAt,
+                'is_amenity' => $isAmenity,
+                'entry_date' => $entryDateDisplay,
+                'entry_time' => $entryTimeDisplay,
+                'entry_display' => $entryDisplay,
+                'guest_not_yet_valid' => $guestNotYetValid && empty($enteredAt),
+                'guest_expired' => $guestExpired && empty($enteredAt),
                 'guardian_block' => $guardianBlocked
             ];
         }
@@ -573,21 +597,33 @@ if (empty($error)) {
             $participantEntered = false;
             if ($validPNum && isset($participantScans[$pNum])) { $participantEntered = true; }
             $suppressed = $isMultiParticipants ? ($justConfirmed && $justConfirmedParticipant === $pNum) : $justConfirmed;
+            $isPureGuest = ($data['table'] === 'guest_forms') && empty($data['is_amenity']);
+            $guestUsed = $isPureGuest && (!empty($data['entered_at']) || !empty($data['scanned_at']));
             if ($isMultiParticipants && $validPNum && $participantEntered && !$suppressed) {
                 $data['ui_state'] = 'used';
                 $data['ui_title'] = 'PARTICIPANT ALREADY USED';
                 $data['ui_color'] = '#f59e0b'; // Orange
                 $data['ui_msg'] = 'Participant ' . $pNum . ' of ' . $data['total_participants'] . ' has already been scanned.';
-            } elseif (!$isMultiParticipants && $data['scanned_at'] && in_array($data['table'], $oneTimeTables, true) && !$justConfirmed) {
+            } elseif (!$suppressed && (($guestUsed) || (!$isPureGuest && $data['scanned_at'] && in_array($data['table'], $oneTimeTables, true)))) {
                 $data['ui_state'] = 'used';
-                $data['ui_title'] = 'PASS ALREADY USED';
+                $data['ui_title'] = $isPureGuest ? 'ENTRY PASS ALREADY USED' : 'PASS ALREADY USED';
                 $data['ui_color'] = '#f59e0b'; // Orange
-                $data['ui_msg'] = 'QR pass already scanned.';
+                $data['ui_msg'] = $isPureGuest ? 'Entry Pass Already Used.' : 'QR pass already scanned.';
+            } elseif ($isPureGuest && !empty($data['guest_not_yet_valid'])) {
+                $data['ui_state'] = 'not_yet_valid';
+                $data['ui_title'] = 'PASS NOT YET VALID';
+                $data['ui_color'] = '#d97706'; // Amber
+                $data['ui_msg'] = 'Entry Pass is not yet valid. Approved for entry on ' . ($data['entry_display'] ?: 'the approved date') . '.';
+            } elseif ($isPureGuest && !empty($data['guest_expired'])) {
+                $data['ui_state'] = 'expired';
+                $data['ui_title'] = 'EXPIRED PASS';
+                $data['ui_color'] = '#6b7280'; // Gray
+                $data['ui_msg'] = 'Entry Pass Expired. It was valid on ' . ($data['entry_date'] ?: 'the approved date') . '.';
             } else {
                 $data['ui_state'] = 'valid';
                 $data['ui_title'] = 'VALID ENTRY PASS';
                 $data['ui_color'] = '#22c55e'; // Green
-                $data['ui_msg'] = $isMultiParticipants && $validPNum ? ('Access Granted - Participant ' . $pNum . ' of ' . $data['total_participants']) : 'Access Granted';
+                $data['ui_msg'] = $isMultiParticipants && $validPNum ? ('Access Granted - Participant ' . $pNum . ' of ' . $data['total_participants']) : ($isPureGuest ? ('Access Granted - Guest entry approved for ' . ($data['entry_display'] ?: 'the approved date')) : 'Access Granted');
             }
             } elseif ($s === 'deleted') {
             $data['ui_state'] = 'invalid';
@@ -975,7 +1011,12 @@ if (empty($error)) {
                 </div>
                 <?php endif; ?>
 
-                <?php if (!empty($data['scanned_at'])): ?>
+                <?php if (isset($data['type_label']) && $data['type_label'] === 'Guest' && !empty($data['entered_at'])): ?>
+                <div class="detail-row">
+                    <span class="label">Entered At</span>
+                    <span class="value"><?php echo htmlspecialchars(date('m/d/y g:i A', strtotime($data['entered_at']))); ?></span>
+                </div>
+                <?php elseif (!empty($data['scanned_at'])): ?>
                 <div class="detail-row">
                     <span class="label">Scanned At</span>
                     <span class="value"><?php echo htmlspecialchars(date('m/d/y g:i A', strtotime($data['scanned_at']))); ?></span>
@@ -1076,6 +1117,20 @@ if (empty($error)) {
                 <div class="detail-row" style="border-bottom:none;">
                     <span class="label">Reminder</span>
                     <span class="value">QR code will expire once the reservation schedule ends. If your reservation is expired, this QR code can no longer be used.</span>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <?php if (isset($data['type_label']) && $data['type_label'] === 'Guest' && !empty($data['entry_display'])): ?>
+            <div class="details-section" style="margin-top:18px;">
+                <div class="details-title">Entry Schedule</div>
+                <div class="detail-row">
+                    <span class="label">Approved For</span>
+                    <span class="value"><?php echo htmlspecialchars($data['entry_display']); ?></span>
+                </div>
+                <div class="detail-row" style="border-bottom:none;">
+                    <span class="label">Reminder</span>
+                    <span class="value">This Entry Pass is valid only on the approved date and time. It can be used only once and will be permanently disabled after entry.</span>
                 </div>
             </div>
             <?php endif; ?>

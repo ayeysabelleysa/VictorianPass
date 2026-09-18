@@ -5,8 +5,8 @@ require_once __DIR__ . '/session_bootstrap.php';
 require_once 'connect.php';
 
 $isGuardApiAction = (
-  (isset($_GET['action']) && in_array($_GET['action'], ['list_incidents', 'incident_details', 'get_notifications', 'dismiss_notification', 'list_today_scans', 'list_expected'], true))
-  || (isset($_POST['action']) && in_array($_POST['action'], ['escalate', 'handle', 'resolve'], true))
+  (isset($_GET['action']) && in_array($_GET['action'], ['list_incidents', 'incident_details', 'get_notifications', 'dismiss_notification', 'list_today_scans', 'list_expected', 'guest_details'], true))
+  || (isset($_POST['action']) && in_array($_POST['action'], ['escalate', 'handle', 'resolve', 'mark_entered'], true))
 );
 
 $now = time();
@@ -142,6 +142,19 @@ if (!vpSchemaDone($con, 'guard_v1') && ($con instanceof mysqli)) {
   if ($pc && $pc->num_rows === 0) { @$con->query("ALTER TABLE entry_scans ADD COLUMN participant_no INT NULL AFTER ref_code"); }
   if ($pc) { $pc->close(); }
   vpMarkSchemaDone($con, 'guard_v1');
+}
+
+// Ensure guest_forms has scheduled visit check-in columns (added on every load to support live DB upgrades)
+if ($con instanceof mysqli) {
+  $gfc1 = $con->query("SHOW COLUMNS FROM guest_forms LIKE 'entered_at'");
+  if ($gfc1 && $gfc1->num_rows === 0) { @$con->query("ALTER TABLE guest_forms ADD COLUMN entered_at DATETIME NULL"); }
+  if ($gfc1) { $gfc1->close(); }
+  $gfc2 = $con->query("SHOW COLUMNS FROM guest_forms LIKE 'entered_by'");
+  if ($gfc2 && $gfc2->num_rows === 0) { @$con->query("ALTER TABLE guest_forms ADD COLUMN entered_by INT NULL"); }
+  if ($gfc2) { $gfc2->close(); }
+  $gfc3 = $con->query("SHOW COLUMNS FROM guest_forms LIKE 'scanned_at'");
+  if ($gfc3 && $gfc3->num_rows === 0) { @$con->query("ALTER TABLE guest_forms ADD COLUMN scanned_at DATETIME NULL"); }
+  if ($gfc3) { $gfc3->close(); }
 }
 function ensureNotificationsTable($con) {
   if (!($con instanceof mysqli)) { return; }
@@ -516,6 +529,88 @@ if (isset($_GET['action']) && $_GET['action'] === 'list_today_scans') {
 }
 ?>
 <?php
+// API: fetch scheduled guest request details for guard verification
+if (isset($_GET['action']) && $_GET['action'] === 'guest_details') {
+  header('Content-Type: application/json');
+  $guestId = isset($_GET['id']) ? intval($_GET['id']) : 0;
+  if ($guestId <= 0) { echo json_encode(['success' => false, 'message' => 'Invalid guest id']); exit; }
+  if (!($con instanceof mysqli)) { echo json_encode(['success' => false, 'message' => 'Database unavailable']); exit; }
+  $gq = $con->prepare("SELECT gf.*, u.first_name AS res_first_name, u.middle_name AS res_middle_name, u.last_name AS res_last_name, u.house_number AS res_house_number, u.phone AS res_phone FROM guest_forms gf LEFT JOIN users u ON gf.resident_user_id = u.id WHERE gf.id = ? LIMIT 1");
+  if (!$gq) { echo json_encode(['success' => false, 'message' => 'Query failed']); exit; }
+  $gq->bind_param('i', $guestId);
+  $gq->execute();
+  $gr = $gq->get_result();
+  if (!$gr || $gr->num_rows === 0) { $gq->close(); echo json_encode(['success' => false, 'message' => 'Guest not found']); exit; }
+  $grow = $gr->fetch_assoc();
+  $gq->close();
+  $fullName = trim(($grow['visitor_first_name'] ?? '') . ' ' . ($grow['visitor_middle_name'] ?? '') . ' ' . ($grow['visitor_last_name'] ?? ''));
+  $resName = trim(($grow['res_first_name'] ?? '') . ' ' . ($grow['res_middle_name'] ?? '') . ' ' . ($grow['res_last_name'] ?? ''));
+  echo json_encode([
+    'success' => true,
+    'guest' => [
+      'id' => intval($grow['id']),
+      'name' => ($fullName !== '' ? $fullName : '-'),
+      'contact' => $grow['visitor_contact'] ?? '-',
+      'email' => $grow['visitor_email'] ?? '-',
+      'address' => $grow['visitor_address'] ?? '-',
+      'resident' => ($resName !== '' ? $resName : '-'),
+      'resident_house' => $grow['res_house_number'] ?? '',
+      'resident_phone' => $grow['res_phone'] ?? '',
+      'visit_date' => $grow['visit_date'] ?? null,
+      'visit_time' => $grow['visit_time'] ?? null,
+      'id_path' => $grow['valid_id_path'] ?? null,
+      'ref_code' => $grow['ref_code'] ?? '',
+      'approval_status' => trim((string)($grow['approval_status'] ?? 'pending')),
+      'approval_date' => $grow['approval_date'] ?? null,
+      'entered_at' => $grow['entered_at'] ?? null
+    ]
+  ]);
+  exit;
+}
+
+// API: mark a scheduled guest request as entered (guard check-in)
+if (isset($_POST['action']) && $_POST['action'] === 'mark_entered') {
+  header('Content-Type: application/json');
+  $guestId = isset($_POST['guest_id']) ? intval($_POST['guest_id']) : 0;
+  if ($guestId <= 0) { echo json_encode(['success' => false, 'message' => 'Invalid guest id']); exit; }
+  if (!($con instanceof mysqli)) { echo json_encode(['success' => false, 'message' => 'Database unavailable']); exit; }
+  $gq = $con->prepare("SELECT id, ref_code, visitor_first_name, visitor_middle_name, visitor_last_name, resident_user_id, approval_status, entered_at FROM guest_forms WHERE id = ? LIMIT 1");
+  if (!$gq) { echo json_encode(['success' => false, 'message' => 'Query failed']); exit; }
+  $gq->bind_param('i', $guestId);
+  $gq->execute();
+  $gr = $gq->get_result();
+  if (!$gr || $gr->num_rows === 0) { $gq->close(); echo json_encode(['success' => false, 'message' => 'Guest not found']); exit; }
+  $grow = $gr->fetch_assoc();
+  $gq->close();
+  $statusVal = strtolower(trim((string)($grow['approval_status'] ?? '')));
+  if (strpos($statusVal, 'approv') === false && strpos($statusVal, 'grant') === false) {
+    echo json_encode(['success' => false, 'message' => 'This guest request is not approved for entry']); exit;
+  }
+  if (!empty($grow['entered_at'])) {
+    $alreadyLabel = date('M d, Y h:i A', strtotime($grow['entered_at']));
+    echo json_encode(['success' => false, 'message' => 'Already entered at ' . $alreadyLabel]); exit;
+  }
+  $upd = $con->prepare("UPDATE guest_forms SET entered_at = NOW(), entered_by = ?, updated_at = NOW() WHERE id = ? AND entered_at IS NULL");
+  if (!$upd) { echo json_encode(['success' => false, 'message' => 'Update failed']); exit; }
+  $upd->bind_param('ii', $staffId, $guestId);
+  $upd->execute();
+  $affected = $upd->affected_rows;
+  $upd->close();
+  if ($affected < 1) { echo json_encode(['success' => false, 'message' => 'Guest already entered']); exit; }
+  $fullName = trim(($grow['visitor_first_name'] ?? '') . ' ' . ($grow['visitor_middle_name'] ?? '') . ' ' . ($grow['visitor_last_name'] ?? ''));
+  $today = date('Y-m-d');
+  $lg = $con->prepare("INSERT INTO entry_scans (ref_code, scanned_by_guard_id, scanned_by_name, subject_name, entry_type, status, start_date, end_date) VALUES (?, ?, ?, ?, 'Guest Request', 'entered', ?, ?)");
+  if ($lg) { $lg->bind_param('siss', $grow['ref_code'], $staffId, $surname, $fullName, $today, $today); @$lg->execute(); @$lg->close(); }
+  if (!empty($grow['resident_user_id'])) {
+    try {
+      $notif = $con->prepare("INSERT INTO notifications (user_id, title, message, type, created_at) VALUES (?, 'Guest Entry Confirmed', ?, 'success', NOW())");
+      if ($notif) { $msg = 'Your guest ' . $fullName . ' was verified and marked as entered by the guard.'; $notif->bind_param('is', $grow['resident_user_id'], $msg); $notif->execute(); $notif->close(); }
+    } catch (Throwable $e) {}
+  }
+  echo json_encode(['success' => true, 'message' => 'Guest entry recorded']);
+  exit;
+}
+
 if (isset($_GET['action']) && $_GET['action'] === 'list_expected') {
   header('Content-Type: application/json');
   $startParam = isset($_GET['start']) ? $_GET['start'] : null;
@@ -554,11 +649,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'list_expected') {
     $ts = strtotime($v);
     return $ts ? date('Y-m-d',$ts) : null;
   };
-  $qGF = "SELECT gf.ref_code, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name, gf.visit_date, gf.start_date, gf.end_date, gf.amenity, " . ($gfResDate ? "gf.reservation_date" : "NULL AS reservation_date") . ", " . ($gfStartTime ? "gf.visit_time AS start_time" : "NULL AS start_time") . ", NULL AS end_time, TRIM(gf.approval_status) AS approval_status, gf.approval_date, u.first_name AS res_first_name, u.middle_name AS res_middle_name, u.last_name AS res_last_name FROM guest_forms gf LEFT JOIN users u ON gf.resident_user_id = u.id WHERE (LOWER(TRIM(gf.approval_status)) LIKE '%approv%' OR LOWER(TRIM(gf.approval_status)) LIKE '%grant%')";
+  $qGF = "SELECT gf.id AS guest_id, gf.ref_code, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name, gf.visit_date, gf.start_date, gf.end_date, gf.amenity, gf.visitor_contact, gf.valid_id_path, gf.entered_at, " . ($gfResDate ? "gf.reservation_date" : "NULL AS reservation_date") . ", " . ($gfStartTime ? "gf.visit_time AS start_time" : "NULL AS start_time") . ", NULL AS end_time, TRIM(gf.approval_status) AS approval_status, gf.approval_date, u.first_name AS res_first_name, u.middle_name AS res_middle_name, u.last_name AS res_last_name, u.house_number AS res_house_no FROM guest_forms gf LEFT JOIN users u ON gf.resident_user_id = u.id WHERE LOWER(TRIM(gf.approval_status)) = 'approved' AND gf.entered_at IS NULL AND gf.scanned_at IS NULL";
   $resGF = $con->query($qGF);
   if ($resGF === false && !$gfResDate) {
     // Last resort: query without reservation_date if the column truly is missing
-    $qGF = "SELECT gf.ref_code, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name, gf.visit_date, gf.start_date, gf.end_date, gf.amenity, NULL AS reservation_date, NULL AS start_time, NULL AS end_time, TRIM(gf.approval_status) AS approval_status, gf.approval_date, u.first_name AS res_first_name, u.middle_name AS res_middle_name, u.last_name AS res_last_name FROM guest_forms gf LEFT JOIN users u ON gf.resident_user_id = u.id WHERE (LOWER(TRIM(gf.approval_status)) LIKE '%approv%' OR LOWER(TRIM(gf.approval_status)) LIKE '%grant%')";
+    $qGF = "SELECT gf.id AS guest_id, gf.ref_code, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name, gf.visit_date, gf.start_date, gf.end_date, gf.amenity, gf.visitor_contact, gf.valid_id_path, gf.entered_at, NULL AS reservation_date, NULL AS start_time, NULL AS end_time, TRIM(gf.approval_status) AS approval_status, gf.approval_date, u.first_name AS res_first_name, u.middle_name AS res_middle_name, u.last_name AS res_last_name, u.house_number AS res_house_no FROM guest_forms gf LEFT JOIN users u ON gf.resident_user_id = u.id WHERE LOWER(TRIM(gf.approval_status)) = 'approved' AND gf.entered_at IS NULL AND gf.scanned_at IS NULL";
   }
   if ($resGF === false) { $resGF = $con->query($qGF); }
   if ($resGF) {
@@ -579,7 +674,13 @@ if (isset($_GET['action']) && $_GET['action'] === 'list_expected') {
         'end_date' => $ed,
         'start_time' => $r['start_time'] ?? null,
         'end_time' => $r['end_time'] ?? null,
-        'status' => $r['approval_status']
+        'status' => $r['approval_status'],
+        'guest_id' => intval($r['guest_id'] ?? 0),
+        'contact' => $r['visitor_contact'] ?? null,
+        'id_path' => $r['valid_id_path'] ?? null,
+        'house' => $r['res_house_no'] ?? null,
+        'entered_at' => $r['entered_at'] ?? null,
+        'approval_date' => $r['approval_date'] ?? null
       ];
     }
   }
@@ -1148,6 +1249,15 @@ body.sidebar-collapsed .sidebar-footer .text-muted-link { padding: 10px; width: 
     justify-content: flex-start;
     align-items: center;
     margin-bottom: 10px;
+}
+
+.page-title-block { display: flex; flex-direction: column; gap: 2px; }
+
+.page-subtitle {
+    font-size: 0.85rem;
+    font-weight: 400;
+    color: var(--text-secondary);
+    transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 .page-header h2 { font-size: 1.5rem; color: var(--text-main); transition: opacity 0.2s ease, transform 0.2s ease; }
@@ -1929,7 +2039,10 @@ html, body { max-width: 100%; overflow-x: hidden; }
     </div>
   </header>
   <div class="page-header">
-    <h2 id="page-title">Scheduled Arrivals</h2>
+    <div class="page-title-block">
+      <h2 id="page-title">Scheduled Arrivals</h2>
+      <div class="page-subtitle" id="page-subtitle">Approved guests &amp; reservations expected to arrive.</div>
+    </div>
   </div>
   <div id="toast" class="toast"></div>
   <div id="dashboardSection" class="dashboard section hidden">
@@ -2008,12 +2121,12 @@ html, body { max-width: 100%; overflow-x: hidden; }
           </tbody>
         </table>
       </div>
-      <div style="margin:16px 30px 8px; font-weight:600; color:#2c3e50;">Guest Entries</div>
+      <div style="margin:16px 30px 8px; font-weight:600; color:#2c3e50;">Guest Requests <span style="font-weight:400;font-size:0.85rem;color:#6b7280;">(approved guest check-ins)</span></div>
       <div class="table-responsive-wrapper">
         <table id="expectedGuestTable" class="history-table">
-          <tr><th>Code</th><th>Added By</th><th>Type</th><th>Amenity Reserve</th><th>Reservation Schedule</th><th>Status</th></tr>
+          <tr><th>Guest Name</th><th>Resident/Host</th><th>Schedule</th><th>Status</th><th>Action</th></tr>
           <tbody id="expectedGuestBody">
-            <tr id="expectedGuestEmpty"><td colspan="6" style="text-align:center;color:#6b6b6b">No guest entries in selected range</td></tr>
+            <tr id="expectedGuestEmpty"><td colspan="5" style="text-align:center;color:#6b6b6b">No guest requests in selected range</td></tr>
           </tbody>
         </table>
       </div>
@@ -2069,6 +2182,13 @@ html, body { max-width: 100%; overflow-x: hidden; }
 const navItems = document.querySelectorAll('.nav-item');
 const sections = document.querySelectorAll('.section');
 const pageTitle = document.getElementById('page-title');
+const pageSubtitle = document.getElementById('page-subtitle');
+const pageSubtitles = {
+  dashboard: "Today's scans and quick status overview.",
+  expected: 'Approved guests & reservations expected to arrive.',
+  entries: 'Visitors and guests already scanned in today.',
+  restricted: 'Reported incidents needing guard action.'
+};
 const sidebarToggle = document.getElementById('sidebarToggle');
 const sidebar = document.querySelector('.sidebar');
 const overlay = document.getElementById('sidebarOverlay');
@@ -2114,10 +2234,16 @@ function setActiveSection(sectionKey){
     activeItem.classList.add('active');
     pageTitle.style.opacity = '0';
     pageTitle.style.transform = 'translateY(-4px)';
+    if(pageSubtitle){ pageSubtitle.style.opacity = '0'; pageSubtitle.style.transform = 'translateY(-4px)'; }
     setTimeout(function(){
       pageTitle.textContent = activeItem.querySelector('span').textContent;
       pageTitle.style.opacity = '1';
       pageTitle.style.transform = 'translateY(0)';
+      if(pageSubtitle){
+        pageSubtitle.textContent = pageSubtitles[sectionKey] || '';
+        pageSubtitle.style.opacity = '1';
+        pageSubtitle.style.transform = 'translateY(0)';
+      }
     }, 150);
   }
   const target = document.getElementById(sectionKey+'Section');
@@ -2427,6 +2553,7 @@ function scanCode(){
       showToast('Scan recorded');
       loadDashboardEntries();
       loadTodayEntries();
+      loadExpected();
       const win = window.open(openUrl,'_blank');
       if(!win){ window.location.href = openUrl; }
     })
@@ -2581,6 +2708,7 @@ function renderExpected(rows){
   const guestRows=[];
   const otherRows=[];
   approved.forEach(r=>{ if(String(r.type||'').toLowerCase()==='guest entry'){ guestRows.push(r); } else { otherRows.push(r); } });
+  guestRows.sort(function(a,b){ return String(a.start_date||'').localeCompare(String(b.start_date||'')) || String(a.start_time||'').localeCompare(String(b.start_time||'')); });
   if(otherRows.length===0){
     const tr=document.createElement('tr');
     tr.id='expectedEmpty';
@@ -2601,33 +2729,93 @@ function renderExpected(rows){
   if(guestRows.length===0){
     const tr=document.createElement('tr');
     tr.id='expectedGuestEmpty';
-    tr.innerHTML=`<td colspan="6" style="text-align:center;color:#6b6b6b">No guest entries in selected range</td>`;
+    tr.innerHTML=`<td colspan="5" style="text-align:center;color:#6b6b6b">No guest requests in selected range</td>`;
     guestBody.appendChild(tr);
     return;
   }
   guestRows.forEach(r=>{
     const tr=document.createElement('tr');
     tr.classList.add('fade-row');
-    const st=String(r.status||'').replace(/[_-]+/g,' ');
-    const sts=st.replace(/\b\w/g,function(m){return m.toUpperCase();});
-    const addedBy=r.added_by||'-';
-    tr.innerHTML=`<td>${r.code||'-'}</td><td>${addedBy}</td><td>${r.type||'-'}</td><td>${r.amenity||'-'}</td><td>-</td><td>${sts}</td>`;
+    const entered = !!(r.entered_at);
+    const scheduleDisplay = formatScheduleRow(r||{});
+    const gid = r.guest_id ? parseInt(r.guest_id,10) : 0;
+    const residentLabel = esc(r.added_by||'-') + ((r.house) ? ' ('+esc(r.house)+')' : '');
+    const statusCell = entered
+      ? '<span style="font-weight:600;color:#1d9e4a;"><i class="fa-solid fa-circle-check"></i> Entered</span><div style="font-size:0.78rem;color:#777;">'+esc(formatDateValue(r.entered_at)||'')+'</div>'
+      : '<span style="font-weight:600;color:#b8860b;">For Entry</span>';
+    const actionCell = entered
+      ? '<button type="button" class="btn" disabled style="opacity:0.55;cursor:not-allowed;"><i class="fa-solid fa-circle-check"></i> Entered</button>'
+      : '<div style="display:flex;gap:6px;flex-wrap:wrap;"><button type="button" class="btn btn-view" onclick="verifyGuest('+gid+')"><i class="fa-solid fa-eye"></i> Verify</button><button type="button" class="btn btn-approve" onclick="markGuestEntered('+gid+')"><i class="fa-solid fa-right-to-bracket"></i> Mark Entered</button></div>';
+    tr.innerHTML = '<td>'+esc(r.name||'-')+'</td><td>'+residentLabel+'</td><td>'+scheduleDisplay+'</td><td>'+statusCell+'</td><td>'+actionCell+'</td>';
     guestBody.appendChild(tr);
   });
 }
 function formatInputDate(d){ const z=new Date(d); const mm=(z.getMonth()+1).toString().padStart(2,'0'); const dd=z.getDate().toString().padStart(2,'0'); const yyyy=z.getFullYear(); return `${yyyy}-${mm}-${dd}`; }
 function getRange(){ const s=document.getElementById('expectedStart'); const e=document.getElementById('expectedEnd'); const sv=s&&s.value?s.value:formatInputDate(new Date()); const ev=e&&e.value?e.value:formatInputDate(new Date(Date.now()+6*24*60*60*1000)); return {start:sv,end:ev}; }
 function loadExpected(start,end){ const rng = start&&end ? {start,end} : getRange(); const url = `guard.php?action=list_expected&start=${encodeURIComponent(rng.start)}&end=${encodeURIComponent(rng.end)}`; fetch(url).then(r=>r.json()).then(data=>{ if(data&&data.success){ renderExpected(data.entries||[]); } }).catch(_=>{}); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function verifyGuest(id){
+  if(!id) return;
+  var m = document.getElementById('guestVerifyModal');
+  if(!m) return;
+  fetch('guard.php?action=guest_details&id='+encodeURIComponent(id))
+    .then(r=>r.json())
+    .then(data=>{
+      if(!data || !data.success || !data.guest){ showToast(data&&data.message?data.message:'Unable to load guest details','error'); return; }
+      var g = data.guest;
+      document.getElementById('gvName').textContent = g.name || '-';
+      document.getElementById('gvResident').textContent = (g.resident||'-') + ((g.resident_house)? ' ('+g.resident_house+')' : '');
+      document.getElementById('gvContact').textContent = g.contact || '-';
+      document.getElementById('gvEmail').textContent = g.email || '-';
+      document.getElementById('gvAddress').textContent = g.address || '-';
+      document.getElementById('gvCode').textContent = g.ref_code || '-';
+      document.getElementById('gvSchedule').textContent = (g.visit_date ? formatMDY(g.visit_date) : '-') + (g.visit_time ? ' '+formatTimeValue(g.visit_time) : '');
+      var gvStatus = document.getElementById('gvStatus');
+      if(g.entered_at){ gvStatus.textContent = 'Entered ('+formatDateValue(g.entered_at)+')'; }
+      else { var sv=String(g.approval_status||'').toLowerCase(); gvStatus.textContent = (sv.indexOf('approv')!==-1||sv.indexOf('grant')!==-1) ? 'Approved' : (g.approval_status||'-'); }
+      var imgWrap = document.getElementById('gvIdWrap');
+      var img = document.getElementById('gvIdImg');
+      if(g.id_path){ img.src = g.id_path; imgWrap.style.display = 'block'; }
+      else { img.src = ''; imgWrap.style.display = 'none'; }
+      m.classList.remove('closing');
+      m.style.display = 'flex';
+    })
+    .catch(_=>{ showToast('Network error','error'); });
+}
+function closeGuestVerifyModal(){
+  var m = document.getElementById('guestVerifyModal');
+  if(!m) return;
+  m.classList.add('closing');
+  setTimeout(function(){ m.style.display='none'; m.classList.remove('closing'); }, 200);
+}
+function markGuestEntered(id){
+  if(!id) return;
+  if(!confirm('Verify this guest and mark them as ENTERED now?')) return;
+  fetch('guard.php', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'action=mark_entered&guest_id='+id })
+    .then(r=>r.json())
+    .then(data=>{
+      if(data && data.success){
+        showToast(data.message||'Guest entry recorded');
+        closeGuestVerifyModal();
+        const rng=getRange(); loadExpected(rng.start,rng.end); loadTodayEntries(); loadDashboardEntries();
+      } else {
+        showToast(data&&data.message?data.message:'Failed to mark guest entered','error');
+        const rng=getRange(); loadExpected(rng.start,rng.end);
+      }
+    })
+    .catch(_=>{ showToast('Network error','error'); });
+}
 document.addEventListener('DOMContentLoaded', function(){
   loadTodayEntries();
   loadDashboardEntries();
   refreshNotifications();
   setInterval(refreshNotifications, 60000);
+  setInterval(function(){ loadExpected(); }, 60000);
   const s=document.getElementById('expectedStart'); const e=document.getElementById('expectedEnd'); if(s&&e){ const today=new Date(); const next=new Date(Date.now()+6*24*60*60*1000); s.value=formatInputDate(today); e.value=formatInputDate(next); }
   const apply=document.getElementById('applyExpected'); if(apply){ apply.addEventListener('click', function(){ const rng=getRange(); loadExpected(rng.start,rng.end); }); }
-  const wk=document.getElementById('weekFromStartBtn'); if(wk){ wk.addEventListener('click', function(){ const today=new Date(); const day=today.getDay(); const daysToSunday=(7-day)%7; const thisWeekEnd=new Date(today.getTime()); thisWeekEnd.setDate(thisWeekEnd.getDate()+daysToSunday); const start=new Date(thisWeekEnd.getTime()); start.setDate(start.getDate()+1); const end=new Date(start.getTime()); end.setDate(end.getDate()+6); const sv=formatInputDate(start); const ev=formatInputDate(end); const sIn=document.getElementById('expectedStart'); const eIn=document.getElementById('expectedEnd'); if(sIn) sIn.value=sv; if(eIn) eIn.value=ev; loadExpected(sv,ev); }); }
+  const wk=document.getElementById('weekFromStartBtn'); if(wk){ wk.addEventListener('click', function(){ const today=new Date(); const end=new Date(today.getTime()); end.setDate(end.getDate()+7); const sv=formatInputDate(today); const ev=formatInputDate(end); const sIn=document.getElementById('expectedStart'); const eIn=document.getElementById('expectedEnd'); if(sIn) sIn.value=sv; if(eIn) eIn.value=ev; loadExpected(sv,ev); }); }
   const tw=document.getElementById('thisWeekBtn'); if(tw){ tw.addEventListener('click', function(){ const today=new Date(); const day=today.getDay(); const daysToSunday=(7-day)%7; const start=new Date(today.getTime()); const end=new Date(today.getTime()); end.setDate(end.getDate()+daysToSunday); const sv=formatInputDate(start); const ev=formatInputDate(end); const sIn=document.getElementById('expectedStart'); const eIn=document.getElementById('expectedEnd'); if(sIn) sIn.value=sv; if(eIn) eIn.value=ev; loadExpected(sv,ev); }); }
-  const n30=document.getElementById('next30Btn'); if(n30){ n30.addEventListener('click', function(){ const today=new Date(); const day=today.getDay(); const daysToSunday=(7-day)%7; const thisWeekEnd=new Date(today.getTime()); thisWeekEnd.setDate(thisWeekEnd.getDate()+daysToSunday); const start=new Date(thisWeekEnd.getTime()); start.setDate(start.getDate()+1+7); const end=new Date(start.getTime()); end.setDate(end.getDate()+29); const sv=formatInputDate(start); const ev=formatInputDate(end); const sIn=document.getElementById('expectedStart'); const eIn=document.getElementById('expectedEnd'); if(sIn) sIn.value=sv; if(eIn) eIn.value=ev; loadExpected(sv,ev); }); }
+  const n30=document.getElementById('next30Btn'); if(n30){ n30.addEventListener('click', function(){ const today=new Date(); const end=new Date(today.getTime()); end.setDate(end.getDate()+30); const sv=formatInputDate(today); const ev=formatInputDate(end); const sIn=document.getElementById('expectedStart'); const eIn=document.getElementById('expectedEnd'); if(sIn) sIn.value=sv; if(eIn) eIn.value=ev; loadExpected(sv,ev); }); }
   if(s&&e){ s.addEventListener('change', function(){ if(!s.value) return; const base=new Date(s.value); const end=new Date(base.getTime()); end.setDate(end.getDate()+6); e.value=formatInputDate(end); }); }
   loadExpected();
   const inp = document.getElementById('scanCode');
@@ -2728,6 +2916,33 @@ document.addEventListener('DOMContentLoaded', function(){
   <div class="modal-content">
     <button class="modal-close" onclick="closeProofImage()">×</button>
     <img id="proofImagePreview" src="" alt="Proof preview">
+  </div>
+</div>
+<div id="guestVerifyModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Guest Request Details</h3>
+      <button class="modal-close" onclick="closeGuestVerifyModal()">×</button>
+    </div>
+    <div class="incident-details-content">
+      <div class="details-grid">
+        <div><strong>Guest</strong><div id="gvName"></div></div>
+        <div><strong>Resident/Host</strong><div id="gvResident"></div></div>
+        <div><strong>Contact</strong><div id="gvContact"></div></div>
+        <div><strong>Email</strong><div id="gvEmail"></div></div>
+        <div><strong>Address</strong><div id="gvAddress"></div></div>
+        <div><strong>Ref Code</strong><div id="gvCode"></div></div>
+        <div><strong>Schedule (Date &amp; Time)</strong><div id="gvSchedule"></div></div>
+        <div><strong>Status</strong><div id="gvStatus"></div></div>
+      </div>
+      <div style="margin-top:12px"><strong>Valid ID</strong></div>
+      <div id="gvIdWrap" class="proofs" style="display:none;">
+        <img id="gvIdImg" src="" alt="Guest valid ID" style="max-width:280px;border-radius:8px;border:1px solid #e2e6e2;">
+      </div>
+      <div style="margin-top:14px;text-align:center;">
+        <button type="button" class="btn btn-view" onclick="closeGuestVerifyModal()">Close</button>
+      </div>
+    </div>
   </div>
 </div>
 </body>
