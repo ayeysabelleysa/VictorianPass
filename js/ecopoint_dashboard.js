@@ -499,34 +499,43 @@
         previousSession = null;
         return;
       }
+      notifiedEndedSessionId = String(prevSession.id || '');
+      const pointsAwarded = Math.max(0, parseInt((prevSession && prevSession.total_points) || (prevSession && prevSession.points_awarded) || 0));
+      showSessionPopup(
+        'success',
+        'VHEcoPoint Session Completed',
+        'Your recycling activity has been recorded successfully.',
+        '+' + pointsAwarded + ' EcoPoints',
+        'Got it'
+      );
+      log('Session completed and removed from active');
+    }
+    // Session status changed
+    else if (newSession && prevSession && newSession.status !== prevSession.status) {
+      const statusMap = {
+        'ACTIVE': { icon: 'fa-solid fa-circle', color: '#22c55e', text: 'Session is now active' },
+        'PROCESSING': { icon: 'fa-solid fa-gear', text: 'Processing waste data' },
+        'COMPLETED': { icon: 'fa-solid fa-circle-check', color: '#16a34a', text: 'Session completed successfully' },
+        'CANCELLED': { icon: 'fa-solid fa-circle-xmark', color: '#dc2626', text: 'Session was cancelled' },
+        'ERROR': { icon: 'fa-solid fa-triangle-exclamation', color: '#d97706', text: 'An error occurred during processing' },
+      };
+      const info = statusMap[String(newSession.status).toUpperCase()] || { icon: 'fa-solid fa-circle-info', text: 'Status changed' };
+      showNotification('info', 'Status Update', info.text, info.icon, info.color);
+      log('Session status changed', { from: prevSession.status, to: newSession.status });
+    }
+    // Weight updated significantly
+    else if (newSession && prevSession) {
+      const newWeight = parseFloat(newSession.total_weight_kg || newSession.weight_kg || 0);
+      const prevWeight = parseFloat(prevSession.total_weight_kg || prevSession.weight_kg || 0);
+      const newPoints = parseInt(newSession.total_points || newSession.points_awarded || 0);
+      const prevPoints = parseInt(prevSession.total_points || prevSession.points_awarded || 0);
 
-    notifiedEndedSessionId = String(prevSession.id || '');
-
-    const pointsAwarded = Math.max(
-      0,
-      parseInt(
-        prevSession.points_awarded ||
-        prevSession.total_points ||
-        0,
-        10
-      )
-    );
-
-    showSessionPopup(
-      'success',
-      'VHEcoPoint Session Completed',
-      'Your recycling activity has been recorded successfully.',
-      '+' + pointsAwarded + ' EcoPoints',
-      'Got it'
-    );
-
-    log('Session completed and removed from active');
-
-    // Refresh dashboard data after the completion popup
-    setTimeout(() => {
-      window.location.reload();
-    }, 4500);
-  }
+      if (newWeight > prevWeight + 0.05 || newPoints > prevPoints) {
+        log('Waste detected', { weight: newWeight, points: newPoints });
+        // Optional: show subtle toast for weight update
+        // showNotification('info', '📦 Waste Detected', `${newWeight}kg detected (${newPoints}pts)`);
+      }
+    }
 
     previousSession = newSession ? JSON.parse(JSON.stringify(newSession)) : null;
   }
