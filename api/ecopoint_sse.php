@@ -66,6 +66,34 @@ function eco_build_snapshot(mysqli $con, int $userId): array {
     $balance  = eco_user_balance($con, $userId);
     $active   = eco_get_active_session_for_user($con, $userId);
 
+$liveTotalPoints = 0;
+$liveTotalWeight = 0.0;
+
+if ($active) {
+    $liveStmt = $con->prepare("
+        SELECT
+            COALESCE(SUM(
+                CAST(JSON_UNQUOTE(JSON_EXTRACT(event_payload, '$.points_calc')) AS DECIMAL(10,2))
+            ), 0) AS total_points,
+            COALESCE(SUM(
+                CAST(JSON_UNQUOTE(JSON_EXTRACT(event_payload, '$.weight_kg')) AS DECIMAL(10,3))
+            ), 0) AS total_weight
+        FROM ecopoint_session_events
+        WHERE session_id = ?
+          AND event_type = 'WASTE_DATA'
+    ");
+
+    if ($liveStmt) {
+        $liveStmt->bind_param('i', $active['id']);
+        $liveStmt->execute();
+        $liveTotals = $liveStmt->get_result()->fetch_assoc();
+        $liveStmt->close();
+
+        $liveTotalPoints = (int)round((float)($liveTotals['total_points'] ?? 0));
+        $liveTotalWeight = (float)($liveTotals['total_weight'] ?? 0);
+    }
+}
+
     $activeOut = null;
     if ($active) {
         $sid = (int)$active['id'];
@@ -93,8 +121,8 @@ function eco_build_snapshot(mysqli $con, int $userId): array {
             'weight_kg'          => (float)($active['weight_kg'] ?? 0),
             'points_calculated'  => (int)($active['points_calculated'] ?? 0),
             'points_awarded'     => (int)($active['points_awarded'] ?? 0),
-            'total_weight_kg'    => (float)($active['total_weight_kg'] ?? 0),
-            'total_points'       => (int)($active['total_points'] ?? 0),
+            'total_weight_kg'    => $liveTotalWeight,
+	    'total_points'       => $liveTotalPoints,
             'created_at'         => (string)($active['created_at'] ?? ''),
             'waiting_at'         => $active['waiting_at']   ?? null,
             'started_at'         => $active['started_at']   ?? null,
