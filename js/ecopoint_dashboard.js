@@ -573,6 +573,7 @@
           uiUpdateTimeout = setTimeout(() => {
             updateLiveSessionUI(snapshot);
             updateCurrentBalance(snapshot.current_balance);
+            updateWeeklyPoints(snapshot.cap_state);
             updateCapState(snapshot.cap_state);
           }, CONFIG.UI_UPDATE_THROTTLE_MS);
 
@@ -665,6 +666,7 @@
             uiUpdateTimeout = setTimeout(() => {
               updateLiveSessionUI(snapshot);
               updateCurrentBalance(snapshot.current_balance);
+              updateWeeklyPoints(snapshot.cap_state);
               updateCapState(snapshot.cap_state);
             }, CONFIG.UI_UPDATE_THROTTLE_MS);
           }
