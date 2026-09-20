@@ -1467,7 +1467,12 @@ body.qr-modal-open{ overflow:hidden }
 
 /* Resident card inside QR View — responsive to container */
 #qrViewCardContainer .resident-id-card{
-  width:100%; max-width:360px;
+  width:100%; max-width:340px;
+}
+#qrViewModal .qr-modal-content{
+  width:min(92vw, 380px);
+  max-width:380px;
+  padding:36px 16px 16px;
 }
 #qrViewCardContainer .resident-id-card .id-top{
   flex-wrap:wrap; gap:10px; padding:12px 14px;
@@ -2039,9 +2044,9 @@ body.qr-modal-open{ overflow:hidden }
 
   .qr-modal-content,
   #qrViewModal .qr-modal-content {
-    width: 94vw !important;
-    max-width: 420px !important;
-    max-height: 88vh !important;
+    width: calc(100vw - 24px) !important;
+    max-width: 360px !important;
+    max-height: calc(100dvh - 20px) !important;
     padding: 10px 12px !important;
     overflow-y: auto !important;
   }
@@ -2051,11 +2056,19 @@ body.qr-modal-open{ overflow:hidden }
     top: 10px !important;
     right: 12px !important;
     margin: 0 !important;
+    width: 30px !important;
+    height: 30px !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+    transform: none !important;
   }
 
   #qrViewModal .qr-modal-content h3 {
     font-size: 15px !important;
-    margin: 0 0 6px !important;
+    margin: 26px 0 6px !important;
   }
 
   #qrViewCardContainer {
@@ -2156,8 +2169,9 @@ body.qr-modal-open{ overflow:hidden }
     padding: 6px 12px !important;
     margin: 0 !important;
     font-size: 10px !important;
-    line-height: 1.2 !important;
-    white-space: nowrap !important;
+    line-height: 1.3 !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
   }
 
   #qrViewModal .qr-modal-note {
@@ -4230,6 +4244,19 @@ body.modal-open{overflow:hidden}
     if(card){
       var clone = card.cloneNode(true);
       clone.removeAttribute('id');
+      var rows = clone.querySelectorAll('.id-body .row');
+      if(rows.length >= 2){
+        var houseNumber = rows[0].querySelector('.value');
+        var addressValue = rows[1].querySelector('.value');
+        var combinedAddress = [
+          houseNumber ? houseNumber.textContent.trim() : '',
+          addressValue ? addressValue.textContent.trim() : ''
+        ].filter(function(value){ return value && value !== '-'; }).join(' ');
+        rows[0].remove();
+        var addressLabel = rows[1].querySelector('.label');
+        if(addressLabel){ addressLabel.textContent = 'Address'; }
+        if(addressValue){ addressValue.textContent = combinedAddress || '-'; }
+      }
       clone.style.width = '100%';
       clone.style.maxWidth = '360px';
       clone.style.display = 'block';
@@ -4904,7 +4931,8 @@ body.modal-open{overflow:hidden}
       });
 
       // Open the drawer automatically on arrival (mobile only; desktop always shows it)
-      if(window.innerWidth <= 900){
+        var reservationJustSubmitted = new URLSearchParams(window.location.search).get('reservation_success') === '1';
+        if(window.innerWidth <= 900 && !reservationJustSubmitted){
           openSidebar();
       }
   }

@@ -679,7 +679,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Show the VHEcoPoint redemption confirmation on the profile page
                     $_SESSION['flash_notice'] = 'Your ' . intval($points_required) . ' VHEcoPoint points have been successfully redeemed for 1 Free Hour. Your reservation has been submitted. Please wait for Admin approval. [redemption]';
                     $_SESSION['flash_ref_code'] = $newRef;
-                    header('Location: profileresident.php?reservation_success=1&points_used=' . $points_required);
+                    header('Location: profileresident.php?section=panel-requests&reservation_success=1&points_used=' . $points_required);
                     exit;
                   }
                 }

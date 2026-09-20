@@ -395,7 +395,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     }
     $residentPaymentFlow = (($continue_post ?? $continue) === 'reserve_resident' || $userType === 'resident');
     if (empty($msg) && $residentPaymentFlow) {
-      header('Location: profileresident.php');
+      header('Location: profileresident.php?section=panel-requests&reservation_success=1');
     } else if (empty($msg)) {
       header('Location: dashboardvisitor.php');
     }
