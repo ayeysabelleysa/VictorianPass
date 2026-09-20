@@ -500,7 +500,7 @@
         return;
       }
       notifiedEndedSessionId = String(prevSession.id || '');
-      const pointsAwarded = Math.max(0, parseInt((prevSession && prevSession.total_points) || (prevSession && prevSession.points_awarded) || 0));
+      const pointsAwarded = Math.max(0, parseInt(newSnapshot.cap_state?.daily_points_used || 0, 10) - parseInt(lastSnapshot?.cap_state?.daily_points_used || 0, 10));
       showSessionPopup(
         'success',
         'VHEcoPoint Session Completed',
@@ -555,7 +555,6 @@
       eventSource.addEventListener('snapshot', function(event) {
         try {
           const snapshot = JSON.parse(event.data);
-          lastSnapshot = snapshot;
 
           log('SSE snapshot received', {
             ts: snapshot.ts,
@@ -565,6 +564,7 @@
 
           // Detect changes and notify
           detectAndNotifyChanges(snapshot);
+          lastSnapshot = snapshot;
 
           // Throttle UI updates
           if (uiUpdateTimeout) {
@@ -656,9 +656,9 @@
               ts: Date.now() / 1000,
               polled_at: new Date().toISOString(),
             };
-            lastSnapshot = snapshot;
 
             detectAndNotifyChanges(snapshot);
+            lastSnapshot = snapshot;
 
             if (uiUpdateTimeout) {
               clearTimeout(uiUpdateTimeout);

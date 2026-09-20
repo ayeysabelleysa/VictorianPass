@@ -198,6 +198,8 @@ def create_api_session(qr_code):
         "session_token"
     )
 
+    print("EcoPoint Session ID:", result.get("session", {}).get("id"))
+
     if not session_token:
         print(
             "Hostinger did not return "
@@ -901,24 +903,20 @@ try:
 
                 print(
                     "No item detected for "
-                    "90 seconds."
+                    "2 minutes."
                 )
 
                 print(
-                    "Your session has ended."
+                    "Your session has expired."
                 )
 
-                if sessions > 0:
-                    print()
-                    print("Completing resident session...")
-                    break
                 # -------------------------------------------------
                 # CANCEL ONLY THIS HOSTINGER SESSION
                 # -------------------------------------------------
 
                 cancel_api_session(
                     session_token,
-                    "No item detected for 90 seconds"
+                    "No item detected for 2 minutes"
                 )
 
                 print()
@@ -1088,8 +1086,15 @@ try:
             f"Items  : {sessions}"
         )
 
+        # Display the actual points awarded by Hostinger
+        final_points = (
+            completed.get("points_awarded", 0)
+            if completed
+            else total_points
+        )
+
         print(
-            f"Points : {total_points:.2f}"
+            f"Points : {float(final_points):.2f}"
         )
 
         print()
