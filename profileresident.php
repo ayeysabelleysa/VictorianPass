@@ -863,6 +863,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
+    // Release the PHP session file lock before running DB work. This polling request
+    // runs every few seconds; holding the lock here makes other requests (e.g. logout)
+    // block behind it and can trigger 504 gateway timeouts on shared hosts (Hostinger).
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
     header('Content-Type: application/json');
     $notifications = getUserNotifications($con, $userId, 20);
     $unreadCount = getUserUnreadNotificationCount($con, $userId);
@@ -2048,13 +2054,13 @@ body.qr-modal-open{ overflow:hidden }
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  margin: 0 0 14px;
+  margin: 0 0 10px;
   box-sizing: border-box;
   overflow: hidden;
   background: #f2faf6;
   border: 1px solid #d7e9df;
-  border-radius: 14px;
-  padding: 20px;
+  border-radius: 12px;
+  padding: 14px 16px;
   color: #20342b;
 }
 .list-item.expanded[data-type="guest_form"] .rst-section:last-child {
@@ -2063,19 +2069,19 @@ body.qr-modal-open{ overflow:hidden }
 .list-item.expanded[data-type="guest_form"] .rst-title {
   display: flex;
   align-items: center;
-  gap: 9px;
-  margin: 0 0 14px;
-  padding-bottom: 12px;
+  gap: 8px;
+  margin: 0 0 9px;
+  padding-bottom: 8px;
   border-bottom: 1px solid #d7e9df;
   color: #174b3b;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 700;
 }
 .list-item.expanded[data-type="guest_form"] .rst-title::before {
   content: "\f007";
   font-family: "Font Awesome 6 Free";
   font-weight: 900;
-  font-size: 0.95rem;
+  font-size: 0.85rem;
 }
 .list-item.expanded[data-type="guest_form"] .rst-guest-id-sec .rst-title::before {
   content: "\f2bb";
@@ -2083,8 +2089,8 @@ body.qr-modal-open{ overflow:hidden }
 .list-item.expanded[data-type="guest_form"] .rst-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  column-gap: 24px;
-  row-gap: 20px;
+  column-gap: 18px;
+  row-gap: 11px;
   position: relative;
 }
 .list-item.expanded[data-type="guest_form"] .rst-grid::before {
@@ -2095,7 +2101,7 @@ body.qr-modal-open{ overflow:hidden }
   left: 50%;
   width: 1px;
   background: #d7e9df;
-  transform: translateX(-12px);
+  transform: translateX(-9px);
 }
 .list-item.expanded[data-type="guest_form"] .rst-col {
   min-width: 0;
@@ -2105,22 +2111,26 @@ body.qr-modal-open{ overflow:hidden }
 .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(3) { grid-column: 1; grid-row: 3; }
 .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(4) { grid-column: 2; grid-row: 1; }
 .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(5) { grid-column: 2; grid-row: 2; }
+.list-item.expanded[data-type="guest_form"] .rst-guest-resident .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
+.list-item.expanded[data-type="guest_form"] .rst-guest-resident .rst-col:nth-child(2) { grid-column: 2; grid-row: 1; }
+.list-item.expanded[data-type="guest_form"] .rst-guest-entry .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
+.list-item.expanded[data-type="guest_form"] .rst-guest-entry .rst-col:nth-child(2) { grid-column: 2; grid-row: 1; }
 .list-item.expanded[data-type="guest_form"] .rst-key {
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   color: #718078;
-  font-size: 0.84rem;
+  font-size: 0.8rem;
   line-height: 1.3;
 }
 .list-item.expanded[data-type="guest_form"] .rst-val {
   color: #1f2f28;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.3;
   overflow-wrap: anywhere;
 }
 .list-item.expanded[data-type="guest_form"] .rst-guest-email {
-  margin-top: 16px;
-  padding-top: 14px;
+  margin-top: 10px;
+  padding-top: 9px;
   border-top: 1px solid #d7e9df;
 }
 .list-item.expanded[data-type="guest_form"] .rst-guest-id-body {
@@ -2714,11 +2724,11 @@ body.modal-open{overflow:hidden}
   .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(2) { grid-column: 1; grid-row: 2; }
   .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(3) { grid-column: 1; grid-row: 3; }
   .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(4) { grid-column: 2; grid-row: 1; }
-.list-item.expanded[data-type="guest_form"] .rst-col:nth-child(5) { grid-column: 2; grid-row: 2; }
-.list-item.expanded[data-type="guest_form"] .rst-guest-resident .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
-.list-item.expanded[data-type="guest_form"] .rst-guest-resident .rst-col:nth-child(2) { grid-column: 2; grid-row: 1; }
+  .list-item.expanded[data-type="guest_form"] .rst-col:nth-child(5) { grid-column: 2; grid-row: 2; }
   .list-item.expanded[data-type="guest_form"] .rst-guest-resident .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
   .list-item.expanded[data-type="guest_form"] .rst-guest-resident .rst-col:nth-child(2) { grid-column: 2; grid-row: 1; }
+  .list-item.expanded[data-type="guest_form"] .rst-guest-entry .rst-col:nth-child(1) { grid-column: 1; grid-row: 1; }
+  .list-item.expanded[data-type="guest_form"] .rst-guest-entry .rst-col:nth-child(2) { grid-column: 2; grid-row: 1; }
   .list-item.expanded[data-type="guest_form"] .rst-key {
     margin-bottom: 2px;
     font-size: 0.66rem;
@@ -3214,7 +3224,7 @@ body.modal-open{overflow:hidden}
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
-              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($act['amenity'] ?? ''); ?>" data-price="<?php echo ($act['price'] ?? null) !== null ? number_format((float)$act['price'], 2, '.', '') : ''; ?>" data-downpayment="<?php echo ($act['downpayment'] ?? null) !== null ? number_format((float)$act['downpayment'], 2, '.', '') : ''; ?>" data-receipt-path="<?php echo htmlspecialchars($act['receipt_path'] ?? ''); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars($act['receipt_uploaded_at'] ?? ''); ?>" data-persons="<?php echo ($act['persons'] ?? null) !== null ? intval($act['persons']) : ''; ?>"<?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; echo ' data-guest-sex="' . htmlspecialchars($act['guest_sex'] ?? '') . '"'; echo ' data-guest-birthdate="' . htmlspecialchars($act['guest_birthdate'] ?? '') . '"'; echo ' data-guest-contact="' . htmlspecialchars($act['guest_contact'] ?? '') . '"'; echo ' data-guest-email="' . htmlspecialchars($act['guest_email'] ?? '') . '"'; echo ' data-res-name="' . htmlspecialchars($act['resident_name'] ?? '') . '"'; echo ' data-res-contact="' . htmlspecialchars($act['resident_contact'] ?? '') . '"'; echo ' data-res-email="' . htmlspecialchars($act['resident_email'] ?? '') . '"'; echo ' data-res-house="' . htmlspecialchars($act['resident_house'] ?? '') . '"'; echo ' data-valid-id="' . htmlspecialchars($act['valid_id'] ?? '') . '"'; echo ' data-visit-date="' . htmlspecialchars($act['visit_date'] ?? '') . '"'; echo ' data-visit-time="' . htmlspecialchars($act['visit_time'] ?? '') . '"'; } ?>>
+              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($act['amenity'] ?? ''); ?>" data-price="<?php echo ($act['price'] ?? null) !== null ? number_format((float)$act['price'], 2, '.', '') : ''; ?>" data-downpayment="<?php echo ($act['downpayment'] ?? null) !== null ? number_format((float)$act['downpayment'], 2, '.', '') : ''; ?>" data-receipt-path="<?php echo htmlspecialchars($act['receipt_path'] ?? ''); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars($act['receipt_uploaded_at'] ?? ''); ?>" data-persons="<?php echo ($act['persons'] ?? null) !== null ? intval($act['persons']) : ''; ?>" data-use-points="<?php echo !empty($act['use_points']) ? intval($act['use_points']) : 0; ?>" data-points-used="<?php echo isset($act['points_used']) ? intval($act['points_used']) : 0; ?>"<?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; echo ' data-guest-sex="' . htmlspecialchars($act['guest_sex'] ?? '') . '"'; echo ' data-guest-birthdate="' . htmlspecialchars($act['guest_birthdate'] ?? '') . '"'; echo ' data-guest-contact="' . htmlspecialchars($act['guest_contact'] ?? '') . '"'; echo ' data-guest-email="' . htmlspecialchars($act['guest_email'] ?? '') . '"'; echo ' data-res-name="' . htmlspecialchars($act['resident_name'] ?? '') . '"'; echo ' data-res-contact="' . htmlspecialchars($act['resident_contact'] ?? '') . '"'; echo ' data-res-email="' . htmlspecialchars($act['resident_email'] ?? '') . '"'; echo ' data-res-house="' . htmlspecialchars($act['resident_house'] ?? '') . '"'; echo ' data-valid-id="' . htmlspecialchars($act['valid_id'] ?? '') . '"'; echo ' data-visit-date="' . htmlspecialchars($act['visit_date'] ?? '') . '"'; echo ' data-visit-time="' . htmlspecialchars($act['visit_time'] ?? '') . '"'; } ?>>
                  <div class="item-icon request-toggle"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
@@ -3485,7 +3495,7 @@ body.modal-open{overflow:hidden}
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
-              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($act['amenity'] ?? ''); ?>" data-price="<?php echo ($act['price'] ?? null) !== null ? number_format((float)$act['price'], 2, '.', '') : ''; ?>" data-downpayment="<?php echo ($act['downpayment'] ?? null) !== null ? number_format((float)$act['downpayment'], 2, '.', '') : ''; ?>" data-receipt-path="<?php echo htmlspecialchars($act['receipt_path'] ?? ''); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars($act['receipt_uploaded_at'] ?? ''); ?>" data-persons="<?php echo ($act['persons'] ?? null) !== null ? intval($act['persons']) : ''; ?>"<?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; echo ' data-guest-sex="' . htmlspecialchars($act['guest_sex'] ?? '') . '"'; echo ' data-guest-birthdate="' . htmlspecialchars($act['guest_birthdate'] ?? '') . '"'; echo ' data-guest-contact="' . htmlspecialchars($act['guest_contact'] ?? '') . '"'; echo ' data-guest-email="' . htmlspecialchars($act['guest_email'] ?? '') . '"'; echo ' data-res-name="' . htmlspecialchars($act['resident_name'] ?? '') . '"'; echo ' data-res-contact="' . htmlspecialchars($act['resident_contact'] ?? '') . '"'; echo ' data-res-email="' . htmlspecialchars($act['resident_email'] ?? '') . '"'; echo ' data-res-house="' . htmlspecialchars($act['resident_house'] ?? '') . '"'; echo ' data-valid-id="' . htmlspecialchars($act['valid_id'] ?? '') . '"'; echo ' data-visit-date="' . htmlspecialchars($act['visit_date'] ?? '') . '"'; echo ' data-visit-time="' . htmlspecialchars($act['visit_time'] ?? '') . '"'; } ?>>
+              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($act['amenity'] ?? ''); ?>" data-price="<?php echo ($act['price'] ?? null) !== null ? number_format((float)$act['price'], 2, '.', '') : ''; ?>" data-downpayment="<?php echo ($act['downpayment'] ?? null) !== null ? number_format((float)$act['downpayment'], 2, '.', '') : ''; ?>" data-receipt-path="<?php echo htmlspecialchars($act['receipt_path'] ?? ''); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars($act['receipt_uploaded_at'] ?? ''); ?>" data-persons="<?php echo ($act['persons'] ?? null) !== null ? intval($act['persons']) : ''; ?>" data-use-points="<?php echo !empty($act['use_points']) ? intval($act['use_points']) : 0; ?>" data-points-used="<?php echo isset($act['points_used']) ? intval($act['points_used']) : 0; ?>"<?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; echo ' data-guest-sex="' . htmlspecialchars($act['guest_sex'] ?? '') . '"'; echo ' data-guest-birthdate="' . htmlspecialchars($act['guest_birthdate'] ?? '') . '"'; echo ' data-guest-contact="' . htmlspecialchars($act['guest_contact'] ?? '') . '"'; echo ' data-guest-email="' . htmlspecialchars($act['guest_email'] ?? '') . '"'; echo ' data-res-name="' . htmlspecialchars($act['resident_name'] ?? '') . '"'; echo ' data-res-contact="' . htmlspecialchars($act['resident_contact'] ?? '') . '"'; echo ' data-res-email="' . htmlspecialchars($act['resident_email'] ?? '') . '"'; echo ' data-res-house="' . htmlspecialchars($act['resident_house'] ?? '') . '"'; echo ' data-valid-id="' . htmlspecialchars($act['valid_id'] ?? '') . '"'; echo ' data-visit-date="' . htmlspecialchars($act['visit_date'] ?? '') . '"'; echo ' data-visit-time="' . htmlspecialchars($act['visit_time'] ?? '') . '"'; } ?>>
                  <div class="item-icon request-toggle"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
@@ -4635,6 +4645,8 @@ body.modal-open{overflow:hidden}
     var receiptPath=li.getAttribute('data-receipt-path')||'';
     var receiptUploadedAt=li.getAttribute('data-receipt-uploaded-at')||'';
     var personsRaw=li.getAttribute('data-persons')||'';
+    var usePointsRaw=li.getAttribute('data-use-points')||'';
+    var pointsUsedRaw=li.getAttribute('data-points-used')||'';
     var reasonText=li.getAttribute('data-reason')||'';
     var statusNote='';
     var s=String(effectiveStatus||'').toLowerCase();
@@ -4643,6 +4655,7 @@ body.modal-open{overflow:hidden}
     if(type==='reservation' && paymentStatus==='rejected' && (isNaN(attempts)?0:attempts)>=3){
       isApproved=false;
     }
+    var payVerified = (type==='reservation' && isApproved);
     if(isApproved) {
         if(type==='guest_form') statusNote='Guest Request Approved';
         else statusNote='This request is approved. Use this QR pass at the gate.';
@@ -4697,7 +4710,7 @@ body.modal-open{overflow:hidden}
       var vTimeRaw=li.getAttribute('data-visit-time')||'';
       var vDateLabel=formatRawDate(vDateRaw)||vDateRaw||'—';
       var vTimeLabel=formatRawTime(vTimeRaw)||'—';
-      gh+='<div class="rst-section rst-guest"><div class="rst-title">Entry Schedule</div><div class="rst-grid">';
+      gh+='<div class="rst-section rst-guest rst-guest-entry"><div class="rst-title">Entry Schedule</div><div class="rst-grid">';
       gh+='<div class="rst-col"><div class="rst-key">Date of Entry</div><div class="rst-val">'+esc(vDateLabel)+'</div></div>';
       gh+='<div class="rst-col"><div class="rst-key">Time of Entry</div><div class="rst-val">'+esc(vTimeLabel)+'</div></div>';
       gh+='</div>';
@@ -4769,6 +4782,28 @@ body.modal-open{overflow:hidden}
       if(hours <= 0) return '';
       var formatted = Number.isInteger(hours) ? String(parseInt(hours, 10)) : hours.toFixed(1).replace(/\.0$/, '');
       return formatted + ' ' + (parseFloat(formatted) === 1 ? 'hr' : 'hrs');
+    }
+    function computeReservationDurationHoursNumber(startTimeRaw, endTimeRaw){
+      var startMinutes = parseTimeToMinutes(startTimeRaw);
+      var endMinutes = parseTimeToMinutes(endTimeRaw);
+      if(startMinutes === null || endMinutes === null) return 0;
+      var diffMinutes = endMinutes - startMinutes;
+      if(diffMinutes <= 0){
+        if(startMinutes > endMinutes){
+          diffMinutes = (24 * 60) - startMinutes + endMinutes;
+        } else {
+          return 0;
+        }
+      }
+      var hours = diffMinutes / 60;
+      return hours > 0 ? hours : 0;
+    }
+    function fmtDurationHours(hours){
+      var value = parseFloat(hours);
+      if(isNaN(value) || value < 0) value = 0;
+      var rounded = Math.round(value * 100) / 100;
+      var label = Number.isInteger(rounded) ? String(parseInt(rounded, 10)) : rounded.toFixed(2).replace(/0+$/,'').replace(/\.$/,'');
+      return label + ' hour' + (parseFloat(label) === 1 ? '' : 's');
     }
     function computeReservationDurationDays(startDateValue, endDateValue){
       var start = String(startDateValue || '').trim();
@@ -4970,36 +5005,55 @@ body.modal-open{overflow:hidden}
         bookingCells+=rstCell('Duration', durationLabel || '—');
         bookingCells+=rstCell('No. of Persons', personsRaw !== '' ? personsRaw + ' Pax' : '—');
         bookingCells+=rstCell('Booked By', reservedBy || 'Resident');
-        bookingCells+=rstCell('Payment Status', paymentStatusLabel(paymentStatus, receiptPath!==''));
+        bookingCells+=rstCell('Payment Status', payVerified ? 'Payment Verified' : paymentStatusLabel(paymentStatus, receiptPath!==''));
         bookingCells+=rstCell('Reservation Status', statusLabelTxt);
         html+='<div class="rst-section"><div class="rst-title">Amenity Booking Details</div><div class="rst-grid">'+bookingCells+'</div></div>';
       }
       if(type==='guest_form'){
         html+=guestInfoSection();
       }
-      if(type==='reservation' && (priceRaw!=='' || downpaymentRaw!=='' || receiptPath!=='')){
+      if(type==='reservation' && (priceRaw!=='' || downpaymentRaw!=='' || receiptPath!=='' || payVerified)){
         var totalTxt = priceRaw!=='' ? fmtMoney(priceRaw) : '—';
         var requiredDp = priceRaw!=='' ? fmtMoney(Math.round(parseFloat(priceRaw)*50)/100) : '—';
-        var dpTxt = downpaymentRaw!=='' ? fmtMoney(downpaymentRaw) : '—';
+        var dpNum = 0;
+        if(payVerified && priceRaw!==''){
+          dpNum = Math.max(Math.round(parseFloat(priceRaw)*50)/100, downpaymentRaw!=='' ? (parseFloat(downpaymentRaw)||0) : 0);
+        } else if(downpaymentRaw!==''){
+          var parsedDp = parseFloat(downpaymentRaw);
+          dpNum = isNaN(parsedDp) ? 0 : parsedDp;
+        }
+        var dpTxt = dpNum>0 ? fmtMoney(dpNum) : '—';
         var remainingTxt = '—';
         if(priceRaw!==''){
-          var dpNum = downpaymentRaw!=='' ? parseFloat(downpaymentRaw) : 0;
-          remainingTxt = fmtMoney(Math.max(0, parseFloat(priceRaw) - (isNaN(dpNum)?0:dpNum)));
+          remainingTxt = fmtMoney(Math.max(0, parseFloat(priceRaw) - dpNum));
         }
         var payCells='';
         payCells+=rstCell('Final Amount', totalTxt);
         payCells+=rstCell('Required Downpayment', requiredDp);
         payCells+=rstCell('Downpayment Paid', dpTxt);
         payCells+=rstCell('Remaining Balance', remainingTxt);
+        var pointsUsed = parseInt(pointsUsedRaw,10) || 0;
+        var usedEcoPoints = (parseInt(usePointsRaw,10) === 1) && pointsUsed > 0;
+        if(usedEcoPoints){
+          var originalHours = computeReservationDurationHoursNumber(startTimeRaw, endTimeRaw);
+          var paidHours = Math.max(0, originalHours - 1);
+          payCells+=rstCell('Original Duration', fmtDurationHours(originalHours));
+          payCells+=rstCell('VHEcoPoint Reward', '-1 Free Hour (' + pointsUsed.toLocaleString() + ' pts)');
+          payCells+=rstCell('Paid Duration', fmtDurationHours(paidHours));
+        }
         var payNoteHtml='';
-        if(paymentStatus==='verified'){
+        if(payVerified){
+          payNoteHtml+='<div class="rst-paynote rst-paynote-ok">Downpayment verified — Remaining '+esc(remainingTxt)+' payable at the Administration Office</div>';
+        } else if(paymentStatus==='verified'){
           payNoteHtml+='<div class="rst-paynote rst-paynote-ok">Payment verified.</div>';
+          payNoteHtml+='<div class="rst-paynote rst-paynote-balance">Downpayment Paid — Remaining '+esc(remainingTxt)+' payable at the Administration Office</div>';
         } else if(paymentStatus==='rejected'){
           payNoteHtml+='<div class="rst-paynote rst-paynote-bad">Payment rejected. Please check the notice below.</div>';
         } else if(paymentStatus==='pending_update'){
           payNoteHtml+='<div class="rst-paynote rst-paynote-warn">Payment proof resubmitted. Awaiting verification.</div>';
+        } else {
+          payNoteHtml+='<div class="rst-paynote rst-paynote-balance">Downpayment Paid — Remaining '+esc(remainingTxt)+' payable at the Administration Office</div>';
         }
-        payNoteHtml+='<div class="rst-paynote rst-paynote-balance">Downpayment Paid — Remaining '+esc(remainingTxt)+' payable at the Administration Office</div>';
         html+='<div class="rst-section"><div class="rst-title">Payment Details</div><div class="rst-grid">'+payCells+'</div>'+(payNoteHtml?payNoteHtml:'')+'</div>';
       }
       if(type==='reservation'){
@@ -5959,6 +6013,8 @@ body.modal-open{overflow:hidden}
                     if(item.receipt_path !== undefined){ li.setAttribute('data-receipt-path', item.receipt_path || ''); }
                     if(item.receipt_uploaded_at !== undefined){ li.setAttribute('data-receipt-uploaded-at', item.receipt_uploaded_at || ''); }
                     if(item.persons !== undefined){ li.setAttribute('data-persons', item.persons!=null&&item.persons!==''?String(item.persons):''); }
+                    if(item.use_points !== undefined){ li.setAttribute('data-use-points', String(parseInt(item.use_points,10)||0)); }
+                    if(item.points_used !== undefined){ li.setAttribute('data-points-used', String(parseInt(item.points_used,10)||0)); }
                     if(String(item.type||'').toLowerCase()==='report'){
                       li.setAttribute('data-report-id', item.report_id || '');
                       li.setAttribute('data-report-subject', item.subject || '');
@@ -6139,6 +6195,8 @@ body.modal-open{overflow:hidden}
               if(item.receipt_path!==undefined){ li.setAttribute('data-receipt-path', item.receipt_path || ''); }
               if(item.receipt_uploaded_at!==undefined){ li.setAttribute('data-receipt-uploaded-at', item.receipt_uploaded_at || ''); }
               if(item.persons!==undefined){ li.setAttribute('data-persons', item.persons!=null&&item.persons!==''?String(item.persons):''); }
+              if(item.use_points!==undefined){ li.setAttribute('data-use-points', String(parseInt(item.use_points,10)||0)); }
+              if(item.points_used!==undefined){ li.setAttribute('data-points-used', String(parseInt(item.points_used,10)||0)); }
               var reservedBy=item.reserved_by||'';
               if(reservedBy){ li.setAttribute('data-reserved-by', reservedBy); }
               if(String(item.type||'').toLowerCase()==='report'){
@@ -6350,6 +6408,8 @@ body.modal-open{overflow:hidden}
       li.setAttribute('data-receipt-path', item.receipt_path||'');
       li.setAttribute('data-receipt-uploaded-at', item.receipt_uploaded_at||'');
       li.setAttribute('data-persons', item.persons!=null&&item.persons!==''?String(item.persons):'');
+      li.setAttribute('data-use-points', String(parseInt(item.use_points,10)||0));
+      li.setAttribute('data-points-used', String(parseInt(item.points_used,10)||0));
       li.setAttribute('data-schedule', scheduleText);
       li.setAttribute('data-reason', reasonText);
       if(type==='report'){

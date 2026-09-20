@@ -270,15 +270,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
   .top-actions { width: 100%; max-width: 920px; margin-bottom: 8px; }
   .top-actions .btn-secondary { padding: 8px 12px; font-size: 0.82rem; }
   .btn-secondary.back-account-btn {
-      background: #facc6b;
-      color: #4b2e12;
-      border-color: #fbbf24;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
+    background: #d4a017;
+    color: #ffffff;
+    border: none;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 14px rgba(212, 160, 23, 0.35);
   }
   .btn-secondary.back-account-btn:hover {
-      background: #fbbf24;
+    background: #b68912;
+  }
+  .btn-secondary.back-account-btn i {
+    color: #ffffff;
   }
   .static-group { margin-bottom: 12px; }
   .static-group label { display: block; margin-bottom: 4px; font-weight: 500; color: #23412e; font-size: 0.85rem; }
@@ -398,7 +406,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     <div class="hero">
         <div class="top-actions" style="display:flex; gap:10px; flex-wrap:wrap;">
-            <button type="button" class="btn-secondary back-account-btn" onclick="window.location.href='profileresident.php'"><i class="fa-solid fa-arrow-left"></i> Back to Account</button>
+            <button type="button" id="accountBackBtn" class="btn-secondary back-account-btn" aria-label="Back" onclick="window.location.href='profileresident.php'"><i class="fa-solid fa-arrow-left"></i></button>
             <button type="button" class="btn-secondary" onclick="openModal('myReportsModal')">My Reported Incidents</button>
         </div>
         <div class="report-steps" aria-label="Report steps">

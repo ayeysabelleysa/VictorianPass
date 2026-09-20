@@ -1,4 +1,16 @@
 <?php
+// Logout must never block behind the PHP session file lock. The dashboards run
+// background polling requests that hold that lock while doing DB work, so on shared
+// hosts (Hostinger) a normal session_start() here can wait long enough to blow past
+// the gateway timeout and return 504. Cookie-auth mode reads the signed vp_auth
+// cookie instead of starting/holding the PHP session, so the final Log Out always
+// completes immediately.
+if (!defined('VP_SESSION_COOKIE_AUTH')) {
+  define('VP_SESSION_COOKIE_AUTH', true);
+}
+if (!defined('VP_SESSION_READONLY')) {
+  define('VP_SESSION_READONLY', true);
+}
 require_once __DIR__ . '/session_bootstrap.php';
 $confirmed = isset($_GET['confirm']) && $_GET['confirm'] === 'yes';
 if ($confirmed) {
@@ -6,11 +18,21 @@ if ($confirmed) {
     vpAuthClearCookie();
   }
   $_SESSION = [];
+  $sid = isset($_COOKIE[session_name()]) ? (string)$_COOKIE[session_name()] : '';
   if (ini_get('session.use_cookies')) {
     $params = session_get_cookie_params();
     setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
   }
-  session_destroy();
+  if (session_status() === PHP_SESSION_ACTIVE) {
+    @session_destroy();
+  }
+  // Best-effort removal of the server-side session file without waiting on the lock.
+  if ($sid !== '') {
+    $savePath = session_save_path();
+    if ($savePath !== '' && $savePath !== false && strcasecmp((string)ini_get('session.save_handler'), 'files') === 0) {
+      @unlink(rtrim($savePath, '/\\') . DIRECTORY_SEPARATOR . 'sess_' . $sid);
+    }
+  }
   header('Location: login.php', true, 303);
   exit;
 }

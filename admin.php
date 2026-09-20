@@ -383,6 +383,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_resident_reservation_detai
     $stmt = $con->prepare("SELECT r.id, r.user_id, r.ref_code, r.amenity, r.start_date, r.end_date, r.start_time, r.end_time, r.persons, r.purpose,
                                     r.created_at, r.approval_status, r.approved_by, r.approval_date,
                                     r.price, r.downpayment, r.payment_status, r.receipt_path, r.receipt_attempts, r.denial_reason, r.booking_for, r.booked_by_role, r.booked_by_name,
+                                    r.use_points, r.points_used,
                                     u.first_name, u.middle_name, u.last_name, u.email, u.phone, u.house_number, u.user_type,
                                     gf.id AS gf_id, gf.visitor_first_name AS guest_first_name, gf.visitor_middle_name AS guest_middle_name,
                                     gf.visitor_last_name AS guest_last_name, gf.visitor_email AS guest_email, gf.visitor_contact AS guest_contact
@@ -421,7 +422,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_reservation_details' && is
            r.approval_status, r.approved_by, r.approval_date, r.price,
            r.downpayment, r.payment_status, r.receipt_path, r.receipt_attempts,
            r.denial_reason, r.booking_for, r.booked_by_role, r.booked_by_name,
-           r.entry_pass_id, u.first_name, u.middle_name, u.last_name,
+           r.entry_pass_id, r.use_points, r.points_used, u.first_name, u.middle_name, u.last_name,
            u.email, u.phone, u.house_number, u.user_type,
            gf.id AS gf_id, gf.visitor_first_name AS guest_first_name,
            gf.visitor_middle_name AS guest_middle_name, gf.visitor_last_name AS guest_last_name,
@@ -7794,6 +7795,15 @@ function showReservationDetails(reservationId, expectedType){
           <div class="info-row price-balance"><span class="info-label">Onsite Payment (Remaining)</span><span class="info-value">₱${rem.toLocaleString()}</span></div>
         </div>`; 
       })() : '';
+      const pointsBlock = (parseInt(d.use_points,10) === 1 && parseInt(d.points_used,10) > 0) ? (()=>{
+        const pts = parseInt(d.points_used,10) || 0;
+        return `<div class="price-section">
+          <div class="info-row total-price"><span class="info-label">Redeem Points</span><span class="info-value">${pts.toLocaleString()} pts = 1 free hour</span></div>
+          <div class="info-row"><span class="info-label">Points Redeemed</span><span class="info-value">${pts.toLocaleString()} pts</span></div>
+          <div class="info-row"><span class="info-label">Benefit</span><span class="info-value">1 free hour</span></div>
+          <div class="info-row" style="flex-wrap:wrap;"><span class="info-label">Note</span><span class="info-value" style="font-weight:500;font-size:0.85rem;">1 free hour deducted from the duration. Remaining hours are charged at regular rate.</span></div>
+        </div>`;
+      })() : '';
       const receiptPath = (d.receipt_path||'').toString().trim();
       const payStatus = ps;
       const isPdf = /\.pdf$/i.test(receiptPath);
@@ -7838,6 +7848,7 @@ function showReservationDetails(reservationId, expectedType){
             ${fmtDuration(d.start_time,d.end_time)?`<div class="info-row"><span class="info-label">Duration</span><span class="info-value">${fmtDuration(d.start_time,d.end_time)}</span></div>`:''}
             ${d.persons?`<div class="info-row"><span class="info-label">Persons</span><span class="info-value">${d.persons}</span></div>`:''}
             ${priceBlock}
+            ${pointsBlock}
           </div>
           ${receiptHtml}
           ${denialHtml}
@@ -7939,6 +7950,15 @@ function showResidentReservationDetails(rrId){
           <div class="info-row price-balance"><span class="info-label">Onsite Payment (Remaining)</span><span class="info-value">₱${rem.toLocaleString()}</span></div>
         </div>`; 
       })() : '';
+      const pointsBlock = (parseInt(d.use_points,10) === 1 && parseInt(d.points_used,10) > 0) ? (()=>{
+        const pts = parseInt(d.points_used,10) || 0;
+        return `<div class="price-section">
+          <div class="info-row total-price"><span class="info-label">Redeem Points</span><span class="info-value">${pts.toLocaleString()} pts = 1 free hour</span></div>
+          <div class="info-row"><span class="info-label">Points Redeemed</span><span class="info-value">${pts.toLocaleString()} pts</span></div>
+          <div class="info-row"><span class="info-label">Benefit</span><span class="info-value">1 free hour</span></div>
+          <div class="info-row" style="flex-wrap:wrap;"><span class="info-label">Note</span><span class="info-value" style="font-weight:500;font-size:0.85rem;">1 free hour deducted from the duration. Remaining hours are charged at regular rate.</span></div>
+        </div>`;
+      })() : '';
       const receiptPath = (d.receipt_path||'').toString().trim();
       const isPdf = /\.pdf$/i.test(receiptPath);
       const denialReason = (d.denial_reason||'').toString().trim();
@@ -7987,6 +8007,7 @@ function showResidentReservationDetails(rrId){
               ${fmtDuration(d.start_time,d.end_time)?`<div class="info-row"><span class="info-label">Duration</span><span class="info-value">${fmtDuration(d.start_time,d.end_time)}</span></div>`:''}
               ${d.persons?`<div class="info-row"><span class="info-label">Persons</span><span class="info-value">${d.persons}</span></div>`:''}
               ${priceBlock}
+              ${pointsBlock}
               <div class="info-row"><span class="info-label">Downpayment</span><span class="info-value"><span class="badge ${psClass}">${ps.charAt(0).toUpperCase()+ps.slice(1)}</span></span></div>
             </div>
             ${receiptHtml}

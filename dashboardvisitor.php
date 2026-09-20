@@ -337,6 +337,12 @@ foreach ($activities as $act) {
 }
 
 if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
+    // Release the PHP session file lock before running DB work. This polling request
+    // runs every few seconds; holding the lock here makes other requests (e.g. logout)
+    // block behind it and can trigger 504 gateway timeouts on shared hosts (Hostinger).
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
     header('Content-Type: application/json');
     $notifications = getUserNotifications($con, $user_id, 20);
     $unreadCount = getUserUnreadNotificationCount($con, $user_id);

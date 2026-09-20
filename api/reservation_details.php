@@ -40,7 +40,7 @@ $query = "SELECT r.id, r.user_id, r.ref_code, r.amenity, r.start_date, r.end_dat
                  r.approval_status, r.approved_by, r.approval_date, r.price,
                  r.downpayment, r.payment_status, r.receipt_path, r.receipt_attempts,
                  r.denial_reason, r.booking_for, r.booked_by_role, r.booked_by_name,
-                 r.entry_pass_id, u.first_name, u.middle_name, u.last_name,
+                 r.entry_pass_id, r.use_points, r.points_used, u.first_name, u.middle_name, u.last_name,
                  u.email, u.phone, u.house_number, u.user_type,
                  gf.id AS gf_id, gf.visitor_first_name AS guest_first_name,
                  gf.visitor_middle_name AS guest_middle_name, gf.visitor_last_name AS guest_last_name,

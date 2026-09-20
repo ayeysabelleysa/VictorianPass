@@ -1,5 +1,17 @@
 <?php
 include("connect.php");
+// GET page loads only read the session (flash + logged-in identity). Reading it via
+// the signed vp_auth cookie (cookie-auth) skips the PHP session file lock entirely,
+// so a slow Learn More / page navigation no longer waits behind in-flight dashboard
+// polling requests that hold the lock while doing DB work (prevents 502/504 on shared
+// hosts like Hostinger). POST (entry-pass form) keeps a normal writable session.
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+  if (isset($_COOKIE['vp_auth'])) {
+    if (!defined('VP_SESSION_COOKIE_AUTH')) { define('VP_SESSION_COOKIE_AUTH', true); }
+  } else {
+    if (!defined('VP_SESSION_READONLY')) { define('VP_SESSION_READONLY', true); }
+  }
+}
 require_once __DIR__ . '/session_bootstrap.php';
 
 // Initialize error message for inline display

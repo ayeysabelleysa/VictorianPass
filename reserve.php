@@ -1592,11 +1592,11 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     const bookingModeHint = document.getElementById('bookingModeHint');
     if (bookingModeHint) {
       if (!amenity) {
-        bookingModeHint.textContent = 'Cash booking is active. You can switch to point redemption and get 1 free hour for 750 pts.';
+        bookingModeHint.textContent = 'Cash payment is currently selected. You can switch to point redemption if you have enough VHEcoPoint points.';
       } else if (toggle && toggle.checked) {
         bookingModeHint.textContent = 'Point redemption is active. 1 free hour will be deducted from your selected duration.';
       } else {
-        bookingModeHint.textContent = 'Cash booking is active. You can switch to point redemption and get 1 free hour for ' + pointsRequired.toLocaleString() + ' pts.';
+        bookingModeHint.textContent = 'Cash payment is currently selected. You can switch to point redemption if you have enough VHEcoPoint points.';
       }
     }
     if (guide) {
@@ -1605,7 +1605,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
       } else if (toggle && toggle.checked) {
         guide.textContent = '1 free hour redeemed with points. Remaining hours are charged at regular rate.';
       } else {
-        guide.textContent = 'Cash booking is active. You can switch to point redemption and get 1 free hour for ' + pointsRequired.toLocaleString() + ' pts.';
+        guide.textContent = 'Cash payment is currently selected. You can switch to point redemption if you have enough VHEcoPoint points.';
       }
     }
     if (savingsGuide) {
@@ -2648,10 +2648,10 @@ async function changePersons(val){
     if(currentUserType === 'resident'){
       const requiredPoints=getPointsRequired(amen);
       if(requiredPoints > 0){
-        return `Cash booking or redeem ${requiredPoints.toLocaleString()} pts for 1 free hour.`;
+        return `Cash payment is available — or redeem ${requiredPoints.toLocaleString()} pts for 1 free hour when you have enough VHEcoPoint points.`;
       }
     }
-    return 'Cash booking is available for this amenity.';
+    return 'Cash payment is available for this amenity.';
   }
   function refreshPricingForBookingFor(){
     updateDisplayedPrice();
