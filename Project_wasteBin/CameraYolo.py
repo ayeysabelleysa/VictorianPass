@@ -28,6 +28,7 @@ stable_start = None
 
 mixed_material = False
 material_percent = {}
+unrecognized_item = False
 
 lock = threading.Lock()
 yolo_lock = threading.Lock()
@@ -78,6 +79,7 @@ def detect():
     global stable_start
     global mixed_material
     global material_percent
+    global unrecognized_item
 
     while True:
 
@@ -149,6 +151,7 @@ def detect():
                 stable_start = None
                 mixed_material = False
                 material_percent = {}
+                unrecognized_item = False
 
             time.sleep(DETECTION_INTERVAL)
             continue
@@ -179,6 +182,7 @@ def detect():
 
             mixed_material = is_mixed
             material_percent = percentages
+            unrecognized_item = False
 
             if is_mixed:
 
@@ -317,9 +321,70 @@ def home():
 
     return """
     <html>
-    <body style="margin:0;background:black">
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>
+                :root { color-scheme: light; }
+                * { box-sizing: border-box; }
+                body { margin: 0; background: #07150d; font-family: Arial, sans-serif; }
+                .camera { width: 100vw; height: 100vh; object-fit: contain; display: block; }
+                .popup-overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(6, 23, 12, .62); z-index: 2; }
+                .popup-overlay.visible { display: flex; }
+                .popup-card { width: min(390px, 100%); max-height: calc(100vh - 32px); overflow: auto; padding: 26px 22px 22px; border-radius: 16px; background: #fff; color: #1d2b21; text-align: center; box-shadow: 0 18px 48px rgba(0, 0, 0, .28); }
+                .popup-icon { width: 48px; height: 48px; margin: 0 auto 12px; display: grid; place-items: center; border-radius: 50%; background: #fff4cc; color: #9a6700; font-size: 26px; }
+                .popup-title { margin: 0 0 8px; color: #23412e; font-size: 21px; }
+                .popup-message { margin: 0 0 20px; color: #4b5563; font-size: 15px; line-height: 1.5; }
+                .popup-button { width: 100%; border: 0; border-radius: 9px; padding: 12px 18px; background: #23412e; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; }
+                .popup-button:hover { background: #2f6042; }
+                .popup-button:focus-visible { outline: 3px solid #9bd5ad; outline-offset: 3px; }
+            </style>
+        </head>
+        <body>
     <img src="/video"
-         style="width:100vw;height:100vh;object-fit:contain">
+                 class="camera" alt="VHEcoPoint station camera">
+        <div class="popup-overlay" id="unrecognizedPopup" role="alertdialog" aria-modal="true" aria-labelledby="unrecognizedTitle" aria-describedby="unrecognizedMessage">
+            <div class="popup-card">
+                <div class="popup-icon" aria-hidden="true">⚠</div>
+                <h1 class="popup-title" id="unrecognizedTitle">Item Not Recognized</h1>
+                <p class="popup-message" id="unrecognizedMessage">The system could not identify this item. Please remove the item and try again.</p>
+                <button class="popup-button" id="removeItemButton" type="button">Remove Item</button>
+            </div>
+        </div>
+        <script>
+            const popup = document.getElementById('unrecognizedPopup');
+            const removeButton = document.getElementById('removeItemButton');
+            let popupVisible = false;
+
+            async function updateStationUI() {
+                try {
+                    const response = await fetch('/status', { cache: 'no-store' });
+                    const status = await response.json();
+                    const shouldShow = status.unrecognized === true;
+                    if (shouldShow !== popupVisible) {
+                        popupVisible = shouldShow;
+                        popup.classList.toggle('visible', shouldShow);
+                        if (shouldShow) removeButton.focus();
+                    }
+                } catch (error) {
+                    // The camera stream remains usable if status polling is unavailable.
+                }
+            }
+
+            removeButton.addEventListener('click', async function() {
+                removeButton.disabled = true;
+                try {
+                    await fetch('/reset', { method: 'POST' });
+                } finally {
+                    popupVisible = false;
+                    popup.classList.remove('visible');
+                    removeButton.disabled = false;
+                    updateStationUI();
+                }
+            });
+
+            updateStationUI();
+            setInterval(updateStationUI, 300);
+        </script>
     </body>
     </html>
     """
@@ -352,6 +417,7 @@ def status():
             "detected": current_material is not None,
             "material": current_material,
             "confirmed": confirmed_material is not None,
+                "unrecognized": unrecognized_item,
             "stable_seconds": round(stable, 1),
             "mixed": mixed_material,
             "percentages": material_percent
@@ -362,7 +428,7 @@ def status():
 # RESET CAMERA
 # =========================
 
-@app.route("/reset")
+@app.route("/reset", methods=["GET", "POST"])
 def reset():
 
     global current_material
@@ -370,6 +436,7 @@ def reset():
     global stable_start
     global mixed_material
     global material_percent
+    global unrecognized_item
 
     with lock:
 
@@ -378,8 +445,20 @@ def reset():
         stable_start = None
         mixed_material = False
         material_percent = {}
+        unrecognized_item = False
 
     return jsonify({"reset": True})
+
+
+@app.route("/unrecognized", methods=["POST"])
+def unrecognized():
+
+    global unrecognized_item
+
+    with lock:
+        unrecognized_item = True
+
+    return jsonify({"unrecognized": True})
 
 
 # =========================

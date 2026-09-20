@@ -104,6 +104,16 @@ def camera_status():
     return {}
 
 
+def notify_unrecognized_item():
+    try:
+        requests.post(
+            "http://127.0.0.1:5000/unrecognized",
+            timeout=CAMERA_TIMEOUT
+        )
+    except Exception:
+        pass
+
+
 # =========================================================
 # API POST
 # =========================================================
@@ -639,6 +649,8 @@ def process_item():
             print(
                 "Item could not be identified."
             )
+
+            notify_unrecognized_item()
 
             wait_for_removal()
 

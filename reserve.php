@@ -1266,57 +1266,92 @@ if (ob_get_level() > 0) { ob_end_flush(); }
             <div class="reservation-card" id="reservationCard" style="display:none;">
             <input type="hidden" name="amenity" id="amenityField" value="">
             <div class="reservation-grid">
-              <div class="calendar" style="width:100%">
-                <div class="calendar-header">
+              <div class="calendar-shell">
+                <div class="calendar-title"><i class="fa-regular fa-calendar-days" aria-hidden="true"></i> Select Date</div>
+                <div class="calendar" style="width:100%">
+                  <div class="calendar-header">
                   <button type="button" class="calendar-nav" id="prevMonth" aria-label="Previous month">&#8249;</button>
                   <h3 id="monthAndYear"></h3>
                   <button type="button" class="calendar-nav" id="nextMonth" aria-label="Next month">&#8250;</button>
-                </div>
-                <div class="calendar-weekdays" aria-hidden="true">
+                  </div>
+                  <div class="calendar-weekdays" aria-hidden="true">
                   <div class="cal-weekday">Su</div><div class="cal-weekday">Mo</div><div class="cal-weekday">Tu</div><div class="cal-weekday">We</div><div class="cal-weekday">Th</div><div class="cal-weekday">Fr</div><div class="cal-weekday">Sa</div>
-                </div>
-                <div class="calendar-grid" id="calendar-body"></div>
-                <div class="date-clear-row">
-                  <button type="button" class="clear-date calendar-clear" id="clearDatesBtn" title="Clear start and end date">Clear</button>
-                </div>
-              </div>
-              <div class="amenity-preview" id="amenityPreview" style="display:none;">
-                <img src="" alt="" id="amenityPreviewImg" class="amenity-preview-img">
-                <div class="amenity-preview-header">
-                  <div class="amenity-preview-title" id="amenityPreviewTitle">Amenity</div>
-                </div>
-                <div class="amenity-preview-meta" id="amenityPreviewDays"></div>
-                <div class="amenity-preview-meta" id="amenityPreviewHours"></div>
-                <div class="amenity-preview-meta" id="amenityPreviewPrice"></div>
-                <div class="amenity-preview-mode" id="amenityPreviewMode" style="display:none;"></div>
-                <button type="button" id="amenityReturnBtn" class="btn-secondary amenity-return" style="display:none;">
-                  <img src="images/change.png" alt="" class="amenity-change-icon"> Change Amenity
-                </button>
-              </div>
-              <div class="reservation-left">
-                <div class="booking-options res-item" id="singleDayRow">
-                  <div class="note">Reservations must be made at least 1 day in advance. Same-day bookings are not allowed.</div>
-                  <div class="single-day-group">
-                    <label class="single-day"><input type="checkbox" id="singleDayToggle"> Single-day reservation</label>
-                    <small class="single-day-description">Use this when your reservation starts and ends on the same date.</small>
+                  </div>
+                  <div class="calendar-grid" id="calendar-body"></div>
+                  <div class="calendar-date-row">
+                  <div class="res-item date-item" id="startDateGroup">
+                    <div class="res-label"><small>Start Date</small></div>
+                    <div class="date-line">
+                      <p id="startDate">--</p>
+                      <button type="button" class="date-clear-icon" id="clearStartDateBtn" aria-label="Clear selected dates" title="Clear selected dates"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+                    </div>
+                    <input type="hidden" name="startDate" id="startDateInput">
+                    <div id="startDateError" class="time-error" style="display:none;"></div>
+                  </div>
+                  <div class="res-item date-item" id="endDateGroup">
+                    <div class="res-label"><small>End Date</small></div>
+                    <div class="date-line">
+                      <p id="endDate">--</p>
+                      <button type="button" class="date-clear-icon" id="clearEndDateBtn" aria-label="Clear selected dates" title="Clear selected dates"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+                    </div>
+                    <input type="hidden" name="endDate" id="endDateInput">
+                    <div id="dateError" class="time-error" style="display:none;"></div>
+                    <input type="time" name="endTime" id="endTimeInput" min="08:00" max="23:00" style="display:none;">
+                    <div id="timeError" class="time-error" style="display:none;"></div>
+                  </div>
+                  </div>
+                  <div class="calendar-single-day">
+                    <div class="booking-options res-item" id="singleDayRow">
+                      <div class="single-day-group">
+                        <label class="single-day"><input type="checkbox" id="singleDayToggle"><span class="single-day-label-text">Single-day reservation<small class="single-day-description">Select a date first, then check this option if your reservation starts and ends on the same date.</small></span></label>
+                      </div>
+                    </div>
                   </div>
                 </div>
-<div class="date-row">
-                <div class="res-item date-item" id="startDateGroup">
-                  <div class="res-label"><small>Start Date</small></div>
-                  <div class="date-line"><p id="startDate">--</p></div>
-                  <input type="hidden" name="startDate" id="startDateInput">
-                  <div id="startDateError" class="time-error" style="display:none;"></div>
-                </div>
-                <div class="res-item date-item" id="endDateGroup">
-                  <div class="res-label"><small>End Date</small></div>
-                  <div class="date-line"><p id="endDate">--</p></div>
-                  <input type="hidden" name="endDate" id="endDateInput">
-                  <div id="dateError" class="time-error" style="display:none;"></div>
-                  <input type="time" name="endTime" id="endTimeInput" min="08:00" max="23:00" style="display:none;">
-                  <div id="timeError" class="time-error" style="display:none;"></div>
+              </div>
+              <div class="amenity-preview-shell" id="amenityPreviewShell" style="display:none;">
+                <div class="amenity-title"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> Amenity Picked</div>
+                <div class="amenity-preview" id="amenityPreview">
+                  <img src="" alt="" id="amenityPreviewImg" class="amenity-preview-img">
+                  <div class="amenity-preview-header">
+                    <div class="amenity-preview-title" id="amenityPreviewTitle">Amenity</div>
+                  </div>
+                  <div class="amenity-preview-meta" id="amenityPreviewDays"></div>
+                  <div class="amenity-preview-meta" id="amenityPreviewHours"></div>
+                  <div class="amenity-preview-meta" id="amenityPreviewPrice"></div>
+                  <div class="amenity-preview-mode" id="amenityPreviewMode" style="display:none;"></div>
+                  <button type="button" id="amenityReturnBtn" class="btn-secondary amenity-return" style="display:none;">
+                    <img src="images/change.png" alt="" class="amenity-change-icon"> Change Amenity
+                  </button>
                 </div>
               </div>
+              <div class="reservation-left">
+                <div class="reservation-top-options">
+                  <div class="res-item persons participant-section">
+                    <?php if (!$isResident): ?>
+                    <div class="res-label"><small class="participants-title"><i class="fa-solid fa-user" aria-hidden="true"></i> Total Participants</small></div>
+                    <div class="counter">
+                      <button type="button" onclick="changePersons(-1)">-</button>
+                      <input type="number" id="personCount" value="0" min="0" max="200" step="1" style="width:70px;text-align:center;border:1px solid #e5e7eb;border-radius:8px;padding:6px 10px;font-weight:600;">
+                      <button type="button" onclick="changePersons(1)">+</button>
+                    </div>
+                    <?php endif; ?>
+                    <input type="hidden" name="persons" id="personsInput" value="<?php echo $isResident ? '1' : '0'; ?>">
+                    <?php if ($isResident): ?>
+                    <div id="participantWrap" class="participant-card" data-mode="resident_only" style="display:block;">
+                      <div class="pers-total">
+                        <div class="res-label"><small class="participants-title"><i class="fa-solid fa-user" aria-hidden="true"></i> Number of Participants</small></div>
+                        <div class="counter">
+                          <button type="button" class="participant-stepper" id="decreaseParticipants" onclick="changeReserveTotal(-1)" aria-label="Decrease number of participants">−</button>
+                          <input type="number" class="participant-count-input" id="reserveTotalCount" value="1" min="1" max="50" step="1" aria-label="Number of participants">
+                          <button type="button" class="participant-stepper" id="increaseParticipants" onclick="changeReserveTotal(1)" aria-label="Increase number of participants">+</button>
+                        </div>
+                      </div>
+                      <div id="personsMaxNote" class="label-help"></div>
+                    </div>
+                    <?php endif; ?>
+                  </div>
+                </div>
               <div class="res-item time-item">
                     <input type="time" name="startTime" id="startTimeInput" min="08:00" max="23:00" style="display:none;">
                     <div class="res-label" id="hoursLabel" style="margin-top:8px; display:none;"><small>Number of Hours</small></div>
@@ -1327,7 +1362,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
                     </div>
                     <input type="hidden" name="hours" id="hoursInput">
                     <input type="hidden" id="hoursChosen" value="0">
-                    <div class="res-label" id="hoursSectionLabel" style="margin-top:8px; display:none;"><small>Number of Hours</small><small class="res-hint">Select the total number of hours for this reservation.</small></div>
+                    <div class="res-label" id="hoursSectionLabel" style="margin-top:8px; display:none;"><small class="hours-title"><i class="fa-regular fa-clock" aria-hidden="true"></i> Number of Hours</small><small class="res-hint">Select the total number of hours for your reservation. Please select a date from the calendar first to continue.</small></div>
                     <select id="hoursSelect" class="hours-select" style="display:none;" disabled></select>
                     <div id="durationContainer" style="display:none;"></div>
                     <div id="availabilityNotice" class="avail-notice" style="display:none;"></div>
@@ -1335,38 +1370,13 @@ if (ob_get_level() > 0) { ob_end_flush(); }
                       <span class="legend-title">Time Slot Availability:</span>
                       <span class="legend-item"><span class="legend-dot legend-dot-taken"></span> Taken &mdash; already booked by another guest</span>
                       <span class="legend-item"><span class="legend-dot legend-dot-closing"></span> Unavailable &mdash; exceeds the amenity closing time</span>
+                      <span class="legend-item"><span class="legend-dot legend-dot-available"></span> Available &mdash; open for reservation</span>
                     </div>
                     <div class="res-label" id="timeSectionLabel" style="margin-top:8px; display:none;"><small>Start Time</small><small class="res-hint">Select an available start time below. The end time is calculated automatically, and the full time range is displayed after you select.</small></div>
                     <div id="timeSlotContainer"></div>
                     <div id="timeSlotError" class="time-slot-error" style="display:none;"></div>
                     <div id="selectedTimeRange" class="selected-time-range" style="display:none;"></div>
                     <div id="selectedTimeNote" class="selected-time-note" style="display:none;">Note: This is the scheduled time. Please vacate the amenity by the closing time.</div>
-                  </div>
-
-              <div class="res-item persons">
-                    <div id="personsMaxNote" class="label-help"></div>
-                      <?php if (!$isResident): ?>
-                      <div class="res-label"><small>Total Participants</small></div>
-                      <div class="counter">
-                        <button type="button" onclick="changePersons(-1)">-</button>
-                        <input type="number" id="personCount" value="0" min="0" max="200" step="1" style="width:70px;text-align:center;border:1px solid #e5e7eb;border-radius:8px;padding:6px 10px;font-weight:600;">
-                        <button type="button" onclick="changePersons(1)">+</button>
-                      </div>
-                      <?php endif; ?>
-                      <input type="hidden" name="persons" id="personsInput" value="0">
-                      
-                      <?php if ($isResident): ?>
-                      <div id="participantWrap" data-mode="resident_only" style="display:block;">
-                        <div class="pers-total">
-                          <div class="res-label"><small>Number of Participants</small></div>
-                          <div class="counter">
-                            <button type="button" onclick="changeReserveTotal(-1)">-</button>
-                            <input type="number" id="reserveTotalCount" value="0" min="0" max="200" step="1" style="width:70px;text-align:center;border:1px solid #e5e7eb;border-radius:8px;padding:6px 10px;font-weight:600;">
-                            <button type="button" onclick="changeReserveTotal(1)">+</button>
-                          </div>
-                        </div>
-                      </div>
-                      <?php endif; ?>
                   </div>
 
                     <!-- Points Redemption Toggle -->
@@ -2103,14 +2113,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
   }
 
   function clearDates(){
-    selectedStart=null;
-    selectedEnd=null;
-    const ds=document.getElementById('startDate'); if(ds) ds.textContent='--';
-    const dsi=document.getElementById('startDateInput'); if(dsi) dsi.value='';
-    const de=document.getElementById('endDate'); if(de) de.textContent='--';
-    const dei=document.getElementById('endDateInput'); if(dei) dei.value='';
-    endDateRangeError=false;
-    document.querySelectorAll('.calendar .cal-cell').forEach(td=>{ td.classList.remove('active'); td.classList.remove('active-start'); td.classList.remove('active-end'); });
+    resetReservationForm();
     updateSelectedDateRangeHighlight();
     evaluateCalendarAvailability();
     computeAvailability();
@@ -2266,6 +2269,8 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     if(pImg){ pImg.src=info.img; pImg.alt=info.title; }
     const pWrap=document.getElementById('amenityPreview');
     if(pWrap){ pWrap.style.display='flex'; }
+    const pShell=document.getElementById('amenityPreviewShell');
+    if(pShell){ pShell.style.display='flex'; }
   }
 
   function showInlineAmenityDetails(key){
@@ -2439,8 +2444,8 @@ if (ob_get_level() > 0) { ob_end_flush(); }
       const sd=document.getElementById('startDate'); if(sd){ sd.textContent='--'; }
       const ed=document.getElementById('endDate'); if(ed){ ed.textContent='--'; }
       const pc=document.getElementById('personCount'); if(pc){ if('value' in pc){ pc.value='0'; } else { pc.textContent='0'; } }
-      const pi=document.getElementById('personsInput'); if(pi){ pi.value='0'; }
-      const rtc=document.getElementById('reserveTotalCount'); if(rtc){ if('value' in rtc){ rtc.value='0'; } else { rtc.textContent='0'; } }
+      const pi=document.getElementById('personsInput'); if(pi){ pi.value=currentUserType === 'resident' ? '1' : '0'; }
+      const rtc=document.getElementById('reserveTotalCount'); if(rtc){ if('value' in rtc){ rtc.value='1'; } else { rtc.textContent='1'; } }
       const rc=document.getElementById('residentsCountInput'); if(rc){ rc.value = currentUserType === 'resident' ? '1' : '0'; }
       const gc=document.getElementById('guestsCountInput'); if(gc){ gc.value = currentUserType === 'resident' ? '0' : '0'; }
       const rText=document.getElementById('residentsCountText'); if(rText){ rText.textContent = currentUserType === 'resident' ? '1' : '0'; }
@@ -2507,6 +2512,8 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     if(h){ h.textContent='Select an amenity to continue'; }
     const prev=document.getElementById('amenityPreview');
     if(prev){ prev.style.display='none'; }
+    const prevShell=document.getElementById('amenityPreviewShell');
+    if(prevShell){ prevShell.style.display='none'; }
     const btn=document.getElementById('amenityReturnBtn');
     if(btn){ btn.style.display='none'; }
   }
@@ -2561,20 +2568,27 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     const rcEl=document.getElementById('reserveTotalCount');
     if(!rcEl) return;
     const amen=document.getElementById('amenityField') ? document.getElementById('amenityField').value : '';
-    let max=typeof getAmenityMaxPersons==='function' ? getAmenityMaxPersons(amen) : Infinity;
-    const desiredCount=Math.max(0, parseInt(desired||'0',10) || 0);
-    const minAllowed=0;
-    const count=Math.min(max,Math.max(minAllowed,desiredCount));
+    let max=typeof getAmenityMaxPersons==='function' ? getAmenityMaxPersons(amen) : 50;
+    max=Math.max(1, Math.min(50, max === Infinity ? 50 : max));
+    const parsedCount=parseInt(desired,10);
+    const count=Math.min(max,Math.max(1,Number.isFinite(parsedCount) ? parsedCount : 1));
     if('value' in rcEl){ rcEl.value=String(count); } else { rcEl.textContent=String(count); }
     const pInput=document.getElementById('personsInput'); if(pInput){ pInput.value=String(count); }
     const personEl=document.getElementById('participantTotal'); if(personEl){ if('value' in personEl){ personEl.value=String(count); } else { personEl.textContent=String(count); } }
-    const note=document.getElementById('personsMaxNote'); if(note){ note.textContent = max!==Infinity ? (`Maximum: ${max} persons`) : ''; }
+    const note=document.getElementById('personsMaxNote'); if(note){ note.textContent = `Maximum: ${max} persons`; }
+    updateParticipantStepperState(count, max);
     if(count>=max){ setFieldWarning('reserveTotalCount',`Maximum is ${max} persons.`); } else { setFieldWarning('reserveTotalCount',''); }
     if(typeof updateDisplayedPrice==='function') updateDisplayedPrice();
     if(typeof updateDownpaymentSuggestion==='function') updateDownpaymentSuggestion();
     if(typeof updateBookingSummary==='function') updateBookingSummary();
     if(typeof updateActionStates==='function') updateActionStates();
     if(typeof persistForm==='function') persistForm();
+  }
+  function updateParticipantStepperState(count, max){
+    const decrease=document.getElementById('decreaseParticipants');
+    const increase=document.getElementById('increaseParticipants');
+    if(decrease){ decrease.disabled=count<=1; }
+    if(increase){ increase.disabled=count>=max; }
   }
   async function changeReserveTotal(delta){
     const rcEl=document.getElementById('reserveTotalCount');
@@ -3237,6 +3251,12 @@ async function changePersons(val){
 
   ['startTimeInput','endTimeInput'].forEach(id=>{const el=document.getElementById(id);if(el){el.addEventListener('input',function(){ if(isHourBasedAmenity(document.getElementById('amenityField').value) && id==='startTimeInput'){ computeEndTimeFromHours(); } else { checkTimeAvailability(); } })}});
   const hoursEl=document.getElementById('hoursInput'); if(hoursEl){ hoursEl.addEventListener('input',function(){ computeEndTimeFromHours(); updateDisplayedPrice(); updateDownpaymentSuggestion(); }); }
+  const participantInput=document.getElementById('reserveTotalCount');
+  if(participantInput){
+    participantInput.addEventListener('input',function(){ setReserveTotalCount(this.value); });
+    participantInput.addEventListener('blur',function(){ setReserveTotalCount(this.value); });
+    updateParticipantStepperState(parseInt(participantInput.value,10) || 1, 50);
+  }
   const hoursSelect=document.getElementById('hoursSelect'); if(hoursSelect){ hoursSelect.addEventListener('focus',function(){ requireDateBeforeHours(); }); hoursSelect.addEventListener('change',function(){ if(!requireDateBeforeHours()){ hoursSelect.value=''; const hcChoice=document.getElementById('hoursChosen'); if(hcChoice) hcChoice.value='0'; return; } const val=parseInt(hoursSelect.value||'0',10); if(!val) return; const hid=document.getElementById('hoursInput'); if(hid){ hid.value=String(val); const hc=document.getElementById('hoursCount'); if(hc){ hc.textContent=String(val); } }
     const tsl=document.getElementById('timeSectionLabel'); if(tsl){ tsl.style.display='block'; }
     computeEndTimeFromHours();
@@ -3274,7 +3294,10 @@ async function changePersons(val){
       });
     }
   });
-  const cd=document.getElementById('clearDatesBtn'); if(cd){ cd.addEventListener('click',clearDates); }
+  ['clearStartDateBtn','clearEndDateBtn'].forEach(function(id){
+    const clearButton=document.getElementById(id);
+    if(clearButton){ clearButton.addEventListener('click',clearDates); }
+  });
   const formEl=document.querySelector('form');
   if(formEl){
     let submitting = false;
@@ -3847,7 +3870,7 @@ async function changePersons(val){
     renderTimeSlotButtons();
     if(document.getElementById('startDateInput').value){ checkTimeAvailability(); }
   }
-  document.addEventListener('DOMContentLoaded',function(){ restoreFormFromSession(); updateActionStates(); updateDisplayedPrice(); updateDownpaymentSuggestion(); updateBookingSummary(); initSingleDayToggle(); updateHoursSelectEnabled(); try{ document.getElementById('reservationCard').style.display='none'; document.getElementById('reservationTitle').textContent='Reserve an Amenity'; document.getElementById('reservationHint').textContent='Select an amenity to continue'; }catch(_){} });
+  document.addEventListener('DOMContentLoaded',function(){ restoreFormFromSession(); if(currentUserType === 'resident'){ const participantField=document.getElementById('reserveTotalCount'); setReserveTotalCount(participantField ? participantField.value : 1); } updateActionStates(); updateDisplayedPrice(); updateDownpaymentSuggestion(); updateBookingSummary(); initSingleDayToggle(); updateHoursSelectEnabled(); try{ document.getElementById('reservationCard').style.display='none'; document.getElementById('reservationTitle').textContent='Reserve an Amenity'; document.getElementById('reservationHint').textContent='Select an amenity to continue'; }catch(_){} });
   let lastAvailabilityRefresh=0;
   function refreshAvailabilityDebounced(force){
     const now=Date.now();

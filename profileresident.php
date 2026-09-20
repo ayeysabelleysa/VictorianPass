@@ -1508,17 +1508,12 @@ body.qr-modal-open{ overflow:hidden }
 
 /* 320–430px mobile */
 @media(max-width:430px){
-  .qr-modal{ padding:8px; }
+  .qr-modal{ padding:16px; }
   .qr-modal-content{
-    width:96vw; max-width:none;
-    max-height:92vh; padding:40px 14px 16px;
+    width:92vw; max-width:420px;
+    max-height:90vh; max-height:90dvh; padding:16px;
   }
   .qr-modal-content h3{ font-size:1rem; }
-  #qrViewCardContainer .resident-id-card .id-top{ gap:8px; padding:10px 12px; }
-  #qrViewCardContainer .resident-id-card .avatar{ width:110px; height:110px; min-width:90px; }
-  #qrViewCardContainer .resident-id-card .top-info .name{ font-size:.92rem; }
-  #qrViewCardContainer .resident-id-card .id-body{ padding:8px 12px; }
-  #qrViewCardContainer .resident-id-card .row{ margin:4px 0; }
 }
 
 /* ---------- Mobile fit: ALL Profile dashboard modals compact inside the viewport ---------- */
@@ -1755,11 +1750,18 @@ body.qr-modal-open{ overflow:hidden }
 
   /* ============ My QR modals (choice + view) ============ */
   .qr-modal-content {
-    width: 66vw !important;
-    max-width: 340px !important;
-    max-height: calc(100vh - 24px);
-    max-height: calc(100dvh - 24px);
-    padding: 36px 14px 14px;
+    width: 92vw !important;
+    max-width: 420px !important;
+    max-height: 90vh !important;
+    max-height: 90dvh !important;
+    padding: 16px !important;
+    overflow-y: auto !important;
+  }
+  .qr-modal-content .close {
+    position: sticky !important;
+    top: 0 !important;
+    margin-left: calc(100% - 32px) !important;
+    margin-bottom: -32px !important;
   }
   .qr-modal-content h3 {
     font-size: 1.1rem !important;
@@ -1787,34 +1789,91 @@ body.qr-modal-open{ overflow:hidden }
     color: #6b7280;
   }
   #qrViewModal .qr-modal-content {
-    padding: 32px 14px 14px;
+    padding: 16px !important;
   }
   #qrViewCardContainer {
-    margin: 6px auto !important;
+    margin: 10px auto !important;
   }
-  /* QR ID card preview: shrink oversized elements to fit the viewport */
+  /* QR ID card preview: preserve the desktop composition at mobile widths. */
   #qrViewCardContainer .resident-id-card .id-top {
-    padding: 10px 12px !important;
-    gap: 8px !important;
+    flex-wrap: nowrap !important;
+    gap: 12px !important;
+    padding: 14px !important;
   }
   #qrViewCardContainer .resident-id-card .avatar {
-    width: 84px !important;
-    height: 84px !important;
+    width: clamp(96px, 30vw, 120px) !important;
+    height: clamp(96px, 30vw, 120px) !important;
+    min-width: clamp(96px, 30vw, 120px) !important;
   }
   #qrViewCardContainer .resident-id-card .id-body {
-    padding: 8px 12px !important;
+    padding: 14px !important;
+  }
+  #qrViewCardContainer .resident-id-card .top-info {
+    min-width: 0 !important;
+    text-align: center !important;
+  }
+  #qrViewCardContainer .resident-id-card .top-info > div:first-child {
+    font-size: 11px !important;
+    letter-spacing: 1px !important;
+    line-height: 1.2 !important;
   }
   #qrViewCardContainer .resident-id-card .top-info .name {
-    font-size: .95rem !important;
+    font-size: 17px !important;
+    line-height: 1.25 !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+    display: -webkit-box !important;
+    -webkit-box-orient: vertical !important;
+    -webkit-line-clamp: 2 !important;
+    overflow: hidden !important;
   }
   #qrViewCardContainer .resident-id-card .contact {
-    font-size: .8rem !important;
+    font-size: 12px !important;
+    line-height: 1.35 !important;
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
+    hyphens: none !important;
+  }
+  #qrViewCardContainer .resident-id-card .contact .email,
+  #qrViewCardContainer .resident-id-card .contact .phone {
+    display: block !important;
+  }
+  #qrViewCardContainer .resident-id-card .contact .contact-separator {
+    display: none !important;
+  }
+  #qrViewCardContainer .resident-id-card .badge {
+    white-space: nowrap !important;
   }
   #qrViewCardContainer .resident-id-card .row {
-    margin: 4px 0 !important;
+    display: grid !important;
+    grid-template-columns: 90px minmax(0, 1fr) !important;
+    column-gap: 12px !important;
+    align-items: start !important;
+    margin: 6px 0 !important;
   }
   #qrViewCardContainer .resident-id-card .label {
-    font-size: .78rem !important;
+    font-size: 13px !important;
+    text-align: left !important;
+    white-space: normal !important;
+  }
+  #qrViewCardContainer .resident-id-card .value {
+    font-size: 13px !important;
+    text-align: right !important;
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
+    hyphens: none !important;
+  }
+  #qrViewCardContainer .resident-id-card .foot {
+    text-align: center !important;
+    font-size: 12px !important;
+  }
+  #qrViewModal .qr-modal-note {
+    text-align: center !important;
+    font-size: 12px !important;
+  }
+  #qrViewModal .qr-modal-actions .btn-confirm {
+    width: 100% !important;
+    min-height: 44px !important;
   }
 
   /* ============ Activity modal ============ */
@@ -1961,6 +2020,161 @@ body.qr-modal-open{ overflow:hidden }
   .vp-logout-overlay .vp-logout-modal .btn {
     font-size: .8rem !important;
     padding: 9px 16px !important;
+  }
+}
+@media (max-width: 359px) {
+  #qrViewCardContainer .resident-id-card .id-top {
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+  }
+  #qrViewCardContainer .resident-id-card .top-info {
+    width: 100% !important;
+  }
+}
+@media (max-width: 480px) {
+  .qr-modal {
+    padding: 10px 12px !important;
+  }
+
+  .qr-modal-content,
+  #qrViewModal .qr-modal-content {
+    width: 94vw !important;
+    max-width: 420px !important;
+    max-height: 88vh !important;
+    padding: 10px 12px !important;
+    overflow-y: auto !important;
+  }
+
+  #qrViewModal .qr-modal-content .close {
+    position: absolute !important;
+    top: 10px !important;
+    right: 12px !important;
+    margin: 0 !important;
+  }
+
+  #qrViewModal .qr-modal-content h3 {
+    font-size: 15px !important;
+    margin: 0 0 6px !important;
+  }
+
+  #qrViewCardContainer {
+    margin: 6px auto !important;
+  }
+
+  #qrViewCardContainer .resident-id-card .card-header {
+    padding: 6px 12px !important;
+  }
+
+  #qrViewCardContainer .resident-id-card .brand {
+    gap: 6px !important;
+  }
+
+  #qrViewCardContainer .resident-id-card .brand img {
+    height: 20px !important;
+  }
+
+  #qrViewCardContainer .resident-id-card .brand .text {
+    font-size: 14px !important;
+  }
+
+  #qrViewCardContainer .resident-id-card .id-top {
+    flex-wrap: nowrap !important;
+    gap: 10px !important;
+    padding: 10px 12px !important;
+    align-items: center !important;
+  }
+
+  #qrViewCardContainer .resident-id-card .avatar {
+    width: 96px !important;
+    height: 96px !important;
+    min-width: 96px !important;
+  }
+
+  #qrViewCardContainer .resident-id-card .top-info {
+    min-width: 0 !important;
+    text-align: left !important;
+  }
+
+  #qrViewCardContainer .resident-id-card .top-info > div:first-child {
+    max-width: 160px !important;
+    font-size: 10px !important;
+    line-height: 1.2 !important;
+  }
+
+  #qrViewCardContainer .resident-id-card .top-info .name {
+    font-size: 15px !important;
+    line-height: 1.2 !important;
+  }
+
+  #qrViewCardContainer .resident-id-card .contact {
+    display: none !important;
+  }
+
+  #qrViewCardContainer .resident-id-card .badge {
+    padding: 3px 10px !important;
+    font-size: 11px !important;
+    white-space: nowrap !important;
+  }
+
+  #qrViewCardContainer .resident-id-card .top-info > div:last-child {
+    margin-top: 4px !important;
+  }
+
+  #qrViewCardContainer .resident-id-card .id-body {
+    padding: 8px 12px !important;
+  }
+
+  #qrViewCardContainer .resident-id-card .row {
+    display: grid !important;
+    grid-template-columns: 76px minmax(0, 1fr) !important;
+    column-gap: 8px !important;
+    row-gap: 4px !important;
+    margin: 0 !important;
+  }
+
+  #qrViewCardContainer .resident-id-card .label {
+    font-size: 11px !important;
+  }
+
+  #qrViewCardContainer .resident-id-card .value {
+    font-size: 12px !important;
+    line-height: 1.25 !important;
+    text-align: right !important;
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
+  }
+
+  #qrViewCardContainer .resident-id-card .row:nth-child(2) .value,
+  #qrViewCardContainer .resident-id-card .row:nth-child(4) .value {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  #qrViewCardContainer .resident-id-card .foot {
+    padding: 6px 12px !important;
+    margin: 0 !important;
+    font-size: 10px !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+  }
+
+  #qrViewModal .qr-modal-note {
+    margin: 6px 0 !important;
+    font-size: 11px !important;
+    line-height: 1.3 !important;
+    display: -webkit-box !important;
+    -webkit-box-orient: vertical !important;
+    -webkit-line-clamp: 2 !important;
+    line-clamp: 2 !important;
+    overflow: hidden !important;
+  }
+
+  #qrViewModal .qr-modal-actions .btn-confirm {
+    min-height: 38px !important;
+    padding: 0 20px !important;
+    margin: 0 auto !important;
   }
 }
 </style>
@@ -3138,8 +3352,8 @@ body.modal-open{overflow:hidden}
               <div style="color:#e5ddc6; font-size:0.75rem; font-weight:600; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">OFFICIAL PROOF OF RESIDENCY</div>
               <div class="name"><?php echo htmlspecialchars($fullName); ?></div>
               <div class="contact">
-                <?php echo htmlspecialchars($user['email'] ?? ''); ?>
-                <?php if(!empty($displayPhone)){ echo ' • ' . htmlspecialchars($displayPhone); } ?>
+                <span class="email"><?php echo htmlspecialchars($user['email'] ?? ''); ?></span>
+                <?php if(!empty($displayPhone)){ echo '<span class="contact-separator"> • </span><span class="phone">' . htmlspecialchars($displayPhone) . '</span>'; } ?>
               </div>
               <div style="margin-top:6px;"><span class="badge active">Verified Resident</span></div>
             </div>
