@@ -80,6 +80,10 @@ if ((!is_array($pending) || empty($pending)) && $ref_code !== '' && ($con instan
     $colsC = ['amenity', 'start_date', 'end_date', 'start_time', 'end_time', 'persons', 'price', 'downpayment', 'entry_pass_id'];
     $bookingForExists = downpaymentColumnExists($con, 'booking_for');
     if ($bookingForExists) { $colsC[] = 'booking_for'; }
+    $usePointsExists = downpaymentColumnExists($con, 'use_points');
+    $pointsUsedExists = downpaymentColumnExists($con, 'points_used');
+    if ($usePointsExists) { $colsC[] = 'use_points'; }
+    if ($pointsUsedExists) { $colsC[] = 'points_used'; }
     $stmtC = $con->prepare("SELECT " . implode(',', $colsC) . " FROM reservations WHERE ref_code = ? LIMIT 1");
     if ($stmtC) {
         $stmtC->bind_param('s', $ref_code);
@@ -96,7 +100,9 @@ if ((!is_array($pending) || empty($pending)) && $ref_code !== '' && ($con instan
                 'price' => isset($rwC['price']) ? floatval($rwC['price']) : null,
                 'downpayment' => isset($rwC['downpayment']) ? floatval($rwC['downpayment']) : null,
                 'entry_pass_id' => isset($rwC['entry_pass_id']) ? intval($rwC['entry_pass_id']) : null,
-                'booking_for' => $rwC['booking_for'] ?? null
+                'booking_for' => $rwC['booking_for'] ?? null,
+                'use_points' => $usePointsExists ? intval($rwC['use_points'] ?? 0) : 0,
+                'points_used' => $pointsUsedExists ? intval($rwC['points_used'] ?? 0) : 0
             ];
             $_SESSION['pending_reservation'] = $pending;
             if ($entry_pass_id <= 0 && !empty($pending['entry_pass_id'])) { $entry_pass_id = intval($pending['entry_pass_id']); }
@@ -428,6 +434,25 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     .row .amount{font-weight:600;color:#111827}
     .pay-callout{display:flex;justify-content:center;align-items:center;background:#f0faf2;border:1.5px solid #cfe6d4;color:#23412e;border-radius:12px;padding:12px 14px;margin:14px 0;font-weight:700;font-size:.95rem}
     .pay-callout .num{font-size:1.4rem;margin-left:8px}
+    .downpayment-summary{margin-top:16px}
+    .vs-banner{display:flex;align-items:center;gap:8px;background:#d1fae5;color:#065f46;border:1px solid #34d399;border-radius:10px;padding:9px 12px;font-weight:700;font-size:.88rem;line-height:1.4;margin:10px 0 14px;text-align:left}
+    .vs-banner i{flex-shrink:0}
+    .vs-section{background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:11px 13px;text-align:left}
+    .vs-section + .vs-section{margin-top:12px}
+    .vs-section-title{font-size:.7rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;margin-bottom:7px}
+    .vs-reward{background:#f0fdf4;border-color:#bbf7d0}
+    .vs-reward .vs-section-title{color:#15803d}
+    .vs-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:4px 0;font-size:.88rem;line-height:1.45}
+    .vs-lbl{color:#4b5563;font-weight:600;white-space:nowrap}
+    .vs-val{color:#111827;text-align:right;min-width:0}
+    .vs-good .vs-val{color:#15803d;font-weight:700}
+    .vs-final-row{border-top:1px dashed #d1d5db;margin-top:7px;padding-top:9px}
+    .vs-final-row .vs-lbl{color:#14532d;font-weight:800}
+    .vs-final-row .vs-val{color:#14532d;font-weight:800;font-size:1.12rem}
+    .vs-dp-row{margin-top:7px;padding:8px 10px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:9px}
+    .vs-dp-row .vs-lbl{color:#065f46;font-weight:800}
+    .vs-dp-row .vs-val{color:#065f46;font-weight:800;font-size:1.02rem}
+    @media (max-width:640px){.vs-row{align-items:flex-start;flex-wrap:wrap}.vs-lbl{white-space:normal}.vs-val{margin-left:auto}}
     .toast{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:#23412e;color:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 8px 18px rgba(0,0,0,.12);font-size:.9rem;z-index:1000}
     .upload-area{border:1.5px dashed #d1d5db;background:#f9fafb;padding:18px;border-radius:12px;margin-top:16px;display:flex;flex-direction:column;gap:10px}
     .upload-area .label{color:#111827;font-weight:600;font-size:.95rem}
@@ -573,8 +598,10 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
       <div class="qr"><img src="<?php echo htmlspecialchars($qrUrl); ?>" alt="GCash Downpayment" style="max-width:280px;border-radius:8px;border:1px solid rgba(255,255,255,.2)" onerror="this.style.display='none'"></div>
       <div class="pay-callout">You will pay now:<span class="num">₱<?php echo number_format($downpayment, 2); ?></span></div>
       <p class="nonrefundable">Downpayment is non-refundable.</p>
-      <div class="break">
-        <div class="row"><span class="label">Amenity</span><span class="amount"><?php echo htmlspecialchars($amenity ?: 'N/A'); ?></span></div>
+      <div class="downpayment-summary">
+        <div class="vs-section">
+          <div class="vs-section-title">Reservation Details</div>
+          <div class="vs-row"><span class="vs-lbl">Amenity</span><span class="vs-val"><?php echo htmlspecialchars($amenity ?: 'N/A'); ?></span></div>
         <?php
           $hours = 1;
           if (isset($pending['hours'])) {
@@ -588,20 +615,69 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
             }
           }
           $persons = isset($pending['persons']) ? intval($pending['persons']) : 1;
+          $usePoints = !empty($pending['use_points']);
+          $pointsUsed = intval($pending['points_used'] ?? 0);
+          $hourlyRate = 0;
+          if ($amenity === 'Basketball Court' || $amenity === 'Tennis Court') {
+            $hourlyRate = 100;
+          } elseif ($amenity === 'Clubhouse') {
+            $hourlyRate = 300;
+          } elseif ($amenity === 'Multi-Purpose Building') {
+            $hourlyRate = 200;
+          }
+          $paidHours = $usePoints ? max(0, $hours - 1) : $hours;
+          $originalAmount = $usePoints ? ($price + $hourlyRate) : $price;
+          $rewardPoints = $pointsUsed > 0 ? $pointsUsed : (($amenity === 'Basketball Court' || $amenity === 'Tennis Court') ? 300 : (($amenity === 'Clubhouse') ? 600 : (($amenity === 'Multi-Purpose Building') ? 750 : 0)));
+          $startDateDisplay = '--';
+          $endDateDisplay = '--';
+          if (!empty($pending['start_date'])) {
+            $startDateTs = strtotime((string)$pending['start_date']);
+            if ($startDateTs !== false) { $startDateDisplay = date('m/d/Y', $startDateTs); }
+          }
+          if (!empty($pending['end_date'])) {
+            $endDateTs = strtotime((string)$pending['end_date']);
+            if ($endDateTs !== false) { $endDateDisplay = date('m/d/Y', $endDateTs); }
+          }
         ?>
-        <div class="row"><span class="label">Time</span><span class="amount">
+        <?php if ($usePoints): ?><div class="vs-banner"><i class="fa-solid fa-circle-check"></i> VHEcoPoint Redemption: <?php echo $hours > 1 ? 'Discounted Redemption' : 'Fully Redeemed'; ?></div><?php endif; ?>
+          <div class="vs-row"><span class="vs-lbl">Start Date</span><span class="vs-val"><?php echo htmlspecialchars($startDateDisplay); ?></span></div>
+          <div class="vs-row"><span class="vs-lbl">End Date</span><span class="vs-val"><?php echo htmlspecialchars($endDateDisplay); ?></span></div>
+          <div class="vs-row"><span class="vs-lbl">Time</span><span class="vs-val">
           <?php
             $st = $pending['start_time'] ?? '';
             $et = $pending['end_time'] ?? '';
             echo ($st && $et) ? (format_time_ap($st) . ' – ' . format_time_ap($et)) : '--';
           ?>
-        </span></div>
-        <div class="row"><span class="label">Duration</span><span class="amount"><?php echo htmlspecialchars($durationText); ?></span></div>
-        <div class="row"><span class="label">Persons</span><span class="amount"><?php echo intval($persons); ?></span></div>
-        <div class="row"><span class="label">Total Price</span><span class="amount">₱<?php echo number_format($price, 2); ?></span></div>
-        <div class="row"><span class="label">Online Payment (Partial)</span><span class="amount">₱<?php echo number_format($downpayment, 2); ?></span></div>
-        <div class="row"><span class="label">Onsite Payment (Remaining)</span><span class="amount">₱<?php echo number_format($remaining, 2); ?></span></div>
-        <div class="row"><span class="label">QR Reference Code</span><span class="amount"><?php echo htmlspecialchars($ref_code ?: 'N/A'); ?></span></div>
+          </span></div>
+          <div class="vs-row"><span class="vs-lbl">Persons</span><span class="vs-val"><?php echo intval($persons); ?></span></div>
+        </div>
+        <?php if ($usePoints): ?>
+          <div class="vs-section vs-reward">
+            <div class="vs-section-title">VHEcoPoint Redemption: <?php echo $hours > 1 ? 'Discounted Redemption' : 'Fully Redeemed'; ?></div>
+            <div class="vs-row"><span class="vs-lbl">Original Duration</span><span class="vs-val"><?php echo $hours; ?> hour<?php echo $hours !== 1 ? 's' : ''; ?></span></div>
+            <div class="vs-row vs-good"><span class="vs-lbl">Reward</span><span class="vs-val">-1 Free Hour (<?php echo number_format($rewardPoints); ?> pts)</span></div>
+            <div class="vs-row"><span class="vs-lbl">Paid Duration</span><span class="vs-val"><?php echo $paidHours; ?> hour<?php echo $paidHours !== 1 ? 's' : ''; ?></span></div>
+          </div>
+          <div class="vs-section vs-payment">
+            <div class="vs-section-title">Payment Summary</div>
+            <div class="vs-row"><span class="vs-lbl">Original Amount</span><span class="vs-val">₱<?php echo number_format($originalAmount, 2); ?></span></div>
+            <div class="vs-row vs-good"><span class="vs-lbl">VHEcoPoint Discount</span><span class="vs-val">-₱<?php echo number_format($hourlyRate, 2); ?> (<?php echo number_format($rewardPoints); ?> pts)</span></div>
+            <div class="vs-row vs-final-row"><span class="vs-lbl">Final Amount</span><span class="vs-val">₱<?php echo number_format($price, 2); ?></span></div>
+            <div class="vs-row vs-dp-row"><span class="vs-lbl">Downpayment</span><span class="vs-val">₱<?php echo number_format($downpayment, 2); ?></span></div>
+          </div>
+        <?php else: ?>
+          <div class="vs-section vs-payment">
+            <div class="vs-section-title">Payment Summary</div>
+            <div class="vs-row"><span class="vs-lbl">Total Price</span><span class="vs-val">₱<?php echo number_format($price, 2); ?></span></div>
+            <div class="vs-row vs-dp-row"><span class="vs-lbl">Downpayment</span><span class="vs-val">₱<?php echo number_format($downpayment, 2); ?></span></div>
+          </div>
+        <?php endif; ?>
+        <div class="vs-section">
+          <div class="vs-section-title">Payment Collection</div>
+          <div class="vs-row"><span class="vs-lbl">Online Payment (Partial)</span><span class="vs-val">₱<?php echo number_format($downpayment, 2); ?></span></div>
+          <div class="vs-row"><span class="vs-lbl">Onsite Payment (Remaining)</span><span class="vs-val">₱<?php echo number_format($remaining, 2); ?></span></div>
+          <div class="vs-row"><span class="vs-lbl">QR Reference Code</span><span class="vs-val"><?php echo htmlspecialchars($ref_code ?: 'N/A'); ?></span></div>
+        </div>
       </div>
       <form method="POST" enctype="multipart/form-data" novalidate style="margin-top:12px; display:flex; flex-direction:column; gap:10px;">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? ''); ?>">

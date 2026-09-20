@@ -63,25 +63,74 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
   box-sizing: border-box;
 }
 .calendar-header {
+  width: calc(100% + 16px);
   display: grid;
-  grid-template-columns: 42px minmax(0,1fr) 42px;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
+  margin: 0 -8px 12px;
+  padding: 0 4px;
 }
 .calendar-header h3 {
-  font-size: 1.25rem; margin: 0; font-weight: 700; color: #111827;
-  text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+  min-width: 0;
+  margin: 0;
+  color: #111827;
+  font-size: 1.25rem;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .calendar-header button {
-  width: 100%; height: 42px; padding: 0;
-  background: #23412e; color: #fff; border: none;
-  border-radius: 10px; cursor: pointer;
-  font-size: 1.3rem; line-height: 1;
-  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  padding: 0;
+  background: #23412e;
+  color: #fff;
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 1.3rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: background .2s ease;
 }
 .calendar-header button:hover { background: #1a2f23; }
+.calendar-header .calendar-nav {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  font-size: 1.6rem;
+  font-weight: 400;
+}
+.calendar-header #prevMonth { justify-self: start; }
+.calendar-header #nextMonth { justify-self: end; }
+.calendar-header .calendar-nav:focus-visible {
+  outline: 2px solid #23412e;
+  outline-offset: 2px;
+}
+.calendar-header .calendar-nav:focus:not(:focus-visible) { outline: none; }
+.calendar-clear {
+  width: auto;
+  min-width: 52px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0 9px;
+  border: 1px solid #b7c8bc;
+  border-radius: 9px;
+  background: #f3f7f4;
+  color: #23412e;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.calendar-clear:hover {
+  background: #e1eee5;
+  color: #1a2f23;
+}
 .calendar-weekdays,
 .calendar-grid {
   display: grid;
@@ -90,12 +139,17 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
 }
 .calendar-weekdays { margin-bottom: 2px; }
 .cal-weekday {
-  font-size: .78rem; font-weight: 700; color: #6b7280;
-  text-align: center; padding: 6px 2px; letter-spacing: .4px;
+  font-size: .78rem;
+  font-weight: 700;
+  color: #6b7280;
+  text-align: center;
+  padding: 6px 2px;
+  letter-spacing: .4px;
 }
 .cal-cell {
   display: flex; align-items: center; justify-content: center;
-  width: 100%; min-width: 0; min-height: 0;
+  height: 38px;
+  min-height: 38px;
   height: clamp(38px, 12vw, 54px);
   padding: 0;
   background: #fff; color: #111827;
@@ -107,6 +161,13 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
 }
 .cal-cell:focus-visible { outline: 2px solid #23412e; outline-offset: 2px; }
 .cal-empty { min-width: 0; }
+.date-clear-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #eee;
+}
 .cal-cell:hover:not(.disabled) { background: #f0faf2; border-color: #bcd9c3; }
 .cal-cell.available { background: #d1fae5; border: 2px solid #16a34a; color: #14532d; box-shadow: inset 0 0 0 2px rgba(22,163,74,0.18); }
 .cal-cell.available:hover { background: #bbf7d0; border-color: #15803d; }
@@ -303,9 +364,47 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
 .summary-price .summary-value{color:#23412e;font-size:1.2rem}
 .date-row{display:flex;gap:12px;flex-wrap:nowrap;width:100%}
 .date-row .date-item{flex:1 1 50%;min-width:0}
+.booking-options{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  width:100%;
+  margin-top:16px;
+  margin-bottom:16px;
+}
+.booking-options .note{
+  width:100%;
+  margin:0;
+  box-sizing:border-box;
+  padding:10px 12px;
+  border:1.5px solid #e5e7eb;
+  border-radius:8px;
+  background:#f9f9f9;
+  color:#666;
+  text-align:left;
+  font-size:14px;
+  line-height:1.5;
+}
+.single-day-group{width:100%}
 .single-day{display:inline-flex;align-items:center;gap:10px;font-weight:700;cursor:pointer;color:#111827;padding:8px 12px;background:#f9f9f9;border-radius:8px;border:1.5px solid #e5e7eb;transition:all .2s}
+.booking-options .single-day{
+  align-items:center;
+  gap:8px;
+  min-height:44px;
+  padding:8px 12px;
+  box-sizing:border-box;
+}
 .single-day:hover{background:#f0faf2;border-color:#23412e}
 .single-day input{cursor:pointer;width:20px;height:20px;accent-color:#23412e}
+.booking-options .single-day-description{
+  display:block;
+  margin-top:4px;
+  padding-left:28px;
+  color:#6b7280;
+  font-size:13px;
+  line-height:1.4;
+  overflow-wrap:anywhere;
+}
 .date-note{margin-top:6px;font-size:0.85rem;color:#888}
 .res-label small{font-size:0.85rem}
 .res-label .label-help{font-size:0.8rem;color:#6b7280;margin-left:auto}
@@ -767,6 +866,160 @@ body.modal-open {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding-right: 6px;
+}
+
+.points-redemption-confirm-content {
+  box-sizing: border-box;
+  width: min(460px, calc(100vw - 32px));
+  max-width: 460px;
+  padding: 24px 22px 20px;
+  max-height: calc(100dvh - 24px);
+  overflow-x: hidden;
+  overflow-y: hidden;
+}
+
+.points-redemption-confirm-content .close-profile-modal {
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
+  z-index: 3;
+}
+
+.points-redemption-confirm-content h2 {
+  max-width: calc(100% - 26px);
+  margin-bottom: 8px;
+  overflow-wrap: anywhere;
+}
+
+.points-redemption-confirm-message {
+  margin: 8px 0 18px;
+  color: #4b5563;
+  line-height: 1.5;
+}
+
+.points-redemption-confirm-summary {
+  display: grid;
+  gap: 10px;
+  margin: 0 auto 22px;
+  padding: 14px 16px;
+  border: 1px solid #d1fae5;
+  border-radius: 10px;
+  background: #ecfdf5;
+  color: #23412e;
+  text-align: left;
+}
+
+.points-redemption-confirm-summary div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.points-redemption-confirm-summary strong {
+  color: #166534;
+  white-space: nowrap;
+}
+
+.points-redemption-confirm-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 520px) {
+  .points-redemption-confirm-content {
+    width: calc(100vw - 28px);
+    max-height: calc(100dvh - 20px);
+    padding: 18px 14px 14px;
+  }
+
+  .points-redemption-confirm-content .close-profile-modal {
+    top: 7px;
+    right: 7px;
+    width: 26px;
+    height: 26px;
+    font-size: 14px;
+  }
+
+  .points-redemption-confirm-content h2 {
+    max-width: calc(100% - 24px);
+    font-size: 1.12rem;
+    line-height: 1.25;
+  }
+
+  .points-redemption-confirm-message {
+    margin: 6px 0 14px;
+    font-size: 0.9rem;
+    line-height: 1.4;
+  }
+
+  .points-redemption-confirm-summary {
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 10px 11px;
+    font-size: 0.9rem;
+  }
+
+  .points-redemption-confirm-summary div {
+    align-items: flex-start;
+    gap: 4px 10px;
+  }
+
+  .points-redemption-confirm-summary strong {
+    margin-left: auto;
+  }
+
+  .points-redemption-confirm-actions {
+    gap: 8px;
+  }
+
+  .points-redemption-confirm-actions button {
+    width: 100%;
+    min-height: 42px;
+    padding: 10px 12px;
+    font-size: 0.9rem;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 360px) {
+  .points-redemption-confirm-content {
+    width: calc(100vw - 20px);
+    padding: 16px 11px 12px;
+  }
+
+  .points-redemption-confirm-content h2 {
+    max-width: calc(100% - 22px);
+    font-size: 1.02rem;
+  }
+
+  .points-redemption-confirm-message {
+    margin-bottom: 11px;
+    font-size: 0.86rem;
+  }
+
+  .points-redemption-confirm-summary div {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .points-redemption-confirm-summary strong {
+    margin-left: 0;
+  }
+
+  .points-redemption-confirm-actions button {
+    min-height: 40px;
+    padding: 9px 10px;
+    font-size: 0.86rem;
+  }
 }
 
 #verifyModal .verify-actions {
@@ -1531,8 +1784,9 @@ input:focus-visible {
   border: 1.5px solid #d1d5db;
   color: #666;
   background: #fff;
-  padding: 8px 12px;
-  border-radius: 8px;
+  min-height: 38px;
+  padding: 0 9px;
+  border-radius: 9px;
   cursor: pointer;
   font-size: 0.85rem;
   font-weight: 600;
@@ -1542,7 +1796,9 @@ input:focus-visible {
 .date-clear-row {
   display: flex;
   justify-content: flex-end;
-  margin-top: 4px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #eee;
 }
 
 .clear-date:hover {
@@ -1674,12 +1930,15 @@ input:focus-visible {
 /* Additional mobile calendar responsiveness tweaks */
 @media (max-width:480px) {
   .calendar { padding: 12px 8px; }
-  .calendar-header { gap: 6px; grid-template-columns: 38px minmax(0,1fr) 38px; }
-  .calendar-header button { height: 38px; font-size: 1.2rem; }
+  .calendar-header { width: calc(100% + 12px); grid-template-columns: 34px minmax(0, 1fr) 34px; margin: 0 -6px 12px; }
+  .calendar-header button { width: 34px; height: 34px; font-size: 1.2rem; }
+  .calendar-header .calendar-nav { width: 34px; height: 34px; min-width: 34px; font-size: 1.35rem; }
+  .calendar-clear { height: 36px; min-height: 36px; min-width: 48px; padding: 0 7px; font-size: 0.7rem; }
   .calendar-header h3 { font-size: 1.05rem; }
   .calendar-weekdays, .calendar-grid { gap: 4px; }
   .cal-weekday { font-size: .7rem; padding: 4px 0; }
   .cal-cell { height: clamp(36px, 12vw, 44px); font-size: .8rem; border-radius: 9px; }
+  .single-day-description { margin-left: 24px; font-size: 0.72rem; }
 }
 
 @media (max-width:360px) {

@@ -762,7 +762,7 @@ if (!$data) {
               </div>
               <div style="display:flex; justify-content:space-between; margin:3px 0; color:#065f46;">
                 <span>Discount</span>
-                <span style="font-weight:700; color:#166534;">-₱<?php echo number_format($rDiscountAmount, 2); ?></span>
+                <span style="font-weight:700; color:#166534;">-₱<?php echo number_format($rDiscountAmount, 2); ?> (<?php echo number_format($ptsUsed); ?> pts)</span>
               </div>
             </div>
             <?php endif; ?>

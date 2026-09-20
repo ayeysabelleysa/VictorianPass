@@ -223,6 +223,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $booking_for_post = isset($_POST['booking_for']) ? trim($_POST['booking_for']) : '';
     $guest_id_post = isset($_POST['guest_id']) ? trim($_POST['guest_id']) : '';
     $guest_ref_code_post = isset($_POST['guest_ref_code']) ? trim($_POST['guest_ref_code']) : '';
+    $redemption_confirmed_post = isset($_POST['redemption_confirmed']) && $_POST['redemption_confirmed'] === '1';
     $residentsCount = max(0, intval($_POST['residents_count'] ?? 0));
     $guestsCount = max(0, intval($_POST['guests_count'] ?? 0));
     if ($residentsCount + $guestsCount <= 0) { $guestsCount = max(1, $persons); }
@@ -248,6 +249,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($guestResidentId) { $entry_pass_id = NULL; }
     $user_id = $guestResidentId ?: $sessionUserId;
     $acct = ($guestResidentId || ($sessionUserType === 'resident' && (empty($entry_pass_id)))) ? 'resident' : 'visitor';
+    if ($use_points_post && $acct === 'resident' && !$redemption_confirmed_post) {
+      $errorMsg = 'Please confirm your VHEcoPoint redemption before submitting the reservation.';
+    }
     // All session reads needed for validation are complete. Do not hold the
     // session lock while availability and payment queries run.
     session_write_close();
@@ -672,6 +676,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmtV = $con->prepare("UPDATE reservations SET payment_status='verified' WHERE ref_code = ?");
                     if ($stmtV) { $stmtV->bind_param('s', $newRef); $stmtV->execute(); $stmtV->close(); }
                     else { error_log('reserve.php verify update prepare failed: ' . $con->error); }
+                    // Show the VHEcoPoint redemption confirmation on the profile page
+                    $_SESSION['flash_notice'] = 'Your ' . intval($points_required) . ' VHEcoPoint points have been successfully redeemed for 1 Free Hour. Your reservation has been submitted. Please wait for Admin approval. [redemption]';
+                    $_SESSION['flash_ref_code'] = $newRef;
                     header('Location: profileresident.php?reservation_success=1&points_used=' . $points_required);
                     exit;
                   }
@@ -1255,19 +1262,23 @@ if (ob_get_level() > 0) { ob_end_flush(); }
           <input type="hidden" name="guests_count" id="guestsCountInput" value="<?php echo ($sessionUserType === 'resident') ? '0' : '1'; ?>">
           <input type="hidden" id="submitAllowed" value="1">
           <input type="hidden" name="use_points" id="use-points-input" value="0">
+          <input type="hidden" name="redemption_confirmed" id="redemption-confirmed-input" value="0">
             <div class="reservation-card" id="reservationCard" style="display:none;">
             <input type="hidden" name="amenity" id="amenityField" value="">
             <div class="reservation-grid">
               <div class="calendar" style="width:100%">
                 <div class="calendar-header">
-                  <button type="button" id="prevMonth" aria-label="Previous month">&#8249;</button>
+                  <button type="button" class="calendar-nav" id="prevMonth" aria-label="Previous month">&#8249;</button>
                   <h3 id="monthAndYear"></h3>
-                  <button type="button" id="nextMonth" aria-label="Next month">&#8250;</button>
+                  <button type="button" class="calendar-nav" id="nextMonth" aria-label="Next month">&#8250;</button>
                 </div>
                 <div class="calendar-weekdays" aria-hidden="true">
                   <div class="cal-weekday">Su</div><div class="cal-weekday">Mo</div><div class="cal-weekday">Tu</div><div class="cal-weekday">We</div><div class="cal-weekday">Th</div><div class="cal-weekday">Fr</div><div class="cal-weekday">Sa</div>
                 </div>
                 <div class="calendar-grid" id="calendar-body"></div>
+                <div class="date-clear-row">
+                  <button type="button" class="clear-date calendar-clear" id="clearDatesBtn" title="Clear start and end date">Clear</button>
+                </div>
               </div>
               <div class="amenity-preview" id="amenityPreview" style="display:none;">
                 <img src="" alt="" id="amenityPreviewImg" class="amenity-preview-img">
@@ -1283,10 +1294,12 @@ if (ob_get_level() > 0) { ob_end_flush(); }
                 </button>
               </div>
               <div class="reservation-left">
-                <div class="res-item" id="singleDayRow">
-
-                 <div class="note">Reservations must be made at least 1 day in advance. Same-day bookings are not allowed.</div>
-                  <label class="single-day"><input type="checkbox" id="singleDayToggle"> Single-day reservation</label>
+                <div class="booking-options res-item" id="singleDayRow">
+                  <div class="note">Reservations must be made at least 1 day in advance. Same-day bookings are not allowed.</div>
+                  <div class="single-day-group">
+                    <label class="single-day"><input type="checkbox" id="singleDayToggle"> Single-day reservation</label>
+                    <small class="single-day-description">Use this when your reservation starts and ends on the same date.</small>
+                  </div>
                 </div>
 <div class="date-row">
                 <div class="res-item date-item" id="startDateGroup">
@@ -1304,10 +1317,6 @@ if (ob_get_level() > 0) { ob_end_flush(); }
                   <div id="timeError" class="time-error" style="display:none;"></div>
                 </div>
               </div>
-              <div class="date-clear-row">
-                <button type="button" class="clear-date" id="clearDatesBtn" title="Clear start and end date">Clear Dates</button>
-              </div>
-             
               <div class="res-item time-item">
                     <input type="time" name="startTime" id="startTimeInput" min="08:00" max="23:00" style="display:none;">
                     <div class="res-label" id="hoursLabel" style="margin-top:8px; display:none;"><small>Number of Hours</small></div>
@@ -1441,6 +1450,22 @@ if (ob_get_level() > 0) { ob_end_flush(); }
   </div>
   </div>
 
+<div id="pointsRedemptionConfirmModal" class="modal" style="display:none;">
+  <div class="modal-content points-redemption-confirm-content">
+    <button type="button" class="close-profile-modal" id="pointsRedemptionCloseBtn" aria-label="Close">&times;</button>
+    <h2>Confirm VHEcoPoint Redemption</h2>
+    <p class="points-redemption-confirm-message">Are you sure you want to redeem your VHEcoPoint points for 1 Free Hour?</p>
+    <div class="points-redemption-confirm-summary">
+      <div><span>Points to Redeem:</span><strong id="pointsRedemptionConfirmAmount">0 pts</strong></div>
+      <div><span>Reward:</span><strong>1 Free Hour</strong></div>
+    </div>
+    <div class="points-redemption-confirm-actions">
+      <button type="button" class="btn-cancel" id="pointsRedemptionCancelBtn">Cancel</button>
+      <button type="button" class="btn-confirm" id="pointsRedemptionConfirmBtn">Confirm Redemption</button>
+    </div>
+  </div>
+</div>
+
 <!-- Error Modal -->
 <div id="errorModal" class="modal" style="display:none;">
   <div class="modal-content">
@@ -1516,6 +1541,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
   }
   let selectedAmenity=document.getElementById('amenityField').value||'';
   let usePoints = false;
+  let redemptionConfirmed = false;
 
   function vpShowModal(el){
     if(!el) return;
@@ -1682,6 +1708,28 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     document.body.classList.add('modal-open');
   }
 
+  function showPointsRedemptionConfirm() {
+    const amenity = document.getElementById('amenityField')?.value || selectedAmenity || '';
+    const pointsRequired = getPointsRequired(amenity);
+    const amountEl = document.getElementById('pointsRedemptionConfirmAmount');
+    const modal = document.getElementById('pointsRedemptionConfirmModal');
+    if (!pointsRequired || !modal) return false;
+    if (amountEl) amountEl.textContent = pointsRequired.toLocaleString() + ' pts';
+    vpShowModal(modal);
+    return true;
+  }
+
+  function closePointsRedemptionConfirm() {
+    const modal = document.getElementById('pointsRedemptionConfirmModal');
+    if (modal) vpHideModal(modal);
+  }
+
+  function setRedemptionConfirmed(value) {
+    redemptionConfirmed = value === true;
+    const input = document.getElementById('redemption-confirmed-input');
+    if (input) input.value = redemptionConfirmed ? '1' : '0';
+  }
+
   function updateRedemptionInfo() {
     const toggle = document.getElementById('use-points-toggle');
     const redemptionInfo = document.getElementById('redemption-info');
@@ -1739,13 +1787,16 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     if (cashBtn && toggle) {
       cashBtn.addEventListener('click', function() {
         toggle.checked = false;
+        setRedemptionConfirmed(false);
         updateRedemptionInfo();
       });
     }
     if (pointsBtn && toggle) {
       pointsBtn.addEventListener('click', function() {
         toggle.checked = true;
+        setRedemptionConfirmed(false);
         updateRedemptionInfo();
+        if (toggle.checked) showPointsRedemptionConfirm();
       });
     }
     updateBookingModeCards();
@@ -1958,16 +2009,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
       }
     } else {
       if(isSameAsStart && !selectedEnd){
-        setEnd(dateString);
-        updateSelectedDateRangeHighlight();
-
-        computeAvailability();
-        renderTimeSlotButtons();
-        markDirty('startDateInput');
-        showIncompleteWarnings(false);
-        updateActionStates();
-        updateSelectedTimeRange();
-        updateBookingSummary();
+        clearDates();
         return;
       }
       if(isSameAsEnd){
@@ -1991,7 +2033,21 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     }
     function setEnd(ds){
       const sVal=document.getElementById('startDateInput').value||'';
-      if(sVal && ds < sVal){ endDateRangeError=false; showDateError('End date cannot be earlier than start date.'); return false; }
+      if(sVal && ds < sVal){
+        const sD=new Date(sVal); const eD=new Date(ds); const diff=Math.floor((sD - eD)/(1000*60*60*24));
+        if(diff>6){ endDateRangeError=true; showDateError('Cannot book more than 1 week.'); return false; }
+        selectedStart=ds;
+        selectedEnd=sVal;
+        document.getElementById('startDate').textContent=formatDateToMMDDYYYY(selectedStart);
+        document.getElementById('startDateInput').value=selectedStart;
+        document.getElementById('endDate').textContent=formatDateToMMDDYYYY(selectedEnd);
+        document.getElementById('endDateInput').value=selectedEnd;
+        endDateRangeError=false;
+        showStartDateError('');
+        showDateError('');
+        updateHoursSelectEnabled();
+        return true;
+      }
       if(sVal){ const sD=new Date(sVal); const eD=new Date(ds); const diff=Math.floor((eD - sD)/(1000*60*60*24)); if(diff>6){ endDateRangeError=true; showDateError('Cannot book more than 1 week.'); return false; } }
       endDateRangeError=false;
       selectedEnd=ds;
@@ -2402,6 +2458,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
       const avail=document.getElementById('availabilityNotice'); if(avail){ avail.style.display='none'; avail.textContent=''; avail.classList.remove('notice-available','notice-partly','notice-disabled'); }
       const toggle = document.getElementById('use-points-toggle'); if(toggle){ toggle.checked = false; }
       usePoints = false;
+      setRedemptionConfirmed(false);
       showStartDateError(''); showDateError(''); setFieldWarning('startTimeInput',''); setFieldWarning('endTimeInput',''); setFieldWarning('personsInput',''); setFieldWarning('hoursInput','');
       updateDisplayedPrice(); updateDownpaymentSuggestion();
       updateActionStates();
@@ -3240,6 +3297,10 @@ async function changePersons(val){
       
       // Client-side + server-side points validation
       const usePointsToggle = document.getElementById('use-points-toggle');
+      if (usePointsToggle && usePointsToggle.checked && !redemptionConfirmed) {
+        showPointsRedemptionConfirm();
+        return;
+      }
       if (usePointsToggle && usePointsToggle.checked && typeof residentPoints !== 'undefined') {
         let reqPoints = 0;
         switch (amen) {
@@ -3373,7 +3434,8 @@ async function changePersons(val){
           const chargedAmount = paidHours * hourlyRate;
           displayDownpayment = paidHours > 0 ? '₱' + (chargedAmount * 0.5).toFixed(2) : '₱0.00';
 
-          summaryHTML += '<div class="vs-banner"><i class="fa-solid fa-circle-check"></i> 1 Free Hour Redeemed with VHEcoPoint Points!</div>';
+          const redemptionLabel = hoursVal > 1 ? 'Discounted Redemption' : 'Fully Redeemed';
+          summaryHTML += '<div class="vs-banner"><i class="fa-solid fa-circle-check"></i> VHEcoPoint Redemption: ' + redemptionLabel + '</div>';
 
           summaryHTML += '<div class="vs-section">'
             + '<div class="vs-section-title">Reservation Details</div>'
@@ -3385,16 +3447,16 @@ async function changePersons(val){
             + '</div>';
 
           summaryHTML += '<div class="vs-section vs-reward">'
-            + '<div class="vs-section-title">VHEcoPoint Reward</div>'
+            + '<div class="vs-section-title">VHEcoPoint Redemption: ' + redemptionLabel + '</div>'
             + vsRow('Original Duration', hoursVal + ' hour' + (hoursVal > 1 ? 's' : ''))
-            + vsRow('VHEcoPoint Reward', '-1 Free Hour (' + pointsNeeded.toLocaleString() + ' pts)', 'vs-good')
+            + vsRow('Reward', '-1 Free Hour (' + pointsNeeded.toLocaleString() + ' pts)', 'vs-good')
             + vsRow('Paid Duration', paidHours + ' hour' + (paidHours !== 1 ? 's' : ''))
             + '</div>';
 
           summaryHTML += '<div class="vs-section vs-payment">'
             + '<div class="vs-section-title">Payment Summary</div>'
             + vsRow('Original Amount', '₱' + fullBase.toFixed(2))
-            + vsRow('VHEcoPoint Discount', '-₱' + discountVal.toFixed(2), 'vs-good')
+            + vsRow('VHEcoPoint Discount', '-₱' + discountVal.toFixed(2) + ' (' + pointsNeeded.toLocaleString() + ' pts)', 'vs-good')
             + vsRow('Final Amount', '₱' + chargedAmount.toFixed(2), 'vs-final-row')
             + vsRow('Downpayment', displayDownpayment, 'vs-dp-row')
             + '</div>';
@@ -3484,6 +3546,26 @@ async function changePersons(val){
         }
       });
     }
+  })();
+
+  (function(){
+    const modal = document.getElementById('pointsRedemptionConfirmModal');
+    const cancelBtn = document.getElementById('pointsRedemptionCancelBtn');
+    const closeBtn = document.getElementById('pointsRedemptionCloseBtn');
+    const confirmBtn = document.getElementById('pointsRedemptionConfirmBtn');
+    if (cancelBtn) cancelBtn.addEventListener('click', function(){
+      setRedemptionConfirmed(false);
+      closePointsRedemptionConfirm();
+    });
+    if (closeBtn) closeBtn.addEventListener('click', function(){
+      setRedemptionConfirmed(false);
+      closePointsRedemptionConfirm();
+    });
+    if (confirmBtn) confirmBtn.addEventListener('click', function(){
+      setRedemptionConfirmed(true);
+      closePointsRedemptionConfirm();
+      showToast('VHEcoPoint redemption confirmed.','success');
+    });
   })();
 
   (function(){
@@ -4399,10 +4481,13 @@ document.addEventListener('DOMContentLoaded', function() {
     if (usePointsToggle && eligible) {
       usePointsToggle.checked = true;
       usePoints = true;
+      setRedemptionConfirmed(false);
       updateRedemptionInfo();
+      showPointsRedemptionConfirm();
     } else if (usePointsToggle) {
       usePointsToggle.checked = false;
       usePoints = false;
+      setRedemptionConfirmed(false);
     }
   }
 

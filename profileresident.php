@@ -58,6 +58,8 @@ if (!empty($_SESSION['report_wait_popup'])) {
   unset($_SESSION['report_wait_popup'], $_SESSION['report_wait_message']);
 }
 $flashNotice = $_SESSION['flash_notice'] ?? '';
+$isEcoRedeem = (strpos($flashNotice, '[redemption]') !== false);
+$flashNoticeClean = $isEcoRedeem ? str_replace(' [redemption]', '', $flashNotice) : $flashNotice;
 if ($flashNotice !== '') {
   unset($_SESSION['flash_notice'], $_SESSION['flash_ref_code']);
 }
@@ -1342,7 +1344,12 @@ body.account-blocked { overflow: hidden; }
 #guestPassModal .guest-pass-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
 #guestPassModal .guest-pass-link { display: inline-flex; margin-top: 10px; color: #4f46e5; text-decoration: underline; font-size: 0.9rem; }
 #submitNoticeModal { display: flex; align-items: center; justify-content: center; }
-#submitNoticeModal .modal-content { width: 92%; max-width: 420px; padding: 24px; text-align: center; height: auto; min-height: unset; }
+#submitNoticeModal .modal-content { width: 92%; max-width: 420px; max-height: min(90vh, 560px); padding: 16px 20px 14px; text-align: center; height: auto; min-height: unset; overflow-y: auto; }
+#submitNoticeModal .notice-success-icon { width: 42px; height: 42px; margin: 0 auto 7px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #eaf6ee; border: 2px solid #34a853; color: #21734e; font-size: 1.25rem; line-height: 1; }
+#submitNoticeModal .notice-success-icon i { line-height: 1; }
+#submitNoticeModal .notice-title { margin: 0 0 4px !important; font-size: 1.1rem !important; line-height: 1.3; }
+#submitNoticeModal .notice-message { margin: 0 !important; font-size: .88rem !important; line-height: 1.4; }
+#submitNoticeModal .notice-close { margin-top: 10px !important; padding: 8px 15px !important; line-height: 1.2; }
 #submitNoticeModal .close { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border-radius: 50%; background: #e5e7eb; color: #111827; border: 0; display: flex; align-items: center; justify-content: center; line-height: 1; padding: 0; cursor: pointer; }
 
     /* Fix for Resident Dashboard Modal to ensure it fits screen and close button is visible */
@@ -1642,8 +1649,18 @@ body.qr-modal-open{ overflow:hidden }
     font-size: 1.1rem !important;
     color: #23412e;
   }
+  #submitNoticeModal .notice-success-icon {
+    width: 38px;
+    height: 38px;
+    margin: 0 auto 7px !important;
+    font-size: 1.1rem !important;
+  }
+  #submitNoticeModal .modal-content > .notice-title,
+  #submitNoticeModal .modal-content > .notice-message {
+    margin-bottom: 0 !important;
+  }
   #submitNoticeModal #submitNoticeBtn {
-    margin-top: 12px !important;
+    margin-top: 10px !important;
   }
   #verifyModal #verifySummary {
     margin-top: 6px !important;
@@ -2453,6 +2470,58 @@ body.qr-modal-open{ overflow:hidden }
   font-weight: 600;
   line-height: 1.45;
 }
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-paynote-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 11px 12px;
+  border: 1px solid #f2d79b;
+  border-left: 3px solid #c78a18;
+  border-radius: 8px;
+  background: #fff8e6;
+  color: #795b19;
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-paynote-warn::before {
+  content: "\f05a";
+  flex: 0 0 auto;
+  margin-top: 2px;
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  color: #b7791f;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-paynote-ok {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-left: 3px solid #21734e;
+  border-radius: 6px;
+  background: #eef8f1;
+  color: #245b40;
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-paynote-ok:last-child {
+  margin-top: 6px;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-none {
+  font-size: 0.84rem;
+  color: #6b7280;
+  line-height: 1.45;
+}
+#panel-requests .list-item.expanded[data-type="reservation"] .rst-none-ok {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-left: 3px solid #21734e;
+  border-radius: 6px;
+  background: #eef8f1;
+  color: #245b40;
+  font-weight: 600;
+}
 #panel-requests .list-item.expanded[data-type="reservation"] .rst-proof {
   display: grid;
   grid-template-columns: 170px minmax(0, 1fr);
@@ -2980,9 +3049,12 @@ body.modal-open{overflow:hidden}
   <div id="submitNoticeModal" class="modal" style="display:flex;">
     <div class="modal-content" style="max-width:420px;text-align:center;">
       <button type="button" class="close" id="submitNoticeClose" aria-label="Close">&times;</button>
-      <div style="font-size:1.1rem;font-weight:700;color:#23412e;margin-bottom:6px;">Request submitted</div>
-      <div style="color:#555;"><?php echo htmlspecialchars($flashNotice); ?></div>
-      <button type="button" id="submitNoticeBtn" style="margin-top:18px;background:#23412e;color:#fff;border:none;border-radius:8px;padding:10px 16px;cursor:pointer;font-weight:600;">Close</button>
+      <?php if ($isEcoRedeem) { ?>
+        <div class="notice-success-icon" aria-hidden="true"><i class="fa-solid fa-check"></i></div>
+      <?php } ?>
+      <div class="notice-title" style="font-size:1.1rem;font-weight:700;color:#23412e;margin-bottom:6px;"><?php echo $isEcoRedeem ? 'VHEcoPoint Redemption Successful' : 'Request submitted'; ?></div>
+      <div class="notice-message" style="color:#555;"><?php echo htmlspecialchars($flashNoticeClean); ?></div>
+      <button type="button" class="notice-close" id="submitNoticeBtn" style="margin-top:18px;background:#23412e;color:#fff;border:none;border-radius:8px;padding:10px 16px;cursor:pointer;font-weight:600;">Close</button>
     </div>
   </div>
   <script>
@@ -4655,7 +4727,7 @@ body.modal-open{overflow:hidden}
     if(type==='reservation' && paymentStatus==='rejected' && (isNaN(attempts)?0:attempts)>=3){
       isApproved=false;
     }
-    var payVerified = (type==='reservation' && isApproved);
+    var payVerified = (type==='reservation' && paymentStatus==='verified');
     if(isApproved) {
         if(type==='guest_form') statusNote='Guest Request Approved';
         else statusNote='This request is approved. Use this QR pass at the gate.';
@@ -4823,6 +4895,12 @@ body.modal-open{overflow:hidden}
       var parts = abs.split('.');
       parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
       return (num < 0 ? '-' : '') + '₱' + parts[0] + '.' + parts[1];
+    }
+    function reservationHourlyRate(amenity){
+      if(amenity === 'Basketball Court' || amenity === 'Tennis Court') return 100;
+      if(amenity === 'Clubhouse') return 300;
+      if(amenity === 'Multi-Purpose Building') return 200;
+      return 0;
     }
     function resStatusLabel(rawStatusValue){
       var sv=String(rawStatusValue||'').toLowerCase();
@@ -5005,44 +5083,77 @@ body.modal-open{overflow:hidden}
         bookingCells+=rstCell('Duration', durationLabel || '—');
         bookingCells+=rstCell('No. of Persons', personsRaw !== '' ? personsRaw + ' Pax' : '—');
         bookingCells+=rstCell('Booked By', reservedBy || 'Resident');
-        bookingCells+=rstCell('Payment Status', payVerified ? 'Payment Verified' : paymentStatusLabel(paymentStatus, receiptPath!==''));
+        var originalHoursNum = computeReservationDurationHoursNumber(startTimeRaw, endTimeRaw);
+        var fullyRedeemed = (parseInt(usePointsRaw,10) === 1) && Math.abs(originalHoursNum - 1) < 0.001;
+        bookingCells+=rstCell('Payment Status', fullyRedeemed ? 'Fully Redeemed' : (payVerified ? 'Payment Verified' : paymentStatusLabel(paymentStatus, receiptPath!=='')));
         bookingCells+=rstCell('Reservation Status', statusLabelTxt);
         html+='<div class="rst-section"><div class="rst-title">Amenity Booking Details</div><div class="rst-grid">'+bookingCells+'</div></div>';
       }
       if(type==='guest_form'){
         html+=guestInfoSection();
       }
-      if(type==='reservation' && (priceRaw!=='' || downpaymentRaw!=='' || receiptPath!=='' || payVerified)){
-        var totalTxt = priceRaw!=='' ? fmtMoney(priceRaw) : '—';
-        var requiredDp = priceRaw!=='' ? fmtMoney(Math.round(parseFloat(priceRaw)*50)/100) : '—';
-        var dpNum = 0;
-        if(payVerified && priceRaw!==''){
-          dpNum = Math.max(Math.round(parseFloat(priceRaw)*50)/100, downpaymentRaw!=='' ? (parseFloat(downpaymentRaw)||0) : 0);
-        } else if(downpaymentRaw!==''){
-          var parsedDp = parseFloat(downpaymentRaw);
-          dpNum = isNaN(parsedDp) ? 0 : parsedDp;
-        }
-        var dpTxt = dpNum>0 ? fmtMoney(dpNum) : '—';
-        var remainingTxt = '—';
-        if(priceRaw!==''){
-          remainingTxt = fmtMoney(Math.max(0, parseFloat(priceRaw) - dpNum));
-        }
-        var payCells='';
-        payCells+=rstCell('Final Amount', totalTxt);
-        payCells+=rstCell('Required Downpayment', requiredDp);
-        payCells+=rstCell('Downpayment Paid', dpTxt);
-        payCells+=rstCell('Remaining Balance', remainingTxt);
+      if(type==='reservation' && (priceRaw!=='' || downpaymentRaw!=='' || receiptPath!=='' || payVerified || fullyRedeemed)){
         var pointsUsed = parseInt(pointsUsedRaw,10) || 0;
         var usedEcoPoints = (parseInt(usePointsRaw,10) === 1) && pointsUsed > 0;
-        if(usedEcoPoints){
-          var originalHours = computeReservationDurationHoursNumber(startTimeRaw, endTimeRaw);
-          var paidHours = Math.max(0, originalHours - 1);
-          payCells+=rstCell('Original Duration', fmtDurationHours(originalHours));
-          payCells+=rstCell('VHEcoPoint Reward', '-1 Free Hour (' + pointsUsed.toLocaleString() + ' pts)');
-          payCells+=rstCell('Paid Duration', fmtDurationHours(paidHours));
+        var hasSubmittedProof = receiptPath !== '' || paymentStatus === 'submitted' || paymentStatus === 'pending_update' || paymentStatus === 'verified';
+        var downpaymentLabel = paymentStatus === 'verified' ? 'Downpayment Verified' : (hasSubmittedProof ? 'Downpayment Submitted' : 'Downpayment Required');
+        var payCells='';
+        if(fullyRedeemed){
+          var fullyRedeemedRate = reservationHourlyRate(amenityName);
+          payCells+=rstCell('Original Duration', fmtDurationHours(originalHoursNum));
+          payCells+=rstCell('VHEcoPoint Redemption', 'Fully Redeemed');
+          payCells+=rstCell('Reward', '-1 Free Hour (' + pointsUsed.toLocaleString() + ' pts)');
+          payCells+=rstCell('Paid Duration', fmtDurationHours(0));
+          payCells+=rstCell('Original Amount', fmtMoney(fullyRedeemedRate));
+          payCells+=rstCell('VHEcoPoint Discount', '-' + fmtMoney(fullyRedeemedRate) + ' (' + pointsUsed.toLocaleString() + ' pts)');
+          payCells+=rstCell('Final Amount', fmtMoney(0));
+          payCells+=rstCell('Required Downpayment', fmtMoney(0));
+          payCells+=rstCell('Downpayment Paid', 'Not Required');
+          payCells+=rstCell('Remaining Balance', fmtMoney(0));
+        } else {
+          var totalTxt = priceRaw!=='' ? fmtMoney(priceRaw) : '—';
+          var requiredDp = priceRaw!=='' ? fmtMoney(Math.round(parseFloat(priceRaw)*50)/100) : '—';
+          var dpNum = 0;
+          if(payVerified && priceRaw!==''){
+            dpNum = Math.max(Math.round(parseFloat(priceRaw)*50)/100, downpaymentRaw!=='' ? (parseFloat(downpaymentRaw)||0) : 0);
+          } else if(downpaymentRaw!==''){
+            var parsedDp = parseFloat(downpaymentRaw);
+            dpNum = isNaN(parsedDp) ? 0 : parsedDp;
+          }
+          if(dpNum <= 0 && hasSubmittedProof && priceRaw!==''){
+            dpNum = Math.round(parseFloat(priceRaw)*50)/100;
+          }
+          var dpTxt = dpNum>0 ? fmtMoney(dpNum) : (hasSubmittedProof ? requiredDp : '—');
+          var remainingTxt = '—';
+          if(priceRaw!==''){
+            remainingTxt = fmtMoney(Math.max(0, parseFloat(priceRaw) - dpNum));
+          }
+          if(usedEcoPoints){
+            var paidHours = Math.max(0, originalHoursNum - 1);
+            var discountAmount = reservationHourlyRate(amenityName);
+            var originalAmount = parseFloat(priceRaw) + discountAmount;
+            payCells+=rstCell('VHEcoPoint Redemption', 'Discounted Redemption');
+            payCells+=rstCell('Original Duration', fmtDurationHours(originalHoursNum));
+            payCells+=rstCell('Reward', '-1 Free Hour (' + pointsUsed.toLocaleString() + ' pts)');
+            payCells+=rstCell('Paid Duration', fmtDurationHours(paidHours));
+            payCells+=rstCell('Original Amount', fmtMoney(originalAmount));
+            payCells+=rstCell('VHEcoPoint Discount', '-' + fmtMoney(discountAmount) + ' (' + pointsUsed.toLocaleString() + ' pts)');
+            payCells+=rstCell('Final Amount', totalTxt);
+            payCells+=rstCell('Required Downpayment', requiredDp);
+            payCells+=rstCell(downpaymentLabel, dpTxt);
+            payCells+=rstCell('Remaining Balance', remainingTxt);
+          } else {
+            payCells+=rstCell('Final Amount', totalTxt);
+            payCells+=rstCell('Required Downpayment', requiredDp);
+            payCells+=rstCell(downpaymentLabel, dpTxt);
+            payCells+=rstCell('Remaining Balance', remainingTxt);
+          }
         }
         var payNoteHtml='';
-        if(payVerified){
+        if(fullyRedeemed){
+          payNoteHtml+='<div class="rst-paynote rst-paynote-ok">♻ Fully Redeemed — 1 Free Hour</div>';
+          payNoteHtml+='<div class="rst-paynote rst-paynote-ok">No payment required. The entire 1-hour reservation was covered by the VHEcoPoint reward.</div>';
+        } else if(payVerified){
           payNoteHtml+='<div class="rst-paynote rst-paynote-ok">Downpayment verified — Remaining '+esc(remainingTxt)+' payable at the Administration Office</div>';
         } else if(paymentStatus==='verified'){
           payNoteHtml+='<div class="rst-paynote rst-paynote-ok">Payment verified.</div>';
@@ -5051,8 +5162,10 @@ body.modal-open{overflow:hidden}
           payNoteHtml+='<div class="rst-paynote rst-paynote-bad">Payment rejected. Please check the notice below.</div>';
         } else if(paymentStatus==='pending_update'){
           payNoteHtml+='<div class="rst-paynote rst-paynote-warn">Payment proof resubmitted. Awaiting verification.</div>';
+        } else if (hasSubmittedProof) {
+          payNoteHtml+='<div class="rst-paynote rst-paynote-warn">Downpayment submitted — Awaiting admin verification. Remaining '+esc(remainingTxt)+' payable at the Administration Office after approval.</div>';
         } else {
-          payNoteHtml+='<div class="rst-paynote rst-paynote-balance">Downpayment Paid — Remaining '+esc(remainingTxt)+' payable at the Administration Office</div>';
+          payNoteHtml+='<div class="rst-paynote rst-paynote-balance">Downpayment proof not yet submitted — Required '+esc(requiredDp)+' before the reservation can be reviewed.</div>';
         }
         html+='<div class="rst-section"><div class="rst-title">Payment Details</div><div class="rst-grid">'+payCells+'</div>'+(payNoteHtml?payNoteHtml:'')+'</div>';
       }
@@ -5078,6 +5191,8 @@ body.modal-open{overflow:hidden}
           if(proofTime){ proofHtml+='<div class="rst-proof-time">Uploaded: '+esc(proofTime)+'</div>'; }
           proofHtml+='<a class="rst-proof-open" href="'+esc(proofUrl)+'" target="_blank" rel="noopener"><i class="fa-solid fa-up-right-from-square"></i> Open file</a>';
           proofHtml+='</div></div>';
+        } else if(fullyRedeemed){
+          proofHtml+='<div class="rst-none rst-none-ok">No proof of payment required — this reservation was fully covered by the VHEcoPoint reward.</div>';
         } else {
           proofHtml+='<div class="rst-none">No proof of payment uploaded</div>';
         }

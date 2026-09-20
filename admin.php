@@ -5176,6 +5176,68 @@ body.modal-open { overflow: hidden; }
 #visitorDetailsContent .st-pending, #residentReservationDetailsContent .st-pending, #reservationDetailsContent .st-pending, #priceDetailsContent .st-pending { background: #ffedd5; color: #c2410c; }
 #visitorDetailsContent .st-denied, #residentReservationDetailsContent .st-denied, #reservationDetailsContent .st-denied, #priceDetailsContent .st-denied { background: #fee2e2; color: #991b1b; }
 #visitorDetailsContent .st-expired, #residentReservationDetailsContent .st-expired, #reservationDetailsContent .st-expired, #priceDetailsContent .st-expired { background: #f3f4f6; color: #4b5563; }
+#reservationDetailsContent .eco-badge, #residentReservationDetailsContent .eco-badge {
+  display: flex;
+  flex: 0 0 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: transparent;
+  font-size: 0;
+  white-space: normal;
+}
+#reservationDetailsContent .eco-badge::before, #residentReservationDetailsContent .eco-badge::before {
+  content: "♻ VHEcoPoint Reward Used";
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: #ccfbf1;
+  color: #0f766e;
+  border: 1px solid #5eead4;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+#reservationDetailsContent .eco-confirm-btn, #residentReservationDetailsContent .eco-confirm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  margin: 0;
+  padding: 7px 12px;
+  border: 1px solid #0f766e;
+  border-radius: 6px;
+  background: #0f766e;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+}
+#reservationDetailsContent .eco-confirm-btn:hover, #residentReservationDetailsContent .eco-confirm-btn:hover {
+  background: #115e59;
+  border-color: #115e59;
+}
+@media (max-width: 600px) {
+  #reservationDetailsContent .eco-badge, #residentReservationDetailsContent .eco-badge {
+    flex-basis: 100%;
+    width: 100%;
+  }
+  #reservationDetailsContent .eco-confirm-btn, #residentReservationDetailsContent .eco-confirm-btn {
+    white-space: normal;
+    text-align: center;
+  }
+}
 #visitorDetailsContent .price-section,
 #residentReservationDetailsContent .price-section,
 #reservationDetailsContent .price-section,
@@ -7751,6 +7813,41 @@ window.onclick = function(event) {
 </div>
 
 <script>
+function amenityHourlyRate(amenityName){
+  const a = String(amenityName||'').toLowerCase();
+  if(a.indexOf('basketball') !== -1) return 100;
+  if(a.indexOf('clubhouse') !== -1) return 300;
+  if(a.indexOf('multi') !== -1 || a.indexOf('purpose') !== -1) return 200;
+  if(a.indexOf('tennis') !== -1) return 100;
+  return 0;
+}
+function durationHours(startTimeRaw, endTimeRaw){
+  const sc = String(startTimeRaw||'').split(':');
+  const ec = String(endTimeRaw||'').split(':');
+  if(sc.length < 2 || ec.length < 2) return 0;
+  const sh = parseInt(sc[0],10) || 0, sm = parseInt(sc[1],10) || 0;
+  const eh = parseInt(ec[0],10) || 0, em = parseInt(ec[1],10) || 0;
+  return Math.max(0, ((eh*60+em) - (sh*60+sm)) / 60);
+}
+function fmtMoney(n){ return '₱' + (Number(n)||0).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2}); }
+function fmtNum(n){ return (Number(n)||0).toLocaleString(); }
+function buildReservationPriceBlock(details){
+  const total = parseFloat(details.price);
+  if (!Number.isFinite(total)) return '';
+  const requiredDownpayment = Math.max(0, total * 0.5);
+  const hasDownpayment = details.downpayment !== null && details.downpayment !== undefined && details.downpayment !== '';
+  const paidDownpayment = hasDownpayment ? (parseFloat(details.downpayment) || 0) : requiredDownpayment;
+  const remainingBalance = Math.max(0, total - paidDownpayment);
+  const paymentStatus = String(details.payment_status || 'pending').toLowerCase();
+  const paymentLabel = paymentStatus === 'verified' ? 'Verified' : (paymentStatus === 'rejected' ? 'Rejected' : 'Submitted - Awaiting Verification');
+  return `<div class="price-section">
+    <div class="info-row total-price"><span class="info-label">Total Price</span><span class="info-value">${fmtMoney(total)}</span></div>
+    <div class="info-row price-down"><span class="info-label">Required Downpayment</span><span class="info-value">${fmtMoney(requiredDownpayment)}</span></div>
+    <div class="info-row price-down"><span class="info-label">Downpayment Paid</span><span class="info-value">${fmtMoney(paidDownpayment)}</span></div>
+    <div class="info-row price-balance"><span class="info-label">Remaining Balance</span><span class="info-value">${fmtMoney(remainingBalance)}</span></div>
+    <div class="info-row"><span class="info-label">Payment Status</span><span class="info-value">${paymentLabel}</span></div>
+  </div>`;
+}
 function showReservationDetails(reservationId, expectedType){
   var c = document.getElementById('reservationDetailsContent');
   if(c){ c.innerHTML = '<div style="padding:20px;text-align:center;">Loading...</div>'; }
@@ -7785,16 +7882,64 @@ function showReservationDetails(reservationId, expectedType){
       else if ((approvalStatus.includes('denied') || approvalStatus.includes('reject')) || (ps==='rejected' && att>=3)) { stClass = 'st-denied'; stLabel = (ps==='rejected' && att>=3) ? 'Denied – Max Attempts Reached' : 'Denied'; }
       else if (approvalStatus.includes('cancel')) { stClass = 'st-denied'; stLabel = 'Cancelled'; }
       else if (approvalStatus.includes('expire')) { stClass = 'st-expired'; stLabel = 'Expired'; }
-      const priceBlock = d.price ? (()=>{ 
-        const total=parseFloat(d.price)||0; 
-        const dp=(d.downpayment!=null?parseFloat(d.downpayment):Math.max(0,total*0.5)); 
-        const rem=Math.max(0,total-dp); 
+      const isFullyRedeemed = (parseInt(d.use_points,10) === 1 && parseInt(d.points_used,10) > 0 && Math.abs(durationHours(d.start_time, d.end_time) - 1) < 0.001);
+      const pointsUsed = (parseInt(d.use_points,10) === 1) ? (parseInt(d.points_used,10) || 0) : 0;
+      const discountValue = pointsUsed > 0 ? (amenityHourlyRate(d.amenity) || 0) : 0;
+      const payMethodBlock = (pointsUsed > 0) ? (isFullyRedeemed ? (()=>{ 
+        const pts = pointsUsed;
+        const rate = amenityHourlyRate(d.amenity) || 0;
         return `<div class="price-section">
-          <div class="info-row total-price"><span class="info-label">Total Price</span><span class="info-value">₱${total.toLocaleString()}</span></div>
-          <div class="info-row price-down"><span class="info-label">Online Payment (Partial)</span><span class="info-value">₱${dp.toLocaleString()}</span></div>
-          <div class="info-row price-balance"><span class="info-label">Onsite Payment (Remaining)</span><span class="info-value">₱${rem.toLocaleString()}</span></div>
+          <div class="info-row"><span class="info-label">VHEcoPoint Redemption</span><span class="info-value">Fully Redeemed</span></div>
+          <div class="info-row"><span class="info-label">Original Duration</span><span class="info-value">1 hour</span></div>
+          <div class="info-row"><span class="info-label">Reward</span><span class="info-value">-1 Free Hour (${fmtNum(pts)} pts)</span></div>
+          <div class="info-row"><span class="info-label">Paid Duration</span><span class="info-value">0 hours</span></div>
+          <div class="info-row"><span class="info-label">Original Amount</span><span class="info-value">${fmtMoney(rate)}</span></div>
+          <div class="info-row price-down"><span class="info-label">VHEcoPoint Discount</span><span class="info-value">-${fmtMoney(rate)} (${fmtNum(pts)} pts)</span></div>
+          <div class="info-row total-price"><span class="info-label">Final Amount</span><span class="info-value">${fmtMoney(0)}</span></div>
+          <div class="info-row price-down"><span class="info-label">Downpayment</span><span class="info-value">${fmtMoney(0)}</span></div>
+          <div class="info-row price-balance"><span class="info-label">Remaining Balance</span><span class="info-value">${fmtMoney(0)}</span></div>
+          <div class="info-row total-price"><span class="info-label">Payment Status</span><span class="info-value">Fully Redeemed</span></div>
         </div>`; 
-      })() : '';
+      })() : (()=>{
+        const hours = durationHours(d.start_time, d.end_time);
+        const rate = amenityHourlyRate(d.amenity) || 0;
+        const finalAmount = parseFloat(d.price) || Math.max(0, hours - 1) * rate;
+        const originalAmount = hours * rate;
+        const requiredDownpayment = finalAmount * 0.5;
+        const paidDownpayment = d.downpayment != null && parseFloat(d.downpayment) > 0 ? parseFloat(d.downpayment) : requiredDownpayment;
+        const remainingBalance = Math.max(0, finalAmount - paidDownpayment);
+        const paymentLabel = ps === 'verified' ? 'Verified' : (ps === 'rejected' ? 'Rejected' : 'Submitted - Awaiting Verification');
+        return `<div class="price-section">
+          <div class="info-row"><span class="info-label">VHEcoPoint Redemption</span><span class="info-value">Discounted Redemption</span></div>
+          <div class="info-row"><span class="info-label">Original Duration</span><span class="info-value">${hours} hours</span></div>
+          <div class="info-row"><span class="info-label">Reward</span><span class="info-value">-1 Free Hour (${fmtNum(pointsUsed)} pts)</span></div>
+          <div class="info-row"><span class="info-label">Paid Duration</span><span class="info-value">${Math.max(0, hours - 1)} hours</span></div>
+          <div class="info-row"><span class="info-label">Original Amount</span><span class="info-value">${fmtMoney(originalAmount)}</span></div>
+          <div class="info-row price-down"><span class="info-label">VHEcoPoint Discount</span><span class="info-value">-${fmtMoney(discountValue)} (${fmtNum(pointsUsed)} pts)</span></div>
+          <div class="info-row total-price"><span class="info-label">Final Amount</span><span class="info-value">${fmtMoney(finalAmount)}</span></div>
+          <div class="info-row price-down"><span class="info-label">Required Downpayment</span><span class="info-value">${fmtMoney(requiredDownpayment)}</span></div>
+          <div class="info-row price-down"><span class="info-label">Downpayment</span><span class="info-value">${fmtMoney(paidDownpayment)}</span></div>
+          <div class="info-row price-balance"><span class="info-label">Remaining Balance</span><span class="info-value">${fmtMoney(remainingBalance)}</span></div>
+          <div class="info-row total-price"><span class="info-label">Payment Status</span><span class="info-value">${paymentLabel}</span></div>
+        </div>`;
+      })()) : '';
+      const ecoBadge = (pointsUsed > 0) ? `<span class="status-badge-lg eco-badge">♻ VHEcoPoint Reward Used <a class="eco-confirm-btn" href="?page=smart_waste_logs" target="_blank" rel="noopener">Confirm in VHEcoPoint</a></span>` : '';
+      const redemptionSection = (pointsUsed > 0) ? (`
+        <div class="section-title">VHEcoPoint Redemption</div>
+        <div class="info-grid">
+          <div class="info-row"><span class="info-label">Resident</span><span class="info-value">${isResidentGuest ? (guestName || 'Resident’s Guest') : residentName}</span></div>
+          ${d.ref_code?`<div class="info-row"><span class="info-label">Reservation Reference</span><span class="info-value">${d.ref_code}</span></div>`:''}
+          ${d.amenity?`<div class="info-row"><span class="info-label">Amenity</span><span class="info-value">${d.amenity}</span></div>`:''}
+          ${d.start_date?`<div class="info-row"><span class="info-label">Reservation Date</span><span class="info-value">${fmtDate(d.start_date)}</span></div>`:''}
+          ${fmtDuration(d.start_time,d.end_time)?`<div class="info-row"><span class="info-label">Reserved Duration</span><span class="info-value">${fmtDuration(d.start_time,d.end_time)}</span></div>`:''}
+          <div class="info-row"><span class="info-label">Points Redeemed</span><span class="info-value">${fmtNum(pointsUsed)} pts</span></div>
+          <div class="info-row"><span class="info-label">Reward</span><span class="info-value">1 Free Hour</span></div>
+          <div class="info-row"><span class="info-label">Discount / Savings</span><span class="info-value">${fmtMoney(discountValue)}</span></div>
+          <div class="info-row"><span class="info-label">Redemption Status</span><span class="info-value">${isFullyRedeemed ? 'Fully Redeemed' : 'Partially Redeemed'}</span></div>
+          <div class="info-row" style="flex-wrap:wrap;"><span class="info-label">Note</span><span class="info-value" style="font-weight:500;font-size:0.85rem;">No payment proof is required for the redeemed portion.</span></div>
+        </div>
+      `) : '';
+      const priceBlock = buildReservationPriceBlock(d);
       const pointsBlock = (parseInt(d.use_points,10) === 1 && parseInt(d.points_used,10) > 0) ? (()=>{
         const pts = parseInt(d.points_used,10) || 0;
         return `<div class="price-section">
@@ -7820,7 +7965,7 @@ function showReservationDetails(reservationId, expectedType){
       const denialHtml = '';
       const content = `
         <div class="request-details">
-          <div class="request-status"><span class="status-badge-lg ${stClass}">${stLabel}</span></div>
+          <div class="request-status" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><span class="status-badge-lg ${stClass}">${stLabel}</span>${ecoBadge}</div>
           <div class="section-title">${whoLabel} Information</div>
           <div class="info-grid">
             ${displayName?`<div class="info-row"><span class="info-label">Name</span><span class="info-value">${displayName}</span></div>`:''}
@@ -7847,9 +7992,9 @@ function showReservationDetails(reservationId, expectedType){
             ${d.end_time?`<div class="info-row"><span class="info-label">End Time</span><span class="info-value">${fmtTime(d.end_time)}</span></div>`:''}
             ${fmtDuration(d.start_time,d.end_time)?`<div class="info-row"><span class="info-label">Duration</span><span class="info-value">${fmtDuration(d.start_time,d.end_time)}</span></div>`:''}
             ${d.persons?`<div class="info-row"><span class="info-label">Persons</span><span class="info-value">${d.persons}</span></div>`:''}
-            ${priceBlock}
-            ${pointsBlock}
+            ${pointsUsed > 0 ? payMethodBlock : (priceBlock + pointsBlock)}
           </div>
+          
           ${receiptHtml}
           ${denialHtml}
           <div class="section-title">Request Status</div>
@@ -7910,6 +8055,63 @@ function showResidentReservationDetails(rrId){
       const psClass = ps==='verified'?'badge-approved':(ps==='rejected'?'badge-rejected':'badge-pending');
       const residentName = [d.first_name||'', d.middle_name||'', d.last_name||''].join(' ').replace(/\s+/g,' ').trim();
       const guestName = [d.guest_first_name||'', d.guest_middle_name||'', d.guest_last_name||''].join(' ').replace(/\s+/g,' ').trim();
+      const isFullyRedeemed2 = (parseInt(d.use_points,10) === 1 && parseInt(d.points_used,10) > 0 && Math.abs(durationHours(d.start_time, d.end_time) - 1) < 0.001);
+      const pointsUsed2 = (parseInt(d.use_points,10) === 1) ? (parseInt(d.points_used,10) || 0) : 0;
+      const discountValue2 = pointsUsed2 > 0 ? (amenityHourlyRate(d.amenity) || 0) : 0;
+      const payMethodBlock2 = (pointsUsed2 > 0) ? (isFullyRedeemed2 ? (()=>{ 
+        const pts = pointsUsed2;
+        const rate = amenityHourlyRate(d.amenity) || 0;
+        return `<div class="price-section">
+          <div class="info-row"><span class="info-label">VHEcoPoint Redemption</span><span class="info-value">Fully Redeemed</span></div>
+          <div class="info-row"><span class="info-label">Original Duration</span><span class="info-value">1 hour</span></div>
+          <div class="info-row"><span class="info-label">Reward</span><span class="info-value">-1 Free Hour (${fmtNum(pts)} pts)</span></div>
+          <div class="info-row"><span class="info-label">Paid Duration</span><span class="info-value">0 hours</span></div>
+          <div class="info-row"><span class="info-label">Original Amount</span><span class="info-value">${fmtMoney(rate)}</span></div>
+          <div class="info-row price-down"><span class="info-label">VHEcoPoint Discount</span><span class="info-value">-${fmtMoney(rate)} (${fmtNum(pts)} pts)</span></div>
+          <div class="info-row total-price"><span class="info-label">Final Amount</span><span class="info-value">${fmtMoney(0)}</span></div>
+          <div class="info-row price-down"><span class="info-label">Downpayment</span><span class="info-value">${fmtMoney(0)}</span></div>
+          <div class="info-row price-balance"><span class="info-label">Remaining Balance</span><span class="info-value">${fmtMoney(0)}</span></div>
+          <div class="info-row total-price"><span class="info-label">Payment Status</span><span class="info-value">Fully Redeemed</span></div>
+        </div>`; 
+      })() : (()=>{
+        const hours = durationHours(d.start_time, d.end_time);
+        const rate = amenityHourlyRate(d.amenity) || 0;
+        const finalAmount = parseFloat(d.price) || Math.max(0, hours - 1) * rate;
+        const originalAmount = hours * rate;
+        const requiredDownpayment = finalAmount * 0.5;
+        const paidDownpayment = d.downpayment != null && parseFloat(d.downpayment) > 0 ? parseFloat(d.downpayment) : requiredDownpayment;
+        const remainingBalance = Math.max(0, finalAmount - paidDownpayment);
+        const paymentLabel = ps === 'verified' ? 'Verified' : (ps === 'rejected' ? 'Rejected' : 'Submitted - Awaiting Verification');
+        return `<div class="price-section">
+          <div class="info-row"><span class="info-label">VHEcoPoint Redemption</span><span class="info-value">Discounted Redemption</span></div>
+          <div class="info-row"><span class="info-label">Original Duration</span><span class="info-value">${hours} hours</span></div>
+          <div class="info-row"><span class="info-label">Reward</span><span class="info-value">-1 Free Hour (${fmtNum(pointsUsed2)} pts)</span></div>
+          <div class="info-row"><span class="info-label">Paid Duration</span><span class="info-value">${Math.max(0, hours - 1)} hours</span></div>
+          <div class="info-row"><span class="info-label">Original Amount</span><span class="info-value">${fmtMoney(originalAmount)}</span></div>
+          <div class="info-row price-down"><span class="info-label">VHEcoPoint Discount</span><span class="info-value">-${fmtMoney(discountValue2)} (${fmtNum(pointsUsed2)} pts)</span></div>
+          <div class="info-row total-price"><span class="info-label">Final Amount</span><span class="info-value">${fmtMoney(finalAmount)}</span></div>
+          <div class="info-row price-down"><span class="info-label">Required Downpayment</span><span class="info-value">${fmtMoney(requiredDownpayment)}</span></div>
+          <div class="info-row price-down"><span class="info-label">Downpayment</span><span class="info-value">${fmtMoney(paidDownpayment)}</span></div>
+          <div class="info-row price-balance"><span class="info-label">Remaining Balance</span><span class="info-value">${fmtMoney(remainingBalance)}</span></div>
+          <div class="info-row total-price"><span class="info-label">Payment Status</span><span class="info-value">${paymentLabel}</span></div>
+        </div>`;
+      })()) : '';
+      const ecoBadge2 = (pointsUsed2 > 0) ? `<span class="status-badge-lg eco-badge">♻ VHEcoPoint Reward Used <a class="eco-confirm-btn" href="?page=smart_waste_logs" target="_blank" rel="noopener">Confirm in VHEcoPoint</a></span>` : '';
+      const redemptionSection2 = (pointsUsed2 > 0) ? (`
+        <div class="section-title">VHEcoPoint Redemption</div>
+        <div class="info-grid">
+          <div class="info-row"><span class="info-label">Resident</span><span class="info-value">${isResidentGuest ? (guestName || 'Resident’s Guest') : residentName}</span></div>
+          ${d.ref_code?`<div class="info-row"><span class="info-label">Reservation Reference</span><span class="info-value">${d.ref_code}</span></div>`:''}
+          ${d.amenity?`<div class="info-row"><span class="info-label">Amenity</span><span class="info-value">${d.amenity}</span></div>`:''}
+          ${d.start_date?`<div class="info-row"><span class="info-label">Reservation Date</span><span class="info-value">${fmtDate(d.start_date)}</span></div>`:''}
+          ${fmtDuration(d.start_time,d.end_time)?`<div class="info-row"><span class="info-label">Reserved Duration</span><span class="info-value">${fmtDuration(d.start_time,d.end_time)}</span></div>`:''}
+          <div class="info-row"><span class="info-label">Points Redeemed</span><span class="info-value">${fmtNum(pointsUsed2)} pts</span></div>
+          <div class="info-row"><span class="info-label">Reward</span><span class="info-value">1 Free Hour</span></div>
+          <div class="info-row"><span class="info-label">Discount / Savings</span><span class="info-value">${fmtMoney(discountValue2)}</span></div>
+          <div class="info-row"><span class="info-label">Redemption Status</span><span class="info-value">${isFullyRedeemed2 ? 'Fully Redeemed' : 'Partially Redeemed'}</span></div>
+          <div class="info-row" style="flex-wrap:wrap;"><span class="info-label">Note</span><span class="info-value" style="font-weight:500;font-size:0.85rem;">No payment proof is required for the redeemed portion.</span></div>
+        </div>
+      `) : '';
       
       const bookedByRole = (d.booked_by_role || '').toLowerCase();
       const bookedByName = d.booked_by_name || '';
@@ -7940,16 +8142,7 @@ function showResidentReservationDetails(rrId){
       else if (approvalStatus.includes('denied') || approvalStatus.includes('reject')) { stClass = 'st-denied'; stLabel = 'Denied'; }
       else if (approvalStatus.includes('cancel')) { stClass = 'st-denied'; stLabel = 'Cancelled'; }
       else if (approvalStatus.includes('expire')) { stClass = 'st-expired'; stLabel = 'Expired'; }
-      const priceBlock = d.price ? (()=>{ 
-        const total=parseFloat(d.price)||0; 
-        const dp=(d.downpayment!=null?parseFloat(d.downpayment):Math.max(0,total*0.5)); 
-        const rem=Math.max(0,total-dp); 
-        return `<div class="price-section">
-          <div class="info-row total-price"><span class="info-label">Total Price</span><span class="info-value">₱${total.toLocaleString()}</span></div>
-          <div class="info-row price-down"><span class="info-label">Online Payment (Partial)</span><span class="info-value">₱${dp.toLocaleString()}</span></div>
-          <div class="info-row price-balance"><span class="info-label">Onsite Payment (Remaining)</span><span class="info-value">₱${rem.toLocaleString()}</span></div>
-        </div>`; 
-      })() : '';
+      const priceBlock = buildReservationPriceBlock(d);
       const pointsBlock = (parseInt(d.use_points,10) === 1 && parseInt(d.points_used,10) > 0) ? (()=>{
         const pts = parseInt(d.points_used,10) || 0;
         return `<div class="price-section">
@@ -7979,7 +8172,7 @@ function showResidentReservationDetails(rrId){
       ) : '';
       const content = `
           <div class="request-details">
-            <div class="request-status"><span class="status-badge-lg ${stClass}">${stLabel}</span></div>
+            <div class="request-status" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><span class="status-badge-lg ${stClass}">${stLabel}</span>${ecoBadge2}</div>
             <div class="section-title">${primarySectionTitle} Information</div>
             <div class="info-grid">
               ${displayName?`<div class="info-row"><span class="info-label">Name</span><span class="info-value">${displayName}</span></div>`:''}
@@ -8006,10 +8199,10 @@ function showResidentReservationDetails(rrId){
               ${d.end_time?`<div class="info-row"><span class="info-label">End Time</span><span class="info-value">${fmtTime(d.end_time)}</span></div>`:''}
               ${fmtDuration(d.start_time,d.end_time)?`<div class="info-row"><span class="info-label">Duration</span><span class="info-value">${fmtDuration(d.start_time,d.end_time)}</span></div>`:''}
               ${d.persons?`<div class="info-row"><span class="info-label">Persons</span><span class="info-value">${d.persons}</span></div>`:''}
-              ${priceBlock}
-              ${pointsBlock}
-              <div class="info-row"><span class="info-label">Downpayment</span><span class="info-value"><span class="badge ${psClass}">${ps.charAt(0).toUpperCase()+ps.slice(1)}</span></span></div>
+              ${pointsUsed2 > 0 ? payMethodBlock2 : (priceBlock + pointsBlock)}
+              ${pointsUsed2 > 0 ? '' : `<div class="info-row"><span class="info-label">Downpayment</span><span class="info-value"><span class="badge ${psClass}">${ps.charAt(0).toUpperCase()+ps.slice(1)}</span></span></div>`}
             </div>
+            
             ${receiptHtml}
             ${denialHtml}
             <div class="section-title">Request Status</div>
