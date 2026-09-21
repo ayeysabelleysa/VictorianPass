@@ -37,6 +37,16 @@ if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') {
 if ($isReservationDetailsAjax) { session_write_close(); }
 
 function admin_status_link($code){ $scheme=(isset($_SERVER['HTTPS'])&&$_SERVER['HTTPS']==='on')?'https':'http'; $host=$_SERVER['HTTP_HOST']??'localhost'; $basePath=rtrim(dirname($_SERVER['SCRIPT_NAME']??'/VictorianPass'),'/'); return $scheme.'://'.$host.$basePath.'/qr_view.php?code='.urlencode($code); }
+function admin_receipt_url($storedPath){
+  $path = trim((string)$storedPath);
+  if ($path === '' || preg_match('#^(?:https?:)?//#i', $path) || stripos($path, 'data:') === 0) return $path;
+  $path = str_replace('\\', '/', $path);
+  $path = ltrim($path, '/');
+  $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/admin.php'), '/\\');
+  $segments = array_values(array_filter(explode('/', $path), static function($segment){ return $segment !== ''; }));
+  $encodedPath = implode('/', array_map('rawurlencode', $segments));
+  return ($basePath === '' || $basePath === '.') ? '/' . $encodedPath : $basePath . '/' . $encodedPath;
+}
 function admin_send_email($to,$subject,$body){
   if(!$to) return false;
   $fromName = getenv('MAIL_FROM_NAME') ?: 'VictorianPass';
@@ -1505,11 +1515,12 @@ function renderVerifyReceiptsCard($con){
             $canVerify = $ps !== 'verified';
             if (!empty($row['receipt_path'])) {
                   $rp = $row['receipt_path'];
+                  $receiptUrl = admin_receipt_url($rp);
                   $isPdf = (bool)preg_match('/\.pdf$/i', (string)$rp);
                   if ($isPdf) {
-                    echo '<td><a class="receipt-link" href="#" onclick="openReceiptModal(\'' . htmlspecialchars($rp) . '\', ' . ($canVerify ? intval($row['id']) : 0) . ', \'requests\'); return false;">Open Receipt (PDF)</a></td>';
+                    echo '<td><a class="receipt-link" href="#" onclick="openReceiptModal(' . htmlspecialchars(json_encode($receiptUrl), ENT_QUOTES, 'UTF-8') . ', ' . ($canVerify ? intval($row['id']) : 0) . ', \'requests\'); return false;">Open Receipt (PDF)</a></td>';
                   } else {
-                echo '<td><a class="receipt-link" href="#" onclick="openReceiptModal(\'' . htmlspecialchars($rp) . '\', ' . ($canVerify ? intval($row['id']) : 0) . ', \'requests\'); return false;"><img class="receipt-thumbnail" src="' . htmlspecialchars($rp) . '" alt="Receipt"></a></td>';
+                echo '<td><a class="receipt-link" href="#" onclick="openReceiptModal(' . htmlspecialchars(json_encode($receiptUrl), ENT_QUOTES, 'UTF-8') . ', ' . ($canVerify ? intval($row['id']) : 0) . ', \'requests\'); return false;"><img class="receipt-thumbnail" src="' . htmlspecialchars($receiptUrl, ENT_QUOTES, 'UTF-8') . '" alt="Receipt"></a></td>';
                   }
                 } else {
                   echo '<td><span class="muted">No receipt</span></td>';
@@ -6456,9 +6467,9 @@ body.modal-open { overflow: hidden; }
                       if (!empty($receiptPath)) {
                         $isPdf = (bool)preg_match('/\.pdf$/i', (string)$receiptPath);
                         if ($isPdf) {
-                          echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars($receiptPath) . "', " . intval($resIdMatch) . ", 'resident_guest_forms')\" style='margin:6px 0;'><i class='fa-solid fa-file'></i> Open Receipt (PDF)</button>";
+                          echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars(admin_receipt_url($receiptPath), ENT_QUOTES, 'UTF-8') . "', " . intval($resIdMatch) . ", 'resident_guest_forms')\" style='margin:6px 0;'><i class='fa-solid fa-file'></i> Open Receipt (PDF)</button>";
                         } else {
-                          echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars($receiptPath) . "', " . intval($resIdMatch) . ", 'resident_guest_forms')\" style='margin:6px 0;'><i class='fa-solid fa-file'></i> Verify Payment Receipt</button>";
+                          echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars(admin_receipt_url($receiptPath), ENT_QUOTES, 'UTF-8') . "', " . intval($resIdMatch) . ", 'resident_guest_forms')\" style='margin:6px 0;'><i class='fa-solid fa-file'></i> Verify Payment Receipt</button>";
                         }
                       } else {
                         echo "<div class='muted' style='margin:6px 0;'>No receipt</div>";
@@ -7105,9 +7116,9 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
                     if (!empty($receiptPath)) {
                       $isPdf = (bool)preg_match('/\.pdf$/i', (string)$receiptPath);
                       if ($isPdf) {
-                        echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars($receiptPath) . "', " . intval($rr['id']) . ", 'requests')\"><i class='fa-solid fa-file'></i> Open Receipt (PDF)</button>";
+                        echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars(admin_receipt_url($receiptPath), ENT_QUOTES, 'UTF-8') . "', " . intval($rr['id']) . ", 'requests')\"><i class='fa-solid fa-file'></i> Open Receipt (PDF)</button>";
                       } else {
-                        echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars($receiptPath) . "', " . intval($rr['id']) . ", 'requests')\"><i class='fa-solid fa-file'></i> Verify Payment Receipt</button>";
+                        echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars(admin_receipt_url($receiptPath), ENT_QUOTES, 'UTF-8') . "', " . intval($rr['id']) . ", 'requests')\"><i class='fa-solid fa-file'></i> Verify Payment Receipt</button>";
                       }
                     } else {
                       echo "<div class='muted'>No receipt</div>";
@@ -7325,9 +7336,9 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
                   if (!empty($receiptPath)) {
                     $isPdf = (bool)preg_match('/\.pdf$/i', (string)$receiptPath);
                     if ($isPdf) {
-                      echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars($receiptPath) . "', " . intval($rr['id']) . ", 'visitor_requests')\"><i class='fa-solid fa-file'></i> Open Receipt (PDF)</button>";
+                      echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars(admin_receipt_url($receiptPath), ENT_QUOTES, 'UTF-8') . "', " . intval($rr['id']) . ", 'visitor_requests')\"><i class='fa-solid fa-file'></i> Open Receipt (PDF)</button>";
                     } else {
-                      echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars($receiptPath) . "', " . intval($rr['id']) . ", 'visitor_requests')\"><i class='fa-solid fa-file'></i> Verify Payment Receipt</button>";
+                      echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars(admin_receipt_url($receiptPath), ENT_QUOTES, 'UTF-8') . "', " . intval($rr['id']) . ", 'visitor_requests')\"><i class='fa-solid fa-file'></i> Verify Payment Receipt</button>";
                     }
                   } else {
                     echo "<div class='muted'>No receipt</div>";

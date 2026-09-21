@@ -36,15 +36,16 @@ if ($file['size'] > $maxSize) {
 }
 
 // Create uploads directory if it doesn't exist
-$uploadDir = 'uploads/receipts/';
-if (!file_exists($uploadDir)) {
+$uploadDir = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'receipts';
+if (!is_dir($uploadDir)) {
     mkdir($uploadDir, 0755, true);
 }
 
 // Generate unique filename
 $fileExtension = pathinfo($file['name'], PATHINFO_EXTENSION);
 $fileName = $ref_code . '_' . time() . '.' . $fileExtension;
-$filePath = $uploadDir . $fileName;
+$filePath = $uploadDir . DIRECTORY_SEPARATOR . $fileName;
+$storedPath = 'uploads/receipts/' . $fileName;
 
 // Move uploaded file
 if (!move_uploaded_file($file['tmp_name'], $filePath)) {
@@ -70,7 +71,7 @@ $newStatus = ($currentStatus === 'rejected') ? 'pending_update' : 'pending';
 
 // Update database with receipt path and reset payment verification
 $stmt = $con->prepare("UPDATE reservations SET receipt_path = ?, payment_status = ?, verified_by = NULL, verification_date = NULL, receipt_uploaded_at = NOW() WHERE ref_code = ?");
-$stmt->bind_param('sss', $filePath, $newStatus, $ref_code);
+    $stmt->bind_param('sss', $storedPath, $newStatus, $ref_code);
 
 if ($stmt->execute()) {
     if ($newStatus === 'pending_update') {
@@ -101,7 +102,7 @@ if ($stmt->execute()) {
     echo json_encode([
         'success' => true, 
         'message' => 'Receipt uploaded successfully',
-        'file_path' => $filePath,
+        'file_path' => $storedPath,
         'payment_status' => $newStatus
     ]);
 } else {
