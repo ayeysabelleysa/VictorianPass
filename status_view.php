@@ -455,6 +455,8 @@
         ${data.address ? `<p><strong>${isGuestEntry ? 'Resident House Number' : 'Address'}:</strong> ${data.address}</p>` : ''}
         ${data.purpose ? `<p><strong>Purpose:</strong> ${data.purpose}</p>` : ''}
         <p><strong>Type:</strong> ${isGuestEntry ? "Resident's Guest" : type}</p>
+        ${isGuestEntry && data.start_date ? `<p><strong>Guest Entry Date:</strong> ${data.start_date}</p>` : ''}
+        ${isGuestEntry && data.start_time ? `<p><strong>Guest Entry Time:</strong> ${data.start_time}</p>` : ''}
         ${(!isGuestEntry && (data.start_date || data.expires_at)) ? `<p><strong>Valid Dates:</strong> ${accessWindow}</p>` : ''}
         <p><strong>Full QR Card:</strong> <a href="${verificationLink}" target="_blank" style="color:#9bd08f;">Open full QR card</a></p>
       `;

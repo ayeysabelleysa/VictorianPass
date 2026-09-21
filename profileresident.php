@@ -4962,6 +4962,25 @@ body.modal-open{overflow:hidden}
     var usePointsRaw=li.getAttribute('data-use-points')||'';
     var pointsUsedRaw=li.getAttribute('data-points-used')||'';
     var reasonText=li.getAttribute('data-reason')||'';
+      var visitDateRaw=li.getAttribute('data-visit-date')||'';
+      var visitTimeRaw=li.getAttribute('data-visit-time')||'';
+      if(type==='guest_form' && (!visitDateRaw || !visitTimeRaw) && ref && extra.getAttribute('data-schedule-fallback')!=='1'){
+        extra.setAttribute('data-schedule-fallback','1');
+        fetch('status.php?code='+encodeURIComponent(ref))
+          .then(function(response){ return response.json(); })
+          .then(function(data){
+            if(data && data.success){
+              if(!visitDateRaw && data.start_date){ li.setAttribute('data-visit-date', data.start_date); }
+              if(!visitTimeRaw && data.start_time){ li.setAttribute('data-visit-time', data.start_time); }
+            }
+            extra.setAttribute('data-loaded','0');
+            extra.removeAttribute('data-schedule-fallback');
+            buildExtraContent(li, extra);
+            extra.setAttribute('data-loaded','1');
+          })
+          .catch(function(){ extra.removeAttribute('data-schedule-fallback'); });
+        return;
+      }
     var statusNote='';
     var s=String(effectiveStatus||'').toLowerCase();
     var basePath=window.location.pathname.replace(/\/[^\/]*$/,'');
@@ -5025,8 +5044,8 @@ body.modal-open{overflow:hidden}
       var vDateLabel=formatRawDate(vDateRaw)||vDateRaw||'—';
       var vTimeLabel=formatRawTime(vTimeRaw)||'—';
       gh+='<div class="rst-section rst-guest rst-guest-entry"><div class="rst-title">Entry Schedule</div><div class="rst-grid">';
-      gh+='<div class="rst-col"><div class="rst-key">Date of Entry</div><div class="rst-val">'+esc(vDateLabel)+'</div></div>';
-      gh+='<div class="rst-col"><div class="rst-key">Time of Entry</div><div class="rst-val">'+esc(vTimeLabel)+'</div></div>';
+      gh+='<div class="rst-col"><div class="rst-key">Guest Entry Date</div><div class="rst-val">'+esc(vDateLabel)+'</div></div>';
+      gh+='<div class="rst-col"><div class="rst-key">Guest Entry Time</div><div class="rst-val">'+esc(vTimeLabel)+'</div></div>';
       gh+='</div>';
       gh+='</div>';
       return gh;

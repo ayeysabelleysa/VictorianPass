@@ -210,9 +210,9 @@ $activities = [];
 // Reservations
 $prevDvResMode = function_exists('mysqli_report') ? mysqli_report(MYSQLI_REPORT_OFF) : null;
 try {
-    $stmt = $con->prepare("SELECT 'reservation' as type, amenity, start_date, end_date, start_time, end_time, status, approval_status, payment_status, denial_reason, receipt_attempts, created_at, ref_code, scanned_at, persons FROM reservations WHERE user_id = ? AND status <> 'deleted' AND approval_status <> 'deleted' ORDER BY created_at DESC");
+    $stmt = $con->prepare("SELECT 'reservation' as type, amenity, start_date, end_date, start_time, end_time, status, approval_status, payment_status, denial_reason, receipt_attempts, price, downpayment, receipt_path, receipt_uploaded_at, created_at, ref_code, scanned_at, persons FROM reservations WHERE user_id = ? AND status <> 'deleted' AND approval_status <> 'deleted' ORDER BY created_at DESC");
 } catch (Throwable $e) {
-    $stmt = $con->prepare("SELECT 'reservation' as type, amenity, start_date, end_date, start_time, end_time, status, approval_status, payment_status, NULL as denial_reason, 0 as receipt_attempts, created_at, ref_code, NULL as scanned_at, persons FROM reservations WHERE user_id = ? AND status <> 'deleted' AND approval_status <> 'deleted' ORDER BY created_at DESC");
+    $stmt = $con->prepare("SELECT 'reservation' as type, amenity, start_date, end_date, start_time, end_time, status, approval_status, payment_status, NULL as denial_reason, 0 as receipt_attempts, price, downpayment, receipt_path, receipt_uploaded_at, created_at, ref_code, NULL as scanned_at, persons FROM reservations WHERE user_id = ? AND status <> 'deleted' AND approval_status <> 'deleted' ORDER BY created_at DESC");
 }
 if ($prevDvResMode !== null && function_exists('mysqli_report')) { mysqli_report($prevDvResMode); }
 if ($stmt) {
@@ -305,7 +305,11 @@ if ($stmt) {
             'start_date_raw' => $row['start_date'] ?? '',
             'end_date_raw' => $row['end_date'] ?? '',
             'start_time_raw' => $row['start_time'] ?? '',
-            'end_time_raw' => $row['end_time'] ?? ''
+            'end_time_raw' => $row['end_time'] ?? '',
+            'price' => $row['price'] ?? null,
+            'downpayment' => $row['downpayment'] ?? null,
+            'receipt_path' => $row['receipt_path'] ?? '',
+            'receipt_uploaded_at' => $row['receipt_uploaded_at'] ?? ''
         ];
     }
     $stmt->close();
@@ -421,18 +425,44 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
 </style>
 <style>.note-error{color:#b91c1c;font-weight:700;}</style>
 <style>
-.visitor-booking-details{width:100%;box-sizing:border-box;background:#eaf7ef;border:1px solid #c8e6d2;border-radius:10px;padding:16px 18px;color:#20342b}
-.visitor-booking-title{font-size:1rem;font-weight:700;color:#174b3b;margin-bottom:14px}
-.visitor-booking-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px 28px}
+.visitor-booking-details{width:100%;box-sizing:border-box;background:#f2faf6;border:1px solid #d7e9df;border-radius:14px;padding:20px;color:#20342b}
+.visitor-booking-title{display:flex;align-items:center;gap:9px;font-size:1rem;font-weight:700;color:#174b3b;margin:0 0 14px;padding-bottom:12px;border-bottom:1px solid #d7e9df}
+.visitor-booking-title::before{content:"\f1ad";font-family:"Font Awesome 6 Free";font-weight:900;font-size:.95rem}
+.visitor-payment-title::before{content:"\f09d"}
+.visitor-proof-title::before{content:"\f56f"}
+.visitor-booking-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px 24px;position:relative}
+.visitor-booking-grid::before{content:"";position:absolute;top:0;bottom:0;left:50%;width:1px;background:#d7e9df;transform:translateX(-12px)}
 .visitor-booking-field{display:flex;flex-direction:column;gap:4px;min-width:0}
-.visitor-booking-field>span{font-size:.73rem;font-weight:600;color:#6b8176;text-transform:uppercase;letter-spacing:.04em}
-.visitor-booking-field>strong{font-size:.88rem;font-weight:600;color:#20342b;overflow-wrap:anywhere}
+.visitor-booking-field>span{font-size:.84rem;font-weight:500;color:#718078;line-height:1.3}
+.visitor-booking-field>strong{font-size:1rem;font-weight:600;color:#1f2f28;line-height:1.35;overflow-wrap:anywhere}
 .visitor-booking-badge{display:inline-flex;align-items:center;width:max-content;padding:4px 10px;border-radius:999px;font-size:.72rem;font-style:normal;font-weight:600}
 .visitor-booking-badge.status-pending{background:#fff1d8;color:#ec7814}
 .visitor-booking-badge.status-approved,.visitor-booking-badge.status-access-granted{background:#dff3e8;color:#21734e}
 .visitor-booking-badge.status-denied{background:#ffebee;color:#c62828}
 .visitor-booking-badge.status-cancelled{background:#f5f5f5;color:#616161}
-@media (max-width:600px){.visitor-booking-grid{grid-template-columns:1fr;gap:11px}.visitor-booking-details{padding:14px}.visitor-booking-title{margin-bottom:12px}}
+.visitor-payment-details,.visitor-proof-details{margin-top:12px}
+.visitor-payment-list{display:flex;flex-direction:column;gap:9px}
+.visitor-payment-list>div{display:flex;justify-content:space-between;align-items:center;gap:16px;padding-bottom:10px;border-bottom:1px solid #d7e9df;font-size:.95rem}
+.visitor-payment-list>div:last-child{border-bottom:0;padding-bottom:0}
+.visitor-payment-list span{color:#718078;font-weight:500}
+.visitor-payment-list strong{color:#1f2f28;font-weight:600;text-align:right;white-space:nowrap}
+.visitor-payment-notice{margin-top:13px;padding:10px 12px;border-radius:8px;font-size:.8rem;line-height:1.45}
+.visitor-payment-notice b{margin-left:4px}
+.visitor-payment-notice.is-pending{background:#fff4df;color:#9a5b08;border:1px solid #f4d49a}
+.visitor-payment-notice.is-success{background:#dff3e8;color:#21734e;border:1px solid #b9dfc8}
+.visitor-payment-notice.is-danger{background:#ffebee;color:#b42318;border:1px solid #f2b8bd}
+.visitor-proof-row{display:grid;grid-template-columns:minmax(90px,130px) minmax(0,1fr) auto;align-items:center;gap:14px}
+.visitor-proof-preview{display:block;color:inherit;text-decoration:none}
+.visitor-proof-thumb{display:block;width:100%;height:86px;object-fit:cover;border-radius:10px;border:1px solid #d7e9df;background:#fff}
+.visitor-proof-file{height:86px;border:1px solid #d7e9df;border-radius:10px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:#c62828;font-size:.78rem}
+.visitor-proof-file i{font-size:1.7rem}
+.visitor-proof-meta{display:flex;flex-direction:column;gap:4px;min-width:0}
+.visitor-proof-meta strong{font-size:.86rem;overflow-wrap:anywhere;color:#20342b}
+.visitor-proof-meta span{font-size:.76rem;color:#6b8176}
+.visitor-open-file{display:inline-flex;align-items:center;gap:6px;color:#21734e;font-size:.8rem;font-weight:700;white-space:nowrap;text-decoration:none}
+.visitor-open-file:hover{text-decoration:underline}
+.visitor-proof-empty{color:#6b8176;font-size:.84rem}
+@media (max-width:600px){.visitor-booking-grid{grid-template-columns:1fr;gap:11px}.visitor-booking-grid::before{display:none}.visitor-booking-details{padding:14px 16px;border-radius:12px}.visitor-booking-title{margin-bottom:12px;padding-bottom:8px;font-size:.95rem}.visitor-booking-title::before{font-size:.85rem}.visitor-booking-field>span{font-size:.8rem}.visitor-booking-field>strong{font-size:.95rem}.visitor-proof-row{grid-template-columns:86px minmax(0,1fr)}.visitor-open-file{grid-column:2}.visitor-proof-thumb,.visitor-proof-file{height:74px}}
 </style>
 <style>
 .item-extra-link.item-extra-cancel{background:#ef4444;color:#ffffff;border:1px solid #ef4444;padding:8px 16px;border-radius:50px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;font-weight:500;text-decoration:none}
@@ -909,7 +939,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
                   $att = isset($act['attempts']) ? intval($act['attempts']) : 0;
                   $pay = strtolower((string)($act['payment_status'] ?? ''));
                   if ($pay === 'rejected' && $att >= 3) {
-                    $displayStatus = 'Denied 窶・Max Attempts Reached';
+                    $displayStatus = 'Denied - Max Attempts Reached';
                     $statusClass = 'status-denied';
                   }
                   $isReservation = (($act['type'] ?? '') === 'reservation');
@@ -931,11 +961,11 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
                     }
                     if ($displayTitle === '') { $displayTitle = 'Amenity'; }
                     $amenityName = $displayTitle;
-                    $displayTitle = 'Reservation 窶・' . $amenityName;
+                    $displayTitle = 'Reservation - ' . $amenityName;
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
-              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($amenityName ?? ''); ?>" data-booked-by="<?php echo htmlspecialchars($fullName); ?>" data-persons="<?php echo isset($act['persons']) ? intval($act['persons']) : 1; ?>">
+              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($amenityName ?? ''); ?>" data-booked-by="<?php echo htmlspecialchars($fullName); ?>" data-persons="<?php echo isset($act['persons']) ? intval($act['persons']) : 1; ?>" data-price="<?php echo htmlspecialchars((string)($act['price'] ?? '')); ?>" data-downpayment="<?php echo htmlspecialchars((string)($act['downpayment'] ?? '')); ?>" data-receipt-path="<?php echo htmlspecialchars((string)($act['receipt_path'] ?? '')); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars((string)($act['receipt_uploaded_at'] ?? '')); ?>">
                  <div class="item-icon"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
@@ -996,7 +1026,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
                   $att = isset($act['attempts']) ? intval($act['attempts']) : 0;
                   $pay = strtolower((string)($act['payment_status'] ?? ''));
                   if ($pay === 'rejected' && $att >= 3) {
-                    $displayStatus = 'Denied 窶・Max Attempts Reached';
+                    $displayStatus = 'Denied - Max Attempts Reached';
                     $statusClass = 'status-denied';
                   }
                   $isReservation = (($act['type'] ?? '') === 'reservation');
@@ -1018,7 +1048,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
                     }
                     if ($displayTitle === '') { $displayTitle = 'Amenity'; }
                     $amenityName = $displayTitle;
-                    $displayTitle = 'Reservation 窶・' . $amenityName;
+                    $displayTitle = 'Reservation - ' . $amenityName;
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
@@ -1344,7 +1374,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
   }
   function formatNotifDisplay(message){
     var formatted=formatNotifMessage(message||'');
-    var cleaned=String(formatted).replace(/Code:\s*[A-Z0-9\-]+/ig,'').replace(/\s+窶｢\s*$/,'').replace(/\s{2,}/g,' ').trim();
+    var cleaned=String(formatted).replace(/Code:\s*[A-Z0-9\-]+/ig,'').replace(/\s+-\s*$/,'').replace(/\s{2,}/g,' ').trim();
     return cleaned;
   }
   function extractNotifCode(message){
@@ -1396,7 +1426,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
       var title=String(it.title||'').replace(/[<>]/g,'');
       var message=formatNotifDisplay(it.message||'');
       var time=formatNotifDateTime(it.created_at||it.time||'');
-      html+='<div class="notif-popup-item"><div class="notif-popup-title">'+title+'</div><div class="notif-popup-sub">'+message+(time?' 窶｢ '+time:'')+'</div></div>';
+              html+='<div class="notif-popup-item"><div class="notif-popup-title">'+title+'</div><div class="notif-popup-sub">'+message+(time?' - '+time:'')+'</div></div>';
     }
     notifPopup.innerHTML=html;
     notifPopup.style.display='block';
@@ -1650,7 +1680,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
                 if(displayTitle==='') displayTitle='Amenity';
                 var amenityName=displayTitle;
 
-                displayTitle='Reservation 窶・'+amenityName;
+                displayTitle='Reservation - '+amenityName;
               }
               var detailsText=String(item.details||'');
               var reasonText='';
@@ -1670,6 +1700,18 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
               if(item.payment_status!==undefined){ li.setAttribute('data-payment-status', item.payment_status || ''); }
               li.setAttribute('data-schedule', scheduleText);
               li.setAttribute('data-reason', reasonText);
+              if(isReservation){
+                li.setAttribute('data-start-time', item.start_time_raw || '');
+                li.setAttribute('data-end-time', item.end_time_raw || '');
+                li.setAttribute('data-start-date', item.start_date_raw || '');
+                li.setAttribute('data-end-date', item.end_date_raw || '');
+                li.setAttribute('data-amenity', item.amenity || amenityName || 'Amenity');
+                li.setAttribute('data-persons', String(item.persons || 1));
+                li.setAttribute('data-price', item.price == null ? '' : String(item.price));
+                li.setAttribute('data-downpayment', item.downpayment == null ? '' : String(item.downpayment));
+                li.setAttribute('data-receipt-path', item.receipt_path || '');
+                li.setAttribute('data-receipt-uploaded-at', item.receipt_uploaded_at || '');
+              }
               if(item.attempts!==undefined){ li.setAttribute('data-attempts', String(item.attempts || 0)); }
               li.innerHTML='<div class="item-icon"><i class="fa-solid fa-chevron-right"></i></div>'
                 +'<div class="item-content">'
@@ -1700,6 +1742,12 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
             }
             if(item.scanned_at !== undefined){
               li.setAttribute('data-scanned-at', item.scanned_at || '');
+            }
+            if(String(item.type || '').toLowerCase() === 'reservation'){
+              li.setAttribute('data-price', item.price == null ? '' : String(item.price));
+              li.setAttribute('data-downpayment', item.downpayment == null ? '' : String(item.downpayment));
+              li.setAttribute('data-receipt-path', item.receipt_path || '');
+              li.setAttribute('data-receipt-uploaded-at', item.receipt_uploaded_at || '');
             }
             var titleEl=li.querySelector('.item-title');
             if(titleEl && item.title) titleEl.textContent=item.title;
@@ -2499,6 +2547,14 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
     var amenityName=li.getAttribute('data-amenity')||'Amenity';
     var bookedBy=li.getAttribute('data-booked-by')||'Visitor';
     var startDateRaw=li.getAttribute('data-start-date')||'';
+    var finalAmount=parseFloat(li.getAttribute('data-price')||'0');
+    if(!isFinite(finalAmount)) finalAmount=0;
+    var requiredDownpayment=Math.max(0, finalAmount * 0.5);
+    var submittedRaw=li.getAttribute('data-downpayment');
+    var downpaymentSubmitted=(submittedRaw !== '' && submittedRaw !== null && isFinite(parseFloat(submittedRaw))) ? Math.max(0, parseFloat(submittedRaw)) : 0;
+    var remainingBalance=Math.max(0, finalAmount - downpaymentSubmitted);
+    var receiptPath=li.getAttribute('data-receipt-path')||'';
+    var receiptUploadedAt=li.getAttribute('data-receipt-uploaded-at')||'';
     var statusNote='';
     var s=String(effectiveStatus||'').toLowerCase();
     var paymentStatus=(li.getAttribute('data-payment-status')||'').toLowerCase();
@@ -2524,7 +2580,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
     if(type==='reservation' && paymentStatus==='rejected'){
         var att = isNaN(attempts)?0:attempts;
         if(att >= 3){
-          statusNote='Denied 窶・Max Attempts Reached.';
+          statusNote='Denied - Max Attempts Reached.';
         }else{
           statusNote='Your reservation payment was rejected. Please upload a clear and legible payment receipt to avoid denial. You have 3 attempts. ';
           statusNote+='Attempt '+Math.max(att,1)+' of 3.';
@@ -2593,7 +2649,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
     if(titleEl){ summaryParts.push(titleEl.textContent.trim()); }
     if(detailsEl){ summaryParts.push(detailsEl.textContent.replace(/^\s*-\s*/,'').trim()); }
     if(refSpan){ summaryParts.push('Code: '+refSpan.textContent.trim()); }
-    var summaryText=summaryParts.join(' 窶｢ ');
+    var summaryText=summaryParts.join(' - ');
 
     var canCancel=(s.indexOf('pending')!==-1||s.indexOf('pending_update')!==-1||s===''||s==='new'||paymentStatus==='pending_update');
     var isHistoryPanel=!!li.closest('#panel-history');
@@ -2610,7 +2666,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
       var att = isNaN(attempts)?0:attempts;
       var headerBadge = li.querySelector('.status-badge');
       if(att >= 3){
-        label = 'Denied 窶・Max Attempts Reached';
+        label = 'Denied - Max Attempts Reached';
         if (headerBadge) { headerBadge.textContent = label; }
         canUpdateProof=false; canCancel=false; canMoveHistory=!isHistoryPanel; canDelete=false;
       }else{
@@ -2699,6 +2755,28 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
       html+='<div class="visitor-booking-field"><span>Duration</span><strong>'+esc(hoursLabel)+'</strong></div>';
       html+='<div class="visitor-booking-field"><span>Reservation Status</span><strong><em class="visitor-booking-badge '+statusClassFor(effectiveStatus)+'">'+esc(reservationLabel)+'</em></strong></div>';
       html+='</div></div>';
+      html+='<div class="visitor-booking-details visitor-payment-details">';
+      html+='<div class="visitor-booking-title visitor-payment-title">Payment Details</div>';
+      html+='<div class="visitor-payment-list">';
+      html+='<div><span>Final Amount</span><strong>'+esc('₱'+finalAmount.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}))+'</strong></div>';
+      html+='<div><span>Required Downpayment</span><strong>'+esc('₱'+requiredDownpayment.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}))+'</strong></div>';
+      html+='<div><span>Downpayment Submitted</span><strong>'+esc('₱'+downpaymentSubmitted.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}))+'</strong></div>';
+      html+='<div><span>Remaining Balance</span><strong>'+esc('₱'+remainingBalance.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}))+'</strong></div>';
+      var paymentNotice=paymentStatus==='verified'?'Payment verified.':(paymentStatus==='rejected'?'Payment proof rejected. Please upload an updated proof.':'Payment proof submitted and awaiting verification.');
+      html+='</div><div class="visitor-payment-notice '+(paymentStatus==='verified'?'is-success':(paymentStatus==='rejected'?'is-danger':'is-pending'))+'">'+esc(paymentNotice)+' <b>Status: '+esc(paymentLabel)+'</b></div></div>';
+      html+='<div class="visitor-booking-details visitor-proof-details">';
+      html+='<div class="visitor-booking-title visitor-proof-title">Proof of Payment</div>';
+      if(receiptPath){
+        var receiptUrl=receiptPath;
+        var receiptName=receiptPath.replace(/\\/g,'/').split('/').pop()||'Uploaded proof';
+        var receiptIsPdf=/\.pdf$/i.test(receiptPath);
+        var receiptPreview=receiptIsPdf?'<div class="visitor-proof-file"><i class="fa-solid fa-file-pdf"></i><span>PDF document</span></div>':'<img class="visitor-proof-thumb" src="'+esc(receiptUrl)+'" alt="Uploaded proof of payment">';
+        var uploadedText=receiptUploadedAt?formatNotifDateTime(receiptUploadedAt):'Upload date unavailable';
+        html+='<div class="visitor-proof-row"><a class="visitor-proof-preview" href="'+esc(receiptUrl)+'" target="_blank" rel="noopener">'+receiptPreview+'</a><div class="visitor-proof-meta"><strong>'+esc(receiptName)+'</strong><span>Uploaded '+esc(uploadedText)+'</span></div><a class="visitor-open-file" href="'+esc(receiptUrl)+'" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open file</a></div>';
+      }else{
+        html+='<div class="visitor-proof-empty">No proof of payment uploaded.</div>';
+      }
+      html+='</div>';
     }
     if(summaryText) html+='<div class="item-extra-summary">'+esc(summaryText)+'</div>';
     

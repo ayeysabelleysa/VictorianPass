@@ -332,6 +332,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_visitor_details' && isset(
             'address' => $row['resident_house'],
             'valid_id_path' => $row['valid_id_path'],
             'entry_created' => $row['created_at'],
+            'visit_date' => $row['visit_date'] ?? null,
+            'visit_time' => $row['visit_time'] ?? null,
             'amenity' => $isAmenity ? ($row['r_amenity'] ?: ($row['amenity'] ?: 'Amenity Reservation')) : 'Guest Entry',
             'start_date' => $isAmenity ? ($row['r_start_date'] ?: ($row['start_date'] ?: $row['visit_date'])) : $row['visit_date'],
             'end_date' => $isAmenity ? ($row['r_end_date'] ?: ($row['end_date'] ?: $row['visit_date'])) : $row['visit_date'],
@@ -2255,8 +2257,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
                 $confirmDate = trim($_POST['visit_date'] ?? '');
                 $confirmTime = trim($_POST['visit_time'] ?? '');
-                if ($approval_status === 'approved' && $confirmDate !== '') {
-                    if (preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $confirmTime)) { $confirmTime .= ':00'; }
+                if ($approval_status === 'approved') {
+                  $confirmDateObj = DateTime::createFromFormat('!Y-m-d', $confirmDate);
+                  $confirmDateValid = $confirmDateObj && $confirmDateObj->format('Y-m-d') === $confirmDate && $confirmDate >= date('Y-m-d');
+                  $confirmTimeValid = (bool)preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/', $confirmTime);
+                  if (!$confirmDateValid || !$confirmTimeValid) {
+                    $_SESSION['flash_notice'] = 'Guest Entry Date and Guest Entry Time are required before approval.';
+                    $redirectPage = preg_replace('/[^a-z_]/', '', $_POST['redirect_page'] ?? 'resident_guest_forms');
+                    header('Location: admin.php?page=' . ($redirectPage ?: 'resident_guest_forms'));
+                    exit;
+                  }
+                  if (preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $confirmTime)) { $confirmTime .= ':00'; }
                     $stmtUp = $con->prepare("UPDATE guest_forms SET approval_status = ?, approved_by = ?, approval_date = NOW(), denial_reason = ?, visit_date = ?, visit_time = ? WHERE id = ?");
                     $stmtUp->bind_param('sisssi', $approval_status, $staff_id, $reasonToSave, $confirmDate, $confirmTime, $reservation_id);
                 } else {
@@ -6433,13 +6444,13 @@ body.modal-open { overflow: hidden; }
                   echo "<td>" . (($gContact !== '') ? htmlspecialchars($gContact) : '<span class="muted">&mdash;</span>') . "</td>";
                   $idPath = trim((string)($req['valid_id_path'] ?? ''));
                   if ($idPath !== '') {
-                    echo "<td><a class='btn btn-view' style='padding:5px 10px;font-size:0.8rem;' href='" . htmlspecialchars($idPath) . "' target='_blank' title='View uploaded valid ID'><i class='fa-solid fa-id-card'></i> View ID</a></td>";
+                    echo "<td><button type='button' class='btn btn-view' style='padding:5px 10px;font-size:0.8rem;' onclick=\"showIncidentProofModal('" . htmlspecialchars($idPath, ENT_QUOTES, 'UTF-8') . "')\" title='View uploaded valid ID'><i class='fa-solid fa-id-card'></i> View ID</button></td>";
                   } else {
                     echo "<td><span class='muted'>&mdash;</span></td>";
                   }
                   $visitDateLabel = !empty($req['visit_date']) ? date('M d, Y', strtotime($req['visit_date'])) : '-';
                   $visitTimeLabel = !empty($req['visit_time']) ? date('h:i A', strtotime($req['visit_time'])) : '';
-                  echo "<td>" . htmlspecialchars($visitDateLabel) . ($visitTimeLabel !== '' ? "<div style='font-size:0.82rem;color:#666;'>" . htmlspecialchars($visitTimeLabel) . "</div>" : '') . "</td>";
+                  echo "<td><div style='font-size:0.78rem;color:#777;'>Guest Entry Date</div>" . htmlspecialchars($visitDateLabel) . ($visitTimeLabel !== '' ? "<div style='font-size:0.78rem;color:#777;margin-top:3px;'>Guest Entry Time</div><div style='font-size:0.82rem;color:#666;'>" . htmlspecialchars($visitTimeLabel) . "</div>" : '') . "</td>";
                   $reqDate = !empty($req['created_at']) ? date('M d, Y', strtotime($req['created_at'])) : '-';
                   echo "<td>" . $reqDate . "</td>";
                   
@@ -6503,17 +6514,10 @@ body.modal-open { overflow: hidden; }
                   echo "<input type='hidden' name='reservation_id' value='" . $req['id'] . "'>";
                   echo "<input type='hidden' name='action' value='approve_request'>";
                   echo "<input type='hidden' name='redirect_page' value='resident_guest_forms'>";
-                  if (!$isAmenity) {
-                      $reqDateVal = htmlspecialchars($req['visit_date'] ?? '');
-                      $reqTimeVal = htmlspecialchars($req['visit_time'] ?? '');
-                      echo "<div class='approve-schedule' style='margin:6px 0 8px;'>";
-                      echo "<div class='muted' style='font-size:0.75rem;color:#777;margin-bottom:4px;'>Confirm arrival schedule for the approved Entry Pass</div>";
-                      echo "<div style='display:flex;gap:6px;flex-wrap:wrap;'>";
-                      echo "<input type='date' name='visit_date' value='" . $reqDateVal . "' required style='padding:5px 8px;font-size:0.8rem;border:1px solid #ccc;border-radius:6px;'>";
-                      echo "<input type='time' name='visit_time' value='" . $reqTimeVal . "' required style='padding:5px 8px;font-size:0.8rem;border:1px solid #ccc;border-radius:6px;'>";
-                      echo "</div>";
-                      echo "</div>";
-                  }
+                    if (!$isAmenity) {
+                      echo "<input type='hidden' name='visit_date' value='" . htmlspecialchars($req['visit_date'] ?? '', ENT_QUOTES) . "'>";
+                      echo "<input type='hidden' name='visit_time' value='" . htmlspecialchars($req['visit_time'] ?? '', ENT_QUOTES) . "'>";
+                    }
                   echo "<button type='submit' class='btn " . ($disabled ? "btn-disabled" : "btn-approve") . "' " . ($disabled ? "disabled title='Verify payment receipt first'" : "") . "><i class='fa-solid fa-check'></i> Approve</button>";
                   echo "</form>";
                   echo "<form method='post' class='action-form action-deny' onsubmit='return openDenyModal(this)'>";
@@ -7737,6 +7741,15 @@ function showVisitorDetails(id, source) {
               </div>
             </div>
             ` : ''}
+            ${isGuestEntry ? `
+            <div>
+              <div class="section-title">Guest Entry Schedule</div>
+              <div class="info-grid">
+                ${visitDateVal ? `<div class="info-row"><span class="info-label">Guest Entry Date</span><span class="info-value">${fmtDate(visitDateVal)}</span></div>` : ''}
+                ${visitStartTimeVal ? `<div class="info-row"><span class="info-label">Guest Entry Time</span><span class="info-value">${fmtTime(visitStartTimeVal)}</span></div>` : ''}
+              </div>
+            </div>
+            ` : ''}
             <div>
               <div class="section-title">Request Status</div>
               <div class="info-grid">
@@ -7768,8 +7781,8 @@ function showVisitorDetails(id, source) {
               <div class="info-grid">
                 ${details.ref_code ? `<div class="info-row"><span class="info-label">Reference Code</span><span class="info-value">${details.ref_code}</span></div>` : ''}
                 ${details.amenity && details.amenity !== 'Guest Entry' ? `<div class="info-row"><span class="info-label">Amenity</span><span class="info-value">${details.amenity}</span></div>` : ''}
-                ${visitDateVal ? `<div class="info-row"><span class="info-label">Date</span><span class="info-value">${fmtDate(visitDateVal)}${visitEndDateVal ? ' - ' + fmtDate(visitEndDateVal) : ''}</span></div>` : ''}
-                ${(visitStartTimeVal || visitEndTimeVal) ? `<div class="info-row"><span class="info-label">Time</span><span class="info-value">${fmtTime(visitStartTimeVal)}${visitEndTimeVal ? ' - ' + fmtTime(visitEndTimeVal) : ''}</span></div>` : ''}
+                ${visitDateVal ? `<div class="info-row"><span class="info-label">${isGuestEntry ? 'Guest Entry Date' : 'Date'}</span><span class="info-value">${fmtDate(visitDateVal)}${visitEndDateVal ? ' - ' + fmtDate(visitEndDateVal) : ''}</span></div>` : ''}
+                ${(visitStartTimeVal || visitEndTimeVal) ? `<div class="info-row"><span class="info-label">${isGuestEntry ? 'Guest Entry Time' : 'Time'}</span><span class="info-value">${fmtTime(visitStartTimeVal)}${visitEndTimeVal ? ' - ' + fmtTime(visitEndTimeVal) : ''}</span></div>` : ''}
                 ${details.persons ? `<div class="info-row"><span class="info-label">No. of Persons</span><span class="info-value">${details.persons}</span></div>` : ''}
                 ${details.purpose ? `<div class="info-row"><span class="info-label">Purpose of Visit</span><span class="info-value">${details.purpose}</span></div>` : ''}
                 ${priceBlock}

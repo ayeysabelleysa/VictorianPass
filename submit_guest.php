@@ -35,20 +35,20 @@ $visitor_email      = trim($_POST['visitor_email'] ?? '');
 $visit_date    = trim($_POST['visit_date'] ?? '');
 $visit_time    = trim($_POST['visit_time'] ?? '');
 if ($visit_date === '' || $visit_time === '') {
-  echo json_encode(['success' => false, 'message' => 'Date of Entry and Time of Entry are required.']);
+  echo json_encode(['success' => false, 'message' => 'Guest Entry Date and Guest Entry Time are required.']);
   exit;
 }
 $todayStr = date('Y-m-d');
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $visit_date)) {
-  echo json_encode(['success' => false, 'message' => 'Invalid Date of Entry.']);
+  echo json_encode(['success' => false, 'message' => 'Invalid Guest Entry Date.']);
   exit;
 }
 if ($visit_date < $todayStr) {
-  echo json_encode(['success' => false, 'message' => 'Date of Entry cannot be in the past.']);
+  echo json_encode(['success' => false, 'message' => 'Guest Entry Date cannot be in the past.']);
   exit;
 }
 if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/', $visit_time)) {
-  echo json_encode(['success' => false, 'message' => 'Invalid Time of Entry.']);
+  echo json_encode(['success' => false, 'message' => 'Invalid Guest Entry Time.']);
   exit;
 }
 $visit_purpose = null;

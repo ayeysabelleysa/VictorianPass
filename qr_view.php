@@ -338,6 +338,8 @@ if (empty($error)) {
                 'entry_date' => $entryDateDisplay,
                 'entry_time' => $entryTimeDisplay,
                 'entry_display' => $entryDisplay,
+                'schedule_date' => $entryDateDisplay,
+                'schedule_time' => $entryTimeDisplay,
                 'guest_not_yet_valid' => $guestNotYetValid && empty($enteredAt),
                 'guest_expired' => $guestExpired && empty($enteredAt),
                 'guardian_block' => $guardianBlocked
@@ -999,14 +1001,14 @@ if (empty($error)) {
 
                 <?php if (!empty($data['schedule_date'])): ?>
                 <div class="detail-row">
-                    <span class="label">Reservation Date</span>
+                    <span class="label"><?php echo (isset($data['type_label']) && $data['type_label'] === 'Guest') ? 'Guest Entry Date' : 'Reservation Date'; ?></span>
                     <span class="value"><?php echo htmlspecialchars($data['schedule_date']); ?></span>
                 </div>
                 <?php endif; ?>
 
                 <?php if (!empty($data['schedule_time'])): ?>
                 <div class="detail-row">
-                    <span class="label">Reservation Time</span>
+                    <span class="label"><?php echo (isset($data['type_label']) && $data['type_label'] === 'Guest') ? 'Guest Entry Time' : 'Reservation Time'; ?></span>
                     <span class="value"><?php echo htmlspecialchars($data['schedule_time']); ?></span>
                 </div>
                 <?php endif; ?>

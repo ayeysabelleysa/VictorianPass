@@ -219,11 +219,11 @@ echo $gfCss !== false ? $gfCss : '';
     <div class="form-row">
       <div class="form-group">
         <input type="date" id="visit_date" name="visit_date" placeholder=" " required>
-        <label for="visit_date">Date of Entry*</label>
+        <label for="visit_date">Guest Entry Date*</label>
       </div>
       <div class="form-group">
         <input type="time" id="visit_time" name="visit_time" placeholder=" " required>
-        <label for="visit_time">Time of Entry*</label>
+        <label for="visit_time">Guest Entry Time*</label>
       </div>
     </div>
     <div class="privacy-note" style="background:#f9fafb;border:1px solid #e5e7eb;color:#374151;padding:10px 12px;border-radius:8px;margin:10px 0;font-size:0.92rem;line-height:1.35;">
@@ -476,7 +476,7 @@ function validateForm(){
   if (visitDateEl && visitDateEl.value){
     var todayStrV = new Date().toISOString().split('T')[0];
     if (visitDateEl.value < todayStrV){
-      setWarning('visit_date','Date of Entry cannot be in the past.');
+      setWarning('visit_date','Guest Entry Date cannot be in the past.');
       valid = false;
     } else {
       setWarning('visit_date','');

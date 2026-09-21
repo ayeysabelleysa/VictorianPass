@@ -678,8 +678,8 @@ if ($resGF && $resGF->num_rows > 0) {
         'downpayment' => $isAmenity ? ($rDown !== null ? $rDown : null) : null,
         'start_date' => $isAmenity && !empty($rStart) ? date('m/d/y', strtotime($rStart)) : (isset($row['visit_date']) ? date('m/d/y', strtotime($row['visit_date'])) : ''),
         'end_date' => $isAmenity && !empty($rEnd) ? date('m/d/y', strtotime($rEnd)) : (isset($row['visit_date']) ? date('m/d/y', strtotime($row['visit_date'])) : ''),
-        'start_time' => ($rStartTime ?: null),
-        'end_time' => ($rEndTime ?: null),
+        'start_time' => ($isAmenity ? ($rStartTime ?: null) : ($row['visit_time'] ?? null)),
+        'end_time' => ($isAmenity ? ($rEndTime ?: null) : null),
         'expires_at' => $expiryDateYmd ? date('m/d/y', strtotime($expiryDateYmd)) : ''
     ];
     // If a guard is scanning, record and annotate 'scanned_by'
