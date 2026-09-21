@@ -421,6 +421,20 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
 </style>
 <style>.note-error{color:#b91c1c;font-weight:700;}</style>
 <style>
+.visitor-booking-details{width:100%;box-sizing:border-box;background:#eaf7ef;border:1px solid #c8e6d2;border-radius:10px;padding:16px 18px;color:#20342b}
+.visitor-booking-title{font-size:1rem;font-weight:700;color:#174b3b;margin-bottom:14px}
+.visitor-booking-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px 28px}
+.visitor-booking-field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.visitor-booking-field>span{font-size:.73rem;font-weight:600;color:#6b8176;text-transform:uppercase;letter-spacing:.04em}
+.visitor-booking-field>strong{font-size:.88rem;font-weight:600;color:#20342b;overflow-wrap:anywhere}
+.visitor-booking-badge{display:inline-flex;align-items:center;width:max-content;padding:4px 10px;border-radius:999px;font-size:.72rem;font-style:normal;font-weight:600}
+.visitor-booking-badge.status-pending{background:#fff1d8;color:#ec7814}
+.visitor-booking-badge.status-approved,.visitor-booking-badge.status-access-granted{background:#dff3e8;color:#21734e}
+.visitor-booking-badge.status-denied{background:#ffebee;color:#c62828}
+.visitor-booking-badge.status-cancelled{background:#f5f5f5;color:#616161}
+@media (max-width:600px){.visitor-booking-grid{grid-template-columns:1fr;gap:11px}.visitor-booking-details{padding:14px}.visitor-booking-title{margin-bottom:12px}}
+</style>
+<style>
 .item-extra-link.item-extra-cancel{background:#ef4444;color:#ffffff;border:1px solid #ef4444;padding:8px 16px;border-radius:50px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;font-weight:500;text-decoration:none}
 .item-extra-link.item-extra-cancel:hover{background:#dc2626;color:#ffffff;transform:translateY(-2px);box-shadow:0 4px 6px rgba(239, 68, 68, 0.2);text-decoration:none}
 .cancel-modal-actions{display:flex;gap:10px;justify-content:center;flex-wrap:nowrap;padding:6px 0 0 0}
@@ -921,7 +935,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
-              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-persons="<?php echo isset($act['persons']) ? intval($act['persons']) : 1; ?>">
+              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($amenityName ?? ''); ?>" data-booked-by="<?php echo htmlspecialchars($fullName); ?>" data-persons="<?php echo isset($act['persons']) ? intval($act['persons']) : 1; ?>">
                  <div class="item-icon"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
@@ -1008,7 +1022,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
-              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-persons="<?php echo isset($act['persons']) ? intval($act['persons']) : 1; ?>">
+              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($amenityName ?? ''); ?>" data-booked-by="<?php echo htmlspecialchars($fullName); ?>" data-persons="<?php echo isset($act['persons']) ? intval($act['persons']) : 1; ?>">
                  <div class="item-icon"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
@@ -2482,6 +2496,9 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
     var reasonText=li.getAttribute('data-reason')||'';
     var startTimeRaw=li.getAttribute('data-start-time')||'';
     var endTimeRaw=li.getAttribute('data-end-time')||'';
+    var amenityName=li.getAttribute('data-amenity')||'Amenity';
+    var bookedBy=li.getAttribute('data-booked-by')||'Visitor';
+    var startDateRaw=li.getAttribute('data-start-date')||'';
     var statusNote='';
     var s=String(effectiveStatus||'').toLowerCase();
     var paymentStatus=(li.getAttribute('data-payment-status')||'').toLowerCase();
@@ -2604,15 +2621,12 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
     }
     var isAccessGranted = s.indexOf('permission_granted')!==-1 || s.indexOf('access granted')!==-1 || s.indexOf('access_granted')!==-1 || s.indexOf('permission granted')!==-1;
     var html='';
-    if((type==='reservation'||type==='guest_form') && isAccessGranted){
+    if(type==='guest_form' && isAccessGranted){
       html+='<div class="item-extra-section">';
       html+='<div class="item-extra-body">';
       html+='<div class="item-extra-info-only">';
       html+='<div class="item-extra-note">'+esc('Access granted. Your QR entry pass has already been scanned by the guard.')+'</div>';
       html+='<div class="item-actions">';
-      if(ref){
-        html+='<button type="button" class="item-extra-link view-details-btn view-details-trigger" data-ref="'+esc(ref)+'">View details</button>';
-      }
       if(canMoveHistory && ref){
         html+='<button type="button" class="item-extra-link item-extra-move-history"><i class="fa-solid fa-box-archive"></i> Move to History</button>';
       }
@@ -2666,33 +2680,31 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
     if(reasonText){
       html+='<div class="item-reason'+(highlightReason?' is-rejected':'')+'">'+esc(reasonText)+'</div>';
     }
-    if(type==='reservation' && scheduleText){
+    if(type==='reservation'){
       var parts=scheduleParts(scheduleText);
-      var rows='';
-      if(parts.date){
-        rows+='<div class="schedule-row"><div class="schedule-key">Date:</div><div class="schedule-val">'+esc(parts.date)+'</div></div>';
-      }
-      if(parts.time){
-        rows+='<div class="schedule-row"><div class="schedule-key">Time:</div><div class="schedule-val">'+esc(parts.time)+'</div></div>';
-        var hoursLabel = computeReservationDurationHours(startTimeRaw, endTimeRaw);
-        if(hoursLabel){
-          rows+='<div class="schedule-row"><div class="schedule-key">Duration:</div><div class="schedule-val">'+esc(hoursLabel)+'</div></div>';
-        }
-      }
-      if(!rows){
-        rows='<div class="schedule-row"><div class="schedule-key">Schedule:</div><div class="schedule-val">'+esc(scheduleText)+'</div></div>';
-      }
-      var scheduleClass = (isHistoryPanel || s.indexOf('denied')!==-1 || (paymentStatus==='rejected' && (isNaN(attempts)?0:attempts)>=3)) ? 'status-neutral' : statusClassFor(effectiveStatus);
-      html+='<div class="item-extra-schedule '+scheduleClass+'"><div class="schedule-title">Reservation Schedule</div>'+rows+'</div>';
+      var bookingDate=parts.date || startDateRaw || 'Date not set';
+      var bookingTime=parts.time || 'Time not set';
+      var hoursLabel=computeReservationDurationHours(startTimeRaw, endTimeRaw) || 'Not set';
+      var paymentLabel=paymentStatus ? fmtLabel(paymentStatus) : 'Pending';
+      var reservationLabel=label || 'Pending';
+      html+='<div class="visitor-booking-details">';
+      html+='<div class="visitor-booking-title">Amenity Booking Details</div>';
+      html+='<div class="visitor-booking-grid">';
+      html+='<div class="visitor-booking-field"><span>Amenity</span><strong>'+esc(amenityName)+'</strong></div>';
+      html+='<div class="visitor-booking-field"><span>No. of Persons</span><strong>'+esc(persons)+'</strong></div>';
+      html+='<div class="visitor-booking-field"><span>Booking Date</span><strong>'+esc(bookingDate)+'</strong></div>';
+      html+='<div class="visitor-booking-field"><span>Booked By</span><strong>'+esc(bookedBy)+'</strong></div>';
+      html+='<div class="visitor-booking-field"><span>Time</span><strong>'+esc(bookingTime)+'</strong></div>';
+      html+='<div class="visitor-booking-field"><span>Payment Status</span><strong><em class="visitor-booking-badge '+statusClassFor(paymentStatus)+'">'+esc(paymentLabel)+'</em></strong></div>';
+      html+='<div class="visitor-booking-field"><span>Duration</span><strong>'+esc(hoursLabel)+'</strong></div>';
+      html+='<div class="visitor-booking-field"><span>Reservation Status</span><strong><em class="visitor-booking-badge '+statusClassFor(effectiveStatus)+'">'+esc(reservationLabel)+'</em></strong></div>';
+      html+='</div></div>';
     }
     if(summaryText) html+='<div class="item-extra-summary">'+esc(summaryText)+'</div>';
     
     html+='<div class="item-actions">';
     if(canUpdateProof && ref){
         html+='<button type="button" class="item-extra-link update-proof-btn" data-ref="'+esc(ref)+'"><i class="fa-solid fa-upload"></i> Update Proof</button>';
-    }
-    if(ref){
-        html+='<button type="button" class="item-extra-link view-details-btn view-details-trigger" data-ref="'+esc(ref)+'">View details</button>';
     }
     if(canCancel && ref){
         html+='<button type="button" class="item-extra-link item-extra-cancel"><i class="fa-solid fa-xmark"></i> '+(type==='guest_form'?'Cancel Request':'Cancel Reservation')+'</button>';

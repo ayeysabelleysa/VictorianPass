@@ -2763,7 +2763,7 @@ async function changePersons(val){
           if(usePoints){
             const discountVal = hourlyRate;
             rows += '<div class="bd-row bd-reward"><span>VHEcoPoint Reward: -1 Free Hour (' + requiredPoints.toLocaleString() + ' pts)</span><span>-₱' + discountVal.toFixed(2) + '</span></div>';
-          }else{
+          }else if(currentUserType === 'resident'){
             rows += '<div class="bd-row"><span>VHEcoPoint Reward: 0</span><span>₱0.00</span></div>';
           }
           rows += '<div class="bd-row"><span>Paid Duration: ' + paidHours + ' hour' + (paidHours !== 1 ? 's' : '') + '</span><span>₱' + base.toFixed(2) + '</span></div>';
@@ -2772,7 +2772,7 @@ async function changePersons(val){
         }else{
           bd.innerHTML =
             '<div class="bd-row"><span>Original Duration: 0 hours</span><span>₱0.00</span></div>' +
-            '<div class="bd-row"><span>VHEcoPoint Reward: 0</span><span>₱0.00</span></div>' +
+            (currentUserType === 'resident' ? '<div class="bd-row"><span>VHEcoPoint Reward: 0</span><span>₱0.00</span></div>' : '') +
             '<div class="bd-row"><span>Paid Duration: 0 hours</span><span>₱0.00</span></div>' +
             '<div class="bd-row bd-total"><span>Final Amount</span><span>₱0.00</span></div>';
         }
