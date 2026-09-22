@@ -60,6 +60,8 @@ if (!empty($_SESSION['report_wait_popup'])) {
 $flashNotice = $_SESSION['flash_notice'] ?? '';
 $isEcoRedeem = (strpos($flashNotice, '[redemption]') !== false);
 $flashNoticeClean = $isEcoRedeem ? str_replace(' [redemption]', '', $flashNotice) : $flashNotice;
+$redeemPoints = isset($_GET['points_used']) ? max(0, intval($_GET['points_used'])) : 0;
+$redeemAmenity = isset($_GET['amenity']) ? trim((string)$_GET['amenity']) : '';
 if ($flashNotice !== '') {
   unset($_SESSION['flash_notice'], $_SESSION['flash_ref_code']);
 }
@@ -1343,13 +1345,18 @@ body.account-blocked { overflow: hidden; }
 #guestPassModal .guest-pass-note { margin-top: 12px; font-size: 0.85rem; color: #888; text-align: center; }
 #guestPassModal .guest-pass-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
 #guestPassModal .guest-pass-link { display: inline-flex; margin-top: 10px; color: #4f46e5; text-decoration: underline; font-size: 0.9rem; }
-#submitNoticeModal { display: flex; align-items: center; justify-content: center; }
+#submitNoticeModal { display: flex; align-items: center; justify-content: center; z-index: 3000; }
 #submitNoticeModal .modal-content { width: 92%; max-width: 420px; max-height: min(90vh, 560px); padding: 16px 20px 14px; text-align: center; height: auto; min-height: unset; overflow-y: auto; }
 #submitNoticeModal .notice-success-icon { width: 42px; height: 42px; margin: 0 auto 7px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #eaf6ee; border: 2px solid #34a853; color: #21734e; font-size: 1.25rem; line-height: 1; }
 #submitNoticeModal .notice-success-icon i { line-height: 1; }
 #submitNoticeModal .notice-title { margin: 0 0 4px !important; font-size: 1.1rem !important; line-height: 1.3; }
 #submitNoticeModal .notice-message { margin: 0 !important; font-size: .88rem !important; line-height: 1.4; }
 #submitNoticeModal .notice-close { margin-top: 10px !important; padding: 8px 15px !important; line-height: 1.2; }
+#submitNoticeModal .notice-reward-box { margin: 8px auto 10px !important; width: 100%; max-width: 320px; background: #f4f7f5; border: 1px solid #e2e8e2; border-radius: 10px; padding: 10px 14px; text-align: left; }
+#submitNoticeModal .notice-detail-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 4px 0; }
+#submitNoticeModal .notice-detail-row + .notice-detail-row { border-top: 1px dashed #dfe6df; }
+#submitNoticeModal .notice-detail-label { font-size: .82rem; font-weight: 600; color: #6b7280; white-space: nowrap; }
+#submitNoticeModal .notice-detail-value { font-size: .9rem; font-weight: 700; color: #23412e; text-align: right; }
 #submitNoticeModal .close { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border-radius: 50%; background: #e5e7eb; color: #111827; border: 0; display: flex; align-items: center; justify-content: center; line-height: 1; padding: 0; cursor: pointer; }
 
     /* Fix for Resident Dashboard Modal to ensure it fits screen and close button is visible */
@@ -1661,6 +1668,20 @@ body.qr-modal-open{ overflow:hidden }
   }
   #submitNoticeModal #submitNoticeBtn {
     margin-top: 10px !important;
+  }
+  #submitNoticeModal .notice-reward-box {
+    max-width: 100% !important;
+    padding: 9px 10px !important;
+    text-align: center;
+  }
+  #submitNoticeModal .notice-detail-row {
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-align: center;
+  }
+  #submitNoticeModal .notice-detail-value {
+    text-align: center;
   }
   #verifyModal #verifySummary {
     margin-top: 6px !important;
@@ -3279,10 +3300,24 @@ body.modal-open{overflow:hidden}
       <button type="button" class="close" id="submitNoticeClose" aria-label="Close">&times;</button>
       <?php if ($isEcoRedeem) { ?>
         <div class="notice-success-icon" aria-hidden="true"><i class="fa-solid fa-check"></i></div>
+        <div class="notice-title" style="font-size:1.15rem;font-weight:700;color:#23412e;margin-bottom:6px;">Points Redeemed Successfully!</div>
+        <div class="notice-reward-box">
+          <div class="notice-detail-row">
+            <span class="notice-detail-label">Reward</span>
+            <span class="notice-detail-value">1 Free Hour<?php echo $redeemAmenity !== '' ? ' &ndash; ' . htmlspecialchars($redeemAmenity) : ''; ?></span>
+          </div>
+          <div class="notice-detail-row">
+            <span class="notice-detail-label">Points Deducted</span>
+            <span class="notice-detail-value"><?php echo intval($redeemPoints); ?> pts</span>
+          </div>
+        </div>
+        <div class="notice-message" style="color:#555;">Your reservation has been submitted. Please wait for Admin approval.</div>
+        <button type="button" class="notice-close" id="submitNoticeBtn" style="margin-top:18px;background:#23412e;color:#fff;border:none;border-radius:8px;padding:10px 16px;cursor:pointer;font-weight:600;">OK</button>
+      <?php } else { ?>
+        <div class="notice-title" style="font-size:1.1rem;font-weight:700;color:#23412e;margin-bottom:6px;">Request submitted</div>
+        <div class="notice-message" style="color:#555;"><?php echo htmlspecialchars($flashNoticeClean); ?></div>
+        <button type="button" class="notice-close" id="submitNoticeBtn" style="margin-top:18px;background:#23412e;color:#fff;border:none;border-radius:8px;padding:10px 16px;cursor:pointer;font-weight:600;">Close</button>
       <?php } ?>
-      <div class="notice-title" style="font-size:1.1rem;font-weight:700;color:#23412e;margin-bottom:6px;"><?php echo $isEcoRedeem ? 'VHEcoPoint Redemption Successful' : 'Request submitted'; ?></div>
-      <div class="notice-message" style="color:#555;"><?php echo htmlspecialchars($flashNoticeClean); ?></div>
-      <button type="button" class="notice-close" id="submitNoticeBtn" style="margin-top:18px;background:#23412e;color:#fff;border:none;border-radius:8px;padding:10px 16px;cursor:pointer;font-weight:600;">Close</button>
     </div>
   </div>
   <script>

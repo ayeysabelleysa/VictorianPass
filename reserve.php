@@ -175,6 +175,28 @@ function reserveCalcVHEcoBalance(mysqli $con, int $userId): int {
     return max(0, intval($row['balance'] ?? 0));
 }
 
+// Reward catalog used for VHEcoPoint amenity redemptions (source of truth for the
+// redeemable-rewards badge; must mirror the $allAmenities array in the modal markup).
+function reserveAmenityRewardCatalog(): array {
+    return [
+        ['name' => 'Basketball Court', 'points' => 300],
+        ['name' => 'Tennis Court', 'points' => 300],
+        ['name' => 'Clubhouse', 'points' => 600],
+        ['name' => 'Multi-Purpose Building', 'points' => 750],
+    ];
+}
+
+// Number of rewards the resident can currently redeem given their VHEcoPoint balance.
+function reserveRedeemableRewardCount(int $balance): int {
+    $count = 0;
+    foreach (reserveAmenityRewardCatalog() as $reward) {
+        if ($balance >= $reward['points']) {
+            $count++;
+        }
+    }
+    return $count;
+}
+
 // Downpayment moved on-page: do not force redirect; users can pay via GCash from the form
 
 function generateUniqueRefCode($con){
@@ -679,7 +701,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Show the VHEcoPoint redemption confirmation on the profile page
                     $_SESSION['flash_notice'] = 'Your ' . intval($points_required) . ' VHEcoPoint points have been successfully redeemed for 1 Free Hour. Your reservation has been submitted. Please wait for Admin approval. [redemption]';
                     $_SESSION['flash_ref_code'] = $newRef;
-                    header('Location: profileresident.php?section=panel-requests&reservation_success=1&points_used=' . $points_required);
+                    header('Location: profileresident.php?section=panel-requests&reservation_success=1&points_used=' . $points_required . '&amenity=' . urlencode((string)$amenity));
                     exit;
                   }
                 }
@@ -901,7 +923,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'check_points') {
   try {
     $uid = intval($sessionUserId);
     $balance = reserveCalcVHEcoBalance($con, $uid);
-    reserveJsonResponse(['ok' => true, 'balance' => $balance]);
+    reserveJsonResponse(['ok' => true, 'balance' => $balance, 'redeemable' => reserveRedeemableRewardCount($balance)]);
   } catch (Throwable $e) {
     reserveJsonError('reserve.php check_points error: ' . $e->getMessage());
   }
@@ -933,6 +955,7 @@ if ($sessionUserType === 'resident' && $sessionUserId !== null && ($con instance
 vpMark('resident_guests');
 $currentResident = null;
 $residentPoints = 0;
+$redeemableRewards = 0;
 $householdResidents = [];
 if ($sessionUserType === 'resident' && $sessionUserId !== null && ($con instanceof mysqli)) {
   $rid = intval($sessionUserId);
@@ -946,6 +969,7 @@ if ($sessionUserType === 'resident' && $sessionUserId !== null && ($con instance
     if ($resU && $resU->num_rows) { 
       $currentResident = $resU->fetch_assoc();
       $residentPoints = reserveCalcVHEcoBalance($con, $rid);
+      $redeemableRewards = reserveRedeemableRewardCount($residentPoints);
     }
     $stmtU->close();
   }
@@ -1139,7 +1163,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
         </div>
         <div class="points-tracker-note">These are your VHEcoPoint rewards - earn points by recycling at the Smart Waste Segregation Station.</div>
         <div class="points-tracker-body">
-          <button class="view-rewards-btn" id="viewRewardsBtn">View Rewards</button>
+          <button class="view-rewards-btn" id="viewRewardsBtn">View Rewards<span class="view-rewards-btn-badge" id="viewRewardsBadge"<?php echo ($redeemableRewards > 0) ? '' : ' style="display:none;"'; ?>><?php echo intval($redeemableRewards); ?></span></button>
         </div>
         <button class="points-tracker-toggle" id="trackerToggleBtn" aria-label="Toggle points tracker">−</button>
       </div>
@@ -2663,10 +2687,24 @@ async function changePersons(val){
     return request;
   }
 
+  function updateRewardsBadge(count){
+    const badge = document.getElementById('viewRewardsBadge');
+    if (!badge) return;
+    const n = parseInt(count, 10);
+    if (!Number.isFinite(n) || n <= 0) {
+      badge.style.display = 'none';
+      badge.textContent = '0';
+      return;
+    }
+    badge.textContent = String(n);
+    badge.style.display = '';
+  }
+
   async function fetchLivePointsBalance() {
     try {
       const data = await reserveFetchJson('reserve.php?action=check_points');
       if (data.ok && typeof data.balance === 'number') {
+        if (typeof data.redeemable === 'number') updateRewardsBadge(data.redeemable);
         return data.balance;
       }
     } catch (_) {}
@@ -4195,6 +4233,7 @@ displaySlotError('Please select the number of hours before choosing a start time
 }
 
 .view-rewards-btn {
+  position: relative;
   padding: 9px 16px;
   border-radius: 10px;
   background: rgba(255,255,255,0.15);
@@ -4209,6 +4248,27 @@ displaySlotError('Please select the number of hours before choosing a start time
 
 .view-rewards-btn:hover {
   background: rgba(255,255,255,0.22);
+}
+
+.view-rewards-btn-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  line-height: 14px;
+  text-align: center;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+  pointer-events: none;
+  z-index: 2;
 }
 
 @media (max-width: 1023px) {
