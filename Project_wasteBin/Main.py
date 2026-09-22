@@ -832,7 +832,7 @@ try:
         # LOCAL SESSION COUNTERS
         # =================================================
 
-        sessions = 0
+        items = 0
         total_points = 0
 
         # =================================================
@@ -868,7 +868,7 @@ try:
         # RESIDENT ITEM LOOP
         # =================================================
 
-        while sessions < MAX_SESSIONS:
+        while True:
 
             # -------------------------------------------------
             # LOCAL DAILY POINT CAP
@@ -997,10 +997,10 @@ try:
             total_points += points
 
             transaction_id = (
-                f"{session_token}-{sessions + 1}"
+                f"{session_token}-{items + 1}"
             )
 
-            sessions += 1
+            items += 1
 
             # =================================================
             # DISPLAY ACCEPTED ITEM
@@ -1028,8 +1028,8 @@ try:
             print("--------------------------------")
 
             print(
-                f"Sessions : "
-                f"{sessions}/{MAX_SESSIONS}"
+                f"Items    : "
+                f"{items}"
             )
 
             print(
@@ -1049,7 +1049,7 @@ try:
         # =================================================
 
         completed = None
-        if sessions > 0:
+        if items > 0:
 
             completed = complete_api_session(
                 session_token
@@ -1083,7 +1083,7 @@ try:
         print("================================")
 
         print(
-            f"Items  : {sessions}"
+            f"Items  : {items}"
         )
 
         # Display the actual points awarded by Hostinger
