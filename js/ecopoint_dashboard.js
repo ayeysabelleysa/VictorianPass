@@ -22,6 +22,7 @@
   const CONFIG = {
     SSE_ENDPOINT: '/api/ecopoint_sse.php',
     POLL_ENDPOINT: '/api/ecopoint_session_status.php',
+    END_SESSION_ENDPOINT: '/api/ecopoint_end_session.php',
     POLL_INTERVAL_MS: 5000, // fallback poll if SSE fails
     NOTIFICATION_DURATION_MS: 6000,
     UI_UPDATE_THROTTLE_MS: 200, // prevent excessive DOM updates
@@ -353,6 +354,7 @@
       if (weightEl) weightEl.textContent = '0.00 kg';
       if (pointsEl) pointsEl.textContent = '0 pts';
       if (panel) panel.style.opacity = '0.8';
+      setStyle('ecopoint-live-actions', { display: 'none' });
       return;
     }
 
@@ -386,6 +388,13 @@
     if (materialEl) materialEl.textContent = material;
     if (weightEl) weightEl.textContent = weight + ' kg';
     if (pointsEl) pointsEl.textContent = points + ' pts';
+
+    // Show "End Session Early" only while the session is genuinely active (status = ACTIVE).
+    // WAITING/PROCESSING are short-lived transitional states where ending early is not safe.
+    const actionsEl = getElement('ecopoint-live-actions');
+    if (actionsEl) {
+      actionsEl.style.display = isActive ? 'flex' : 'none';
+    }
 
     if (session.waste_items && session.waste_items.length > 0) {
       updateWasteItemsDisplay(session.waste_items);
@@ -678,6 +687,101 @@
   }
 
   // =====================================================================
+  // End Session Early (confirmation modal + POST to finalize)
+  // =====================================================================
+  function getCsrfToken() {
+    if (window.VP_CSRF_TOKEN) return String(window.VP_CSRF_TOKEN);
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    if (meta && meta.getAttribute('content')) return meta.getAttribute('content');
+    return '';
+  }
+
+  function openEndSessionModal() {
+    const modal = getElement('endSessionEarlyModal');
+    if (modal) modal.style.display = 'flex';
+  }
+
+  function closeEndSessionModal() {
+    const modal = getElement('endSessionEarlyModal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  function confirmEndSessionEarly() {
+    const confirmBtn = getElement('endSessionEarlyConfirm');
+    const cancelBtn = getElement('endSessionEarlyCancel');
+    if (confirmBtn) {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = 'Ending…';
+    }
+    if (cancelBtn) cancelBtn.disabled = true;
+
+    fetch(CONFIG.END_SESSION_ENDPOINT, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ csrf_token: getCsrfToken() }),
+    })
+      .then(resp => resp.json())
+      .then(data => {
+        if (data && data.success) {
+          closeEndSessionModal();
+          showNotification(
+            'success',
+            'Session Ended',
+            'Your session has ended. Materials and points recorded so far were saved.',
+            'fa-solid fa-circle-check',
+            '#16a34a'
+          );
+          // Immediately reflect "No Active Session" before the next SSE/poll snapshot.
+          updateLiveSessionUI(null);
+          if (data.new_balance !== undefined && data.new_balance !== null) {
+            updateCurrentBalance(data.new_balance);
+          }
+          if (data.cap_state_after) {
+            updateCapState(data.cap_state_after);
+          }
+        } else {
+          showNotification('error', 'Unable to End Session', (data && data.message) || 'Please try again.', 'fa-solid fa-circle-xmark', '#dc2626');
+        }
+      })
+      .catch(() => {
+        showNotification('error', 'Unable to End Session', 'Network error. Please try again.', 'fa-solid fa-circle-xmark', '#dc2626');
+      })
+      .finally(() => {
+        if (confirmBtn) {
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = 'End Session';
+        }
+        if (cancelBtn) cancelBtn.disabled = false;
+      });
+  }
+
+  function wireEndSessionEarlyControls() {
+    const trigger = getElement('ecopointEndSessionBtn');
+    if (trigger) {
+      trigger.addEventListener('click', openEndSessionModal);
+    }
+
+    const cancelBtn = getElement('endSessionEarlyCancel');
+    const closeBtn = getElement('endSessionEarlyClose');
+    const confirmBtn = getElement('endSessionEarlyConfirm');
+    const modal = getElement('endSessionEarlyModal');
+
+    if (cancelBtn) cancelBtn.addEventListener('click', closeEndSessionModal);
+    if (closeBtn) closeBtn.addEventListener('click', closeEndSessionModal);
+    if (confirmBtn) confirmBtn.addEventListener('click', confirmEndSessionEarly);
+
+    if (modal) {
+      modal.addEventListener('click', function(e) {
+        if (e.target === modal) closeEndSessionModal();
+      });
+    }
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeEndSessionModal();
+    });
+  }
+
+  // =====================================================================
   // Initialization
   // =====================================================================
   function init() {
@@ -685,6 +789,9 @@
 
     // Inject CSS animations
     injectStyles();
+
+    // Wire up the End Session Early button + confirmation modal (if present).
+    wireEndSessionEarlyControls();
 
     // Check if we're on the ecopoint section
     const ecoPanel = getElement('ecopoint-live-panel');

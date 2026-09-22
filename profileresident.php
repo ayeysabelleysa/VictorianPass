@@ -1084,6 +1084,45 @@ body.account-blocked { overflow: hidden; }
   font-weight: 700;
   color: #fde886;
 }
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: center;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-end-session-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 320px;
+  padding: 11px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(239,68,68,0.45);
+  background: rgba(239,68,68,0.08);
+  color: #fca5a5;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color .18s ease, color .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-end-session-btn:hover {
+  background: rgba(239,68,68,0.18);
+  color: #fecaca;
+  border-color: rgba(239,68,68,0.65);
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-end-session-btn:active {
+  transform: translateY(1px);
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-end-session-btn:focus-visible {
+  outline: 2px solid #fca5a5;
+  outline-offset: 2px;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-end-session-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
 /* Progress bars */
 .main-content.ecopoint-active #panel-points-history .ecopoint-progress { background: #e5e7eb; border-radius: 999px; }
@@ -1337,6 +1376,85 @@ body.account-blocked { overflow: hidden; }
     .modal .close { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border-radius: 50%; background: #e5e7eb; color: #111827; border: 0; display: flex; align-items: center; justify-content: center; line-height: 1; cursor: pointer; font-size: 18px; }
     .modal .close:hover { filter: brightness(0.95); }
     .close-btn { position: absolute; top: 15px; right: 15px; font-size: 20px; cursor: pointer; color: #555; }
+/* End Session Early confirmation modal */
+.end-session-modal-card {
+  background: #fff;
+  color: #1f2937;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  max-width: 420px;
+  width: 92%;
+  padding: 24px 22px 20px;
+  text-align: center;
+  position: relative;
+  box-shadow: 0 20px 45px rgba(15,23,42,0.25);
+  font-family: 'Poppins', sans-serif;
+}
+.end-session-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  color: #6b7280;
+  cursor: pointer;
+  line-height: 1;
+}
+.end-session-modal-close:hover { color: #111827; }
+.end-session-modal-icon {
+  width: 54px;
+  height: 54px;
+  margin: 6px auto 14px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fef2f2;
+  border: 2px solid #fca5a5;
+  color: #dc2626;
+  font-size: 1.35rem;
+}
+.end-session-modal-title {
+  font-weight: 800;
+  font-size: 1.2rem;
+  color: #23412e;
+  margin-bottom: 8px;
+}
+.end-session-modal-text {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #475569;
+  margin-bottom: 18px;
+}
+.end-session-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+.end-session-modal-cancel,
+.end-session-modal-confirm {
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  font-family: 'Poppins', sans-serif;
+  transition: background-color .18s ease, color .18s ease, box-shadow .18s ease;
+}
+.end-session-modal-cancel {
+  background: #e5e7eb;
+  color: #1f2937;
+}
+.end-session-modal-cancel:hover { background: #d1d5db; }
+.end-session-modal-confirm {
+  background: #dc2626;
+  color: #fff;
+}
+.end-session-modal-confirm:hover { background: #b91c1c; }
+.end-session-modal-confirm:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Guest Pass Modal */
 #guestPassModal .modal-content { width: 92%; max-width: 420px; padding: 24px; text-align: center; max-height: calc(100vh - 120px); }
 #guestPassModal h3 { margin: 0 0 12px; color: #23412e; font-size: 1.05rem; font-weight: 700; }
 #guestPassModal .guest-pass-header { margin-bottom: 10px; text-align: center; }
@@ -1682,6 +1800,28 @@ body.qr-modal-open{ overflow:hidden }
   }
   #submitNoticeModal .notice-detail-value {
     text-align: center;
+  }
+  #endSessionEarlyModal .end-session-modal-card {
+    width: calc(100vw - 24px);
+    max-width: 400px;
+    padding: 20px 16px 16px;
+  }
+  #endSessionEarlyModal .end-session-modal-text {
+    font-size: 0.9rem;
+  }
+  #endSessionEarlyModal .end-session-modal-actions {
+    flex-direction: column-reverse;
+  }
+  #endSessionEarlyModal .end-session-modal-cancel,
+  #endSessionEarlyModal .end-session-modal-confirm {
+    width: 100%;
+    padding: 12px 18px;
+  }
+  .main-content.ecopoint-active #panel-points-history .ecopoint-live-actions {
+    justify-content: stretch;
+  }
+  .main-content.ecopoint-active #panel-points-history .ecopoint-end-session-btn {
+    max-width: none;
   }
   #verifyModal #verifySummary {
     margin-top: 6px !important;
@@ -3667,6 +3807,12 @@ body.modal-open{overflow:hidden}
                   <span class="ecopoint-live-metric-label">Current points</span>
                   <strong id="ecopoint-live-points">0 pts</strong>
                 </div>
+              </div>
+              <div class="ecopoint-live-actions" id="ecopoint-live-actions" style="display:none;">
+                <button type="button" class="ecopoint-end-session-btn" id="ecopointEndSessionBtn">
+                  <i class="fa-solid fa-stop" aria-hidden="true"></i>
+                  <span>End Session Early</span>
+                </button>
               </div>
             </div>
 
@@ -7161,6 +7307,18 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="entry-pass-lightbox-note">Do not scan. One-time use only. Once scanned, the QR code is permanently disabled. Authorized guards only.</div>
   </div>
 </div>
+<div id="endSessionEarlyModal" class="profile-modal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.6); align-items:center; justify-content:center; z-index:3000;">
+  <div class="end-session-modal-card">
+    <button type="button" class="end-session-modal-close" id="endSessionEarlyClose" aria-label="Close">&times;</button>
+    <div class="end-session-modal-icon" aria-hidden="true"><i class="fa-solid fa-stop"></i></div>
+    <div class="end-session-modal-title">End this session early?</div>
+    <div class="end-session-modal-text">Your current materials and earned points will be recorded. Are you sure you want to end the session?</div>
+    <div class="end-session-modal-actions">
+      <button type="button" class="end-session-modal-cancel" id="endSessionEarlyCancel">Cancel</button>
+      <button type="button" class="end-session-modal-confirm" id="endSessionEarlyConfirm">End Session</button>
+    </div>
+  </div>
+</div>
 <div id="changePasswordModalResident" class="profile-modal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.6); align-items:center; justify-content:center; z-index:3000;">
   <div class="vp-logout-modal" style="position:relative; top:auto; right:auto; margin:0; width:350px; max-width:90vw; max-height:calc(100vh - 100px);">
     <button class="close-change-password" style="position:absolute; right:12px; top:10px; background:transparent; border:none; font-size:20px; cursor:pointer;">&times;</button>
@@ -7259,6 +7417,9 @@ function replaceProof(reportId, proofId){
 }
 </script>
 
+<script>
+window.VP_CSRF_TOKEN = <?php echo json_encode(function_exists('vpCsrfGetToken') ? vpCsrfGetToken() : ''); ?>;
+</script>
 <script src="js/ecopoint_dashboard.js"></script>
 <div id="vhecopointAnnouncement" class="vhecopoint-popup-overlay" role="dialog" aria-modal="true" aria-labelledby="vhecopointPopupTitle" aria-describedby="vhecopointPopupText" style="display:none;">
   <div class="vhecopoint-popup-card">
