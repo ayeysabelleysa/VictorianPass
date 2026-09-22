@@ -1583,6 +1583,8 @@ body.qr-modal-open{ overflow:hidden }
 .qr-modal-content .close:hover{ filter:brightness(0.92); }
 .qr-modal-content h3{ margin:0 0 6px; font-size:1.1rem; font-weight:700; color:#111827; }
 .qr-modal-body{ color:#475569; line-height:1.55; font-size:.93rem; margin:0 0 14px; }
+.qr-modal-body.qr-modal-qr{ display:flex; justify-content:center; margin-bottom:16px; }
+.qr-modal-body.qr-modal-qr img{ width:168px; height:168px; border-radius:12px; background:#ffffff; padding:12px; box-sizing:border-box; object-fit:contain; }
 .qr-modal-actions{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
 .qr-modal-note{ margin-top:8px; color:#6b7280; font-size:.9rem; }
 #qrViewCardContainer{
@@ -3505,9 +3507,8 @@ body.modal-open{overflow:hidden}
     <div class="modal-content qr-modal-content" id="qrChoiceModalContent">
       <button type="button" class="close" aria-label="Close" id="qrChoiceClose">&times;</button>
       <h3>My QR Code</h3>
-      <div class="qr-modal-body">Choose one of the options below to continue with your resident QR ID.</div>
-      <div class="qr-modal-actions">
-        <button type="button" class="btn-confirm" id="qrViewBtn">View</button>
+      <div class="qr-modal-body qr-modal-qr"><img src="<?php echo htmlspecialchars($qrRelPath); ?>" alt="My QR Code"></div>
+      <div class="qr-modal-actions qr-modal-actions-single">
         <button type="button" class="btn-confirm" id="qrDownloadBtn">Download</button>
       </div>
     </div>
@@ -3811,7 +3812,7 @@ body.modal-open{overflow:hidden}
               <div class="ecopoint-live-actions" id="ecopoint-live-actions" style="display:none;">
                 <button type="button" class="ecopoint-end-session-btn" id="ecopointEndSessionBtn">
                   <i class="fa-solid fa-stop" aria-hidden="true"></i>
-                  <span>End Session Early</span>
+                  <span>End Session</span>
                 </button>
               </div>
             </div>
@@ -4463,7 +4464,6 @@ body.modal-open{overflow:hidden}
   document.addEventListener('click', function(e){
     if(e.target && e.target.id === 'qrChoiceClose') closeQRChoice();
     if(e.target && e.target.id === 'qrViewClose') closeQRView();
-    if(e.target && e.target.id === 'qrViewBtn'){ openQRView(); }
     if(e.target && e.target.id === 'qrDownloadBtn'){ closeQRChoice(); downloadPersonalQR(); }
     if(e.target && e.target.id === 'qrViewDownloadBtn'){ closeQRView(); downloadPersonalQR(); }
   });
@@ -6073,6 +6073,13 @@ body.modal-open{overflow:hidden}
     var subtitleEl=document.getElementById('dashboardPageSubtitle');
     if(subtitleEl){ subtitleEl.textContent=sectionSubtitles[id]||'Overview of your VictorianPass dashboard.'; }
   }
+  function persistSectionInUrl(id){
+    try{
+      var url=new URL(window.location.href);
+      url.searchParams.set('section',id);
+      window.history.replaceState(null,'',url.toString());
+    }catch(err){ /* URL persistence is best-effort; do not break navigation */ }
+  }
   document.querySelectorAll('.nav-menu .nav-item[data-section]').forEach(function(item){
     item.addEventListener('click',function(e){
       var target=item.getAttribute('data-section');
@@ -6083,6 +6090,7 @@ body.modal-open{overflow:hidden}
       });
       item.classList.add('active');
       showPanel(target);
+      persistSectionInUrl(target);
       if(target==='panel-requests' && searchInput && typeof filterList==='function'){
         searchInput.value='';
         filterList();
@@ -7311,8 +7319,8 @@ document.addEventListener('DOMContentLoaded', function() {
   <div class="end-session-modal-card">
     <button type="button" class="end-session-modal-close" id="endSessionEarlyClose" aria-label="Close">&times;</button>
     <div class="end-session-modal-icon" aria-hidden="true"><i class="fa-solid fa-stop"></i></div>
-    <div class="end-session-modal-title">End this session early?</div>
-    <div class="end-session-modal-text">Your current materials and earned points will be recorded. Are you sure you want to end the session?</div>
+    <div class="end-session-modal-title">End VHEcoPoint Session?</div>
+    <div class="end-session-modal-text">Are you sure you want to end this session? Your recorded materials and earned points will be saved.</div>
     <div class="end-session-modal-actions">
       <button type="button" class="end-session-modal-cancel" id="endSessionEarlyCancel">Cancel</button>
       <button type="button" class="end-session-modal-confirm" id="endSessionEarlyConfirm">End Session</button>

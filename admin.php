@@ -1564,7 +1564,7 @@ function renderVerifyReceiptsCard($con){
                     $readonlyAttr = ($ps === 'pending_update') ? " readonly" : "";
                     $valueAttr = ($ps === 'pending_update' ? " value='" . htmlspecialchars($existingReason, ENT_QUOTES) . "'" : "");
                     echo "<input type='hidden' name='denial_reason' class='denial-reason'".$valueAttr.">";
-                    echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'><i class='fa-solid fa-xmark'></i> Deny</button>";
+                    echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'>Deny</button>";
                     echo "</form>";
                   } else {
                     echo '<form method="post" onsubmit="return openDenyModal(this)">';
@@ -1574,7 +1574,7 @@ function renderVerifyReceiptsCard($con){
                     $readonlyAttr = ($ps === 'pending_update') ? " readonly" : "";
                     $valueAttr = ($ps === 'pending_update' ? " value=\'' . htmlspecialchars($existingReason, ENT_QUOTES) . '\'" : "");
                     echo '<input type="hidden" name="denial_reason" class="denial-reason"' . $valueAttr . '>';
-                    echo '<button type="submit" class="btn btn-reject" onclick="return openDenyModal(this.closest(\'form\'))"><i class="fa-solid fa-xmark"></i> Reject</button>';
+                    echo '<button type="submit" class="btn btn-reject" onclick="return openDenyModal(this.closest(\'form\'))">Reject</button>';
                     echo '</form>';
                   }
                 }
@@ -5133,6 +5133,7 @@ body.modal-open { overflow: hidden; }
 #residentReservationDetailsContent .request-status,
 #reservationDetailsContent .request-status,
 #priceDetailsContent .request-status {
+    justify-content: center;
     text-align: center;
 }
 #visitorDetailsContent .section-title,
@@ -6494,7 +6495,7 @@ body.modal-open { overflow: hidden; }
                         echo "<input type='hidden' name='redirect_page' value='resident_guest_forms'>";
                         $valueAttr = ($payStatusLower === 'pending_update' ? " value='" . htmlspecialchars(trim((string)($denialReasonVal ?? '')), ENT_QUOTES) . "'" : "");
                         echo "<input type='hidden' name='denial_reason' class='denial-reason'".$valueAttr.">";
-                        echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'><i class='fa-solid fa-xmark'></i> Deny</button>";
+                        echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'>Deny</button>";
                         echo "</form>";
                       } else {
                         echo "<form method='post' style='display:inline;' onsubmit='return openDenyModal(this)'>";
@@ -6503,7 +6504,7 @@ body.modal-open { overflow: hidden; }
                         echo "<input type='hidden' name='redirect_page' value='resident_guest_forms'>";
                         $valueAttr = ($payStatusLower === 'pending_update' ? " value='" . htmlspecialchars(trim((string)($denialReasonVal ?? '')), ENT_QUOTES) . "'" : "");
                         echo "<input type='hidden' name='denial_reason' class='denial-reason'".$valueAttr.">";
-                        echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'><i class='fa-solid fa-xmark'></i> Reject</button>";
+                        echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'>Reject</button>";
                         echo "</form>";
                       }
                     }
@@ -6518,14 +6519,14 @@ body.modal-open { overflow: hidden; }
                       echo "<input type='hidden' name='visit_date' value='" . htmlspecialchars($req['visit_date'] ?? '', ENT_QUOTES) . "'>";
                       echo "<input type='hidden' name='visit_time' value='" . htmlspecialchars($req['visit_time'] ?? '', ENT_QUOTES) . "'>";
                     }
-                  echo "<button type='submit' class='btn " . ($disabled ? "btn-disabled" : "btn-approve") . "' " . ($disabled ? "disabled title='Verify payment receipt first'" : "") . "><i class='fa-solid fa-check'></i> Approve</button>";
+                  echo "<button type='submit' class='btn " . ($disabled ? "btn-disabled" : "btn-approve") . "' " . ($disabled ? "disabled title='Verify payment receipt first'" : "") . ">Approve</button>";
                   echo "</form>";
                   echo "<form method='post' class='action-form action-deny' onsubmit='return openDenyModal(this)'>";
                   echo "<input type='hidden' name='reservation_id' value='" . $req['id'] . "'>";
                   echo "<input type='hidden' name='action' value='deny_request'>";
                   echo "<input type='hidden' name='redirect_page' value='resident_guest_forms'>";
                   echo "<input type='hidden' name='denial_reason' class='denial-reason'>";
-                  echo "<button type='submit' class='btn " . ($disabled ? "btn-disabled" : "btn-reject") . "' " . ($disabled ? "disabled title='Verify payment receipt first'" : "") . " onclick='return openDenyModal(this.closest(\"form\"))'><i class='fa-solid fa-xmark'></i> Deny</button>";
+                  echo "<button type='submit' class='btn " . ($disabled ? "btn-disabled" : "btn-reject") . "' " . ($disabled ? "disabled title='Verify payment receipt first'" : "") . " onclick='return openDenyModal(this.closest(\"form\"))'>Deny</button>";
                   echo "</form>";
                   } elseif ($approval_status == 'denied' || $approval_status == 'cancelled') {
                       echo "<form method='post' style='display:inline;' onsubmit='return confirm(\"Delete this " . $approval_status . " request? This cannot be undone.\")'>";
@@ -6622,7 +6623,7 @@ body.modal-open { overflow: hidden; }
                       echo "<input type='hidden' name='rr_id' value='" . intval($rr['id']) . "'>";
                       echo "<input type='hidden' name='action' value='approve_resident_reservation'>";
                       echo "<input type='hidden' name='redirect_page' value='reservations'>";
-                      echo "<button type='submit' class='btn " . ($disabled ? "btn-disabled" : "btn-approve") . "' " . ($disabled ? "disabled title='Verify payment receipt first'" : "") . "><i class='fa-solid fa-check'></i> Approve</button>";
+                      echo "<button type='submit' class='btn " . ($disabled ? "btn-disabled" : "btn-approve") . "' " . ($disabled ? "disabled title='Verify payment receipt first'" : "") . ">Approve</button>";
                       echo "</form>";
 
                 } elseif ($approval_status == 'denied' || $approval_status == 'cancelled') {
@@ -7113,7 +7114,7 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
                   echo "<input type='hidden' name='redirect_page' value='requests'>";
                   $valueAttr = ($payStatusLower === 'pending_update' ? " value='" . htmlspecialchars(trim((string)($rr['denial_reason'] ?? '')), ENT_QUOTES) . "'" : "");
                   echo "<input type='hidden' name='denial_reason' class='denial-reason'".$valueAttr.">";
-                  echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'><i class='fa-solid fa-xmark'></i> Deny</button>";
+                  echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'>Deny</button>";
                   echo "</form>";
                 } else if ($payStatusLower !== 'rejected') {
                   if ($payStatusLower !== 'verified') {
@@ -7136,7 +7137,7 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
                       echo "<input type='hidden' name='redirect_page' value='requests'>";
                       $valueAttr = ($payStatusLower === 'pending_update' ? " value='" . htmlspecialchars(trim((string)($rr['denial_reason'] ?? '')), ENT_QUOTES) . "'" : "");
                       echo "<input type='hidden' name='denial_reason' class='denial-reason'".$valueAttr.">";
-                      echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'><i class='fa-solid fa-xmark'></i> Deny</button>";
+                      echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'>Deny</button>";
                       echo "</form>";
                     } else {
                       echo "<form method='post' onsubmit='return openDenyModal(this)'>";
@@ -7145,7 +7146,7 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
                       echo "<input type='hidden' name='redirect_page' value='requests'>";
                       $valueAttr = ($payStatusLower === 'pending_update' ? " value='" . htmlspecialchars(trim((string)($rr['denial_reason'] ?? '')), ENT_QUOTES) . "'" : "");
                       echo "<input type='hidden' name='denial_reason' class='denial-reason'".$valueAttr.">";
-                      echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'><i class='fa-solid fa-xmark'></i> Reject</button>";
+                      echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'>Reject</button>";
                       echo "</form>";
                     }
                   }
@@ -7156,7 +7157,7 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
                     echo "<input type='hidden' name='rr_id' value='" . intval($rr['id']) . "'>";
                     echo "<input type='hidden' name='action' value='approve_resident_reservation'>";
                     echo "<input type='hidden' name='redirect_page' value='requests'>";
-                    echo "<button type='submit' class='btn " . ($disabled ? "btn-disabled" : "btn-approve") . "' " . ($disabled ? "disabled title='Verify payment receipt first'" : "") . "><i class='fa-solid fa-check'></i> Approve</button>";
+                    echo "<button type='submit' class='btn " . ($disabled ? "btn-disabled" : "btn-approve") . "' " . ($disabled ? "disabled title='Verify payment receipt first'" : "") . ">Approve</button>";
                     echo "</form>";
 
                 } elseif ($approval_status == 'denied' || $approval_status == 'cancelled') {
@@ -7228,7 +7229,7 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
               echo '<form method="POST" style="display:inline-block;">';
               echo '<input type="hidden" name="report_id" value="' . intval($r['id']) . '">';
               echo '<input type="hidden" name="incident_action" value="reject">';
-              echo '<button type="submit" class="btn btn-reject"><i class="fa-solid fa-xmark"></i> Reject</button>';
+              echo '<button type="submit" class="btn btn-reject">Reject</button>';
               echo '</form>';
               echo '<form method="POST" style="display:inline-block;margin-left:6px;" onsubmit="return confirm(\'Delete this incident report? This cannot be undone.\')">';
               echo '<input type="hidden" name="report_id" value="' . intval($r['id']) . '">';
@@ -7331,7 +7332,7 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
                     echo "<input type='hidden' name='redirect_page' value='visitor_requests'>";
                     $valueAttr = ($payStatusLower === 'pending_update' ? " value='" . htmlspecialchars(trim((string)($rr['denial_reason'] ?? '')), ENT_QUOTES) . "'" : "");
                     echo "<input type='hidden' name='denial_reason' class='denial-reason'".$valueAttr.">";
-                    echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'><i class='fa-solid fa-xmark'></i> Deny</button>";
+                    echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'>Deny</button>";
                     echo "</form>";
                   }
                   if ($payStatusLower !== 'rejected') {
@@ -7357,7 +7358,7 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
                       echo "<input type='hidden' name='redirect_page' value='visitor_requests'>";
                       $valueAttr = ($payStatusLower === 'pending_update' ? " value='" . htmlspecialchars(trim((string)($rr['denial_reason'] ?? '')), ENT_QUOTES) . "'" : "");
                       echo "<input type='hidden' name='denial_reason' class='denial-reason'".$valueAttr.">";
-                      echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'><i class='fa-solid fa-xmark'></i> Deny</button>";
+                      echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'>Deny</button>";
                       echo "</form>";
                     } else {
                       echo "<form method='post' onsubmit='return openDenyModal(this)'>";
@@ -7366,7 +7367,7 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
                       echo "<input type='hidden' name='redirect_page' value='visitor_requests'>";
                       $valueAttr = ($payStatusLower === 'pending_update' ? " value='" . htmlspecialchars(trim((string)($rr['denial_reason'] ?? '')), ENT_QUOTES) . "'" : "");
                       echo "<input type='hidden' name='denial_reason' class='denial-reason'".$valueAttr.">";
-                      echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'><i class='fa-solid fa-xmark'></i> Reject</button>";
+                      echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'>Reject</button>";
                       echo "</form>";
                     }
                   }
@@ -7376,7 +7377,7 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
                       echo "<input type='hidden' name='rr_id' value='" . intval($rr['id']) . "'>";
                       echo "<input type='hidden' name='action' value='approve_resident_reservation'>";
                       echo "<input type='hidden' name='redirect_page' value='visitor_requests'>";
-                      echo "<button type='submit' class='btn " . ($disabled ? "btn-disabled" : "btn-approve") . "' " . ($disabled ? "disabled title='Verify payment receipt first'" : "") . "><i class='fa-solid fa-check'></i> Approve</button>";
+                      echo "<button type='submit' class='btn " . ($disabled ? "btn-disabled" : "btn-approve") . "' " . ($disabled ? "disabled title='Verify payment receipt first'" : "") . ">Approve</button>";
                       echo "</form>";
 
                   } elseif ($approval_status == 'denied' || $approval_status == 'cancelled') {
@@ -8061,6 +8062,7 @@ window.addEventListener('click', function(event){
 function fmtTime(t){ if(!t) return ''; var p=String(t).split(':'), hh=parseInt(p[0]||'0',10), m=(p[1]||'00'); var ap=hh>=12?'PM':'AM'; var h=hh%12; if(h===0) h=12; return (String(h)+":"+String(m).padStart(2,'0')+" "+ap); }
 function fmtDate(d){ if(!d) return ''; var p=String(d).split('-'); if(p.length!==3) return d; var m=(p[1]||'').padStart(2,'0'); var dd=(p[2]||'').padStart(2,'0'); var y=String(p[0]).slice(-2); return m+'/'+dd+'/'+y; }
 function fmtDuration(st, et){ if(!st || !et) return ''; var m1=String(st).match(/^(\d{1,2}):(\d{2})/); var m2=String(et).match(/^(\d{1,2}):(\d{2})/); if(!m1 || !m2) return ''; var sm=parseInt(m1[1],10)*60+parseInt(m1[2],10); var em=parseInt(m2[1],10)*60+parseInt(m2[2],10); var diff=em-sm; if(diff===0) return ''; if(diff<0) diff=(24*60)-sm+em; if(diff<=0) return ''; var h=Math.floor(diff/60); var mins=diff%60; var out=[]; if(h>0) out.push(h+(h===1?' hr':' hrs')); if(mins>0) out.push(mins+' min'); return out.join(' ')||''; }
+function fmtSubmittedOn(dt){ try{ var d=new Date(dt); var months=['January','February','March','April','May','June','July','August','September','October','November','December']; var mm=months[d.getMonth()]; var dd=d.getDate(); var yy=d.getFullYear(); var hh=d.getHours(); var m=String(d.getMinutes()).padStart(2,'0'); var ap=hh>=12?'PM':'AM'; var h=hh%12; if(h===0) h=12; return (mm+' '+dd+', '+yy+' at '+h+':'+m+' '+ap); }catch(e){ return String(dt); } }
 function fmtDateTime(dt){ try{ var d=new Date(dt); var mm=String(d.getMonth()+1).padStart(2,'0'); var dd=String(d.getDate()).padStart(2,'0'); var yy=String(d.getFullYear()).slice(-2); var hh=d.getHours(); var m=String(d.getMinutes()).padStart(2,'0'); var ap=hh>=12?'PM':'AM'; var h=hh%12; if(h===0) h=12; return (mm+"."+dd+"."+yy+" "+h+":"+m+" "+ap); }catch(e){ return String(dt); } }
 function fmtDateTimeSec(dt){ try{ var d=new Date(dt); var mm=String(d.getMonth()+1).padStart(2,'0'); var dd=String(d.getDate()).padStart(2,'0'); var yy=String(d.getFullYear()).slice(-2); var hh=d.getHours(); var m=String(d.getMinutes()).padStart(2,'0'); var s=String(d.getSeconds()).padStart(2,'0'); var ap=hh>=12?'PM':'AM'; var h=hh%12; if(h===0) h=12; return (mm+"."+dd+"."+yy+" "+h+":"+m+":"+s+" "+ap); }catch(e){ return String(dt); } }
 function showResidentReservationDetails(rrId){
@@ -8212,6 +8214,13 @@ function showResidentReservationDetails(rrId){
               ${d.email?`<div class="info-row"><span class="info-label">Email</span><span class="info-value">${d.email}</span></div>`:''}
               ${d.phone?`<div class="info-row"><span class="info-label">Phone</span><span class="info-value">${d.phone}</span></div>`:''}
             </div>` : ''}
+            <div class="section-title">Request Information</div>
+            <div class="info-grid">
+              <div class="info-row"><span class="info-label">Request Status</span><span class="info-value">${stLabel}</span></div>
+              ${d.created_at?`<div class="info-row"><span class="info-label">Submitted On</span><span class="info-value">${fmtSubmittedOn(d.created_at)}</span></div>`:''}
+              ${d.approved_by?`<div class="info-row"><span class="info-label">Approved By</span><span class="info-value">Admin</span></div>`:''}
+              ${d.approval_date?`<div class="info-row"><span class="info-label">Approval Date</span><span class="info-value">${fmtDateTimeSec(d.approval_date)}</span></div>`:''}
+            </div>
             <div class="section-title">Reservation Details</div>
             <div class="info-grid">
               ${d.ref_code?`<div class="info-row"><span class="info-label">Reference Code</span><span class="info-value">${d.ref_code}</span></div>`:''}
