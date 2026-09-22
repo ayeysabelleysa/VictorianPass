@@ -5,3 +5,7 @@ venv/
 __pycache__/
 *.pyc
 .cdp-tmp/
+
+# Local backup files
+js/ecopoint_dashboard.js.backup-weekly
+profileresident.php.backup-live-session
