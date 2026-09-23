@@ -304,26 +304,192 @@ function eco_resident_cap_state(mysqli $con, int $userId): array {
 }
 
 // ------------------------------------------------------------------
+// Recover a stale VHEcoPoint session after server-side inactivity timeout
+// - If waste was already submitted, finalize it using the normal idempotent
+//   points-awarding path.
+// - If no waste was submitted, simply cancel the abandoned session.
+// This protects against Raspberry Pi shutdowns/brownouts where hardware
+// cleanup code cannot run.
+// ------------------------------------------------------------------
+function eco_recover_stale_session(mysqli$con, int $sessionId): bool {
+    if ($sessionId <= 0) return false;
+
+    $cutoffSec = max(1, (int)ECO_SESSION_TIMEOUT_SEC);
+
+    $con->begin_transaction();
+
+    try {
+        $allowed = ECO_SESSION_STATUSES_OPEN;
+        $inList  = implode(',', array_fill(0, count($allowed), '?'));
+
+        $stmt = $con->prepare("
+            SELECT *
+            FROM ecopoint_waste_sessions
+            WHERE id = ?
+              AND status IN ($inList)
+              AND COALESCE(updated_at, created_at)
+                  < DATE_SUB(NOW(), INTERVAL {$cutoffSec} SECOND)
+            LIMIT 1
+            FOR UPDATE
+        ");
+
+        if (!$stmt) {
+            throw new RuntimeException('Failed to lock stale session: ' . $con->error);
+        }
+
+        $params = array_merge([$sessionId], $allowed);
+        $types  = 'i' . str_repeat('s', count($allowed));
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+
+        $session = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$session) {
+            $con->commit();
+            return false;
+        }
+
+        $stationId = (int)$session['station_id'];
+        $status    = strtoupper((string)($session['status'] ?? ''));
+
+        $eventStmt = $con->prepare("
+            SELECT COUNT(*) AS waste_count
+            FROM ecopoint_session_events
+            WHERE session_id = ?
+              AND event_type = 'WASTE_DATA'
+        ");
+
+        if (!$eventStmt) {
+            throw new RuntimeException(
+                'Failed to inspect stale session events: ' . $con->error
+            );
+        }
+
+        $eventStmt->bind_param('i', $sessionId);
+        $eventStmt->execute();
+        $eventRow = $eventStmt->get_result()->fetch_assoc();
+        $eventStmt->close();
+
+        $wasteCount   = (int)($eventRow['waste_count'] ?? 0);
+        $pointsPosted = ((int)($session['points_posted'] ?? 0) === 1);
+
+        if ($wasteCount > 0 || $pointsPosted) {
+            eco_log_event(
+                $con,
+                $sessionId,
+                $stationId,
+                'SESSION_TIMEOUT_FINALIZE_REQUESTED',
+                [
+                    'previous_status' => $status,
+                    'timeout_seconds'  => $cutoffSec,
+                    'waste_events'     => $wasteCount,
+                ],
+                'BACKEND'
+            );
+
+            $result = eco_award_points_and_finalize(
+                $con,
+                $sessionId,
+                $stationId
+            );
+
+            eco_log_event(
+                $con,
+                $sessionId,
+                $stationId,
+                'SESSION_TIMEOUT_FINALIZED',
+                [
+                    'awarded_points'  => (int)$result['awarded_points'],
+                    'previous_status' => $status,
+                    'waste_events'    => $wasteCount,
+                ],
+                'BACKEND'
+            );
+        } else {
+            eco_transition_status(
+                $con,
+                $sessionId,
+                $stationId,
+                'CANCELLED'
+            );
+
+            eco_log_event(
+                $con,
+                $sessionId,
+                $stationId,
+                'SESSION_TIMEOUT_CANCELLED',
+                [
+                    'previous_status' => $status,
+                    'timeout_seconds'  => $cutoffSec,
+                ],
+                'BACKEND'
+            );
+        }
+
+        $con->commit();
+        return true;
+
+    } catch (Throwable $e) {
+        try { $con->rollback(); } catch (Throwable $_) {}
+
+        error_log(
+            'VHEcoPoint stale session recovery failed for session '
+            . $sessionId . ': ' . $e->getMessage()
+        );
+
+        return false;
+    }
+}
+
+// ------------------------------------------------------------------
 // Duplicate-active-session guard
 // A resident may have at most ONE session that's WAITING/ACTIVE/PROCESSING.
 // (OPEN status set — duplicates blocked by DB UNIQUE KEY + this check.)
 // ------------------------------------------------------------------
-function eco_get_active_session_for_user(mysqli $con, int $userId): ?array {
-    $inList = implode(',', array_fill(0, count(ECO_SESSION_STATUSES_OPEN), '?'));
-    $stmt = $con->prepare("
-        SELECT *
-        FROM   ecopoint_waste_sessions
-        WHERE  user_id = ?
-        AND    status IN ($inList)
-        LIMIT  1
-    ");
-    if (!$stmt) return null;
-    $params = array_merge([$userId], ECO_SESSION_STATUSES_OPEN);
-    $types  = 'i' . str_repeat('s', count(ECO_SESSION_STATUSES_OPEN));
-    $stmt->bind_param($types, ...$params);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
+function eco_get_active_session_for_user(mysqli$con, int $userId): ?array {
+    $fetch = function() use ($con, $userId): ?array {
+        $inList = implode(',', array_fill(0, count(ECO_SESSION_STATUSES_OPEN), '?'));
+
+        $stmt = $con->prepare("
+            SELECT *
+            FROM   ecopoint_waste_sessions
+            WHERE  user_id = ?
+            AND    status IN ($inList)
+            ORDER BY COALESCE(updated_at, created_at) DESC, id DESC
+            LIMIT 1
+        ");
+
+        if (!$stmt) return null;
+
+        $params = array_merge([$userId], ECO_SESSION_STATUSES_OPEN);
+        $types  = 'i' . str_repeat('s', count(ECO_SESSION_STATUSES_OPEN));
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        return $row ?: null;
+    };
+
+    $row = $fetch();
+
+    if (!$row) return null;
+
+    $lastActivity = strtotime((string)($row['updated_at'] ?? ''));
+    if ($lastActivity === false) {
+        $lastActivity = strtotime((string)($row['created_at'] ?? ''));
+    }
+
+    if (
+        $lastActivity !== false &&
+        (time() - $lastActivity) >= max(1, (int)ECO_SESSION_TIMEOUT_SEC)
+    ) {
+        eco_recover_stale_session($con, (int)$row['id']);
+        $row = $fetch();
+    }
+
     return $row ?: null;
 }
 
@@ -483,32 +649,62 @@ function eco_create_session(mysqli $con, array $station, array $resident, string
 // (OPEN statuses: WAITING / ACTIVE / PROCESSING.)
 // ------------------------------------------------------------------
 function eco_load_session_for_station(mysqli $con, array $station, string $token, bool $allowProcessing = true): ?array {
-    $token      = trim($token);
-    $stationId  = (int)$station['station_id'];
+    $token     = trim($token);
+    $stationId = (int)$station['station_id'];
+
     if ($token === '') return null;
 
-    // Build list of allowed statuses (OPEN status set from constant, subset by $allowProcessing)
     $allowed = ECO_SESSION_STATUSES_OPEN;
+
     if (!$allowProcessing) {
-        $allowed = array_values(array_filter($allowed, function($s){ return $s !== 'PROCESSING'; }));
+        $allowed = array_values(
+            array_filter(
+                $allowed,
+                function($s) {
+                    return $s !== 'PROCESSING';
+                }
+            )
+        );
     }
+
     $inList = implode(',', array_fill(0, count($allowed), '?'));
+
     $stmt = $con->prepare("
         SELECT *
         FROM   ecopoint_waste_sessions
         WHERE  session_token = ?
         AND    station_id    = ?
         AND    status IN ($inList)
-        LIMIT  1
+        LIMIT 1
     ");
+
     if (!$stmt) return null;
+
     $params = array_merge([$token, $stationId], $allowed);
     $types  = 'si' . str_repeat('s', count($allowed));
+
     $stmt->bind_param($types, ...$params);
     $stmt->execute();
+
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
-    return $row ?: null;
+
+    if (!$row) return null;
+
+    $lastActivity = strtotime((string)($row['updated_at'] ?? ''));
+    if ($lastActivity === false) {
+        $lastActivity = strtotime((string)($row['created_at'] ?? ''));
+    }
+
+    if (
+        $lastActivity !== false &&
+        (time() - $lastActivity) >= max(1, (int)ECO_SESSION_TIMEOUT_SEC)
+    ) {
+        eco_recover_stale_session($con, (int)$row['id']);
+        return null;
+    }
+
+    return $row;
 }
 
 // ------------------------------------------------------------------
