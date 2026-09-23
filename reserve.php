@@ -1360,14 +1360,14 @@ if (ob_get_level() > 0) { ob_end_flush(); }
                       <button type="button" onclick="changePersons(1)">+</button>
                     </div>
                     <?php endif; ?>
-                    <input type="hidden" name="persons" id="personsInput" value="<?php echo $isResident ? '1' : '0'; ?>">
+                    <input type="hidden" name="persons" id="personsInput" value="0">
                     <?php if ($isResident): ?>
                     <div id="participantWrap" class="participant-card" data-mode="resident_only" style="display:block;">
                       <div class="pers-total">
                         <div class="res-label"><small class="participants-title"><i class="fa-solid fa-user" aria-hidden="true"></i> Number of Participants</small></div>
                         <div class="counter">
                           <button type="button" class="participant-stepper" id="decreaseParticipants" onclick="changeReserveTotal(-1)" aria-label="Decrease number of participants">−</button>
-                          <input type="number" class="participant-count-input" id="reserveTotalCount" value="1" min="1" max="50" step="1" aria-label="Number of participants">
+                          <input type="number" class="participant-count-input" id="reserveTotalCount" value="0" min="0" max="50" step="1" aria-label="Number of participants">
                           <button type="button" class="participant-stepper" id="increaseParticipants" onclick="changeReserveTotal(1)" aria-label="Increase number of participants">+</button>
                         </div>
                       </div>
@@ -2468,8 +2468,8 @@ if (ob_get_level() > 0) { ob_end_flush(); }
       const sd=document.getElementById('startDate'); if(sd){ sd.textContent='--'; }
       const ed=document.getElementById('endDate'); if(ed){ ed.textContent='--'; }
       const pc=document.getElementById('personCount'); if(pc){ if('value' in pc){ pc.value='0'; } else { pc.textContent='0'; } }
-      const pi=document.getElementById('personsInput'); if(pi){ pi.value=currentUserType === 'resident' ? '1' : '0'; }
-      const rtc=document.getElementById('reserveTotalCount'); if(rtc){ if('value' in rtc){ rtc.value='1'; } else { rtc.textContent='1'; } }
+      const pi=document.getElementById('personsInput'); if(pi){ pi.value='0'; }
+      const rtc=document.getElementById('reserveTotalCount'); if(rtc){ if('value' in rtc){ rtc.value='0'; } else { rtc.textContent='0'; } }
       const rc=document.getElementById('residentsCountInput'); if(rc){ rc.value = currentUserType === 'resident' ? '1' : '0'; }
       const gc=document.getElementById('guestsCountInput'); if(gc){ gc.value = currentUserType === 'resident' ? '0' : '0'; }
       const rText=document.getElementById('residentsCountText'); if(rText){ rText.textContent = currentUserType === 'resident' ? '1' : '0'; }
@@ -2595,7 +2595,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     let max=typeof getAmenityMaxPersons==='function' ? getAmenityMaxPersons(amen) : 50;
     max=Math.max(1, Math.min(50, max === Infinity ? 50 : max));
     const parsedCount=parseInt(desired,10);
-    const count=Math.min(max,Math.max(1,Number.isFinite(parsedCount) ? parsedCount : 1));
+    const count=Math.min(max,Math.max(0,Number.isFinite(parsedCount) ? parsedCount : 0));
     if('value' in rcEl){ rcEl.value=String(count); } else { rcEl.textContent=String(count); }
     const pInput=document.getElementById('personsInput'); if(pInput){ pInput.value=String(count); }
     const personEl=document.getElementById('participantTotal'); if(personEl){ if('value' in personEl){ personEl.value=String(count); } else { personEl.textContent=String(count); } }
@@ -2611,7 +2611,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
   function updateParticipantStepperState(count, max){
     const decrease=document.getElementById('decreaseParticipants');
     const increase=document.getElementById('increaseParticipants');
-    if(decrease){ decrease.disabled=count<=1; }
+    if(decrease){ decrease.disabled=count<=0; }
     if(increase){ increase.disabled=count>=max; }
   }
   async function changeReserveTotal(delta){
@@ -3293,7 +3293,7 @@ async function changePersons(val){
   if(participantInput){
     participantInput.addEventListener('input',function(){ setReserveTotalCount(this.value); });
     participantInput.addEventListener('blur',function(){ setReserveTotalCount(this.value); });
-    updateParticipantStepperState(parseInt(participantInput.value,10) || 1, 50);
+    updateParticipantStepperState(parseInt(participantInput.value,10) || 0, 50);
   }
   const hoursSelect=document.getElementById('hoursSelect'); if(hoursSelect){ hoursSelect.addEventListener('focus',function(){ requireDateBeforeHours(); }); hoursSelect.addEventListener('change',function(){ if(!requireDateBeforeHours()){ hoursSelect.value=''; const hcChoice=document.getElementById('hoursChosen'); if(hcChoice) hcChoice.value='0'; return; } const val=parseInt(hoursSelect.value||'0',10); if(!val) return; const hid=document.getElementById('hoursInput'); if(hid){ hid.value=String(val); const hc=document.getElementById('hoursCount'); if(hc){ hc.textContent=String(val); } }
     const tsl=document.getElementById('timeSectionLabel'); if(tsl){ tsl.style.display='block'; }
@@ -3840,7 +3840,7 @@ async function changePersons(val){
         end_date:document.getElementById('endDateInput').value||'',
         start_time:document.getElementById('startTimeInput').value||'',
         end_time:document.getElementById('endTimeInput').value||'',
-        persons:document.getElementById('personsInput').value||'1',
+        persons:document.getElementById('personsInput').value||'0',
         hours:document.getElementById('hoursInput')?.value||'',
         downpayment:document.getElementById('downpaymentInput')?.value||'',
         booking_for:document.getElementById('bookingForField')?.value||'',
@@ -3908,7 +3908,7 @@ async function changePersons(val){
     renderTimeSlotButtons();
     if(document.getElementById('startDateInput').value){ checkTimeAvailability(); }
   }
-  document.addEventListener('DOMContentLoaded',function(){ restoreFormFromSession(); if(currentUserType === 'resident'){ const participantField=document.getElementById('reserveTotalCount'); setReserveTotalCount(participantField ? participantField.value : 1); } updateActionStates(); updateDisplayedPrice(); updateDownpaymentSuggestion(); updateBookingSummary(); initSingleDayToggle(); updateHoursSelectEnabled(); try{ document.getElementById('reservationCard').style.display='none'; document.getElementById('reservationTitle').textContent='Reserve an Amenity'; document.getElementById('reservationHint').textContent='Select an amenity to continue'; }catch(_){} });
+  document.addEventListener('DOMContentLoaded',function(){ restoreFormFromSession(); if(currentUserType === 'resident'){ const participantField=document.getElementById('reserveTotalCount'); setReserveTotalCount(participantField ? participantField.value : 0); } updateActionStates(); updateDisplayedPrice(); updateDownpaymentSuggestion(); updateBookingSummary(); initSingleDayToggle(); updateHoursSelectEnabled(); try{ document.getElementById('reservationCard').style.display='none'; document.getElementById('reservationTitle').textContent='Reserve an Amenity'; document.getElementById('reservationHint').textContent='Select an amenity to continue'; }catch(_){} });
   let lastAvailabilityRefresh=0;
   function refreshAvailabilityDebounced(force){
     const now=Date.now();
