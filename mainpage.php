@@ -462,36 +462,39 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <i class="fa-solid fa-calendar-day" aria-hidden="true"></i>
                 <span><strong>Daily Limit:</strong> 3 recycling sessions/day</span>
               </div>
+              <div class="pg-limit" style="grid-column: 1 / -1;">
+                <i class="fa-solid fa-vault" aria-hidden="true"></i>
+                <span><strong>Maximum Account Balance:</strong> 3,000 pts</span>
+              </div>
             </div>
-            <div class="ecopoint-footnote pg-note">Maximum account balance: 3,000 pts</div>
           </article>
 
           <article class="ecopoint-card">
-            <h3 class="ecopoint-card-title">Redeem Your Points</h3>
-            <p class="redeem-sub">Your EcoPoints redeem free hours at our subdivision amenities.</p>
+            <h3 class="ecopoint-card-title">EcoPoint Redemption Guide</h3>
+            <p class="redeem-sub">Use your EcoPoints for free amenity hours.</p>
             <div class="redeem-list">
               <div class="reward-card">
                 <div class="reward-pts"><span class="reward-pts-num">300</span><span class="reward-pts-unit">pts</span></div>
                 <div class="reward-info">
-                  <span class="reward-label">1 COMPLIMENTARY HOUR</span>
+                  <span class="reward-label">1 FREE HOUR</span>
                   <span class="reward-amenity"><i class="fa-solid fa-basketball" aria-hidden="true"></i>Basketball Court or Tennis Court</span>
-                  <span class="reward-desc">Redeem 300 points for 1 complimentary hour of court use.</span>
+                  <span class="reward-desc">Requires 300 EcoPoints for 1 free hour of court use.</span>
                 </div>
               </div>
               <div class="reward-card">
                 <div class="reward-pts"><span class="reward-pts-num">600</span><span class="reward-pts-unit">pts</span></div>
                 <div class="reward-info">
-                  <span class="reward-label">1 COMPLIMENTARY HOUR</span>
+                  <span class="reward-label">1 FREE HOUR</span>
                   <span class="reward-amenity"><i class="fa-solid fa-building-columns" aria-hidden="true"></i>Clubhouse</span>
-                  <span class="reward-desc">Redeem 600 points for 1 complimentary hour of clubhouse use.</span>
+                  <span class="reward-desc">Requires 600 EcoPoints for 1 free hour of clubhouse use.</span>
                 </div>
               </div>
               <div class="reward-card">
                 <div class="reward-pts"><span class="reward-pts-num">750</span><span class="reward-pts-unit">pts</span></div>
                 <div class="reward-info">
-                  <span class="reward-label">1 COMPLIMENTARY HOUR</span>
+                  <span class="reward-label">1 FREE HOUR</span>
                   <span class="reward-amenity"><i class="fa-solid fa-building" aria-hidden="true"></i>Multi-Purpose Building</span>
-                  <span class="reward-desc">Redeem 750 points for 1 complimentary hour of facility use.</span>
+                  <span class="reward-desc">Requires 750 EcoPoints for 1 free hour of facility use.</span>
                 </div>
               </div>
             </div>
@@ -505,21 +508,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <div class="ecopoint-step-icon" aria-hidden="true"><i class="fa-solid fa-file-lines"></i></div>
                 <div class="ecopoint-step-copy">
                   <h4>Paper (Old Documents)</h4>
-                  <p>Accepted paper materials include old documents, bond paper, and A4 paper.</p>
+                  <p>Accepted paper materials include old documents, Long Bond Paper, Short Bond / Letter Paper, and A4 Paper.</p>
                 </div>
               </div>
               <div class="ecopoint-step-item">
                 <div class="ecopoint-step-icon" aria-hidden="true"><i class="fa-solid fa-bottle-water"></i></div>
                 <div class="ecopoint-step-copy">
                   <h4>Plastic Bottles</h4>
-                  <p>Accepted plastic bottles include sturdy PET bottles in 1000ml, 500ml, and 240ml sizes, and 80ml Yakult bottles, which are <strong>polystyrene</strong>, not PET.</p>
+                  <p>Accepted plastic bottles include sturdy PET bottles in 1000ml, 500ml, and 240ml sizes, and 80ml Yakult bottles, which are polystyrene but are still included as accepted materials.</p>
                 </div>
               </div>
               <div class="ecopoint-step-item">
                 <div class="ecopoint-step-icon" aria-hidden="true"><i class="fa-solid fa-recycle"></i></div>
                 <div class="ecopoint-step-copy">
                   <h4>Aluminum Cans</h4>
-                  <p>Accepted aluminum materials include genuine aluminum cans only. Steel or tin food cans are not aluminum and should not be included in your deposit.</p>
+                  <p>Accepted aluminum and metal tin can materials are limited to small to medium-sized cans.</p>
                 </div>
               </div>
             </div>
