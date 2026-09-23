@@ -445,10 +445,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <span class="pg-pts">0.303<small>pts per gram</small></span>
               </div>
               <div class="pg-row">
-                <span class="pg-item"><span class="pg-dot" aria-hidden="true"></span>Green Waste / Fruit Peels (Compost)</span>
-                <span class="pg-pts">0.303<small>pts per gram</small></span>
-              </div>
-              <div class="pg-row">
                 <span class="pg-item"><span class="pg-dot" aria-hidden="true"></span>Aluminum Cans</span>
                 <span class="pg-pts">0.303<small>pts per gram</small></span>
               </div>
