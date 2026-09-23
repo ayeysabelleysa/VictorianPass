@@ -8129,7 +8129,7 @@ function showResidentReservationDetails(rrId){
           <div class="info-row"><span class="info-label">Resident</span><span class="info-value">${isResidentGuest ? (guestName || 'Resident’s Guest') : residentName}</span></div>
           ${d.ref_code?`<div class="info-row"><span class="info-label">Reservation Reference</span><span class="info-value">${d.ref_code}</span></div>`:''}
           ${d.amenity?`<div class="info-row"><span class="info-label">Amenity</span><span class="info-value">${d.amenity}</span></div>`:''}
-          ${d.start_date?`<div class="info-row"><span class="info-label">Reservation Date</span><span class="info-value">${fmtDate(d.start_date)}</span></div>`:''}
+        ${d.start_date?`<div class="info-row"><span class="info-label">Reservation Date</span><span class="info-value">${fmtDate(d.start_date)}</span></div>`:''}
           ${fmtDuration(d.start_time,d.end_time)?`<div class="info-row"><span class="info-label">Reserved Duration</span><span class="info-value">${fmtDuration(d.start_time,d.end_time)}</span></div>`:''}
           <div class="info-row"><span class="info-label">Points Redeemed</span><span class="info-value">${fmtNum(pointsUsed2)} pts</span></div>
           <div class="info-row"><span class="info-label">Reward</span><span class="info-value">1 Free Hour</span></div>
