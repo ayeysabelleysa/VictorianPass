@@ -509,7 +509,21 @@
         return;
       }
       notifiedEndedSessionId = String(prevSession.id || '');
-      const pointsAwarded = Math.max(0, parseInt(newSnapshot.cap_state?.daily_points_used || 0, 10) - parseInt(lastSnapshot?.cap_state?.daily_points_used || 0, 10));
+      const completedSession = Array.isArray(newSnapshot.recent_sessions)
+        ? newSnapshot.recent_sessions.find(
+            s => String(s.id || '') === String(prevSession.id || '')
+          )
+        : null;
+
+      const pointsAwarded = Math.max(
+        0,
+        parseInt(
+          completedSession?.points_awarded ??
+          prevSession.points_awarded ??
+          0,
+          10
+        )
+      );
       showSessionPopup(
         'success',
         'VHEcoPoint Session Completed',
