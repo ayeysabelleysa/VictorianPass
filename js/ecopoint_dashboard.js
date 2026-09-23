@@ -351,7 +351,7 @@
       if (messageEl) messageEl.textContent = 'Scan your VictorianPass QR at the VHEcoPoint Station to begin.';
       if (startTimeEl) startTimeEl.textContent = '—';
       if (materialEl) materialEl.textContent = '—';
-      if (weightEl) weightEl.textContent = '0.00 kg';
+      if (weightEl) weightEl.textContent = '0 g';
       if (pointsEl) pointsEl.textContent = '0 pts';
       if (panel) panel.style.opacity = '0.8';
       setStyle('ecopoint-live-actions', { display: 'none' });
@@ -381,12 +381,12 @@
 
     const startTime = session.started_at || session.startedAt || session.created_at || '—';
     const material = session.material || session.material_type || session.material_label || session.current_material || '—';
-    const weight = parseFloat(session.total_weight_kg || session.weight_kg || 0).toFixed(2);
+    const weight = Math.round(parseFloat(session.total_weight_kg || session.weight_kg || 0) * 1000);
     const points = parseInt(session.total_points || session.points_awarded || 0);
 
     if (startTimeEl) startTimeEl.textContent = startTime === '—' ? '—' : formatSessionTime(startTime);
     if (materialEl) materialEl.textContent = material;
-    if (weightEl) weightEl.textContent = weight + ' kg';
+    if (weightEl) weightEl.textContent = weight + ' g';
     if (pointsEl) pointsEl.textContent = points + ' pts';
 
     // Show "End Session Early" only while the session is genuinely active (status = ACTIVE).
@@ -425,10 +425,10 @@
     let itemsHTML = '<div style="font-size: 12px; color: #6b7280; margin-top: 8px;">';
     items.forEach(item => {
       const material = item.material_label || item.waste_type || 'Unknown';
-      const weight = parseFloat(item.weight_kg || 0).toFixed(2);
-      const rate = parseInt(item.rate_pts_per_kg || 0);
+      const weight = Math.round(parseFloat(item.weight_kg || 0) * 1000);
+      const ratePerG = (parseFloat(item.rate_pts_per_kg || 0) / 1000).toFixed(3);
       const points = parseInt(item.points_awarded || 0);
-      itemsHTML += `<div style="margin-bottom: 4px;">• ${material}: ${weight}kg @ ${rate}pts/kg = ${points}pts</div>`;
+      itemsHTML += `<div style="margin-bottom: 4px;">• ${material}: ${weight}g @ ${ratePerG}pts/g = ${points}pts</div>`;
     });
     itemsHTML += '</div>';
 

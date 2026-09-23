@@ -96,9 +96,9 @@ function residentEcoPointMaterialLabel($materialType = '', $description = ''){
   $value = strtolower(trim((string)$materialType));
   $desc = strtolower((string)$description);
   $haystack = trim($value . ' ' . $desc);
-  if (strpos($haystack, 'plastic') !== false || strpos($haystack, 'pet') !== false) return 'Plastic (PET)';
+  if (strpos($haystack, 'plastic') !== false || strpos($haystack, 'pet') !== false) return 'Plastic Bottles';
   if (strpos($haystack, 'aluminum') !== false || strpos($haystack, 'aluminium') !== false || strpos($haystack, 'can') !== false) return 'Aluminum Cans';
-  if (strpos($haystack, 'cardboard') !== false || strpos($haystack, 'paper') !== false) return 'Paper & Cardboard';
+  if (strpos($haystack, 'cardboard') !== false || strpos($haystack, 'paper') !== false) return 'Paper (Old Documents)';
   return 'Other';
 }
 
@@ -342,9 +342,9 @@ $ecoPointWeeklyCap = 250;
 $ecoPointDailySessionsMax = 3;
 $ecoPointExpiryDays = 365;
 $ecoPointWeeklyStats = [
-    'Plastic (PET)' => ['points' => 0, 'weight' => 0.0],
+    'Plastic Bottles' => ['points' => 0, 'weight' => 0.0],
     'Aluminum Cans' => ['points' => 0, 'weight' => 0.0],
-    'Paper & Cardboard' => ['points' => 0, 'weight' => 0.0]
+    'Paper (Old Documents)' => ['points' => 0, 'weight' => 0.0]
 ];
 $ecoPointWeeklyPoints = 0;
 $ecoPointTodaySessionsUsed = 0;
@@ -3802,7 +3802,7 @@ body.modal-open{overflow:hidden}
                 </div>
                 <div class="ecopoint-live-metric">
                   <span class="ecopoint-live-metric-label">Current weight</span>
-                  <strong id="ecopoint-live-weight">0.00 kg</strong>
+                  <strong id="ecopoint-live-weight">0 g</strong>
                 </div>
                 <div class="ecopoint-live-metric">
                   <span class="ecopoint-live-metric-label">Current points</span>
@@ -3834,7 +3834,7 @@ body.modal-open{overflow:hidden}
                   <div class="ecopoint-material-row">
                     <div class="ecopoint-material-main">
                       <div class="ecopoint-material-title"><?php echo htmlspecialchars($materialLabel); ?></div>
-                      <div class="ecopoint-material-subtitle"><?php echo number_format($materialStat['weight'], 2); ?> kg recycled this week</div>
+                      <div class="ecopoint-material-subtitle"><?php echo number_format($materialStat['weight'] * 1000, 0); ?> g recycled this week</div>
                       <div class="ecopoint-progress" style="margin-top:8px;">
                         <div class="ecopoint-progress-bar" style="width:<?php echo intval($materialProgress); ?>%;"></div>
                       </div>
@@ -3873,7 +3873,7 @@ body.modal-open{overflow:hidden}
                             <?php
                               if ($hp['type'] === 'earn') {
                                 echo htmlspecialchars($hp['material_label']);
-                                if ($hp['weight_kg'] > 0) echo ' - ' . number_format($hp['weight_kg'], 2) . ' kg';
+                                if ($hp['weight_kg'] > 0) echo ' - ' . number_format($hp['weight_kg'] * 1000, 0) . ' g';
                               } else {
                                 echo htmlspecialchars($hp['description'] !== '' ? $hp['description'] : 'Points Redeemed');
                               }
@@ -3894,7 +3894,7 @@ body.modal-open{overflow:hidden}
                             <div style="display:flex; justify-content:space-between;"><span style="color:#6b7280;">Type</span><span style="font-weight:600; color:#166534;">Points Earned</span></div>
                             <div style="display:flex; justify-content:space-between;"><span style="color:#6b7280;">Material</span><span style="font-weight:600;"><?php echo htmlspecialchars($hp['material_label']); ?></span></div>
                             <?php if ($hp['weight_kg'] > 0): ?>
-                              <div style="display:flex; justify-content:space-between;"><span style="color:#6b7280;">Weight</span><span style="font-weight:600;"><?php echo number_format($hp['weight_kg'], 2); ?> kg</span></div>
+                              <div style="display:flex; justify-content:space-between;"><span style="color:#6b7280;">Weight</span><span style="font-weight:600;"><?php echo number_format($hp['weight_kg'] * 1000, 0); ?> g</span></div>
                             <?php endif; ?>
                             <div style="display:flex; justify-content:space-between;"><span style="color:#6b7280;">Points Earned</span><span style="font-weight:800; color:#166534;">+<?php echo number_format($hp['amount']); ?> pts</span></div>
                           <?php else: ?>

@@ -6153,12 +6153,12 @@ body.modal-open { overflow: hidden; }
     <div class="dashboard-widget">
       <div class="dashboard-widget-label">Completed Today</div>
       <div class="dashboard-widget-value"><?php echo number_format($swStats['completed_today']); ?></div>
-      <div class="dashboard-widget-subtext"><?php echo number_format($swStats['total_kg_today'], 2); ?> kg - <?php echo number_format($swStats['total_pts_today']); ?> pts today</div>
+      <div class="dashboard-widget-subtext"><?php echo number_format($swStats['total_kg_today'] * 1000, 0); ?> g - <?php echo number_format($swStats['total_pts_today']); ?> pts today</div>
     </div>
     <div class="dashboard-widget">
       <div class="dashboard-widget-label">Total Sessions</div>
       <div class="dashboard-widget-value"><?php echo number_format($swStats['total_sessions']); ?></div>
-      <div class="dashboard-widget-subtext"><?php echo number_format($swStats['total_kg'], 2); ?> kg collected all-time</div>
+      <div class="dashboard-widget-subtext"><?php echo number_format($swStats['total_kg'] * 1000, 0); ?> g collected all-time</div>
     </div>
     <div class="dashboard-widget">
       <div class="dashboard-widget-label">VHEcoPoints Awarded</div>
@@ -6166,8 +6166,8 @@ body.modal-open { overflow: hidden; }
       <div class="dashboard-widget-subtext"><?php echo number_format($swStats['total_pts_today']); ?> earned today - <?php echo number_format($swStats['redeemed_points']); ?> redeemed</div>
     </div>
     <div class="dashboard-widget">
-      <div class="dashboard-widget-label">Total Kg Collected</div>
-      <div class="dashboard-widget-value"><?php echo number_format($swStats['total_kg'], 2); ?></div>
+      <div class="dashboard-widget-label">Total Grams Collected</div>
+      <div class="dashboard-widget-value"><?php echo number_format($swStats['total_kg'] * 1000, 0); ?></div>
       <div class="dashboard-widget-subtext"><?php echo number_format($swStats['total_sessions']); ?> completed sessions all-time</div>
     </div>
     <div class="dashboard-widget">
@@ -6185,7 +6185,7 @@ body.modal-open { overflow: hidden; }
         <div class="table-responsive-wrapper smart-waste-table-compact">
           <table>
             <thead><tr>
-              <th>ID</th><th>Station</th><th>Resident</th><th>House</th><th>Status</th><th>Material</th><th>Weight</th><th>Points (calc / award)</th><th>Started</th><th>Elapsed</th>
+              <th>ID</th><th>Station</th><th>Resident</th><th>House</th><th>Status</th><th>Material</th><th>Weight (g)</th><th>Points (calc / award)</th><th>Started</th><th>Elapsed</th>
             </tr></thead>
             <tbody>
               <?php if (empty($activeSessions)): ?>
@@ -6203,7 +6203,7 @@ body.modal-open { overflow: hidden; }
                   <td><?php echo htmlspecialchars($s['house_number'] ?? '-'); ?></td>
                   <td><span class="smart-waste-status-pill" style="background:<?php echo $stStyle[1]; ?>;color:<?php echo $stStyle[0]; ?>;"><?php echo htmlspecialchars($s['status']); ?></span></td>
                   <td><?php echo htmlspecialchars(smartWasteMaterialLabel($s['material_type'] ?? '', '')); ?></td>
-                  <td><?php echo number_format((float)($s['weight_kg'] ?? 0), 2); ?> kg</td>
+                  <td><?php echo number_format((float)($s['weight_kg'] ?? 0) * 1000, 0); ?> g</td>
                   <td><?php echo (int)($s['points_calculated'] ?? 0); ?> / <?php echo (int)($s['points_awarded'] ?? 0); ?></td>
                   <td><?php echo $s['created_at'] ? date('M j, g:i A', strtotime($s['created_at'])) : '-'; ?></td>
                   <td><?php echo swDuration($s['created_at'] ?? '', $s['completed_at'] ?? ''); ?></td>
@@ -6243,7 +6243,7 @@ body.modal-open { overflow: hidden; }
         <div class="table-responsive-wrapper smart-waste-table-compact">
           <table>
             <thead><tr>
-              <th>ID</th><th>Started</th><th>Ended</th><th>Duration</th><th>Resident</th><th>House</th><th>Status</th><th>Material</th><th>Weight</th><th>Pts Awarded</th>
+              <th>ID</th><th>Started</th><th>Ended</th><th>Duration</th><th>Resident</th><th>House</th><th>Status</th><th>Material</th><th>Weight (g)</th><th>Pts Awarded</th>
             </tr></thead>
             <tbody>
               <?php if (empty($historySessions)): ?>
@@ -6265,7 +6265,7 @@ body.modal-open { overflow: hidden; }
                   <td><?php echo htmlspecialchars($s['house_number'] ?? '-'); ?></td>
                   <td><span class="smart-waste-status-pill" style="background:<?php echo $stStyle[1]; ?>;color:<?php echo $stStyle[0]; ?>;"><?php echo htmlspecialchars($s['status']); ?></span></td>
                   <td><?php echo htmlspecialchars(smartWasteMaterialLabel($s['material_type'] ?? '', '')); ?></td>
-                  <td><?php echo number_format((float)($s['weight_kg'] ?? 0), 2); ?> kg</td>
+                  <td><?php echo number_format((float)($s['weight_kg'] ?? 0) * 1000, 0); ?> g</td>
                   <td style="font-weight:800;color:#166534;"><?php echo (int)($s['points_awarded'] ?? 0); ?></td>
                 </tr>
               <?php endforeach; endif; ?>
@@ -6385,7 +6385,7 @@ body.modal-open { overflow: hidden; }
               </span>
               <div class="smart-waste-list-main">
                 <div class="smart-waste-list-title"><?php echo htmlspecialchars($pName); ?> <?php if ($pHouse !== ''): ?><small style="color:#6b7280;font-weight:400;">(<?php echo htmlspecialchars($pHouse); ?>)</small><?php endif; ?></div>
-                <div class="smart-waste-list-subtitle"><?php echo intval($p['session_count']); ?> session<?php echo $p['session_count'] == 1 ? '' : 's'; ?> - <?php echo number_format(floatval($p['total_kg'] ?? 0), 2); ?> kg - <?php echo number_format(intval($p['total_pts'] ?? 0)); ?> pts</div>
+                <div class="smart-waste-list-subtitle"><?php echo intval($p['session_count']); ?> session<?php echo $p['session_count'] == 1 ? '' : 's'; ?> - <?php echo number_format(floatval($p['total_kg'] ?? 0) * 1000, 0); ?> g - <?php echo number_format(intval($p['total_pts'] ?? 0)); ?> pts</div>
                 <div class="smart-waste-list-subtitle"><small style="color:#9ca3af;">Last: <?php echo $pLastSession; ?></small></div>
               </div>
             </div>
