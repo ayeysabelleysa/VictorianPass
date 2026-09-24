@@ -382,7 +382,7 @@
     const startTime = session.started_at || session.startedAt || session.created_at || '—';
     const material = session.material || session.material_type || session.material_label || session.current_material || '—';
     const weight = Math.round(parseFloat(session.total_weight_kg || session.weight_kg || 0) * 1000);
-    const points = parseInt(session.total_points || session.points_awarded || 0);
+    const points = Math.round(parseFloat(session.total_points || session.points_awarded || 0));
 
     if (startTimeEl) startTimeEl.textContent = startTime === '—' ? '—' : formatSessionTime(startTime);
     if (materialEl) materialEl.textContent = material;
@@ -427,7 +427,7 @@
       const material = item.material_label || item.waste_type || 'Unknown';
       const weight = Math.round(parseFloat(item.weight_kg || 0) * 1000);
       const ratePerG = (parseFloat(item.rate_pts_per_kg || 0) / 1000).toFixed(3);
-      const points = parseInt(item.points_awarded || 0);
+      const points = Math.round(parseFloat(item.points_awarded || 0));
       itemsHTML += `<div style="margin-bottom: 4px;">• ${material}: ${weight}g @ ${ratePerG}pts/g = ${points}pts</div>`;
     });
     itemsHTML += '</div>';
@@ -448,8 +448,8 @@
   function updateCapState(capState) {
     if (!capState) return;
 
-    const dailyRemaining = parseInt(capState.daily_points_left || 0);
-    const weeklyRemaining = parseInt(capState.weekly_points_left || 0);
+    const dailyRemaining = Math.round(parseFloat(capState.daily_points_left || 0));
+    const weeklyRemaining = Math.round(parseFloat(capState.weekly_points_left || 0));
     const dailySessions = parseInt(capState.daily_sessions_left || 0);
 
     // Update cap indicators
@@ -471,7 +471,7 @@
 
   // Simple number formatter
   function number_format(num) {
-    return parseInt(num).toLocaleString();
+    return Math.round(parseFloat(num)).toLocaleString();
   }
 
   // =====================================================================
@@ -517,12 +517,11 @@
 
       const pointsAwarded = Math.max(
         0,
-        parseInt(
+        Math.round(parseFloat(
           completedSession?.points_awarded ??
           prevSession.points_awarded ??
-          0,
-          10
-        )
+          0
+        ))
       );
       showSessionPopup(
         'success',
@@ -550,8 +549,8 @@
     else if (newSession && prevSession) {
       const newWeight = parseFloat(newSession.total_weight_kg || newSession.weight_kg || 0);
       const prevWeight = parseFloat(prevSession.total_weight_kg || prevSession.weight_kg || 0);
-      const newPoints = parseInt(newSession.total_points || newSession.points_awarded || 0);
-      const prevPoints = parseInt(prevSession.total_points || prevSession.points_awarded || 0);
+      const newPoints = Math.round(parseFloat(newSession.total_points || newSession.points_awarded || 0));
+      const prevPoints = Math.round(parseFloat(prevSession.total_points || prevSession.points_awarded || 0));
 
       if (newWeight > prevWeight + 0.05 || newPoints > prevPoints) {
         log('Waste detected', { weight: newWeight, points: newPoints });

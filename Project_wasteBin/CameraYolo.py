@@ -22,6 +22,7 @@ MATERIALS = {
 app = Flask(__name__)
 
 frame = None
+camera_available = False
 current_material = None
 confirmed_material = None
 stable_start = None
@@ -44,29 +45,49 @@ model.fuse = lambda *args, **kwargs: model.model
 
 def camera():
     global frame
+    global camera_available
 
-    cap = cv2.VideoCapture(RTSP_URL)
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-
-    if not cap.isOpened():
-        print("ERROR: V380 connection failed.")
-        return
-
-    print("V380 connected.")
+    cap = None
 
     while True:
-        ok, image = cap.read()
 
-        if not ok:
-            cap.release()
-            time.sleep(2)
+        if cap is None or not cap.isOpened():
+
+            if cap is not None:
+                cap.release()
+
+            with lock:
+                frame = None
+                camera_available = False
 
             cap = cv2.VideoCapture(RTSP_URL)
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+            if not cap.isOpened():
+                print("V380 unavailable. Retrying...")
+                time.sleep(2)
+                continue
+
+            print("V380 connected.")
+
+        ok, image = cap.read()
+
+        if not ok:
+
+            with lock:
+                frame = None
+                camera_available = False
+
+            cap.release()
+            cap = None
+
+            print("V380 frame unavailable. Reconnecting...")
+            time.sleep(2)
             continue
 
         with lock:
             frame = image
+            camera_available = True
 
 
 # =========================
@@ -414,6 +435,7 @@ def status():
             stable = time.time() - stable_start
 
         return jsonify({
+            "camera_available": camera_available,
             "detected": current_material is not None,
             "material": current_material,
             "confirmed": confirmed_material is not None,

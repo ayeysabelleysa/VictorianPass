@@ -104,8 +104,8 @@ try {
         'material'           => $calc['material'],
         'weight_kg'          => $calc['weight_kg'],
         'points_calculated'  => $calc['raw_points'],
-        'points_awarded'     => (int)$awardResult['awarded_points'],
-        'new_balance'        => (int)$awardResult['new_balance'],
+        'points_awarded'     => (float)$awardResult['awarded_points'],
+        'new_balance'        => (float)$awardResult['new_balance'],
         'cap_state_after'    => $awardResult['cap_state_after'],
     ]);
 } catch (Throwable $e) {

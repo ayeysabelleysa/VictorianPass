@@ -3839,7 +3839,7 @@ body.modal-open{overflow:hidden}
                         <div class="ecopoint-progress-bar" style="width:<?php echo intval($materialProgress); ?>%;"></div>
                       </div>
                     </div>
-                    <div class="ecopoint-material-value"><?php echo number_format($materialStat['points']); ?> pts</div>
+                    <div class="ecopoint-material-value"><?php echo number_format((float)$materialStat['points'], 0); ?> pts</div>
                   </div>
                 <?php endforeach; ?>
               </div>
@@ -3882,7 +3882,7 @@ body.modal-open{overflow:hidden}
                           <div style="font-size:0.7rem; color:#9ca3af; margin-top:1px;"><?php echo $hp['time_label']; ?></div>
                         </div>
                         <div style="font-size:0.9rem; font-weight:800; <?php echo $hp['type'] === 'earn' ? 'color:#166534;' : 'color:#991b1b;'; ?> white-space:nowrap;">
-                          <?php echo $hp['type'] === 'earn' ? '+' : '-'; ?><?php echo number_format($hp['amount']); ?> pts
+                          <?php echo $hp['type'] === 'earn' ? '+' : '-'; ?><?php echo number_format((float)$hp['amount'], 0); ?> pts
                         </div>
                         <div style="flex-shrink:0; width:18px; text-align:center; color:#9ca3af; font-size:0.65rem;">
                           <i class="fa-solid fa-chevron-down" id="vp-chevron-<?php echo $hpIdx; ?>"></i>
@@ -3896,7 +3896,7 @@ body.modal-open{overflow:hidden}
                             <?php if ($hp['weight_kg'] > 0): ?>
                               <div style="display:flex; justify-content:space-between;"><span style="color:#6b7280;">Weight</span><span style="font-weight:600;"><?php echo number_format($hp['weight_kg'] * 1000, 0); ?> g</span></div>
                             <?php endif; ?>
-                            <div style="display:flex; justify-content:space-between;"><span style="color:#6b7280;">Points Earned</span><span style="font-weight:800; color:#166534;">+<?php echo number_format($hp['amount']); ?> pts</span></div>
+                            <div style="display:flex; justify-content:space-between;"><span style="color:#6b7280;">Points Earned</span><span style="font-weight:800; color:#166534;">+<?php echo number_format((float)$hp['amount'], 0); ?> pts</span></div>
                           <?php else: ?>
                             <div style="display:flex; justify-content:space-between;"><span style="color:#6b7280;">Type</span><span style="font-weight:600; color:#991b1b;">Points Redeemed</span></div>
                             <?php
@@ -3915,7 +3915,7 @@ body.modal-open{overflow:hidden}
                               <?php if ($refCode !== ''): ?>
                                 <div style="display:flex; justify-content:space-between;"><span style="color:#6b7280;">Reference</span><span style="font-weight:600; font-family:monospace; font-size:0.72rem;"><?php echo htmlspecialchars($refCode); ?></span></div>
                               <?php endif; ?>
-                            <div style="display:flex; justify-content:space-between;"><span style="color:#6b7280;">Points Used</span><span style="font-weight:800; color:#991b1b;">-<?php echo number_format($hp['amount']); ?> pts</span></div>
+                            <div style="display:flex; justify-content:space-between;"><span style="color:#6b7280;">Points Used</span><span style="font-weight:800; color:#991b1b;">-<?php echo number_format((float)$hp['amount'], 0); ?> pts</span></div>
                           <?php endif; ?>
                           <div style="display:flex; justify-content:space-between; margin-top:4px; padding-top:8px; border-top:1px solid #e5e7eb;"><span style="color:#6b7280;">Date & Time</span><span style="font-weight:600;"><?php echo htmlspecialchars($hp['date_label'] . ' at ' . $hp['time_label']); ?></span></div>
                         </div>

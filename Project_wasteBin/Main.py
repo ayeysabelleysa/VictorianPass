@@ -481,8 +481,12 @@ def get_camera_material():
         data = camera_status()
 
         if not data:
-            time.sleep(0.1)
-            continue
+            print("Camera service unavailable.")
+            return "UNAVAILABLE"
+
+        if not data.get("camera_available", False):
+            print("V380 camera unavailable.")
+            return "UNAVAILABLE"
 
         # -------------------------------------------------
         # MIXED MATERIAL
@@ -709,23 +713,9 @@ def process_item():
 
     print("Verifying item...")
 
-    if material == "plastic":
+    if material == "plastic" or material == "paper" or material == "aluminum":
 
-        points = (
-            weight / 1000
-        ) * 55
-
-    elif material == "paper":
-
-        points = (
-            weight / 1000
-        ) * 30
-
-    elif material == "aluminum":
-
-        points = (
-            weight / 1000
-        ) * 140
+        points = weight * 0.303
 
     else:
         return "REJECTED"

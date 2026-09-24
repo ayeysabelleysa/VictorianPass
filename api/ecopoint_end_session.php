@@ -71,7 +71,7 @@ try {
     $result = eco_award_points_and_finalize($con, $sessionId, $stationId);
 
     eco_log_event($con, $sessionId, $stationId, 'SESSION_ENDED_EARLY', [
-        'awarded_points' => (int)$result['awarded_points'],
+        'awarded_points' => (float)$result['awarded_points'],
         'initiated_by'   => 'RESIDENT',
     ], 'RESIDENT');
 
@@ -88,7 +88,7 @@ eco_json_response([
     'success'           => true,
     'message'           => 'Session ended successfully',
     'session_status'    => 'COMPLETED',
-    'awarded_points'    => (int)$result['awarded_points'],
-    'new_balance'       => (int)$result['new_balance'],
+    'awarded_points'    => (float)$result['awarded_points'],
+    'new_balance'       => (float)$result['new_balance'],
     'cap_state_after'   => $result['cap_state_after'],
 ]);

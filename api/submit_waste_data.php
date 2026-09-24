@@ -77,7 +77,7 @@ try {
     ");
     $rawJson = ($rawData === null) ? null : json_encode($rawData, JSON_UNESCAPED_UNICODE);
     $stmt->bind_param(
-        'sdisi',
+        'sddsi',
         $calc['material'],
         $calc['weight_kg'],
         $calc['raw_points'],

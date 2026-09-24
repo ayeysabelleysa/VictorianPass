@@ -18,10 +18,10 @@ declare(strict_types=1);
 // Program constants (business rules, centralised!)
 // ------------------------------------------------------------------
 define('ECO_MATERIAL_RATES', [
-    'Plastic'              => 55,   // pts/kg (PET ≤1000ml)
-    'Aluminum'             => 140,  // pts/kg (cans)
-    'Paper'                => 30,   // pts/kg (documents, newspaper)
-    'Cardboard'            => 30,   // pts/kg (boxes)
+    'Plastic'              => 303,  // pts/kg
+    'Aluminum'             => 303,  // pts/kg
+    'Paper'                => 303,   // pts/kg
+    'Cardboard'            => 303,   // pts/kg
 ]);
 define('ECO_DAILY_POINT_CAP',       100);  // pts/day max per resident
 define('ECO_DAILY_SESSION_CAP',     3);    // sessions/day max
@@ -205,7 +205,7 @@ function eco_find_resident_by_qr(mysqli $con, string $qrCode): ?array
 
         'full_name' => $fullName,
 
-        'balance' => (int)($row['points'] ?? 0),
+        'balance' => (float)($row['points'] ?? 0),
 
         'status' => $status,
     ];
@@ -242,9 +242,9 @@ function eco_resident_cap_state(mysqli $con, int $userId): array {
     $monday    = $week['week_start_date'];
     $sunday    = $week['week_end_date'];
 
-    $dailyPts = 0;
+    $dailyPts = 0.0;
     $dailySess = 0;
-    $weeklyPts = 0;
+    $weeklyPts = 0.0;
 
     // Use point_transactions (earn entries) for caps, since that's what
     // the dashboard displays.
@@ -265,7 +265,7 @@ function eco_resident_cap_state(mysqli $con, int $userId): array {
         while ($row = $res->fetch_assoc()) {
             $type = strtolower((string)($row['transaction_type'] ?? ''));
             if ($type !== 'earn') continue;
-            $amt  = (int)($row['amount'] ?? 0);
+            $amt  = (float)($row['amount'] ?? 0);
             $weeklyPts += $amt;
             if ((string)($row['day_date'] ?? '') === $today) {
                 $dailyPts += $amt;
@@ -400,7 +400,7 @@ function eco_recover_stale_session(mysqli$con, int $sessionId): bool {
                 $stationId,
                 'SESSION_TIMEOUT_FINALIZED',
                 [
-                    'awarded_points'  => (int)$result['awarded_points'],
+                    'awarded_points'  => (float)$result['awarded_points'],
                     'previous_status' => $status,
                     'waste_events'    => $wasteCount,
                 ],
@@ -525,8 +525,8 @@ function eco_generate_session_token(): string {
 function eco_calculate_points(string $material, float $weightKg): array {
     $material = trim($material);
     $weightKg = max(0.0, $weightKg);
-    $rate     = (int)(ECO_MATERIAL_RATES[$material] ?? 0);
-    $raw      = (int)round($weightKg * $rate);
+    $rate     = (float)(ECO_MATERIAL_RATES[$material] ?? 0);
+    $raw      = round($weightKg * $rate, 2);
     $valid    = ($rate > 0 && $weightKg > 0 && in_array($material, ECO_ALLOWED_MATERIALS, true));
     return [
         'material'        => $material,
@@ -537,14 +537,14 @@ function eco_calculate_points(string $material, float $weightKg): array {
     ];
 }
 
-function eco_apply_cap_rules(array $calc, array $capState, int $currentBalance): int {
-    if (empty($calc['valid'])) return 0;
-    $award = (int)$calc['raw_points'];
-    $award = min($award, (int)$capState['daily_points_left']);
-    $award = min($award, (int)$capState['weekly_points_left']);
-    $room  = max(0, ECO_MAX_BALANCE - $currentBalance);
+function eco_apply_cap_rules(array $calc, array $capState, float $currentBalance): float {
+    if (empty($calc['valid'])) return 0.0;
+    $award = (float)$calc['raw_points'];
+    $award = min($award, (float)$capState['daily_points_left']);
+    $award = min($award, (float)$capState['weekly_points_left']);
+    $room  = max(0.0, ECO_MAX_BALANCE - $currentBalance);
     $award = min($award, $room);
-    return max(0, $award);
+    return max(0.0, round($award, 2));
 }
 
 // ------------------------------------------------------------------
@@ -769,7 +769,7 @@ function eco_award_points_and_finalize(mysqli $con, int $sessionId, int $station
     $weight   = (float)($session['weight_kg']    ?? 0);
     $userId   = (int)$session['user_id'];
     $capState = eco_resident_cap_state($con, $userId);
-    $bal      = (int)($session['points_awarded'] ?? 0); // pre-existing award if any
+    $bal      = (float)($session['points_awarded'] ?? 0); // pre-existing award if any
 
     $curBal   = eco_user_balance($con, $userId);
 
@@ -798,7 +798,7 @@ function eco_award_points_and_finalize(mysqli $con, int $sessionId, int $station
     $eventTotals = $eventStmt->get_result()->fetch_assoc();
     $eventStmt->close();
 
-    $calculated = (int)round((float)($eventTotals['total_points'] ?? 0));
+    $calculated = round((float)($eventTotals['total_points'] ?? 0), 2);
     $weight = (float)($eventTotals['total_weight'] ?? 0);
 
     $calc = [
@@ -820,7 +820,7 @@ function eco_award_points_and_finalize(mysqli $con, int $sessionId, int $station
                    points_awarded    = ?
             WHERE  id = ?
         ");
-        $upd->bind_param('sdiii', $calc['material'], $calc['weight_kg'], $calculated, $awarded, $sessionId);
+        $upd->bind_param('sdddi', $calc['material'], $calc['weight_kg'], $calculated, $awarded, $sessionId);
         $upd->execute();
         $upd->close();
 
@@ -839,7 +839,7 @@ function eco_award_points_and_finalize(mysqli $con, int $sessionId, int $station
                 VALUES (?, 'earn', ?, ?, ?, ?, ?, ?)
             ");
             $ins->bind_param(
-                'iissdii',
+                'idssdii',
                 $userId,
                 $awarded,
                 $desc,
@@ -854,7 +854,7 @@ function eco_award_points_and_finalize(mysqli $con, int $sessionId, int $station
 
             $updBal = $con->prepare("UPDATE users SET points = LEAST(points + ?, ?) WHERE id = ?");
             $maxBal = ECO_MAX_BALANCE;
-            $updBal->bind_param('iii', $awarded, $maxBal, $userId);
+            $updBal->bind_param('ddi', $awarded, $maxBal, $userId);
             $updBal->execute();
             $updBal->close();
 
@@ -863,7 +863,7 @@ function eco_award_points_and_finalize(mysqli $con, int $sessionId, int $station
             if ($colQ && $colQ->num_rows > 0) {
                 $sync = $con->prepare("UPDATE residents SET ecopoint_balance = LEAST(ecopoint_balance + ?, ?) WHERE id = ?");
                 if ($sync) {
-                    $sync->bind_param('iii', $awarded, $maxBal, $userId);
+                    $sync->bind_param('ddi', $awarded, $maxBal, $userId);
                     @$sync->execute();
                     $sync->close();
                 }
@@ -905,12 +905,12 @@ function eco_award_points_and_finalize(mysqli $con, int $sessionId, int $station
     ];
 }
 
-function eco_user_balance(mysqli $con, int $userId): int {
+function eco_user_balance(mysqli $con, int $userId): float {
     $stmt = $con->prepare("SELECT points FROM users WHERE id = ? LIMIT 1");
     if (!$stmt) return 0;
     $stmt->bind_param('i', $userId);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
-    return (int)($row['points'] ?? 0);
+    return (float)($row['points'] ?? 0);
 }

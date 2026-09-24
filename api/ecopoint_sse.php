@@ -89,7 +89,7 @@ if ($active) {
         $liveTotals = $liveStmt->get_result()->fetch_assoc();
         $liveStmt->close();
 
-        $liveTotalPoints = (int)round((float)($liveTotals['total_points'] ?? 0));
+        $liveTotalPoints = round((float)($liveTotals['total_points'] ?? 0), 2);
         $liveTotalWeight = (float)($liveTotals['total_weight'] ?? 0);
     }
 }
@@ -119,8 +119,8 @@ if ($active) {
             'status'             => (string)($active['status'] ?? ''),
             'material'           => eco_material_display_label((string)($active['material_type'] ?? '')),
             'weight_kg'          => (float)($active['weight_kg'] ?? 0),
-            'points_calculated'  => (int)($active['points_calculated'] ?? 0),
-            'points_awarded'     => (int)($active['points_awarded'] ?? 0),
+            'points_calculated'  => (float)($active['points_calculated'] ?? 0),
+            'points_awarded'     => (float)($active['points_awarded'] ?? 0),
             'total_weight_kg'    => $liveTotalWeight,
 	    'total_points'       => $liveTotalPoints,
             'created_at'         => (string)($active['created_at'] ?? ''),
@@ -160,7 +160,7 @@ if ($active) {
                 'status'          => (string)$r['status'],
                 'material'        => eco_material_display_label((string)($r['material_type'] ?? '-')),
                 'weight_kg'       => (float)($r['weight_kg'] ?? 0),
-                'points_awarded'  => (int)($r['points_awarded'] ?? 0),
+                'points_awarded'  => (float)($r['points_awarded'] ?? 0),
                 'created_at'      => (string)$r['created_at'],
                 'completed_at'    => $r['completed_at'] ?? null,
                 'station_name'    => (string)($r['station_name'] ?? ''),
