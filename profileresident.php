@@ -7015,6 +7015,9 @@ body.modal-open{overflow:hidden}
     es.addEventListener('snapshot',function(ev){
       try{ applyNotifPayload(JSON.parse(ev.data)); }catch(_e){}
     });
+    es.addEventListener('error',function(){
+      refreshStatuses();
+    });
   }
 
   function renderRequestsActive(list){

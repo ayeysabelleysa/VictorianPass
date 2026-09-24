@@ -1832,6 +1832,20 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
   
   refreshStatuses();
   setInterval(refreshStatuses,15000);
+  connectVisitorNotifSSE();
+
+  function connectVisitorNotifSSE(){
+    if(!window.EventSource) return;
+    var es;
+    try{ es=new EventSource('api/notifications_sse.php',{withCredentials:true}); }
+    catch(e){ return; }
+    es.addEventListener('snapshot',function(){
+      refreshStatuses();
+    });
+    es.addEventListener('error',function(){
+      refreshStatuses();
+    });
+  }
   
   // Modal Logic
   var cancelModal=document.getElementById('cancelModal');
