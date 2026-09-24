@@ -433,9 +433,8 @@
       status = status || data.status || '';
       qrPath = qrPath || data.qr_path || '';
       const isGuestEntry = String(type || data.type || '').toLowerCase() === 'guest entry';
-      const useStoredQR = qrPath && !/mainpage\/qr\.png$/i.test(qrPath);
       const dynamicQR = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(verificationLink)}`;
-      document.getElementById("qrImage").src = useStoredQR ? qrPath : dynamicQR;
+      document.getElementById("qrImage").src = dynamicQR;
       
       const accessWindow = `${formatMDY(data.start_date || '') || '-'}${data.expires_at ? ' → ' + formatMDY(data.expires_at) : ''}`;
       const statusLower = (status || '').toLowerCase();

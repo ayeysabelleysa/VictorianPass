@@ -2385,9 +2385,6 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
       var base=getBase();
       n=parseInt(n||'1',10); if(isNaN(n)||n<1) n=1;
       var html='';
-      if(n>1){
-        html+='<div class="entry-pass-lb-caption">Participant QR Passes ('+n+')</div>';
-      }
       html+='<div class="entry-pass-lb-multi">';
       for(var pi=1; pi<=n; pi++){
         var pLink=location.origin+base+'/qr_view.php?code='+encodeURIComponent(ref)+'&p='+pi;

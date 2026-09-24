@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/session_bootstrap.php';
 include 'connect.php';
+require_once __DIR__ . '/qr_url_helpers.php';
 
 session_write_close();
 
@@ -14,10 +15,7 @@ $data = null;
 $error = null;
 
 $today = date('Y-m-d');
-$scheme = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')) ? 'https' : 'http';
-$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-$basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/VictorianPass'), '/\\');
-$verificationLink = sprintf('%s://%s%s/qr_view.php?code=%s', $scheme, $host, $basePath, urlencode($code));
+$verificationLink = vp_qr_link('qr_view.php', ['code' => $code]);
 
 
 // 1. Try Guest Forms
@@ -49,7 +47,7 @@ if ($resGF && $resGF->num_rows > 0) {
     $expireDate = '';
     $validWindow = ($publishDate ?: '-');
     $qrPath = !empty($row['qr_path']) ? $row['qr_path'] : '';
-    $qrImg = $qrPath ? $qrPath : ('https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' . urlencode($verificationLink));
+    $qrImg = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' . urlencode($verificationLink);
     $hasReservation = false;
 
     // Try to load linked reservation details via ref_code
@@ -90,7 +88,7 @@ if ($resGF && $resGF->num_rows > 0) {
                 $rApproval = strtolower(trim($r['approval_status'] ?? ''));
                 $rAttempts = isset($r['receipt_attempts']) ? intval($r['receipt_attempts']) : null;
                 $hasReservation = !empty($rAmenity);
-                if (!$qrPath && !empty($r['qr_path'])) { $qrPath = $r['qr_path']; $qrImg = $qrPath; }
+                if (!$qrPath && !empty($r['qr_path'])) { $qrPath = $r['qr_path']; }
                 if ($hasReservation) {
                     $publishDate = !empty($rStartDate) ? date('m/d/y', strtotime($rStartDate)) : $publishDate;
                     $expireDate = !empty($rEndDate) ? date('m/d/y', strtotime($rEndDate)) : '';
@@ -252,7 +250,7 @@ if (!$data) {
         $expireDate = $expiryDateYmd ? date('m/d/y', strtotime($expiryDateYmd)) : '';
         $validWindow = ($publishDate ?: '-') . ($expireDate ? (' → ' . $expireDate) : '');
         $qrPath = !empty($row['qr_path']) ? $row['qr_path'] : '';
-        $qrImg = $qrPath ? $qrPath : ('https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' . urlencode($verificationLink));
+        $qrImg = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' . urlencode($verificationLink);
         
         $data = [
             'code' => $row['ref_code'],

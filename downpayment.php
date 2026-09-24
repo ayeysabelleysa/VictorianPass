@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/session_bootstrap.php';
 include 'connect.php';
+require_once __DIR__ . '/qr_url_helpers.php';
 
 function downpaymentColumnExists($con, string $col): bool {
     if (!($con instanceof mysqli)) return false;
@@ -64,12 +65,9 @@ if (isset($_GET['reset']) && $_GET['reset'] === '1') {
 $ref_code_url = isset($_GET['ref_code']) ? trim($_GET['ref_code']) : '';
 if ($ref_code_url !== '') {
     $_SESSION['dp_ref_code'] = $ref_code_url;
-    $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    $path = $_SERVER['SCRIPT_NAME'] ?? '/VictorianPass/downpayment.php';
     $qs = $_GET; unset($qs['ref_code']);
     $query = http_build_query($qs);
-    header('Location: ' . $scheme . '://' . $host . $path . ($query ? ('?' . $query) : ''));
+    header('Location: ' . vp_public_base_url() . '/downpayment.php' . ($query ? ('?' . $query) : ''));
     exit;
 }
 $ref_code = isset($_SESSION['dp_ref_code']) ? $_SESSION['dp_ref_code'] : '';

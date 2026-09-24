@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/session_bootstrap.php';
 include 'connect.php';
+require_once __DIR__ . '/qr_url_helpers.php';
 
 if (!vpSchemaDone($con, 'qr_view_v1') && ($con instanceof mysqli)) {
     $tables = ['guest_forms', 'reservations', 'resident_reservations'];
@@ -67,10 +68,9 @@ $now = date('Y-m-d H:i:s');
 $isAuthorizedScanner = (isset($_SESSION['role']) && $_SESSION['role'] === 'guard');
 
 // URL Construction Helpers
-$scheme = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')) ? 'https' : 'http';
-$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-$basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/VictorianPass'), '/\\');
-$verificationLink = sprintf('%s://%s%s/qr_view.php?code=%s%s', $scheme, $host, $basePath, urlencode($code), ($pNum > 0 ? '&p=' . $pNum : ''));
+$verificationQuery = ['code' => $code];
+if ($pNum > 0) { $verificationQuery['p'] = $pNum; }
+$verificationLink = vp_qr_link('qr_view.php', $verificationQuery);
 
 // -------------------------------------------------------------------------
 // POST Action: Mark as Scanned

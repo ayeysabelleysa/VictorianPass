@@ -3,6 +3,7 @@ $staffInactivityLimit = 2700;
 ini_set('session.gc_maxlifetime', (string)$staffInactivityLimit);
 require_once __DIR__ . '/session_bootstrap.php';
 include 'connect.php';
+require_once __DIR__ . '/qr_url_helpers.php';
 
 $isReservationDetailsAjax = isset($_GET['action']) && in_array($_GET['action'], [
   'get_reservation_details',
@@ -36,7 +37,7 @@ if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') {
 
 if ($isReservationDetailsAjax) { session_write_close(); }
 
-function admin_status_link($code){ $scheme=(isset($_SERVER['HTTPS'])&&$_SERVER['HTTPS']==='on')?'https':'http'; $host=$_SERVER['HTTP_HOST']??'localhost'; $basePath=rtrim(dirname($_SERVER['SCRIPT_NAME']??'/VictorianPass'),'/'); return $scheme.'://'.$host.$basePath.'/qr_view.php?code='.urlencode($code); }
+function admin_status_link($code){ return vp_qr_link('qr_view.php', ['code' => $code]); }
 function admin_receipt_url($storedPath){
   $path = trim((string)$storedPath);
   if ($path === '' || preg_match('#^(?:https?:)?//#i', $path) || stripos($path, 'data:') === 0) return $path;
@@ -2073,18 +2074,9 @@ function generateQrForGuestForm($con, $gfId) {
 
     $ref = $row['ref_code'] ?? ('GF-' . $gfId);
 
-    $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/VictorianPass'), '/');
-    $statusLink = $scheme . '://' . $host . $basePath . '/qr_view.php?code=' . urlencode($ref);
+    $statusLink = vp_qr_link('qr_view.php', ['code' => $ref]);
 
-    $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' . urlencode($statusLink);
-    $img = @file_get_contents($qrUrl);
-    if ($img === false) return;
-
-    $relPath = 'uploads/qr_guest_' . $gfId . '.png';
-    $absPath = __DIR__ . '/' . $relPath;
-    @file_put_contents($absPath, $img);
+    $relPath = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' . urlencode($statusLink);
 
     $stmt2 = $con->prepare("UPDATE guest_forms SET qr_path = ? WHERE id = ?");
     $stmt2->bind_param('si', $relPath, $gfId);
@@ -2128,19 +2120,10 @@ function generateQrForReservation($con, $reservationId) {
     $end   = isset($row['end_date']) ? $row['end_date'] : '';
 
     // Build a direct status URL so scanners open the details page
-    $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/VictorianPass'), '/');
-    $statusLink = $scheme . '://' . $host . $basePath . '/qr_view.php?code=' . urlencode($ref);
+    $statusLink = vp_qr_link('qr_view.php', ['code' => $ref]);
 
     // Generate QR for the status link
-    $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' . urlencode($statusLink);
-    $img = @file_get_contents($qrUrl);
-    if ($img === false) return; // fail silently
-
-    $relPath = 'uploads/qr_reservation_' . $reservationId . '.png';
-    $absPath = __DIR__ . '/' . $relPath;
-    @file_put_contents($absPath, $img);
+    $relPath = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' . urlencode($statusLink);
 
     // Update reservation with QR path
     $stmt2 = $con->prepare("UPDATE reservations SET qr_path = ? WHERE id = ?");
@@ -2166,18 +2149,9 @@ function generateQrForResidentReservation($con, $rrId) {
 
     $ref = $row['ref_code'] ?? ('RR-' . $rrId);
 
-    $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/VictorianPass'), '/');
-    $statusLink = $scheme . '://' . $host . $basePath . '/qr_view.php?code=' . urlencode($ref);
+    $statusLink = vp_qr_link('qr_view.php', ['code' => $ref]);
 
-    $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' . urlencode($statusLink);
-    $img = @file_get_contents($qrUrl);
-    if ($img === false) return;
-
-    $relPath = 'uploads/qr_resident_' . $rrId . '.png';
-    $absPath = __DIR__ . '/' . $relPath;
-    @file_put_contents($absPath, $img);
+    $relPath = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' . urlencode($statusLink);
 
     $stmt2 = $con->prepare("UPDATE resident_reservations SET qr_path = ? WHERE id = ?");
     $stmt2->bind_param('si', $relPath, $rrId);

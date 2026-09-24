@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/session_bootstrap.php';
 require_once 'connect.php';
+require_once __DIR__ . '/qr_url_helpers.php';
 if (!defined('ECO_WEEKLY_POINT_CAP')) { define('ECO_WEEKLY_POINT_CAP', 250); }
 $__t0 = microtime(true);
 $__marks = [];
@@ -242,26 +243,19 @@ $qrAbsPath = '';
 $qrImg = '';
 
 if (!$isAccountBlocked) {
-    $scheme = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')) ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/VictorianPass'), '/\\');
     $houseCode = strtoupper(trim((string)($user['house_number'] ?? '')));
     if ($houseCode !== '') {
-        $qrLink = sprintf('%s://%s%s/resident_qr_view.php?code=%s', $scheme, $host, $basePath, urlencode($houseCode));
+    $qrLink = vp_qr_link('resident_qr_view.php', ['code' => $houseCode]);
         $qrRelPath = 'uploads/qr_resident_' . preg_replace('/[^A-Z0-9]+/', '_', $houseCode) . '.png';
     } else {
-        $qrLink = sprintf('%s://%s%s/resident_qr_view.php?rid=%d', $scheme, $host, $basePath, intval($user['id'] ?? $userId));
+    $qrLink = vp_qr_link('resident_qr_view.php', ['rid' => intval($user['id'] ?? $userId)]);
         $qrRelPath = 'uploads/qr_resident_' . intval($user['id'] ?? $userId) . '.png';
     }
     $qrAbsPath = __DIR__ . '/' . $qrRelPath;
-    if (file_exists($qrAbsPath) && filesize($qrAbsPath) > 100) {
-        $qrRelPath = $qrRelPath;
-    } else {
-        $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' . urlencode($qrLink);
-        $ctx = @stream_context_create(['http' => ['timeout' => 5]]);
-        $img = @file_get_contents($qrUrl, false, $ctx);
-        if ($img !== false) { @file_put_contents($qrAbsPath, $img); } else { $qrRelPath = $qrUrl; }
-    }
+  $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' . urlencode($qrLink);
+  $ctx = @stream_context_create(['http' => ['timeout' => 5]]);
+  $img = @file_get_contents($qrUrl, false, $ctx);
+  if ($img !== false) { @file_put_contents($qrAbsPath, $img); } elseif (!file_exists($qrAbsPath) || filesize($qrAbsPath) <= 100) { $qrRelPath = $qrUrl; }
 }
 __pm('qr_setup');
 
@@ -4361,9 +4355,6 @@ body.modal-open{overflow:hidden}
       var base=getBase();
       n=parseInt(n||'1',10); if(isNaN(n)||n<1) n=1;
       var html='';
-      if(n>1){
-        html+='<div class="entry-pass-lb-caption">Participant QR Passes ('+n+')</div>';
-      }
       html+='<div class="entry-pass-lb-multi">';
       for(var pi=1; pi<=n; pi++){
         var pLink=location.origin+base+'/qr_view.php?code='+encodeURIComponent(ref)+'&p='+pi;

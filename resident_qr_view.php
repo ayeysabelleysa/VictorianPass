@@ -1,18 +1,16 @@
 <?php
 require_once __DIR__ . '/session_bootstrap.php';
 include 'connect.php';
+require_once __DIR__ . '/qr_url_helpers.php';
 
 $rid = isset($_GET['rid']) ? intval($_GET['rid']) : 0;
 $code = isset($_GET['code']) ? trim($_GET['code']) : '';
 
 function vp_resident_link($rid, $code = ''){
-  $scheme = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')) ? 'https' : 'http';
-  $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-  $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/VictorianPass'), '/\\');
   if ($code !== '') {
-    return sprintf('%s://%s%s/resident_qr_view.php?code=%s', $scheme, $host, $basePath, urlencode($code));
+    return vp_qr_link('resident_qr_view.php', ['code' => $code]);
   }
-  return sprintf('%s://%s%s/resident_qr_view.php?rid=%d', $scheme, $host, $basePath, $rid);
+  return vp_qr_link('resident_qr_view.php', ['rid' => $rid]);
 }
 
 $user = null;
