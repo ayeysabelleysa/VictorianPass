@@ -837,6 +837,19 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-main); }
     display: flex;
     min-height: 100vh;
     gap: 0;
+  position: relative;
+  align-items: stretch;
+}
+
+/* Keep the sidebar background continuous for pages taller than the viewport. */
+.app::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--sidebar-width);
+  background: radial-gradient(circle at top left, #3a332f 0%, #2b2623 55%, #211b18 100%);
+  pointer-events: none;
+  z-index: 0;
 }
 
 /* Sidebar */
@@ -854,6 +867,7 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-main); }
     flex-shrink: 0;
     transition: width 0.25s ease, transform 0.25s ease;
     will-change: width, transform;
+    z-index: 1;
 }
 
 .brand {
@@ -1224,6 +1238,7 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-main); }
 }
 
 body.sidebar-collapsed .sidebar { width: 72px; }
+body.sidebar-collapsed .app::before { width: 72px; }
 body.sidebar-collapsed .brand { justify-content: center; padding: 16px 12px; }
 body.sidebar-collapsed .brand .title { opacity: 0; max-width: 0; }
 body.sidebar-collapsed .nav-list { padding: 16px 8px; }
@@ -1535,6 +1550,7 @@ tbody tr { transition: background-color 0.2s ease-in-out; }
 
 /* Responsive */
 @media(max-width:900px){
+  .app::before { display: none; }
     .sidebar {
         position: fixed;
         left: 0;
