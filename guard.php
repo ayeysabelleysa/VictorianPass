@@ -445,6 +445,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'list_today_scans') {
   header('Content-Type: application/json');
   $rows = [];
   $q = "SELECT e.ref_code, e.subject_name, e.entry_type, e.status, e.start_date, e.end_date, e.scanned_at, e.scanned_by_name, " .
+      "gf.visit_date AS gf_start_date, gf.start_date AS gf_schedule_start, gf.end_date AS gf_schedule_end, " .
+      "r.start_date AS r_start_date, r.end_date AS r_end_date, rr.start_date AS rr_start_date, rr.end_date AS rr_end_date, " .
        "gf.visit_time AS gf_start_time, " .
        "r.start_time AS r_start_time, " .
        "r.end_time AS r_end_time, " .
@@ -470,6 +472,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'list_today_scans') {
   if ($prevModeP !== null) { mysqli_report($prevModeP); }
   if (!$probeOk) {
     $q = "SELECT e.ref_code, e.subject_name, e.entry_type, e.status, e.start_date, e.end_date, e.scanned_at, e.scanned_by_name, " .
+         "gf.visit_date AS gf_start_date, gf.start_date AS gf_schedule_start, gf.end_date AS gf_schedule_end, " .
+         "r.start_date AS r_start_date, r.end_date AS r_end_date, rr.start_date AS rr_start_date, rr.end_date AS rr_end_date, " .
          "NULL AS gf_start_time, " .
          "NULL AS r_start_time, " .
          "NULL AS r_end_time, " .
@@ -502,6 +506,15 @@ if (isset($_GET['action']) && $_GET['action'] === 'list_today_scans') {
       if (!$startTime) { $startTime = $r['gf_start_time'] ?? null; }
       $endTime = $r['r_end_time'] ?? null;
       if (!$endTime) { $endTime = $r['rr_end_time'] ?? null; }
+      $startDate = $r['start_date'] ?? null;
+      if (!$startDate) { $startDate = $r['r_start_date'] ?? null; }
+      if (!$startDate) { $startDate = $r['rr_start_date'] ?? null; }
+      if (!$startDate) { $startDate = $r['gf_start_date'] ?? null; }
+      if (!$startDate) { $startDate = $r['gf_schedule_start'] ?? null; }
+      $endDate = $r['end_date'] ?? null;
+      if (!$endDate) { $endDate = $r['r_end_date'] ?? null; }
+      if (!$endDate) { $endDate = $r['rr_end_date'] ?? null; }
+      if (!$endDate) { $endDate = $r['gf_schedule_end'] ?? null; }
       $amenity = $r['r_amenity'] ?? null;
       if (!$amenity) { $amenity = $r['rr_amenity'] ?? null; }
       if (!$amenity) { $amenity = $r['gf_amenity'] ?? null; }
@@ -510,14 +523,18 @@ if (isset($_GET['action']) && $_GET['action'] === 'list_today_scans') {
       if (!$addedBy) {
         $addedBy = trim(($r['gf_res_first'] ?? '') . ' ' . ($r['gf_res_middle'] ?? '') . ' ' . ($r['gf_res_last'] ?? ''));
       }
+      $entryType = trim((string)($r['entry_type'] ?? ''));
+      if (strcasecmp($entryType, 'Participant Entry') === 0) {
+        $entryType = 'Entry Pass';
+      }
       $rows[] = [
         'code' => $r['ref_code'],
         'name' => $r['subject_name'],
         'added_by' => $addedBy !== '' ? $addedBy : null,
-        'type' => $r['entry_type'],
+        'type' => $entryType,
         'amenity' => $amenity,
-        'start_date' => $r['start_date'],
-        'end_date' => $r['end_date'],
+        'start_date' => $startDate,
+        'end_date' => $endDate,
         'start_time' => $startTime,
         'end_time' => $endTime,
         'status' => $r['status']

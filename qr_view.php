@@ -1088,8 +1088,7 @@ if (empty($error)) {
             <div class="action-area">
                 <?php
                     $isMultiView = ($data['total_participants'] ?? 1) > 1;
-                    $isParticipantView = $isMultiView && $pNum >= 1 && $pNum <= ($data['total_participants'] ?? 1);
-                    $showMainConfirm = !$isMultiView || $isParticipantView;
+                    $showMainConfirm = !$isMultiView;
                 ?>
                 <?php if ($showMainConfirm && $isAuthorizedScanner && $data['ui_state'] === 'valid'): ?>
                     <form method="POST">
@@ -1097,8 +1096,7 @@ if (empty($error)) {
                         <input type="hidden" name="ref_code" value="<?php echo htmlspecialchars($data['code']); ?>">
                         <input type="hidden" name="source_table" value="<?php echo htmlspecialchars($data['table']); ?>">
                         <input type="hidden" name="source_id" value="<?php echo htmlspecialchars($data['id']); ?>">
-                        <?php if ($isParticipantView): ?><input type="hidden" name="participant_no" value="<?php echo $pNum; ?>"><?php endif; ?>
-                        <button type="submit" class="btn-confirm"><?php echo $isParticipantView ? 'CONFIRM PARTICIPANT ENTRY' : 'CONFIRM ENTRY'; ?></button>
+                        <button type="submit" class="btn-confirm">CONFIRM ENTRY</button>
                     </form>
                 <?php elseif ($data['ui_state'] === 'used'): ?>
                      <button class="btn-confirm" style="background:#f59e0b; cursor:default;">ALREADY USED</button>
