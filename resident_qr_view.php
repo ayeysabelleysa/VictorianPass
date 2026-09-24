@@ -108,6 +108,10 @@ if ($con instanceof mysqli) {
   }
 }
 
+if (!$isGuest && $user) {
+  $displayPhone = $user['phone'] ?? '';
+}
+
 // Normalize phone to 09 format if stored as +63
 if (!empty($displayPhone)) {
   if (preg_match('/^\+63(9\d{9})$/', $displayPhone)) { $displayPhone = '0' . substr($displayPhone, 3); }
@@ -220,10 +224,11 @@ if ($isGuest && $guest) {
         <div class="row"><div class="label">Valid Date</div><div class="value"><?php echo date('m/d/y', strtotime($guest['visit_date'])); ?></div></div>
         <div class="row"><div class="label">Time</div><div class="value"><?php echo date('g:i A', strtotime($guest['visit_time'])); ?></div></div>
         <?php else: ?>
-        <div class="row"><div class="label">Block</div><div class="value"><?php echo htmlspecialchars($user['house_number'] ?? '-'); ?></div></div>
-        <div class="row"><div class="label">Unit / Address</div><div class="value"><?php echo htmlspecialchars($user['address'] ?? '-'); ?></div></div>
-        <div class="row"><div class="label">Contact</div><div class="value"><?php echo htmlspecialchars($displayPhone ?: '-') ; ?></div></div>
-        <div class="row"><div class="label">Email</div><div class="value"><?php echo htmlspecialchars($user['email'] ?? '-') ; ?></div></div>
+        <div class="row"><div class="label">Name</div><div class="value"><?php echo htmlspecialchars($fullName ?: '-'); ?></div></div>
+        <div class="row"><div class="label">Email</div><div class="value"><?php echo htmlspecialchars($user['email'] ?? '-'); ?></div></div>
+        <div class="row"><div class="label">Contact Number</div><div class="value"><?php echo htmlspecialchars($displayPhone ?: '-'); ?></div></div>
+        <div class="row"><div class="label">House Number</div><div class="value"><?php echo htmlspecialchars($user['house_number'] ?? '-'); ?></div></div>
+        <div class="row"><div class="label">Address</div><div class="value"><?php echo htmlspecialchars($user['address'] ?? '-'); ?></div></div>
         <?php endif; ?>
       </div>
       <div class="divider"></div>
