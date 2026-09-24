@@ -124,8 +124,8 @@ $loaded = eco_load_session_for_station($con, $station, $sess1['session_token'], 
 check('eco_load_session_for_station loads session', !!$loaded);
 if ($loaded) {
     $calc = eco_calculate_points('Aluminum', 1.50);
-    check('rate Aluminum = 140 pts/kg * 1.50kg = 210 pts',
-          (int)$calc['raw_points'] === 210 && (int)$calc['rate_pts_per_kg'] === 140);
+    check('rate Aluminum = 303 pts/kg * 1.50kg = 454 pts',
+          (int)$calc['raw_points'] === 454 && (int)$calc['rate_pts_per_kg'] === 303);
 
     // Simulate submit + finalize via core helpers directly (skips HTTP layer)
     $sessionId = (int)$sess1['id'];
@@ -133,9 +133,9 @@ if ($loaded) {
 
     $con->begin_transaction();
     eco_transition_status($con, $sessionId, $stationId, 'PROCESSING');
-    $stmt = $con->prepare("UPDATE ecopoint_waste_sessions SET material_type='Aluminum', weight_kg=1.50, points_calculated=210 WHERE id = ?");
+    $stmt = $con->prepare("UPDATE ecopoint_waste_sessions SET material_type='Aluminum', weight_kg=1.50, points_calculated=454 WHERE id = ?");
     $stmt->bind_param('i', $sessionId); $stmt->execute(); $stmt->close();
-    eco_log_event($con, $sessionId, $stationId, 'WASTE_DATA', ['material'=>'Aluminum','weight_kg'=>1.5,'points_calc'=>210], 'HARDWARE');
+    eco_log_event($con, $sessionId, $stationId, 'WASTE_DATA', ['material'=>'Aluminum','weight_kg'=>1.5,'points_calc'=>454], 'HARDWARE');
     $con->commit();
 
     $fresh = $con->query("SELECT * FROM ecopoint_waste_sessions WHERE id = $sessionId")->fetch_assoc();

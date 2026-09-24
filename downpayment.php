@@ -513,6 +513,21 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     @media (max-width:640px){
       html{overflow-x:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%}
       body{overflow-x:hidden;min-height:100dvh}
+      .back-row{
+        margin:12px auto 0;
+        padding:0 max(14px, env(safe-area-inset-left));
+        display:flex;
+        justify-content:flex-start;
+        position:relative;
+        z-index:5;
+      }
+      .back-btn{
+        width:42px;
+        height:42px;
+        flex-shrink:0;
+        touch-action:manipulation;
+        -webkit-tap-highlight-color:rgba(212,160,23,0.35);
+      }
       .wrap{margin:20px auto;padding:0 12px;scroll-margin-top:74px;max-width:100%}
       .card{padding:18px;overflow-y:auto;-webkit-overflow-scrolling:touch}
       .pay-callout{flex-direction:column;align-items:flex-start}

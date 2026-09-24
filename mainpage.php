@@ -455,18 +455,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             </div>
             <div class="pg-limits">
               <div class="pg-limit">
+                <i class="fa-solid fa-calendar-day" aria-hidden="true"></i>
+                <span><strong>Daily Limit:</strong> 100 pts</span>
+              </div>
+              <div class="pg-limit">
+                <i class="fa-solid fa-repeat" aria-hidden="true"></i>
+                <span><strong>Maximum:</strong> 3 recycling sessions/day</span>
+              </div>
+              <div class="pg-limit">
                 <i class="fa-solid fa-calendar-week" aria-hidden="true"></i>
                 <span><strong>Weekly Cap:</strong> 250 pts</span>
               </div>
               <div class="pg-limit">
-                <i class="fa-solid fa-calendar-day" aria-hidden="true"></i>
-                <span><strong>Daily Limit:</strong> 3 recycling sessions/day</span>
-              </div>
-              <div class="pg-limit" style="grid-column: 1 / -1;">
                 <i class="fa-solid fa-vault" aria-hidden="true"></i>
                 <span><strong>Maximum Account Balance:</strong> 3,000 pts</span>
               </div>
             </div>
+            <p class="pg-note" style="color:#4b5563;">Earn up to <strong>100 EcoPoints per day</strong> from recyclable materials, spread across up to 3 recycling sessions. Reach the daily limit and no further EcoPoints are awarded that day &mdash; you receive exactly what you earned.</p>
           </article>
 
           <article class="ecopoint-card">

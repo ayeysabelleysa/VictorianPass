@@ -49,10 +49,10 @@ if (!$session) {
 }
 
 $sessionStatus = strtoupper((string)($session['status'] ?? ''));
-if ($sessionStatus !== 'ACTIVE') {
+if (!in_array($sessionStatus, ECO_SESSION_STATUSES_OPEN, true)) {
     eco_json_response([
         'success' => false,
-        'message' => 'Session is not in an active state (' . $sessionStatus . ').',
+        'message' => 'Session is not in a running state (' . $sessionStatus . ').',
     ], 409);
 }
 

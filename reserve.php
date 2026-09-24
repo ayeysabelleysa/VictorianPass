@@ -1074,9 +1074,19 @@ if (ob_get_level() > 0) { ob_end_flush(); }
             <div class="view-rewards-body" style="padding:24px;">
 
               <!-- Current Points -->
-              <div class="view-rewards-balance" style="background:linear-gradient(135deg,#23412e,#1f3528); color:#fff; padding:20px; border-radius:16px; margin-bottom:24px;">
-                <div style="font-size:0.9rem; opacity:0.9; margin-bottom:4px;">Your Current Balance</div>
-                <div style="font-size:2.5rem; font-weight:800;"><?php echo number_format($residentPoints); ?> pts</div>
+              <?php
+                $ecoRewardBalanceDigits = strlen((string)(int)abs((float)$residentPoints));
+                $ecoRewardFontSize = (string)max(1.5, 2.2 - (max(0, $ecoRewardBalanceDigits - 4) * 0.1));
+              ?>
+              <div class="view-rewards-balance" style="background:linear-gradient(135deg,#0f2f27,#1a5240); border:1px solid rgba(212,175,55,0.4); color:#fde886; padding:18px 20px; border-radius:14px; box-shadow:0 4px 16px rgba(10,30,22,0.15); margin-bottom:24px;">
+                <div class="view-rewards-balance-label">Your Current Balance</div>
+                <div class="view-rewards-balance-row">
+                  <div class="view-rewards-balance-amount">
+                    <i class="fa-solid fa-star view-rewards-balance-star" aria-hidden="true"></i>
+                    <span class="view-rewards-balance-number" style="font-size:<?php echo $ecoRewardFontSize; ?>rem;"><?php echo number_format($residentPoints); ?> pts</span>
+                  </div>
+                  <a href="profileresident.php?section=panel-points-history" class="view-rewards-dashboard-link">View VHEcoPoint Dashboard &rarr;</a>
+                </div>
               </div>
 
               <!-- All Available Amenity Rewards -->
@@ -1141,9 +1151,9 @@ if (ob_get_level() > 0) { ob_end_flush(); }
                      <i class="fa-solid fa-lightbulb"></i> Earn More Points
                    </div>
                    <ul style="margin:0; padding-left:20px; color:#78350f; line-height:2;">
-                     <li><i class="fa-solid fa-recycle" style="margin-right:4px;"></i> Recycle PET Plastic Bottles (≤1000ml): <strong>+55 points per kg</strong></li>
-                     <li><i class="fa-solid fa-droplet" style="margin-right:4px;"></i> Recycle Aluminum Cans: <strong>+140 points per kg</strong></li>
-                     <li><i class="fa-regular fa-file" style="margin-right:4px;"></i> Recycle Paper & Cardboard: <strong>+30 points per kg</strong></li>
+                     <li><i class="fa-solid fa-recycle" style="margin-right:4px;"></i> Recycle PET Plastic Bottles (≤1000ml): <strong>+0.303 points per gram</strong></li>
+                     <li><i class="fa-solid fa-droplet" style="margin-right:4px;"></i> Recycle Aluminum Cans: <strong>+0.303 points per gram</strong></li>
+                     <li><i class="fa-regular fa-file" style="margin-right:4px;"></i> Recycle Paper & Cardboard: <strong>+0.303 points per gram</strong></li>
                   </ul>
                   <p style="margin:12px 0 0 0; color:#78350f; font-size:0.95rem; line-height:1.5;">
                     Visit VHEcoPoint Smart Waste Segregation Station and recycle eligible materials to earn points that can be redeemed for free amenity reservations.
@@ -1156,10 +1166,18 @@ if (ob_get_level() > 0) { ob_end_flush(); }
       <?php endif; ?>
 
       <?php if ($sessionUserType === 'resident'): ?>
+      <?php
+        $ecoPointsDigits = strlen((string)(int)abs((float)$residentPoints));
+        $ecoPointsFontSize = (string)max(1.4, 2.0 - (max(0, $ecoPointsDigits - 4) * 0.1));
+      ?>
       <div class="points-tracker" id="pointsTracker">
         <div class="points-tracker-header">
-          <span class="points-tracker-label">Your Points:</span>
-          <span class="points-balance-amount" id="current-points-display"><?php echo number_format($residentPoints); ?> pts</span>
+          <span class="points-tracker-label"><i class="fa-solid fa-coins" aria-hidden="true"></i> Your Points</span>
+          <div class="points-balance-amount" id="current-points-display">
+            <i class="fa-solid fa-star points-balance-star" aria-hidden="true"></i>
+            <span class="points-balance-number" id="current-points-number" style="font-size:<?php echo $ecoPointsFontSize; ?>rem;"><?php echo number_format($residentPoints); ?></span>
+            <span class="points-balance-limit">pts</span>
+          </div>
         </div>
         <div class="points-tracker-note">These are your VHEcoPoint rewards - earn points by recycling at the Smart Waste Segregation Station.</div>
         <div class="points-tracker-body">
@@ -1500,6 +1518,18 @@ if (ob_get_level() > 0) { ob_end_flush(); }
   </div>
 </div>
 
+<div id="switchToCashModal" class="modal" style="display:none;">
+  <div class="modal-content points-redemption-confirm-content">
+    <button type="button" class="close-profile-modal" id="switchToCashCloseBtn" aria-label="Close">&times;</button>
+    <h2>Switch to Cash Payment?</h2>
+    <p class="points-redemption-confirm-message">Your VHEcoPoint redemption has already been confirmed. Switching to Cash will cancel this redemption and return the points to your available balance.</p>
+    <div class="points-redemption-confirm-actions">
+      <button type="button" class="btn-confirm" id="switchToCashKeepBtn">Keep Redemption</button>
+      <button type="button" class="btn-cancel" id="switchToCashSwitchBtn">Switch to Cash</button>
+    </div>
+  </div>
+</div>
+
 <!-- Error Modal -->
 <div id="errorModal" class="modal" style="display:none;">
   <div class="modal-content">
@@ -1676,6 +1706,11 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     }
   }
 
+  function setPointsDisplay(value) {
+    const el = document.getElementById('current-points-number');
+    if (el) el.textContent = Number(value).toLocaleString();
+  }
+
   function showPointsErrorPopup(message, showBookWithCash) {
     let popup = document.getElementById('points-error-popup');
     let overlay = document.getElementById('points-error-overlay');
@@ -1730,7 +1765,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
         const redemptionInfo = document.getElementById('redemption-info');
         if (redemptionInfo) redemptionInfo.style.display = 'none';
         const currentPointsEl = document.getElementById('current-points-display');
-        if (currentPointsEl) currentPointsEl.textContent = residentPoints.toLocaleString() + ' pts';
+        if (currentPointsEl) setPointsDisplay(residentPoints);
         updateDisplayedPrice();
         updateDownpaymentSuggestion();
         updateBookingModeCards();
@@ -1756,6 +1791,24 @@ if (ob_get_level() > 0) { ob_end_flush(); }
   function closePointsRedemptionConfirm() {
     const modal = document.getElementById('pointsRedemptionConfirmModal');
     if (modal) vpHideModal(modal);
+  }
+
+  function showSwitchToCashConfirm() {
+    const modal = document.getElementById('switchToCashModal');
+    if (modal) vpShowModal(modal);
+  }
+
+  function closeSwitchToCashConfirm() {
+    const modal = document.getElementById('switchToCashModal');
+    if (modal) vpHideModal(modal);
+  }
+
+  function switchToCashMode() {
+    const toggle = document.getElementById('use-points-toggle');
+    if (toggle) toggle.checked = false;
+    usePoints = false;
+    setRedemptionConfirmed(false);
+    updateRedemptionInfo();
   }
 
   function setRedemptionConfirmed(value) {
@@ -1795,14 +1848,14 @@ if (ob_get_level() > 0) { ob_end_flush(); }
           if (remainingPointsEl) remainingPointsEl.textContent = remainingPoints.toLocaleString() + ' pts';
           if (redemptionInfo) redemptionInfo.style.display = 'block';
           if (currentPointsEl) {
-            currentPointsEl.textContent = remainingPoints.toLocaleString() + ' pts';
+            setPointsDisplay(remainingPoints);
           }
         }
       }
     } else {
       if (redemptionInfo) redemptionInfo.style.display = 'none';
       if (currentPointsEl) {
-        currentPointsEl.textContent = residentPoints.toLocaleString() + ' pts';
+        setPointsDisplay(residentPoints);
       }
     }
 
@@ -1820,9 +1873,11 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     }
     if (cashBtn && toggle) {
       cashBtn.addEventListener('click', function() {
-        toggle.checked = false;
-        setRedemptionConfirmed(false);
-        updateRedemptionInfo();
+        if (redemptionConfirmed) {
+          showSwitchToCashConfirm();
+          return;
+        }
+        switchToCashMode();
       });
     }
     if (pointsBtn && toggle) {
@@ -3630,6 +3685,25 @@ async function changePersons(val){
   })();
 
   (function(){
+    const modal = document.getElementById('switchToCashModal');
+    const closeBtn = document.getElementById('switchToCashCloseBtn');
+    const keepBtn = document.getElementById('switchToCashKeepBtn');
+    const switchBtn = document.getElementById('switchToCashSwitchBtn');
+    if (closeBtn) closeBtn.addEventListener('click', function(){
+      closeSwitchToCashConfirm();
+    });
+    if (keepBtn) keepBtn.addEventListener('click', function(){
+      closeSwitchToCashConfirm();
+    });
+    if (switchBtn) switchBtn.addEventListener('click', function(){
+      setRedemptionConfirmed(false);
+      closeSwitchToCashConfirm();
+      switchToCashMode();
+      showToast('Redemption cancelled. Returning points to your balance.','info');
+    });
+  })();
+
+  (function(){
     if(currentUserType !== 'resident') return;
     const selectors=document.querySelectorAll('.participant-selector');
     if(!selectors.length) return;
@@ -4151,16 +4225,17 @@ displaySlotError('Please select the number of hours before choosing a start time
 </script>
 
 <style>
-/* Your Points card: wide horizontal rectangle, centered above the amenities section */
+/* Your Points card: VHEcoPoint branding, matches the dashboard Current Point Balance card */
 .points-tracker {
   width: 100%;
   max-width: 860px;
   margin: 0 auto;
-  background: linear-gradient(135deg, #23412e 0%, #1f5a33 100%);
-  color: #fff;
-  padding: 10px 16px;
+  background: linear-gradient(135deg, #0f2f27 0%, #1a5240 100%);
+  border: 1px solid rgba(212,175,55,0.4);
+  color: #fde886;
+  padding: 14px 18px;
   border-radius: 14px;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+  box-shadow: 0 4px 16px rgba(10,30,22,0.15);
   display: grid;
   grid-template-columns: auto 1fr auto auto;
   align-items: center;
@@ -4170,36 +4245,71 @@ displaySlotError('Please select the number of hours before choosing a start time
 
 .points-tracker-header {
   display: flex;
-  flex-direction: row;
-  align-items: baseline;
-  gap: 6px;
-  white-space: nowrap;
+  flex-direction: column;
+  align-items: flex-start;
   min-width: 0;
 }
 
 .points-tracker-label {
-  font-size: .75rem;
-  font-weight: 600;
-  opacity: 0.85;
+  font-size: .78rem;
+  font-weight: 700;
+  opacity: 0.95;
   letter-spacing: .06em;
   text-transform: uppercase;
+  color: rgba(253,232,134,0.8);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.points-tracker-label i {
+  font-size: .9em;
+  opacity: 0.7;
 }
 
 .points-balance-amount {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 4px;
+  line-height: 1.15;
+  min-width: 0;
+}
+
+.points-balance-star {
+  font-size: 0.55em;
+  color: #fde886;
+  opacity: 0.75;
+  flex-shrink: 0;
+  transform: translateY(-0.05em);
+}
+
+.points-balance-number {
   font-weight: 800;
-  font-size: 1.3rem;
-  line-height: 1.1;
+  color: #fde886;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+  max-width: 100%;
+  flex: 0 1 auto;
+}
+
+.points-balance-limit {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: rgba(253,232,134,0.5);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .points-tracker-note {
-  font-size: 0.75rem;
-  line-height: 1.35;
+  font-size: 0.8rem;
+  line-height: 1.4;
   font-weight: 500;
-  opacity: 0.95;
-  background: rgba(255,255,255,0.12);
-  padding: 4px 8px;
-  border-radius: 8px;
+  color: rgba(240,235,226,0.7);
   min-width: 0;
+  padding: 4px 2px;
 }
 
 .points-tracker-body {
@@ -4207,12 +4317,12 @@ displaySlotError('Please select the number of hours before choosing a start time
 }
 
 .points-tracker-toggle {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  border: none;
-  background: rgba(255,255,255,0.16);
-  color: white;
+  border: 1px solid rgba(253,232,134,0.35);
+  background: rgba(253,232,134,0.14);
+  color: #fde886;
   font-size: .95rem;
   display: flex;
   align-items: center;
@@ -4224,7 +4334,8 @@ displaySlotError('Please select the number of hours before choosing a start time
 }
 
 .points-tracker-toggle:hover {
-  background: rgba(255,255,255,0.28);
+  background: rgba(253,232,134,0.3);
+  color: #fff;
 }
 
 .points-tracker.is-collapsed .points-tracker-body,
@@ -4234,11 +4345,11 @@ displaySlotError('Please select the number of hours before choosing a start time
 
 .view-rewards-btn {
   position: relative;
-  padding: 9px 16px;
+  padding: 8px 16px;
   border-radius: 10px;
-  background: rgba(255,255,255,0.15);
-  border: 1px solid rgba(255,255,255,0.22);
-  color: white;
+  background: rgba(253,232,134,0.12);
+  border: 1px solid rgba(212,175,55,0.6);
+  color: #fde886;
   font-size: .8rem;
   font-weight: 700;
   cursor: pointer;
@@ -4247,7 +4358,14 @@ displaySlotError('Please select the number of hours before choosing a start time
 }
 
 .view-rewards-btn:hover {
-  background: rgba(255,255,255,0.22);
+  background: rgba(253,232,134,0.22);
+  border-color: #fde886;
+  color: #fff;
+}
+
+.view-rewards-btn:focus-visible {
+  outline: 2px solid #fde886;
+  outline-offset: 2px;
 }
 
 .view-rewards-btn-badge {
@@ -4265,7 +4383,7 @@ displaySlotError('Please select the number of hours before choosing a start time
   font-weight: 800;
   line-height: 14px;
   text-align: center;
-  border: 2px solid #fff;
+  border: 2px solid #0f2f27;
   box-shadow: 0 1px 3px rgba(0,0,0,0.35);
   pointer-events: none;
   z-index: 2;
@@ -4274,7 +4392,7 @@ displaySlotError('Please select the number of hours before choosing a start time
 @media (max-width: 1023px) {
   .points-tracker {
     grid-template-columns: 1fr auto;
-    gap: 10px 12px;
+    gap: 10px 14px;
     max-width: 720px;
   }
   .points-tracker-header { grid-column: 1; grid-row: 1; }

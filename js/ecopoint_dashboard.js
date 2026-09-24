@@ -40,6 +40,10 @@
   let uiUpdateTimeout = null;
   let isConnecting = false;
   let reconnectAttempts = 0;
+  let lastWasteEventTimestamp = null;
+  let readyIndicatorTimer = null;
+  let lastCapState = null;
+  let lastBalance = null;
   const MAX_RECONNECT_ATTEMPTS = 10;
   const RECONNECT_DELAY_MS = 2000;
 
@@ -355,6 +359,7 @@
       if (pointsEl) pointsEl.textContent = '0 pts';
       if (panel) panel.style.opacity = '0.8';
       setStyle('ecopoint-live-actions', { display: 'none' });
+      hideReadyForNextItem();
       return;
     }
 
@@ -389,11 +394,13 @@
     if (weightEl) weightEl.textContent = weight + ' g';
     if (pointsEl) pointsEl.textContent = points + ' pts';
 
-    // Show "End Session Early" only while the session is genuinely active (status = ACTIVE).
-    // WAITING/PROCESSING are short-lived transitional states where ending early is not safe.
+    // Show "End Session Early" while the session is running (ACTIVE/PROCESSING/WAITING).
+    // The resident can finish and end the session at any point; the backend finalizes
+    // whatever waste/points have been recorded up to that moment.
+    const canEndSession = sessionStatus === 'ACTIVE' || sessionStatus === 'PROCESSING' || sessionStatus === 'WAITING';
     const actionsEl = getElement('ecopoint-live-actions');
     if (actionsEl) {
-      actionsEl.style.display = isActive ? 'flex' : 'none';
+      actionsEl.style.display = canEndSession ? 'flex' : 'none';
     }
 
     if (session.waste_items && session.waste_items.length > 0) {
@@ -418,6 +425,73 @@
     const date = new Date(value);
     if (isNaN(date.getTime())) return value;
     return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+
+  function getLatestWasteEventTimestamp(session) {
+    if (!session || !Array.isArray(session.recent_events)) return null;
+    for (let i = 0; i < session.recent_events.length; i++) {
+      if (String(session.recent_events[i].event_type || '').toUpperCase() === 'WASTE_DATA') {
+        return String(session.recent_events[i].created_at || '');
+      }
+    }
+    return null;
+  }
+
+  function showReadyForNextItem() {
+    const el = getElement('ecopoint-live-ready');
+    if (!el) return;
+    el.style.display = 'flex';
+    el.style.animation = 'none';
+    void el.offsetWidth; // restart CSS animation
+    el.style.animation = '';
+    if (readyIndicatorTimer) {
+      clearTimeout(readyIndicatorTimer);
+    }
+    readyIndicatorTimer = setTimeout(() => {
+      el.style.display = 'none';
+    }, 3900);
+  }
+
+  function hideReadyForNextItem() {
+    const el = getElement('ecopoint-live-ready');
+    if (!el) return;
+    el.style.display = 'none';
+    if (readyIndicatorTimer) {
+      clearTimeout(readyIndicatorTimer);
+    }
+  }
+
+  function checkAndNotifyLimits(snapshot) {
+    if (!snapshot) return;
+    const cap = snapshot.cap_state;
+    if (!cap) return;
+    const balance = parseFloat(snapshot.current_balance || 0);
+
+    const dailyLeft = Math.round(parseFloat(cap.daily_points_left || 0));
+    const weeklyLeft = Math.round(parseFloat(cap.weekly_points_left || 0));
+    const sessionsLeft = Math.round(parseFloat(cap.daily_sessions_left || 0));
+    const prevBalance = (lastBalance === null) ? balance : lastBalance;
+
+    if (lastCapState) {
+      const prevDaily = Math.round(parseFloat(lastCapState.daily_points_left || 0));
+      if (dailyLeft === 0 && prevDaily > 0) {
+        showNotification('info', 'Daily Limit Reached', "You have reached today's 100-point VHEcoPoint limit.", 'fa-solid fa-triangle-exclamation', '#d97706');
+      }
+      const prevWeekly = Math.round(parseFloat(lastCapState.weekly_points_left || 0));
+      if (weeklyLeft === 0 && prevWeekly > 0) {
+        showNotification('info', 'Weekly Limit Reached', "You have reached this week's 250-point program limit.", 'fa-solid fa-triangle-exclamation', '#d97706');
+      }
+      const prevSessions = Math.round(parseFloat(lastCapState.daily_sessions_left || 0));
+      if (sessionsLeft === 0 && prevSessions > 0) {
+        showNotification('info', 'Daily Sessions Completed', 'You have used all 3 VHEcoPoint sessions available today.', 'fa-solid fa-triangle-exclamation', '#d97706');
+      }
+    }
+    if (balance >= 3000 && prevBalance < 3000) {
+      showNotification('info', 'Maximum Balance Reached', 'Your account has reached the 3,000-point maximum balance.', 'fa-solid fa-triangle-exclamation', '#d97706');
+    }
+
+    lastCapState = JSON.parse(JSON.stringify(cap));
+    lastBalance = balance;
   }
 
   function updateWasteItemsDisplay(items) {
@@ -448,9 +522,15 @@
   function updateCapState(capState) {
     if (!capState) return;
 
+    const dailyUsed = Math.round(parseFloat(capState.daily_points_used || 0));
     const dailyRemaining = Math.round(parseFloat(capState.daily_points_left || 0));
     const weeklyRemaining = Math.round(parseFloat(capState.weekly_points_left || 0));
     const dailySessions = parseInt(capState.daily_sessions_left || 0);
+
+    const ptsTodayEl = getElement('ecopoint-daily-pts-today');
+    if (ptsTodayEl) {
+      setText('ecopoint-daily-pts-today', number_format(dailyUsed));
+    }
 
     // Update cap indicators
     const dailyEl = getElement('ecopoint-daily-remaining');
@@ -488,18 +568,36 @@
     if (!hasRenderedInitialState) {
       hasRenderedInitialState = true;
       previousSession = newSession ? JSON.parse(JSON.stringify(newSession)) : null;
+      lastWasteEventTimestamp = getLatestWasteEventTimestamp(newSession);
+      lastCapState = newSnapshot.cap_state ? JSON.parse(JSON.stringify(newSnapshot.cap_state)) : null;
+      lastBalance = (newSnapshot.current_balance === null || newSnapshot.current_balance === undefined)
+        ? null
+        : parseFloat(newSnapshot.current_balance || 0);
       return;
     }
+
+    // A new WASTE_DATA event means the station finished accepting the last item.
+    // Show the "Item Processed" notification plus a subtle temporary in-panel
+    // "Ready for Next Item" indicator. Only fire while the same session is ongoing
+    // (i.e., after the initial verification).
+    const newWasteTs = getLatestWasteEventTimestamp(newSession);
+    const sameOngoingSession = newSession && prevSession && String(prevSession.id || '') === String(newSession.id || '');
+    if (sameOngoingSession && newWasteTs && newWasteTs !== lastWasteEventTimestamp) {
+      showNotification('success', 'Item Processed', 'Your item has been recorded and your points have been updated.', 'fa-solid fa-circle-check', '#16a34a');
+      showReadyForNextItem();
+    }
+    lastWasteEventTimestamp = newWasteTs;
 
     // No previous session → new verification (first scan)
     if (!prevSession && newSession) {
       showSessionPopup(
         'success',
-        'VHEcoPoint Successfully Verified',
-        'Your VictorianPass QR has been verified successfully.',
-        'Your recycling session is now active. You may begin depositing recyclables.',
+        'Resident Verified',
+        'Your VictorianPass ID has been successfully verified.',
+        'You may now begin depositing recyclables.',
         'Continue'
       );
+      showNotification('success', 'Session Started', 'You may now deposit your recyclable item.', 'fa-solid fa-circle-check', '#16a34a');
       log('Session verified', newSession);
     }
     // Had a real session that ended → notify exactly once per session id
@@ -525,27 +623,30 @@
       );
       showSessionPopup(
         'success',
-        'VHEcoPoint Session Completed',
-        'Your recycling activity has been recorded successfully.',
+        'Session Ended',
+        'Your VHEcoPoint session has been completed successfully.',
         '+' + pointsAwarded + ' EcoPoints',
         'Got it'
       );
       log('Session completed and removed from active');
     }
-    // Session status changed
+    // Session status changed (PROCESSING is handled by the Item Processed toast above)
     else if (newSession && prevSession && newSession.status !== prevSession.status) {
-      const statusMap = {
-        'ACTIVE': { icon: 'fa-solid fa-circle', color: '#22c55e', text: 'Session is now active' },
-        'PROCESSING': { icon: 'fa-solid fa-gear', text: 'Processing waste data' },
-        'COMPLETED': { icon: 'fa-solid fa-circle-check', color: '#16a34a', text: 'Session completed successfully' },
-        'CANCELLED': { icon: 'fa-solid fa-circle-xmark', color: '#dc2626', text: 'Session was cancelled' },
-        'ERROR': { icon: 'fa-solid fa-triangle-exclamation', color: '#d97706', text: 'An error occurred during processing' },
-      };
-      const info = statusMap[String(newSession.status).toUpperCase()] || { icon: 'fa-solid fa-circle-info', text: 'Status changed' };
-      showNotification('info', 'Status Update', info.text, info.icon, info.color);
-      log('Session status changed', { from: prevSession.status, to: newSession.status });
+      if (String(newSession.status).toUpperCase() === 'PROCESSING') {
+        log('Session status changed', { from: prevSession.status, to: newSession.status });
+      } else {
+        const statusMap = {
+          'ACTIVE': { icon: 'fa-solid fa-circle', color: '#22c55e', text: 'Session Started — You may now deposit your recyclable item.' },
+          'COMPLETED': { icon: 'fa-solid fa-circle-check', color: '#16a34a', text: 'Session completed successfully' },
+          'CANCELLED': { icon: 'fa-solid fa-circle-xmark', color: '#dc2626', text: 'Session was cancelled' },
+          'ERROR': { icon: 'fa-solid fa-triangle-exclamation', color: '#d97706', text: 'An error occurred during processing' },
+        };
+        const info = statusMap[String(newSession.status).toUpperCase()] || { icon: 'fa-solid fa-circle-info', text: 'Status updated' };
+        showNotification('info', 'Status Update', info.text, info.icon, info.color);
+        log('Session status changed', { from: prevSession.status, to: newSession.status });
+      }
     }
-    // Weight updated significantly
+    // Weight updated significantly (no extra toast — Item Processed covers it)
     else if (newSession && prevSession) {
       const newWeight = parseFloat(newSession.total_weight_kg || newSession.weight_kg || 0);
       const prevWeight = parseFloat(prevSession.total_weight_kg || prevSession.weight_kg || 0);
@@ -554,10 +655,11 @@
 
       if (newWeight > prevWeight + 0.05 || newPoints > prevPoints) {
         log('Waste detected', { weight: newWeight, points: newPoints });
-        // Optional: show subtle toast for weight update
-        // showNotification('info', '📦 Waste Detected', `${newWeight}kg detected (${newPoints}pts)`);
       }
     }
+
+    // Cap/balance limit reached notifications (fires only on transitions)
+    checkAndNotifyLimits(newSnapshot);
 
     previousSession = newSession ? JSON.parse(JSON.stringify(newSession)) : null;
   }

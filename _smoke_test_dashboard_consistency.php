@@ -211,7 +211,7 @@ check("BEFORE — Critical proof: users.points ({$before['users_points_raw']}) �
 
 // ----------------------------------------------------------
 // STEP 3 — Simulate a VHEcoPoint recycling session end-to-end
-//         We deposit 2 kg Plastic (PET) → 2 * 55 = 110 pts
+//         We deposit 2 kg Plastic (PET) → 2 * 303 = 606 pts
 //         We'll do TWO today to exercise both weekly and daily.
 // ----------------------------------------------------------
 function simulateVHEcoSession(mysqli $con, int $userId, int $stationId, string $material, float $weightKg, int $ratePerKg): array {
@@ -253,13 +253,13 @@ function simulateVHEcoSession(mysqli $con, int $userId, int $stationId, string $
     return ['session_id' => $sessionId, 'tx_id' => $txId, 'awarded' => $calculated, 'created_at' => $nowPhp];
 }
 
-// Two deposits today — SESSION 1: 2 kg Plastic (PET) = 110 pts
-$s1 = simulateVHEcoSession($con, $userId, 1, 'Plastic', 2.0, 55);
-// SESSION 2: 0.5 kg Aluminum Cans = 70 pts
-$s2 = simulateVHEcoSession($con, $userId, 1, 'Aluminum', 0.5, 140);
-$totalExpectedAward = $s1['awarded'] + $s2['awarded']; // 110 + 70 = 180
+// Two deposits today — SESSION 1: 2 kg Plastic (PET) = 606 pts
+$s1 = simulateVHEcoSession($con, $userId, 1, 'Plastic', 2.0, 303);
+// SESSION 2: 0.5 kg Aluminum Cans = 152 pts
+$s2 = simulateVHEcoSession($con, $userId, 1, 'Aluminum', 0.5, 303);
+$totalExpectedAward = $s1['awarded'] + $s2['awarded']; // 606 + 152 = 758
 check("Simulated 2 sessions: Plastic 2kg ({$s1['awarded']}pts) + Aluminum 0.5kg ({$s2['awarded']}pts) = {$totalExpectedAward}pts awarded today",
-      $totalExpectedAward === 180, "total awarded=$totalExpectedAward, expected 180");
+      $totalExpectedAward === 758, "total awarded=$totalExpectedAward, expected 758");
 echo "→ Simulated 2 deposits today: S#{$s1['session_id']} + S#{$s2['session_id']}\n";
 echo "  Session created_at 1 = {$s1['created_at']}   (today key = " . date('Y-m-d') . ")\n";
 echo "  Week bounds: Mon " . date('Y-m-d', strtotime('monday this week')) . " → Sun " . date('Y-m-d', strtotime('sunday this week')) . "\n\n";

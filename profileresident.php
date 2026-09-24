@@ -339,6 +339,7 @@ $currentPoints = max(0, $currentPoints);
 __pm('point_transactions');
 
 $ecoPointWeeklyCap = 250;
+$ecoPointDailyPointsMax = 100;
 $ecoPointDailySessionsMax = 3;
 $ecoPointExpiryDays = 365;
 $ecoPointWeeklyStats = [
@@ -347,6 +348,7 @@ $ecoPointWeeklyStats = [
     'Paper (Old Documents)' => ['points' => 0, 'weight' => 0.0]
 ];
 $ecoPointWeeklyPoints = 0;
+$ecoPointTodayPoints = 0;
 $ecoPointTodaySessionsUsed = 0;
 $ecoPointRecyclingHistory = [];
 $allPointHistory = [];
@@ -386,6 +388,9 @@ foreach ($ecoPointTransactions as $tx) {
             $ecoPointWeeklyStats[$materialLabel]['points'] += $pointsEarned;
             $ecoPointWeeklyStats[$materialLabel]['weight'] += $weightKg;
         }
+    }
+    if ($createdDateKey === $todayDateKey) {
+        $ecoPointTodayPoints += $pointsEarned;
     }
     if ($createdTs) {
         $expiryTs = strtotime('+' . $ecoPointExpiryDays . ' days', $createdTs);
@@ -441,6 +446,7 @@ usort($allPointHistory, function ($a, $b) { return $b['date_ts'] <=> $a['date_ts
 
 $ecoPointWeeklyRemaining = max(0, $ecoPointWeeklyCap - $ecoPointWeeklyPoints);
 $ecoPointWeeklyProgress = $ecoPointWeeklyCap > 0 ? min(100, round(($ecoPointWeeklyPoints / $ecoPointWeeklyCap) * 100)) : 0;
+$ecoPointDailyPointsRemaining = max(0, $ecoPointDailyPointsMax - $ecoPointTodayPoints);
 $ecoPointSessionsRemaining = max(0, $ecoPointDailySessionsMax - $ecoPointTodaySessionsUsed);
 $ecoPointExpiryCountdownLabel = 'No active recycling points yet';
 $ecoPointExpiryCountdownSubtext = 'Start using VHEcoPoint to begin your points cycle. Points expire 12 months after they are earned.';
@@ -978,6 +984,9 @@ body.account-blocked { overflow: hidden; }
 .main-content.ecopoint-active #panel-points-history .ecopoint-kpi-subtext { color: #6b7280; }
 .main-content.ecopoint-active #panel-points-history .ecopoint-kpi-card:first-child .ecopoint-kpi-label { color: rgba(253,232,134,0.8); }
 .main-content.ecopoint-active #panel-points-history .ecopoint-kpi-card:first-child .ecopoint-kpi-value { color: #fde886; font-size: 2rem; }
+.main-content.ecopoint-active #panel-points-history .ecopoint-balance-value .ecopoint-balance-star { color: #fde886; }
+.main-content.ecopoint-active #panel-points-history .ecopoint-balance-value .ecopoint-balance-number { color: #fde886; }
+.main-content.ecopoint-active #panel-points-history .ecopoint-balance-value .ecopoint-balance-limit { color: rgba(253,232,134,0.5); }
 .main-content.ecopoint-active #panel-points-history .ecopoint-kpi-card:first-child .ecopoint-kpi-subtext { color: rgba(240,235,226,0.7); }
 
 /* Section card text colors */
@@ -1056,6 +1065,43 @@ body.account-blocked { overflow: hidden; }
   line-height: 1.5;
   font-size: 0.9rem;
   color: #f0ebe2;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-ready-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 14px;
+  padding: 9px 13px;
+  border-radius: 10px;
+  background: rgba(34,197,94,0.10);
+  border: 1px solid rgba(34,197,94,0.35);
+  color: #a7f3d0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.4;
+  animation: ecopointReadyFade 3.5s ease forwards;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-ready-indicator i {
+  color: #4ade80;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-ready-indicator .ecopoint-live-ready-title {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #86efac;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-live-ready-indicator .ecopoint-live-ready-message {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: rgba(240,235,226,0.85);
+  margin-top: 1px;
+}
+@keyframes ecopointReadyFade {
+  0%   { opacity: 0; transform: translateY(-4px); }
+  8%   { opacity: 1; transform: translateY(0); }
+  80%  { opacity: 1; }
+  100% { opacity: 0; }
 }
 .main-content.ecopoint-active #panel-points-history .ecopoint-live-meta {
   display: grid;
@@ -1525,10 +1571,15 @@ body.account-blocked { overflow: hidden; }
 .ecopoint-header-title{font-size:1.3rem;font-weight:800;margin-top:4px}
 .ecopoint-header-desc{font-size:0.9rem;line-height:1.5;margin-top:6px;color:#166534}
 .ecopoint-promo{display:inline-block;background:linear-gradient(90deg,#f0fdf4,#dcfce7);color:#14532d;padding:8px 12px;border-radius:12px;font-weight:800;margin-bottom:8px}
-.ecopoint-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.ecopoint-kpi-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.ecopoint-kpi-grid .ecopoint-kpi-card:first-child{grid-column:1 / -1}
 .ecopoint-kpi-card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:14px 16px;box-shadow:0 2px 10px rgba(15,23,42,0.04)}
 .ecopoint-kpi-label{font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#6b7280}
 .ecopoint-kpi-value{font-size:1.4rem;font-weight:800;color:#111827;margin-top:4px}
+.ecopoint-balance-value{display:flex;align-items:baseline;gap:8px;flex-wrap:nowrap;margin-top:6px;line-height:1.15}
+.ecopoint-balance-star{font-size:0.55em;color:#d9a41f;opacity:0.75;flex-shrink:0;transform:translateY(-0.05em)}
+.ecopoint-balance-number{font-weight:800;color:#111827;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:clip;max-width:100%;flex:0 1 auto}
+.ecopoint-balance-limit{font-size:0.95rem;font-weight:600;color:#6b7280;white-space:nowrap;flex-shrink:0}
 .ecopoint-kpi-subtext{font-size:0.8rem;color:#4b5563;line-height:1.4;margin-top:4px}
 .ecopoint-card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px 18px;box-shadow:0 2px 10px rgba(15,23,42,0.04)}
 .ecopoint-card-title{font-size:1.02rem;font-weight:800;color:#111827;margin:0 0 6px}
@@ -3761,13 +3812,22 @@ body.modal-open{overflow:hidden}
             <div class="ecopoint-kpi-grid">
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label"><i class="fa-solid fa-coins" style="margin-right:5px; opacity:0.7;"></i>Current Point Balance</div>
-                <div class="ecopoint-kpi-value"><i class="fa-solid fa-star" style="font-size:0.6em; margin-right:4px; opacity:0.6;"></i><?php echo number_format($currentPoints); ?> pts</div>
+                <?php
+                  $ecoBalanceDigits = strlen((string)(int)abs((float)$currentPoints));
+                  $ecoBalanceFontSize = (string)max(1.4, 2.0 - (max(0, $ecoBalanceDigits - 4) * 0.1));
+                ?>
+                <div class="ecopoint-kpi-value ecopoint-balance-value"><i class="fa-solid fa-star ecopoint-balance-star" aria-hidden="true"></i><span class="ecopoint-balance-number" style="font-size:<?php echo $ecoBalanceFontSize; ?>rem;"><?php echo number_format($currentPoints); ?></span><span class="ecopoint-balance-limit">/ <?php echo number_format(3000); ?> pts</span></div>
                 <div class="ecopoint-kpi-subtext"><i class="fa-solid fa-circle-info ecopoint-info" title="Earned points add to this balance; redeemed or adjusted points subtract from it. The maximum balance is 3,000 points."></i> Net balance from VHEcoPoint recycling ledger (earn − redeem ± adjustments). Maximum balance is 3,000 pts.</div>
               </div>
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label"><i class="fa-solid fa-chart-line" style="margin-right:5px; opacity:0.7;"></i>Weekly Points Earned</div>
                 <div class="ecopoint-kpi-value"><?php echo number_format($ecoPointWeeklyPoints); ?> / <?php echo number_format($ecoPointWeeklyCap); ?> pts</div>
                 <div class="ecopoint-kpi-subtext"><i class="fa-solid fa-circle-info ecopoint-info" title="How many of this week's allowed points you have already earned toward the program cap."></i> <?php echo number_format($ecoPointWeeklyRemaining); ?> pts remain before this week's program cap resets.</div>
+              </div>
+              <div class="ecopoint-kpi-card">
+                <div class="ecopoint-kpi-label"><i class="fa-solid fa-bolt" style="margin-right:5px; opacity:0.7;"></i>Daily Points Earned</div>
+                <div class="ecopoint-kpi-value"><span id="ecopoint-daily-pts-today"><?php echo number_format($ecoPointTodayPoints); ?></span> / <?php echo number_format($ecoPointDailyPointsMax); ?> pts</div>
+                <div class="ecopoint-kpi-subtext"><i class="fa-solid fa-circle-info ecopoint-info" title="How many EcoPoints you have earned today, capped at the 100-point daily limit across all recycling sessions."></i> <span id="ecopoint-daily-remaining"><?php echo number_format($ecoPointDailyPointsRemaining); ?> pts</span> remain before today's 100-pt cap resets.</div>
               </div>
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label"><i class="fa-solid fa-right-to-bracket" style="margin-right:5px; opacity:0.7;"></i>Daily Sessions Used</div>
@@ -3807,6 +3867,13 @@ body.modal-open{overflow:hidden}
                 <div class="ecopoint-live-metric">
                   <span class="ecopoint-live-metric-label">Current points</span>
                   <strong id="ecopoint-live-points">0 pts</strong>
+                </div>
+              </div>
+              <div class="ecopoint-live-ready-indicator" id="ecopoint-live-ready" role="status" aria-live="polite" style="display:none;">
+                <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                <div>
+                  <div class="ecopoint-live-ready-title" id="ecopoint-live-ready-text">✓ Ready for Next Item</div>
+                  <div class="ecopoint-live-ready-message">The station is ready. You may deposit your next item.</div>
                 </div>
               </div>
               <div class="ecopoint-live-actions" id="ecopoint-live-actions" style="display:none;">
@@ -6906,6 +6973,52 @@ body.modal-open{overflow:hidden}
   }
   refreshStatuses();
   setInterval(refreshStatuses,15000);
+  connectNotifSSE();
+
+  function connectNotifSSE(){
+    if(!window.EventSource) return;
+    function applyNotifPayload(payload){
+      if(!payload || !Array.isArray(payload.notifications)) return;
+      var incoming=payload.notifications.map(function(n){
+        return {
+          id: n.id,
+          title: n.title||'',
+          message: n.message||'',
+          type: n.type||'info',
+          is_read: n.is_read||0,
+          created_at: n.created_at||''
+        };
+      });
+      var newOnes=[];
+      if(notifBootstrapped){
+        incoming.forEach(function(n){
+          var idStr=String(n.id||'');
+          if(idStr && !notifKnownIds[idStr]){ newOnes.push(n); }
+        });
+      }
+      notifKnownIds={};
+      incoming.forEach(function(n){
+        var idStr=String(n.id||'');
+        if(idStr) notifKnownIds[idStr]=true;
+      });
+      notifItems = dedupeNotifications(incoming);
+      renderNotifPanel();
+      if(newOnes.length){
+        renderNotifPopup(dedupeNotifications(newOnes).slice(0,3));
+      }
+      if(notifCountEl){
+        var uc=parseInt(payload.unread_count||'0',10);
+        notifCountEl.textContent=uc;
+        notifCountEl.style.display = uc > 0 ? 'inline-block' : 'none';
+      }
+    }
+    var es=null;
+    try{ es=new EventSource('api/notifications_sse.php',{withCredentials:true}); }
+    catch(e){ return; }
+    es.addEventListener('snapshot',function(ev){
+      try{ applyNotifPayload(JSON.parse(ev.data)); }catch(_e){}
+    });
+  }
 
   function renderRequestsActive(list){
     var escTxt=function(t){
