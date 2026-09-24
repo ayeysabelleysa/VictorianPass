@@ -21,6 +21,7 @@
  *   es.onerror = () => { /* browser reconnects on its own * / };
  */
 require_once __DIR__ . '/../connect.php';
+define('VP_SESSION_READONLY', true);
 
 // SSE headers (required for the browser to keep the connection alive)
 header('Content-Type: text/event-stream; charset=UTF-8');

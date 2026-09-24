@@ -6996,6 +6996,7 @@ body.modal-open{overflow:hidden}
       renderNotifPanel();
       if(newOnes.length){
         renderNotifPopup(dedupeNotifications(newOnes).slice(0,3));
+        refreshStatuses();
       }
       if(notifCountEl){
         var uc=parseInt(payload.unread_count||'0',10);

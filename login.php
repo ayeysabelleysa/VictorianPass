@@ -1,6 +1,7 @@
 <?php
 $staffInactivityLimit = 2700;
 ini_set('session.gc_maxlifetime', (string)$staffInactivityLimit);
+define('VP_SESSION_READONLY', true);
 require_once __DIR__ . '/session_bootstrap.php';
 include("connect.php");  
 
@@ -24,6 +25,11 @@ if (in_array($activeRole, ['admin', 'guard'], true) || in_array($activeAdminRole
     header('Location: ' . $location, true, 303);
     exit;
   }
+  function reopenLoginSession() {
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+      session_start();
+    }
+  }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && !$staffSessionActive) {
     if (isset($_POST['vp_account']) && isset($_POST['password'])) {
@@ -45,6 +51,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && !$staffSessionActive) {
         }
 
         if (!$cooldownActive) {
+        // Do not hold the file-backed session lock during password hashing and DB queries.
+        session_write_close();
         // Step 1: Check if account exists in staff (admin/guard)
         $sql_staff = "SELECT id, email, password, role FROM staff WHERE email = ? LIMIT 1";
         $stmt_staff = $con->prepare($sql_staff);
@@ -59,6 +67,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && !$staffSessionActive) {
             $storedStaffPassword = (string)($row['password'] ?? '');
             $staffPasswordValid = password_verify($password, $storedStaffPassword) || hash_equals($storedStaffPassword, $password);
             if ($staffPasswordValid) {
+              reopenLoginSession();
               session_regenerate_id(true);
                 $_SESSION['email'] = $row['email'];
               $_SESSION['role']  = strtolower(trim((string)$row['role']));
@@ -82,6 +91,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && !$staffSessionActive) {
                 }
                 $skipUserCheck = true;
             } else {
+              reopenLoginSession();
                 $loginError = 'invalid_password';
                 $loginErrorMessage = 'Incorrect password.';
                 $_SESSION['login_failure_count'] = intval($_SESSION['login_failure_count'] ?? 0) + 1;
@@ -117,6 +127,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && !$staffSessionActive) {
                             $loginErrorMessage = 'Your account has been suspended by the admin.';
                         }
                     } else {
+                      reopenLoginSession();
                       session_regenerate_id(true);
                         $_SESSION['user_id']   = $row['id'];
                         $_SESSION['email']     = $row['email'];
@@ -134,6 +145,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && !$staffSessionActive) {
                         }
                     }
                 } else {
+                  reopenLoginSession();
                     $loginError = 'invalid_password';
                     $loginErrorMessage = 'Incorrect password.';
                     $_SESSION['login_failure_count'] = intval($_SESSION['login_failure_count'] ?? 0) + 1;
@@ -144,6 +156,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && !$staffSessionActive) {
                     }
                 }
             } else {
+              reopenLoginSession();
                 $loginError = 'account_not_found';
                 $loginErrorMessage = 'This account doesn’t exist';
             }
