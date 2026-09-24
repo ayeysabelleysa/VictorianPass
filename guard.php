@@ -525,7 +525,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'list_today_scans') {
       }
       $entryType = trim((string)($r['entry_type'] ?? ''));
       if (strcasecmp($entryType, 'Participant Entry') === 0) {
-        $entryType = 'Entry Pass';
+        $participantCount = 0;
+        if (preg_match('/Participant\s+\d+\s+of\s+(\d+)/i', (string)($r['subject_name'] ?? ''), $participantMatch)) {
+          $participantCount = intval($participantMatch[1]);
+        }
+        $entryType = $participantCount > 1 ? 'Entry Pass (' . $participantCount . ' Participants)' : 'Entry Pass';
       }
       $rows[] = [
         'code' => $r['ref_code'],
