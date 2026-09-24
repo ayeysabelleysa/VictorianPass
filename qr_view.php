@@ -3,6 +3,51 @@ require_once __DIR__ . '/session_bootstrap.php';
 include 'connect.php';
 require_once __DIR__ . '/qr_url_helpers.php';
 
+function qr_notify_access_granted_once(mysqli $con, int $userId, string $refCode, string $details): void {
+    if ($userId <= 0 || $refCode === '') return;
+    $title = 'Access Granted';
+    $check = $con->prepare("SELECT id FROM notifications WHERE user_id = ? AND title = ? AND message LIKE ? LIMIT 1");
+    if (!$check) return;
+    $needle = '%' . $refCode . '%';
+    $check->bind_param('iss', $userId, $title, $needle);
+    $check->execute();
+    $existing = $check->get_result();
+    $alreadySent = $existing && $existing->num_rows > 0;
+    $check->close();
+    if ($alreadySent) return;
+
+    $message = 'Your request has been granted access and has been moved to History.';
+    if ($details !== '') { $message .= ' ' . $details; }
+    $message .= ' Code: ' . $refCode . '.';
+    $stmt = $con->prepare("INSERT INTO notifications (user_id, title, message, type, created_at) VALUES (?, ?, ?, 'success', NOW())");
+    if ($stmt) {
+        $stmt->bind_param('iss', $userId, $title, $message);
+        @$stmt->execute();
+        $stmt->close();
+    }
+}
+
+function qr_access_details(array $row): string {
+    $parts = [];
+    $amenity = trim((string)($row['amenity'] ?? ''));
+    if ($amenity !== '') { $parts[] = 'Amenity: ' . $amenity . '.'; }
+    $date = trim((string)($row['start_date'] ?? ($row['visit_date'] ?? '')));
+    $endDate = trim((string)($row['end_date'] ?? ''));
+    if ($date !== '') {
+        $dateText = date('m/d/y', strtotime($date));
+        if ($endDate !== '' && $endDate !== $date) { $dateText .= ' - ' . date('m/d/y', strtotime($endDate)); }
+        $parts[] = 'Date: ' . $dateText . '.';
+    }
+    $startTime = trim((string)($row['start_time'] ?? ($row['visit_time'] ?? '')));
+    $endTime = trim((string)($row['end_time'] ?? ''));
+    if ($startTime !== '') {
+        $timeText = date('g:i A', strtotime($startTime));
+        if ($endTime !== '') { $timeText .= ' - ' . date('g:i A', strtotime($endTime)); }
+        $parts[] = 'Time: ' . $timeText . '.';
+    }
+    return implode(' ', $parts);
+}
+
 if (!vpSchemaDone($con, 'qr_view_v1') && ($con instanceof mysqli)) {
     $tables = ['guest_forms', 'reservations', 'resident_reservations'];
     foreach ($tables as $tbl) {
@@ -89,7 +134,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'confirm_entry' && !empty($_
     $postPax = 1;
     if ($con instanceof mysqli) {
         if ($tbl === 'guest_forms') {
-            $stmt = $con->prepare("SELECT visitor_birthdate, amenity, wants_amenity, persons FROM guest_forms WHERE id = ? AND ref_code = ? LIMIT 1");
+            $stmt = $con->prepare("SELECT resident_user_id, visitor_birthdate, amenity, wants_amenity, persons, visit_date, visit_time, start_date, end_date, start_time, end_time FROM guest_forms WHERE id = ? AND ref_code = ? LIMIT 1");
             $stmt->bind_param('is', $sid, $ref);
             $stmt->execute();
             $res = $stmt->get_result();
@@ -101,7 +146,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'confirm_entry' && !empty($_
             }
             $stmt->close();
         } elseif ($tbl === 'reservations') {
-            $stmt = $con->prepare("SELECT r.amenity, r.persons, u.birthdate AS user_birthdate, e.birthdate AS ep_birthdate FROM reservations r LEFT JOIN users u ON r.user_id = u.id LEFT JOIN entry_passes e ON r.entry_pass_id = e.id WHERE r.id = ? AND r.ref_code = ? LIMIT 1");
+            $stmt = $con->prepare("SELECT r.user_id, r.amenity, r.persons, r.start_date, r.end_date, r.start_time, r.end_time, u.birthdate AS user_birthdate, e.birthdate AS ep_birthdate FROM reservations r LEFT JOIN users u ON r.user_id = u.id LEFT JOIN entry_passes e ON r.entry_pass_id = e.id WHERE r.id = ? AND r.ref_code = ? LIMIT 1");
             $stmt->bind_param('is', $sid, $ref);
             $stmt->execute();
             $res = $stmt->get_result();
@@ -112,7 +157,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'confirm_entry' && !empty($_
             }
             $stmt->close();
         } elseif ($tbl === 'resident_reservations') {
-            $stmt = $con->prepare("SELECT rr.amenity, rr.persons, u.birthdate AS user_birthdate FROM resident_reservations rr LEFT JOIN users u ON rr.user_id = u.id WHERE rr.id = ? AND rr.ref_code = ? LIMIT 1");
+            $stmt = $con->prepare("SELECT rr.user_id, rr.amenity, rr.persons, rr.start_date, rr.end_date, rr.start_time, rr.end_time, u.birthdate AS user_birthdate FROM resident_reservations rr LEFT JOIN users u ON rr.user_id = u.id WHERE rr.id = ? AND rr.ref_code = ? LIMIT 1");
             $stmt->bind_param('is', $sid, $ref);
             $stmt->execute();
             $res = $stmt->get_result();
@@ -157,6 +202,16 @@ if (isset($_POST['action']) && $_POST['action'] === 'confirm_entry' && !empty($_
                 @$stmtLog->execute();
                 @$stmtLog->close();
             }
+            $participantCountStmt = $con->prepare("SELECT COUNT(DISTINCT participant_no) AS c FROM entry_scans WHERE ref_code = ? AND participant_no IS NOT NULL AND DATE(scanned_at) = CURDATE()");
+            if ($participantCountStmt) {
+                $participantCountStmt->bind_param('s', $ref);
+                $participantCountStmt->execute();
+                $participantCount = $participantCountStmt->get_result()->fetch_assoc();
+                $participantCountStmt->close();
+                if (intval($participantCount['c'] ?? 0) >= $postPax) {
+                    qr_notify_access_granted_once($con, intval($row['resident_user_id'] ?? $row['user_id'] ?? 0), $ref, qr_access_details($row));
+                }
+            }
         }
         $_SESSION['just_confirmed_ref'] = $ref;
         $_SESSION['just_confirmed_participant'] = $postPNum;
@@ -164,21 +219,28 @@ if (isset($_POST['action']) && $_POST['action'] === 'confirm_entry' && !empty($_
         header("Location: guard.php");
         exit;
     } elseif (in_array($tbl, ['guest_forms', 'reservations', 'resident_reservations']) && !$isMultiPost) {
+        $transitioned = false;
         if ($tbl === 'guest_forms') {
             $upStmt = $con->prepare("UPDATE guest_forms SET approval_status='permission_granted', scanned_at = NOW(), updated_at = NOW() WHERE id = ? AND ref_code = ? AND (approval_status IS NULL OR approval_status NOT IN ('permission_granted','cancelled','denied','expired','moved_to_history','deleted'))");
             $upStmt->bind_param('is', $sid, $ref);
             $upStmt->execute();
+            $transitioned = $upStmt->affected_rows > 0;
             $upStmt->close();
         } elseif ($tbl === 'reservations') {
             $upStmt = $con->prepare("UPDATE reservations SET approval_status='permission_granted', status='permission_granted', scanned_at = NOW(), updated_at = NOW() WHERE id = ? AND ref_code = ? AND (status IS NULL OR status NOT IN ('permission_granted','cancelled','denied','expired','moved_to_history','deleted'))");
             $upStmt->bind_param('is', $sid, $ref);
             $upStmt->execute();
+            $transitioned = $upStmt->affected_rows > 0;
             $upStmt->close();
         } elseif ($tbl === 'resident_reservations') {
             $upStmt = $con->prepare("UPDATE resident_reservations SET approval_status='permission_granted', scanned_at = NOW(), updated_at = NOW() WHERE id = ? AND ref_code = ? AND (approval_status IS NULL OR approval_status NOT IN ('permission_granted','cancelled','denied','expired','moved_to_history','deleted'))");
             $upStmt->bind_param('is', $sid, $ref);
             $upStmt->execute();
+            $transitioned = $upStmt->affected_rows > 0;
             $upStmt->close();
+        }
+        if ($transitioned && $con instanceof mysqli) {
+            qr_notify_access_granted_once($con, intval($row['resident_user_id'] ?? $row['user_id'] ?? 0), $ref, qr_access_details($row));
         }
         if ($con instanceof mysqli) {
             $gid = isset($_SESSION['staff_id']) ? intval($_SESSION['staff_id']) : null;

@@ -59,6 +59,31 @@ if ($con instanceof mysqli) {
     if ($pc) { $pc->close(); }
 }
 
+function notifyAccessGrantedOnce(mysqli $con, int $userId, string $refCode, string $details): void {
+    if ($userId <= 0 || $refCode === '') return;
+    $title = 'Access Granted';
+    $message = 'Your request has been granted access and has been moved to History.';
+    if ($details !== '') { $message .= ' ' . $details; }
+
+    $check = $con->prepare("SELECT id FROM notifications WHERE user_id = ? AND title = ? AND message LIKE ? LIMIT 1");
+    if (!$check) return;
+    $needle = '%' . $refCode . '%';
+    $check->bind_param('iss', $userId, $title, $needle);
+    $check->execute();
+    $existing = $check->get_result();
+    $alreadySent = $existing && $existing->num_rows > 0;
+    $check->close();
+    if ($alreadySent) return;
+
+    $message .= ' Code: ' . $refCode . '.';
+    $stmt = $con->prepare("INSERT INTO notifications (user_id, title, message, type, created_at) VALUES (?, ?, ?, 'success', NOW())");
+    if ($stmt) {
+        $stmt->bind_param('iss', $userId, $title, $message);
+        @$stmt->execute();
+        $stmt->close();
+    }
+}
+
 function resetPoolPersonsOnCancel($con, $code){
     if (!($con instanceof mysqli)) return;
     $code = trim((string)$code);
@@ -774,6 +799,11 @@ if ($resGF && $resGF->num_rows > 0) {
             $stmtC = $con->prepare("UPDATE resident_reservations SET approval_status='permission_granted', scanned_at = NOW(), updated_at = NOW() WHERE ref_code = ? AND (approval_status IS NULL OR approval_status NOT IN ('permission_granted','cancelled','denied','expired'))");
             if ($stmtC) { $stmtC->bind_param('s', $row['ref_code']); $stmtC->execute(); $stmtC->close(); }
             $resp['status'] = 'permission_granted';
+                        $accessDetails = [];
+                        if (!empty($rAmenity)) { $accessDetails[] = 'Amenity: ' . $rAmenity . '.'; }
+                        if (!empty($rStart)) { $accessDetails[] = 'Date: ' . date('m/d/y', strtotime($rStart)) . '.'; }
+                        if (!empty($rStartTime)) { $accessDetails[] = 'Time: ' . date('g:i A', strtotime($rStartTime)) . (!empty($rEndTime) ? ' - ' . date('g:i A', strtotime($rEndTime)) : '') . '.'; }
+                        notifyAccessGrantedOnce($con, intval($row['resident_user_id'] ?? 0), $row['ref_code'], implode(' ', $accessDetails));
           } catch (Throwable $e) { /* swallow */ }
         } elseif ($isMulti && strtolower($statusVal) === 'approved') {
           $resp['status'] = 'approved';

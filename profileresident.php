@@ -6997,6 +6997,11 @@ body.modal-open{overflow:hidden}
       if(newOnes.length){
         renderNotifPopup(dedupeNotifications(newOnes).slice(0,3));
         refreshStatuses();
+        if(!hasVisibleModal() && !hasActiveInput()){
+          location.reload();
+        } else {
+          pendingReload = true;
+        }
       }
       if(notifCountEl){
         var uc=parseInt(payload.unread_count||'0',10);
