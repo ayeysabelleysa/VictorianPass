@@ -3762,12 +3762,12 @@ async function changePersons(val){
     const confirmBtn = document.getElementById('pointsRedemptionConfirmBtn');
     if (cancelBtn) cancelBtn.addEventListener('click', function(){
       window.__rewardRedemptionProceed = false;
-      setRedemptionConfirmed(false);
+      switchToCashMode();
       closePointsRedemptionConfirm();
     });
     if (closeBtn) closeBtn.addEventListener('click', function(){
       window.__rewardRedemptionProceed = false;
-      setRedemptionConfirmed(false);
+      switchToCashMode();
       closePointsRedemptionConfirm();
     });
     if (confirmBtn) confirmBtn.addEventListener('click', function(){
