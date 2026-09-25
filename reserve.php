@@ -1546,6 +1546,18 @@ if (ob_get_level() > 0) { ob_end_flush(); }
   </div>
 </div>
 
+<div id="vhecoRedemptionSuccessModal" class="modal" style="display:none;">
+  <div class="modal-content vheco-success-content">
+    <button type="button" class="close-profile-modal" id="vhecoRedemptionSuccessCloseBtn" aria-label="Close">&times;</button>
+    <div class="vheco-success-icon"><i class="fa-solid fa-circle-check" aria-hidden="true"></i></div>
+    <h2>VHEcoPoint Redemption Confirmed</h2>
+    <p class="vheco-success-message" id="vhecoRedemptionSuccessMessage">Your VHEcoPoint points have been applied for 1 Free Hour.</p>
+    <div class="validation-error-actions" style="margin-top:20px;">
+      <button type="button" class="btn-confirm" id="vhecoRedemptionSuccessOkBtn">OK</button>
+    </div>
+  </div>
+</div>
+
 <div id="changeAmenityModal" class="modal" style="display:none;">
   <div class="modal-content">
     <button type="button" class="close-profile-modal" id="changeAmenityCloseBtn" aria-label="Close">&times;</button>
@@ -2523,6 +2535,11 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     return false;
   }
 
+  function showVhecoRedemptionSuccess() {
+    const modal = document.getElementById('vhecoRedemptionSuccessModal');
+    if (modal) vpShowModal(modal);
+  }
+
   (function initErrorModal(){
     const modal=document.getElementById('errorModal');
     const closeBtn=document.getElementById('errorModalCloseBtn');
@@ -2534,6 +2551,15 @@ if (ob_get_level() > 0) { ob_end_flush(); }
       // Show error from PHP
       showErrorModal(<?php echo json_encode($errorMsg); ?>);
     <?php endif; ?>
+  })();
+
+  (function initVhecoRedemptionSuccess(){
+    const modal=document.getElementById('vhecoRedemptionSuccessModal');
+    const closeBtn=document.getElementById('vhecoRedemptionSuccessCloseBtn');
+    const okBtn=document.getElementById('vhecoRedemptionSuccessOkBtn');
+    if(closeBtn){ closeBtn.onclick=function(){ vpHideModal(modal); }; }
+    if(okBtn){ okBtn.onclick=function(){ vpHideModal(modal); }; }
+    if(modal){ modal.addEventListener('click',function(e){ if(e.target===modal){ vpHideModal(modal); } }); }
   })();
 
   function selectAmenityByKey(key){
@@ -3773,7 +3799,7 @@ async function changePersons(val){
     if (confirmBtn) confirmBtn.addEventListener('click', function(){
       setRedemptionConfirmed(true);
       closePointsRedemptionConfirm();
-      showToast('VHEcoPoint redemption confirmed.','success');
+      if (typeof showVhecoRedemptionSuccess === 'function'){ showVhecoRedemptionSuccess(); }
       if (window.__rewardRedemptionProceed) {
         window.__rewardRedemptionProceed = false;
         if (typeof window.rewardRedemptionProceedToAmenity === 'function') {

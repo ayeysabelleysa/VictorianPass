@@ -1019,6 +1019,10 @@ select:focus {
   color: #23412e;
 }
 
+.vheco-success-content{ padding: 32px 28px; }
+.vheco-success-icon{ width:64px; height:64px; margin:0 auto 14px; border-radius:50%; background:#e7f4ea; color:#23412e; display:flex; align-items:center; justify-content:center; font-size:30px; }
+.vheco-success-message{ color:#4b5563; font-size:.92rem; line-height:1.5; margin:4px 6px 0; }
+
 .modal-close {
   position: absolute;
   top: 12px;
