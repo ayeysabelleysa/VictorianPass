@@ -91,4 +91,7 @@ eco_json_response([
     'awarded_points'    => (float)$result['awarded_points'],
     'new_balance'       => (float)$result['new_balance'],
     'cap_state_after'   => $result['cap_state_after'],
+    'max_balance'       => (float)($result['max_balance'] ?? ECO_MAX_BALANCE),
+    'points_limit_reached' => (bool)($result['points_limit_reached'] ?? false),
+    'points_limit_message' => (string)($result['points_limit_message'] ?? ''),
 ]);

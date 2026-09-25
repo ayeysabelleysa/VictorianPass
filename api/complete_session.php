@@ -107,6 +107,9 @@ try {
         'points_awarded'     => (float)$awardResult['awarded_points'],
         'new_balance'        => (float)$awardResult['new_balance'],
         'cap_state_after'    => $awardResult['cap_state_after'],
+        'max_balance'        => (float)($awardResult['max_balance'] ?? ECO_MAX_BALANCE),
+        'points_limit_reached' => (bool)($awardResult['points_limit_reached'] ?? false),
+        'points_limit_message' => (string)($awardResult['points_limit_message'] ?? ''),
     ]);
 } catch (Throwable $e) {
     try { $con->rollback(); } catch (Throwable $_) {}

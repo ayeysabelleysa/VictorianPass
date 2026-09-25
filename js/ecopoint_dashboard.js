@@ -44,6 +44,7 @@
   let readyIndicatorTimer = null;
   let lastCapState = null;
   let lastBalance = null;
+  let lastPointsLimitReached = null;
   const MAX_RECONNECT_ATTEMPTS = 10;
   const RECONNECT_DELAY_MS = 2000;
 
@@ -279,6 +280,112 @@
     }, 4500);
   }
 
+  function showPointsLimitPopup(message) {
+    const existing = getElement('ecopoint-points-limit-popup');
+    if (existing) {
+      existing.remove();
+    }
+
+    const defaultMessage = 'Your account has reached the maximum limit of 3,000 points. You cannot earn additional points until your balance decreases.';
+
+    const overlay = document.createElement('div');
+    overlay.id = 'ecopoint-points-limit-popup';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.style.cssText = `
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(15, 23, 42, 0.45);
+      backdrop-filter: blur(2px);
+      z-index: 10002;
+      padding: 20px;
+      animation: ecopointPopupFadeIn 0.25s ease-out;
+    `;
+
+    const card = document.createElement('div');
+    card.style.cssText = `
+      width: min(440px, 100%);
+      background: #ffffff;
+      border: 1px solid rgba(217, 119, 6, 0.3);
+      border-radius: 18px;
+      box-shadow: 0 24px 50px rgba(15, 23, 42, 0.18);
+      padding: 26px 24px 20px;
+      text-align: center;
+      color: #0f172a;
+      position: relative;
+    `;
+
+    const iconWrap = document.createElement('div');
+    iconWrap.style.cssText = `
+      width: 62px;
+      height: 62px;
+      margin: 0 auto 14px;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, rgba(217, 119, 6, 0.12), rgba(217, 119, 6, 0.22));
+      color: #b45309;
+      font-size: 2rem;
+    `;
+    iconWrap.innerHTML = '<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>';
+
+    const cardTitle = document.createElement('div');
+    cardTitle.style.cssText = `
+      font-size: 1.25rem;
+      font-weight: 800;
+      margin-bottom: 8px;
+      color: #92400e;
+    `;
+    cardTitle.textContent = 'Points Limit Reached';
+
+    const desc = document.createElement('div');
+    desc.style.cssText = `
+      color: #475569;
+      line-height: 1.6;
+      margin-bottom: 18px;
+      font-size: 0.96rem;
+    `;
+    desc.textContent = (message && String(message).trim() !== '') ? message : defaultMessage;
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'OK';
+    button.style.cssText = `
+      border: none;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+      color: #ffffff;
+      font-weight: 700;
+      padding: 11px 18px;
+      min-width: 120px;
+      cursor: pointer;
+      box-shadow: 0 10px 20px rgba(217, 119, 6, 0.25);
+    `;
+
+    button.addEventListener('click', function() {
+      overlay.style.animation = 'ecopointPopupFadeOut 0.2s ease-in';
+      setTimeout(() => overlay.remove(), 200);
+    });
+
+    card.appendChild(iconWrap);
+    card.appendChild(cardTitle);
+    card.appendChild(desc);
+    card.appendChild(button);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+
+    setTimeout(() => {
+      if (overlay.parentNode) {
+        overlay.style.animation = 'ecopointPopupFadeOut 0.25s ease-in';
+        setTimeout(() => overlay.remove(), 250);
+      }
+    }, 4500);
+  }
+
   // Add CSS animations
   function injectStyles() {
     if (document.getElementById('ecopoint-dashboard-styles')) return;
@@ -470,7 +577,6 @@
     const dailyLeft = Math.round(parseFloat(cap.daily_points_left || 0));
     const weeklyLeft = Math.round(parseFloat(cap.weekly_points_left || 0));
     const sessionsLeft = Math.round(parseFloat(cap.daily_sessions_left || 0));
-    const prevBalance = (lastBalance === null) ? balance : lastBalance;
 
     if (lastCapState) {
       const prevDaily = Math.round(parseFloat(lastCapState.daily_points_left || 0));
@@ -486,9 +592,12 @@
         showNotification('info', 'Daily Sessions Completed', 'You have used all 3 VHEcoPoint sessions available today.', 'fa-solid fa-triangle-exclamation', '#d97706');
       }
     }
-    if (balance >= 3000 && prevBalance < 3000) {
-      showNotification('info', 'Maximum Balance Reached', 'Your account has reached the 3,000-point maximum balance.', 'fa-solid fa-triangle-exclamation', '#d97706');
+
+    const pointsLimit = (snapshot.points_limit_reached === true) || (balance >= 3000);
+    if (pointsLimit && lastPointsLimitReached === false) {
+      showPointsLimitPopup(snapshot.points_limit_message || '');
     }
+    lastPointsLimitReached = pointsLimit;
 
     lastCapState = JSON.parse(JSON.stringify(cap));
     lastBalance = balance;
@@ -573,6 +682,9 @@
       lastBalance = (newSnapshot.current_balance === null || newSnapshot.current_balance === undefined)
         ? null
         : parseFloat(newSnapshot.current_balance || 0);
+      lastPointsLimitReached = (newSnapshot.points_limit_reached === true) ||
+        ((newSnapshot.current_balance !== null && newSnapshot.current_balance !== undefined) &&
+         parseFloat(newSnapshot.current_balance || 0) >= 3000);
       return;
     }
 
@@ -847,6 +959,9 @@
             'fa-solid fa-circle-check',
             '#16a34a'
           );
+          if (data.points_limit_reached) {
+            showPointsLimitPopup(data.points_limit_message || '');
+          }
           // Immediately reflect "No Active Session" before the next SSE/poll snapshot.
           updateLiveSessionUI(null);
           if (data.new_balance !== undefined && data.new_balance !== null) {

@@ -333,6 +333,8 @@ foreach ($ecoPointTransactions as $tx) {
     }
 }
 $currentPoints = max(0, $currentPoints);
+$ecoPointMaxBalance = defined('ECO_MAX_BALANCE') ? (int)ECO_MAX_BALANCE : 3000;
+$ecoPointsLimitReached = ($currentPoints >= $ecoPointMaxBalance);
 __pm('point_transactions');
 
 $ecoPointWeeklyCap = 250;
@@ -985,6 +987,14 @@ body.account-blocked { overflow: hidden; }
 .main-content.ecopoint-active #panel-points-history .ecopoint-balance-value .ecopoint-balance-number { color: #fde886; }
 .main-content.ecopoint-active #panel-points-history .ecopoint-balance-value .ecopoint-balance-limit { color: rgba(253,232,134,0.5); }
 .main-content.ecopoint-active #panel-points-history .ecopoint-kpi-card:first-child .ecopoint-kpi-subtext { color: rgba(240,235,226,0.7); }
+
+/* Maximum point-balance warning banner (shown when balance >= 3,000) */
+.main-content.ecopoint-active #panel-points-history .ecopoint-limit-banner {
+  display: flex; align-items: flex-start; gap: 8px; margin-top: 10px;
+  background: rgba(217,119,6,0.18); border: 1px solid rgba(253,232,134,0.35);
+  border-radius: 10px; padding: 9px 11px; color: #fef3c7; font-size: 0.8rem; line-height: 1.45; text-align: left;
+}
+.main-content.ecopoint-active #panel-points-history .ecopoint-limit-banner i { color: #fbd38d; margin-top: 1px; flex: 0 0 auto; }
 
 /* Section card text colors */
 .main-content.ecopoint-active #panel-points-history .ecopoint-card-title { color: #111827; }
@@ -3815,6 +3825,9 @@ body.modal-open{overflow:hidden}
                 ?>
                 <div class="ecopoint-kpi-value ecopoint-balance-value"><i class="fa-solid fa-star ecopoint-balance-star" aria-hidden="true"></i><span class="ecopoint-balance-number" style="font-size:<?php echo $ecoBalanceFontSize; ?>rem;"><?php echo number_format($currentPoints); ?></span><span class="ecopoint-balance-limit">/ <?php echo number_format(3000); ?> pts</span></div>
                 <div class="ecopoint-kpi-subtext"><i class="fa-solid fa-circle-info ecopoint-info" title="Earned points add to this balance; redeemed or adjusted points subtract from it. The maximum balance is 3,000 points."></i> Net balance from VHEcoPoint recycling ledger (earn − redeem ± adjustments). Maximum balance is 3,000 pts.</div>
+                <?php if ($ecoPointsLimitReached): ?>
+                <div class="ecopoint-limit-banner"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>Maximum limit of <?php echo number_format($ecoPointMaxBalance); ?> points reached. You cannot earn additional points until your balance decreases.</span></div>
+                <?php endif; ?>
               </div>
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label"><i class="fa-solid fa-chart-line" style="margin-right:5px; opacity:0.7;"></i>Weekly Points Earned</div>
@@ -7555,6 +7568,46 @@ window.VP_CSRF_TOKEN = <?php echo json_encode(function_exists('vpCsrfGetToken') 
     <a href="mainpage.php?ecopoint=1#home" class="vhecopoint-popup-learn" id="vhecopointPopupLearn">Learn More</a>
   </div>
 </div>
+<?php if ($ecoPointsLimitReached): ?>
+<div id="pointsLimitPopup" class="vhecopoint-popup-overlay" role="dialog" aria-modal="true" aria-labelledby="pointsLimitPopupTitle" aria-describedby="pointsLimitPopupText" style="display:none;">
+  <div class="vhecopoint-popup-card">
+    <button type="button" class="vhecopoint-popup-close" id="pointsLimitPopupClose" aria-label="Close">&times;</button>
+    <span class="vhecopoint-popup-icon" aria-hidden="true">&#9888;</span>
+    <div class="vhecopoint-popup-title" id="pointsLimitPopupTitle">Points Limit Reached</div>
+    <div class="vhecopoint-popup-sub">Maximum balance of <?php echo number_format($ecoPointMaxBalance); ?> points</div>
+    <p class="vhecopoint-popup-text" id="pointsLimitPopupText">Your account has reached the maximum limit of <?php echo number_format($ecoPointMaxBalance); ?> points. You cannot earn additional points until your balance decreases.</p>
+    <button type="button" class="vhecopoint-popup-learn" id="pointsLimitPopupBtn">OK</button>
+  </div>
+</div>
+<script>
+(function(){
+  var overlay = document.getElementById('pointsLimitPopup');
+  if(!overlay) return;
+  var uid = <?php echo (int)$userId; ?>;
+  var flag = 'pointsLimitShown_' + uid;
+  function hide(){
+    overlay.style.display = 'none';
+    overlay.classList.remove('vhecopoint-popup-open');
+  }
+  var closeBtn = document.getElementById('pointsLimitPopupClose');
+  var okBtn = document.getElementById('pointsLimitPopupBtn');
+  if(closeBtn) closeBtn.addEventListener('click', hide);
+  if(okBtn) okBtn.addEventListener('click', hide);
+  overlay.addEventListener('click', function(e){
+    if(e.target === overlay) hide();
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape' && overlay.style.display !== 'none') hide();
+  });
+  setTimeout(function(){
+    try { sessionStorage.setItem(flag, '1'); } catch(e){}
+    overlay.style.display = 'flex';
+    requestAnimationFrame(function(){ overlay.classList.add('vhecopoint-popup-open'); });
+    if(okBtn) setTimeout(function(){ okBtn.focus(); }, 350);
+  }, 800);
+})();
+</script>
+<?php endif; ?>
 <script>
 (function(){
   var uid = <?php echo (int)$userId; ?>;

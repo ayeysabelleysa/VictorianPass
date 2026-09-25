@@ -27,6 +27,7 @@ define('ECO_DAILY_POINT_CAP',       100);  // pts/day max per resident
 define('ECO_DAILY_SESSION_CAP',     3);    // sessions/day max
 define('ECO_WEEKLY_POINT_CAP',      250);  // pts/week max (Mon reset)
 define('ECO_MAX_BALANCE',           3000); // max resident balance
+define('ECO_POINTS_LIMIT_MESSAGE',  'Your account has reached the maximum limit of ' . number_format((int)ECO_MAX_BALANCE) . ' points. You cannot earn additional points until your balance decreases.');
 define('ECO_SESSION_TIMEOUT_SEC',   600);  // 10 min default session timeout
 define('ECO_ALLOWED_MATERIALS',     array_keys(ECO_MATERIAL_RATES));
 define('ECO_SESSION_STATUSES',      ['WAITING','ACTIVE','PROCESSING','COMPLETED','CANCELLED','ERROR']);
@@ -771,7 +772,11 @@ function eco_award_points_and_finalize(mysqli $con, int $sessionId, int $station
     $capState = eco_resident_cap_state($con, $userId);
     $bal      = (float)($session['points_awarded'] ?? 0); // pre-existing award if any
 
-    $curBal   = eco_user_balance($con, $userId);
+    // Cap the maximum-balance "room" against the LEDGER balance (the number the
+    // resident actually sees on the dashboard), so the balance can never exceed
+    // ECO_MAX_BALANCE even if users.points ever falls out of sync with it.
+    $curBal   = eco_ledger_balance($con, $userId);
+    $pointsLimitReached = false;
 
     if (!$alreadyPosted) {
 
@@ -810,6 +815,8 @@ function eco_award_points_and_finalize(mysqli $con, int $sessionId, int $station
     ];
 
     $awarded = eco_apply_cap_rules($calc, $capState, $curBal);
+
+    $pointsLimitReached = ($calc['raw_points'] > 0) && ($curBal >= (float)ECO_MAX_BALANCE) && ($awarded <= 0.0);
 
         // Update session with calculated values
         $upd = $con->prepare("
@@ -902,6 +909,9 @@ function eco_award_points_and_finalize(mysqli $con, int $sessionId, int $station
         'awarded_points'       => $bal,
         'new_balance'          => eco_user_balance($con, $userId),
         'cap_state_after'      => eco_resident_cap_state($con, $userId),
+        'max_balance'          => (float)ECO_MAX_BALANCE,
+        'points_limit_reached' => $pointsLimitReached,
+        'points_limit_message' => $pointsLimitReached ? ECO_POINTS_LIMIT_MESSAGE : '',
     ];
 }
 
@@ -913,4 +923,31 @@ function eco_user_balance(mysqli $con, int $userId): float {
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
     return (float)($row['points'] ?? 0);
+}
+
+// Ledger-based net VHEcoPoint balance (mirrors the resident dashboard's isEcoTx
+// filter) so cap enforcement and dashboard displays always agree.
+function eco_ledger_balance(mysqli $con, int $userId): float {
+    $balance = 0.0;
+    $stmt = $con->prepare("SELECT transaction_type, amount, description, reservation_ref_code, ecopoint_session_id FROM point_transactions WHERE user_id = ?");
+    if (!$stmt) return $balance;
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($row = $res->fetch_assoc()) {
+        $desc = (string)($row['description'] ?? '');
+        $isEcoTx = (!empty($row['ecopoint_session_id']) && intval($row['ecopoint_session_id']) > 0)
+                || (stripos($desc, 'VHEcoPoint') !== false)
+                || (stripos($desc, 'recycling') !== false)
+                || (stripos($desc, 'Redeemed points') !== false)
+                || (stripos($desc, 'redeem') !== false && !empty($row['reservation_ref_code']));
+        if (!$isEcoTx) continue;
+        $type = strtolower(trim((string)($row['transaction_type'] ?? 'earn')));
+        $amt  = (float)($row['amount'] ?? 0);
+        if ($type === 'earn') { $balance += $amt; }
+        elseif ($type === 'redeem') { $balance -= $amt; }
+        elseif ($type === 'adjustment') { $balance += $amt; }
+    }
+    $stmt->close();
+    return max(0.0, $balance);
 }

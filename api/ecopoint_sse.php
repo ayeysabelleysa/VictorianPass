@@ -178,6 +178,9 @@ if ($active) {
         'cap_state'       => $cap,
         'active_session'  => $activeOut,
         'recent_sessions' => $history,
+        'points_limit_reached' => ((float)$balance >= (float)ECO_MAX_BALANCE),
+        'points_limit_message' => ((float)$balance >= (float)ECO_MAX_BALANCE) ? ECO_POINTS_LIMIT_MESSAGE : '',
+        'points_max_balance'   => (float)ECO_MAX_BALANCE,
     ];
 }
 
