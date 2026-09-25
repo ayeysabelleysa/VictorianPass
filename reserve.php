@@ -1781,8 +1781,8 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     document.body.classList.add('modal-open');
   }
 
-  function showPointsRedemptionConfirm() {
-    const amenity = document.getElementById('amenityField')?.value || selectedAmenity || '';
+  function showPointsRedemptionConfirm(preferredAmenity) {
+    const amenity = preferredAmenity || document.getElementById('amenityField')?.value || selectedAmenity || '';
     const pointsRequired = getPointsRequired(amenity);
     const amountEl = document.getElementById('pointsRedemptionConfirmAmount');
     const messageEl = document.getElementById('pointsRedemptionConfirmMessage');
@@ -4691,32 +4691,35 @@ document.addEventListener('DOMContentLoaded', function() {
   // Reward cards are browse-only. While the Rewards popup is open, the
   // resident's amenity selection and the Amenity Picking page stay untouched.
   // The "Redeem" button opens the Confirm Redemption dialog first; the resident
-  // moves to their already-selected amenity's reservation page only after
-  // clicking Confirm Redemption. That selection is never changed by the popup.
-  function proceedWithRewardRedemption() {
-    if (!selectedAmenity) {
+  // moves to the selected reward amenity's reservation page only after clicking
+  // Confirm Redemption. The amenity always comes from the reward card that was
+  // clicked, so it can never fall back to a default clubhouse value.
+  function proceedWithRewardRedemption(amenityName) {
+    if (!amenityName) {
       showToast('Please select an amenity first, then use Redeem.', 'warning');
       return;
     }
     if (viewRewardsModal) {
       viewRewardsModal.style.display = 'none';
     }
+    window.__rewardRedemptionAmenity = amenityName;
     window.__rewardRedemptionProceed = true;
     if (typeof showPointsRedemptionConfirm === 'function') {
-      showPointsRedemptionConfirm();
+      showPointsRedemptionConfirm(amenityName);
     } else {
       window.__rewardRedemptionProceed = false;
+      window.__rewardRedemptionAmenity = '';
     }
   }
 
   // Runs after the resident clicks Confirm Redemption in the rewards flow:
-  // moves to the already-selected amenity and re-applies the confirmed
-  // redemption. The Book Now flow resets the form, so the toggle is re-checked
-  // and the redemption is re-marked as confirmed afterwards.
+  // moves to the redeemed amenity and re-applies the confirmed redemption. The
+  // Book Now flow resets the form, so the toggle is re-checked and the
+  // redemption is re-marked as confirmed afterwards.
   window.rewardRedemptionProceedToAmenity = function(){
-    if (!selectedAmenity) return;
-    const key = getAmenityKeyFromName(selectedAmenity);
-    const amenityCard = document.querySelector(`.amenity-card[data-key="${key}"]`);
+    const amenityName = window.__rewardRedemptionAmenity || '';
+    if (!amenityName) return;
+    const amenityCard = document.querySelector(`.amenity-card[data-amenity="${amenityName}"]`);
     const bookNowBtn = amenityCard ? amenityCard.querySelector('button[data-action="book-now"]') : null;
     if (!bookNowBtn) return;
     runBookNowFlow(bookNowBtn);
@@ -4737,14 +4740,14 @@ document.addEventListener('DOMContentLoaded', function() {
       // Intentionally a no-op while the resident browses rewards.
     });
     // Only the "Redeem" button opens the Confirm Redemption dialog; the move to
-    // the already-selected amenity happens after the resident confirms.
+    // the redeemed amenity happens after the resident confirms.
     const btn = card.querySelector('button');
     if (btn) {
       btn.addEventListener('click', function(e) {
         e.stopPropagation();
         const eligible = card.getAttribute('data-eligible') === 'true';
         if (eligible) { // only allow clicking if eligible!
-          proceedWithRewardRedemption();
+          proceedWithRewardRedemption(card.getAttribute('data-amenity'));
         }
       });
     }
