@@ -1378,7 +1378,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
                     <div class="res-label"><small class="participants-title"><i class="fa-solid fa-user" aria-hidden="true"></i> Total Participants</small></div>
                     <div class="counter">
                       <button type="button" onclick="changePersons(-1)">-</button>
-                      <input type="number" id="personCount" value="0" min="0" max="200" step="1" style="width:70px;text-align:center;border:1px solid #e5e7eb;border-radius:8px;padding:6px 10px;font-weight:600;">
+                      <input type="number" id="personCount" value="0" min="0" step="1" style="width:70px;text-align:center;border:1px solid #e5e7eb;border-radius:8px;padding:6px 10px;font-weight:600;">
                       <button type="button" onclick="changePersons(1)">+</button>
                     </div>
                     <?php endif; ?>
@@ -1389,7 +1389,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
                         <div class="res-label"><small class="participants-title"><i class="fa-solid fa-user" aria-hidden="true"></i> Number of Participants</small></div>
                         <div class="counter">
                           <button type="button" class="participant-stepper" id="decreaseParticipants" onclick="changeReserveTotal(-1)" aria-label="Decrease number of participants">−</button>
-                          <input type="number" class="participant-count-input" id="reserveTotalCount" value="0" min="0" max="50" step="1" aria-label="Number of participants">
+                          <input type="number" class="participant-count-input" id="reserveTotalCount" value="0" min="0" step="1" aria-label="Number of participants">
                           <button type="button" class="participant-stepper" id="increaseParticipants" onclick="changeReserveTotal(1)" aria-label="Increase number of participants">+</button>
                         </div>
                       </div>
@@ -2127,19 +2127,9 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     function setEnd(ds){
       const sVal=document.getElementById('startDateInput').value||'';
       if(sVal && ds < sVal){
-        const sD=new Date(sVal); const eD=new Date(ds); const diff=Math.floor((sD - eD)/(1000*60*60*24));
-        if(diff>6){ endDateRangeError=true; showDateError('Cannot book more than 1 week.'); return false; }
-        selectedStart=ds;
-        selectedEnd=sVal;
-        document.getElementById('startDate').textContent=formatDateToMMDDYYYY(selectedStart);
-        document.getElementById('startDateInput').value=selectedStart;
-        document.getElementById('endDate').textContent=formatDateToMMDDYYYY(selectedEnd);
-        document.getElementById('endDateInput').value=selectedEnd;
-        endDateRangeError=false;
+        showDateError('End date cannot be earlier than start date.');
         showStartDateError('');
-        showDateError('');
-        updateHoursSelectEnabled();
-        return true;
+        return false;
       }
       if(sVal){ const sD=new Date(sVal); const eD=new Date(ds); const diff=Math.floor((eD - sD)/(1000*60*60*24)); if(diff>6){ endDateRangeError=true; showDateError('Cannot book more than 1 week.'); return false; } }
       endDateRangeError=false;
@@ -2629,6 +2619,8 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     const amen=document.getElementById('amenityField').value;
     const desiredCount=Math.max(0, parseInt(desired||'0',10) || 0);
     let max=getAmenityMaxPersons(amen);
+    if(!Number.isFinite(max) || max < 1){ max = 200; }
+    if(pcEl){ pcEl.max = String(max); }
     const minAllowed=0;
     const count=Math.min(max,Math.max(minAllowed,desiredCount));
     if(pcEl){ if('value' in pcEl){ pcEl.value=String(count); } else { pcEl.textContent=String(count); } }
@@ -2651,8 +2643,9 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     const rcEl=document.getElementById('reserveTotalCount');
     if(!rcEl) return;
     const amen=document.getElementById('amenityField') ? document.getElementById('amenityField').value : '';
-    let max=typeof getAmenityMaxPersons==='function' ? getAmenityMaxPersons(amen) : 50;
-    max=Math.max(1, Math.min(50, max === Infinity ? 50 : max));
+    let max=typeof getAmenityMaxPersons==='function' ? getAmenityMaxPersons(amen) : 200;
+    if(!Number.isFinite(max) || max < 1){ max = 200; }
+    rcEl.max = String(max);
     const parsedCount=parseInt(desired,10);
     const count=Math.min(max,Math.max(0,Number.isFinite(parsedCount) ? parsedCount : 0));
     if('value' in rcEl){ rcEl.value=String(count); } else { rcEl.textContent=String(count); }
@@ -2949,6 +2942,10 @@ async function changePersons(val){
       document.getElementById('timeSectionLabel').style.display='block';
       renderTimeSlotButtons();
     }
+    const pmCap=getAmenityMaxPersons(amen);
+    const pmCapVal=(Number.isFinite(pmCap)&&pmCap>0)?pmCap:200;
+    const pcI=document.getElementById('personCount'); if(pcI){ pcI.max=String(pmCapVal); }
+    const rtcI=document.getElementById('reserveTotalCount'); if(rtcI){ rtcI.max=String(pmCapVal); }
     updateBookingModeCards();
     updateHoursSelectEnabled();
   }
@@ -3269,6 +3266,9 @@ async function changePersons(val){
           showStartDateError('Reservations must be made at least 1 day in advance.');
           endDateRangeError=false;
           showDateError('');
+        } else if(eDVal < sDVal){
+          endDateRangeError=false;
+          showDateError('End date cannot be earlier than start date.');
         } else {
           const sDate=new Date(sDVal); const eDate=new Date(eDVal); const diff=Math.floor((eDate - sDate)/(1000*60*60*24)); if(diff>6){ endDateRangeError=true; showDateError('Cannot book more than 1 week.'); } else { endDateRangeError=false; showDateError(''); }
         }
@@ -3352,7 +3352,8 @@ async function changePersons(val){
   if(participantInput){
     participantInput.addEventListener('input',function(){ setReserveTotalCount(this.value); });
     participantInput.addEventListener('blur',function(){ setReserveTotalCount(this.value); });
-    updateParticipantStepperState(parseInt(participantInput.value,10) || 0, 50);
+    const pMaxOff=getAmenityMaxPersons(document.getElementById('amenityField').value);
+    updateParticipantStepperState(parseInt(participantInput.value,10) || 0, Number.isFinite(pMaxOff)&&pMaxOff>0 ? pMaxOff : 200);
   }
   const hoursSelect=document.getElementById('hoursSelect'); if(hoursSelect){ hoursSelect.addEventListener('focus',function(){ requireDateBeforeHours(); }); hoursSelect.addEventListener('change',function(){ if(!requireDateBeforeHours()){ hoursSelect.value=''; const hcChoice=document.getElementById('hoursChosen'); if(hcChoice) hcChoice.value='0'; return; } const val=parseInt(hoursSelect.value||'0',10); if(!val) return; const hid=document.getElementById('hoursInput'); if(hid){ hid.value=String(val); const hc=document.getElementById('hoursCount'); if(hc){ hc.textContent=String(val); } }
     const tsl=document.getElementById('timeSectionLabel'); if(tsl){ tsl.style.display='block'; }
