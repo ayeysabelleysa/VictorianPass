@@ -241,6 +241,7 @@ $qrLink = '';
 $qrRelPath = '';
 $qrAbsPath = '';
 $qrImg = '';
+$qrImgSrc = '';
 
 if (!$isAccountBlocked) {
     $houseCode = strtoupper(trim((string)($user['house_number'] ?? '')));
@@ -256,6 +257,8 @@ if (!$isAccountBlocked) {
   $ctx = @stream_context_create(['http' => ['timeout' => 5]]);
   $img = @file_get_contents($qrUrl, false, $ctx);
   if ($img !== false) { @file_put_contents($qrAbsPath, $img); } elseif (!vp_is_local_host() || !file_exists($qrAbsPath) || filesize($qrAbsPath) <= 100) { $qrRelPath = $qrUrl; }
+  $qrImgVer = $qrLink !== '' ? substr(sha1($qrLink), 0, 12) . '-' . ((string)(@filemtime($qrAbsPath) ?: '0')) : '';
+  $qrImgSrc = $qrImgVer !== '' ? $qrRelPath . (strpos($qrRelPath, '?') !== false ? '&' : '?') . 'v=' . $qrImgVer : $qrRelPath;
 }
 __pm('qr_setup');
 
@@ -3552,7 +3555,7 @@ body.modal-open{overflow:hidden}
     <div class="modal-content qr-modal-content" id="qrChoiceModalContent">
       <button type="button" class="close" aria-label="Close" id="qrChoiceClose">&times;</button>
       <h3>My QR Code</h3>
-      <div class="qr-modal-body qr-modal-qr"><img src="<?php echo htmlspecialchars($qrRelPath); ?>" alt="My QR Code"></div>
+      <div class="qr-modal-body qr-modal-qr"><img src="<?php echo htmlspecialchars($qrImgSrc); ?>" alt="My QR Code"></div>
       <div class="qr-modal-actions qr-modal-actions-single">
         <button type="button" class="btn-confirm" id="qrDownloadBtn">Download</button>
       </div>
@@ -3581,7 +3584,7 @@ body.modal-open{overflow:hidden}
           </div>
           <div class="id-top">
             <div class="avatar">
-              <img src="<?php echo htmlspecialchars($qrRelPath); ?>" alt="Resident QR">
+              <img src="<?php echo htmlspecialchars($qrImgSrc); ?>" alt="Resident QR">
             </div>
             <div class="top-info">
               <div style="color:#e5ddc6; font-size:0.75rem; font-weight:600; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">OFFICIAL PROOF OF RESIDENCY</div>
@@ -3607,7 +3610,7 @@ body.modal-open{overflow:hidden}
     <?php endif; ?>
 
     <script>
-    var personalQRSrc = <?php echo json_encode($qrRelPath); ?>;
+    var personalQRSrc = <?php echo json_encode($qrImgSrc); ?>;
     var personalQRDownloadName = 'My_Personal_QR_ID.png';
 
     function downloadPersonalQR(){
