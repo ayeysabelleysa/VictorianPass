@@ -4678,83 +4678,44 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Handle amenity reward card clicks (and "Redeem" button clicks)
-  function handleRewardCardClick(card) {
-    const amenityName = card.getAttribute('data-amenity');
-    const eligible = card.getAttribute('data-eligible') === 'true';
-    const key = getAmenityKeyFromName(amenityName);
-    const amenityCard = document.querySelector(`.amenity-card[data-key="${key}"]`);
-
-    // Close the modal FIRST
+  // Reward cards are browse-only. While the Rewards popup is open, the
+  // resident's amenity selection and the Amenity Picking page stay untouched.
+  // Only the "Redeem" button closes the popup and proceeds to the amenity the
+  // resident ALREADY selected, opening its reservation/calendar page without
+  // changing that selection.
+  function proceedWithRewardRedemption() {
+    if (!selectedAmenity) {
+      showToast('Please select an amenity first, then use Redeem.', 'warning');
+      return;
+    }
     if (viewRewardsModal) {
       viewRewardsModal.style.display = 'none';
     }
-
-    // Now do EXACTLY what Book Now button does!
-    if (amenityCard) {
-      const bookNowBtn = amenityCard.querySelector('button[data-action="book-now"]');
-      if (bookNowBtn) bookNowBtn.style.display = 'none';
-      selectAmenityByKey(key);
-      try{
-        updateAmenityDescription(key);
-        const descBox=document.getElementById('amenityDescBox');
-        if(descBox){ descBox.style.display='flex'; }
-        const descText=document.getElementById('amenityDescText');
-        if(descText){ descText.textContent=''; descText.style.display='none'; }
-      }catch(_){}
-      const viewBtn=amenityCard.querySelector('button[data-action="view-desc"]');
-      if(viewBtn){ viewBtn.style.display='none'; }
-      document.querySelectorAll('.amenity-card').forEach(function(c){
-        c.style.display='none';
-      });
-      const amenitiesHeader=document.getElementById('amenitiesHeader');
-      if(amenitiesHeader){ amenitiesHeader.style.display='none'; }
-      const ret=document.getElementById('amenityReturnBtn');
-      if(ret){ ret.style.display='inline-flex'; }
-      try{
-        const rc=document.getElementById('reservationCard');
-        if(rc){
-          rc.style.display='flex';
-          document.getElementById('reservationTitle').textContent='Reservation';
-          document.getElementById('reservationHint').textContent='Select date, time, and persons';
-          refreshAvailabilityFromServer();
-          rc.scrollIntoView({behavior:'smooth',block:'start'});
-        }
-      }catch(_){}
-    }
-
-    // Auto-toggle "Use Points" if eligible
-    if (usePointsToggle && eligible) {
-      usePointsToggle.checked = true;
-      usePoints = true;
-      setRedemptionConfirmed(false);
-      updateRedemptionInfo();
-      showPointsRedemptionConfirm();
-    } else if (usePointsToggle) {
-      usePointsToggle.checked = false;
-      usePoints = false;
-      setRedemptionConfirmed(false);
+    const key = getAmenityKeyFromName(selectedAmenity);
+    const amenityCard = document.querySelector(`.amenity-card[data-key="${key}"]`);
+    const bookNowBtn = amenityCard ? amenityCard.querySelector('button[data-action="book-now"]') : null;
+    if (bookNowBtn) {
+      runBookNowFlow(bookNowBtn);
     }
   }
 
   // Attach handlers to all amenity-reward-card elements
   const amenityRewardCards = document.querySelectorAll('.amenity-reward-card');
   amenityRewardCards.forEach(card => {
-    // When clicking anywhere on the card
+    // Clicking anywhere on the card must not close the popup or change the
+    // current amenity selection.
     card.addEventListener('click', function(e) {
-      // If not clicking the button itself
-      if (!e.target.closest('button')) {
-        handleRewardCardClick(card);
-      }
+      // Intentionally a no-op while the resident browses rewards.
     });
-    // When clicking the "Redeem" button specifically
+    // Only the "Redeem" button closes the popup and proceeds to the
+    // already-selected amenity.
     const btn = card.querySelector('button');
     if (btn) {
       btn.addEventListener('click', function(e) {
         e.stopPropagation();
         const eligible = card.getAttribute('data-eligible') === 'true';
         if (eligible) { // only allow clicking if eligible!
-          handleRewardCardClick(card);
+          proceedWithRewardRedemption();
         }
       });
     }
