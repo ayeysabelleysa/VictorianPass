@@ -10,8 +10,8 @@ I2C_BUS = 1
 PCA9685_ADDRESS = 0x40
 
 # PCA9685 channels
-MG995_CHANNEL = 0       # Downward / release flap
-MG996R_CHANNEL = 1      # Left / Center / Right diverter
+MG995_CHANNEL = 12
+MG996R_CHANNEL = 15
 
 PWM_FREQUENCY = 50      # Standard servo frequency
 
@@ -193,8 +193,8 @@ def start():
     time.sleep(0.5)
 
     print("[SERVO] PCA9685 initialized")
-    print("[SERVO] MG995  -> Channel 0")
-    print("[SERVO] MG996R -> Channel 1")
+    print("[SERVO] MG995  -> Channel 12")
+    print("[SERVO] MG996R -> Channel 15")
 
 
 def angle_to_pulse(angle):
@@ -411,8 +411,8 @@ if __name__ == "__main__":
     print(" VHEcoPoint Servo Test")
     print("================================")
     print()
-    print("MG995  = Channel 0")
-    print("MG996R = Channel 1")
+    print("MG995  = Channel 12")
+    print("MG996R = Channel 15")
     print()
 
     try:

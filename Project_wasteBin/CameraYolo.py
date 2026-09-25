@@ -4,7 +4,7 @@ import threading
 import time
 from flask import Flask, Response, jsonify
 
-RTSP_URL = "rtsp://192.168.100.153:554/live"
+RTSP_URL = "rtsp://192.168.0.150:554/live"
 
 MODEL = "yolo11n.pt"
 CONFIDENCE = 0.20
