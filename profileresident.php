@@ -245,17 +245,17 @@ $qrImg = '';
 if (!$isAccountBlocked) {
     $houseCode = strtoupper(trim((string)($user['house_number'] ?? '')));
     if ($houseCode !== '') {
-    $qrLink = vp_qr_link('resident_qr_view.php', ['code' => $houseCode]);
+    $qrLink = vp_resident_qr_link('resident_qr_view.php', ['code' => $houseCode]);
         $qrRelPath = 'uploads/qr_resident_' . preg_replace('/[^A-Z0-9]+/', '_', $houseCode) . '.png';
     } else {
-    $qrLink = vp_qr_link('resident_qr_view.php', ['rid' => intval($user['id'] ?? $userId)]);
+    $qrLink = vp_resident_qr_link('resident_qr_view.php', ['rid' => intval($user['id'] ?? $userId)]);
         $qrRelPath = 'uploads/qr_resident_' . intval($user['id'] ?? $userId) . '.png';
     }
     $qrAbsPath = __DIR__ . '/' . $qrRelPath;
   $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' . urlencode($qrLink);
   $ctx = @stream_context_create(['http' => ['timeout' => 5]]);
   $img = @file_get_contents($qrUrl, false, $ctx);
-  if ($img !== false) { @file_put_contents($qrAbsPath, $img); } elseif (!file_exists($qrAbsPath) || filesize($qrAbsPath) <= 100) { $qrRelPath = $qrUrl; }
+  if ($img !== false) { @file_put_contents($qrAbsPath, $img); } elseif (!vp_is_local_host() || !file_exists($qrAbsPath) || filesize($qrAbsPath) <= 100) { $qrRelPath = $qrUrl; }
 }
 __pm('qr_setup');
 
