@@ -2128,7 +2128,9 @@ input:focus-visible {
   .reservation-grid .amenity-preview-shell{grid-area:preview;max-width:420px;overflow:auto}
   .reservation-grid .reservation-left{grid-area:form}
 }
-.toast{position:fixed; top:14px; left:50%; transform:translateX(-50%); background:#23412e; color:#fff; padding:10px 14px; border-radius:10px; box-shadow:0 8px 18px rgba(0,0,0,.12); font-size:.9rem; z-index:1000; display:none}
+.toast{position:fixed; top:70px; left:50%; transform:translateX(-50%); background:#23412e; color:#fff; padding:10px 14px; border-radius:10px; box-shadow:0 8px 18px rgba(0,0,0,.12); font-size:.9rem; z-index:9999; display:none; pointer-events:none}
+.toast .toast-close{cursor:pointer; pointer-events:auto; margin-left:8px; background:none; border:none; color:#fff; font-size:1rem; line-height:1; padding:0 2px}
+#errorModalMessage{ white-space: pre-line; }
 #amenityImageModalImg{width:100%; height:auto; max-width:85vw; max-height:80vh; object-fit:contain;}
 #amenityImageModal{
   animation: modalFadeOut 0s;

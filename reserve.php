@@ -2514,6 +2514,15 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     }
   }
 
+  function showNextValidationMessage(missing) {
+    const items = (Array.isArray(missing) && missing.length) ? missing : [];
+    const msg = items.length
+      ? 'Cannot continue to the next step yet. Complete the highlighted fields below to enable the Next button.\n\nPlease complete:\n' + items.map(function (i) { return '  \u2022 ' + i; }).join('\n')
+      : 'Some required fields are still missing or invalid. Complete the highlighted fields below before clicking Next.';
+    if (typeof showErrorModal === 'function') { showErrorModal(msg); return true; }
+    return false;
+  }
+
   (function initErrorModal(){
     const modal=document.getElementById('errorModal');
     const closeBtn=document.getElementById('errorModalCloseBtn');
@@ -3476,7 +3485,7 @@ async function changePersons(val){
       if(typeof formIsComplete==='function' && !formIsComplete()){
         showIncompleteWarnings(true);
         const miss=(typeof getNextButtonMissingFields==='function')?getNextButtonMissingFields():[];
-        showToast(miss.length ? 'Next is blocked - complete the highlighted fields to continue: ' + miss.join(', ') : 'Please complete all fields accurately before proceeding.','warning');
+        if(typeof showNextValidationMessage==='function'){ showNextValidationMessage(miss); }
         return;
       }
       let verifyAllowed=true;
@@ -3567,7 +3576,7 @@ async function changePersons(val){
       } else {
         if(persons<1) verifyAllowed=false;
       }
-      if(!verifyAllowed){ showToast('Please complete all fields accurately before proceeding.','warning'); return; }
+      if(!verifyAllowed){ if(typeof showNextValidationMessage==='function'){ showNextValidationMessage([]); } return; }
       if(!window.__verifyConfirmed){
         const rCount=parseInt(document.getElementById('residentsCountInput')?.value||'0',10);
         const gCount=parseInt(document.getElementById('guestsCountInput')?.value||'0',10);
@@ -3710,7 +3719,7 @@ async function changePersons(val){
         showIncompleteWarnings(true);
         if(typeof formIsComplete==='function' && !formIsComplete()){
           const miss=(typeof getNextButtonMissingFields==='function')?getNextButtonMissingFields():[];
-          showToast(miss.length ? 'Next is blocked - complete the highlighted fields to continue: ' + miss.join(', ') : 'Please fix the highlighted fields before proceeding.','warning');
+          if(typeof showNextValidationMessage==='function'){ showNextValidationMessage(miss); }
           return;
         }
         var bookingForField = document.getElementById('bookingForField');
