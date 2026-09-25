@@ -68,7 +68,7 @@ API_HEADERS = {
 }
 
 
-MIN_WEIGHT = 20.0
+MIN_WEIGHT = 6.0
 WEIGHT_STABLE_TIME = 0.5
 METAL_STABLE_TIME = 0.5
 MAX_SESSIONS = 3
@@ -241,7 +241,8 @@ def create_api_session(qr_code):
 
     return {
         "session_token": session_token,
-        "resident": resident
+        "resident": resident,
+        "cap_state": result.get("cap_state", {})
     }
 
 
@@ -823,7 +824,7 @@ try:
         # =================================================
 
         items = 0
-        total_points = 0
+        total_points = float(session.get("cap_state", {}).get("daily_points_used", 0))
 
         # =================================================
         # USER SESSION STARTED
