@@ -1510,7 +1510,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
   <div class="modal-content points-redemption-confirm-content">
     <button type="button" class="close-profile-modal" id="pointsRedemptionCloseBtn" aria-label="Close">&times;</button>
     <h2>Confirm VHEcoPoint Redemption</h2>
-    <p class="points-redemption-confirm-message">Are you sure you want to redeem your VHEcoPoint points for 1 Free Hour?</p>
+    <p class="points-redemption-confirm-message" id="pointsRedemptionConfirmMessage">Are you sure you want to redeem your VHEcoPoint points for 1 Free Hour?</p>
     <div class="points-redemption-confirm-summary">
       <div><span>Points to Redeem:</span><strong id="pointsRedemptionConfirmAmount">0 pts</strong></div>
       <div><span>Reward:</span><strong>1 Free Hour</strong></div>
@@ -1785,9 +1785,11 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     const amenity = document.getElementById('amenityField')?.value || selectedAmenity || '';
     const pointsRequired = getPointsRequired(amenity);
     const amountEl = document.getElementById('pointsRedemptionConfirmAmount');
+    const messageEl = document.getElementById('pointsRedemptionConfirmMessage');
     const modal = document.getElementById('pointsRedemptionConfirmModal');
     if (!pointsRequired || !modal) return false;
     if (amountEl) amountEl.textContent = pointsRequired.toLocaleString() + ' pts';
+    if (messageEl) messageEl.textContent = 'Are you sure you want to redeem your VHEcoPoint points for 1 Free Hour' + (amenity ? ' at ' + amenity : '') + '?';
     vpShowModal(modal);
     return true;
   }
