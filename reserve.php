@@ -2083,7 +2083,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     var forceStart = false;
     if(singleActive){
       if(isSameAsStart && isSameAsEnd){
-        document.querySelectorAll('.calendar .cal-cell').forEach(td=>td.classList.remove('active'));
+        clearCalendarSelectionHighlight();
         clearStartDate();
 
         return;
@@ -2106,7 +2106,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
         return;
       }
       if(isSameAsEnd){
-        document.querySelectorAll('.calendar .cal-cell').forEach(td=>td.classList.remove('active'));
+        clearCalendarSelectionHighlight();
         clearEndDate();
 
         return;
@@ -2185,6 +2185,28 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     });
   }
 
+  function clearCalendarSelectionHighlight(){
+    const cells=Array.from(document.querySelectorAll('.calendar .cal-cell'));
+    cells.forEach(function(td){
+      td.classList.remove('active','active-start','active-end','in-range');
+    });
+  }
+
+  function clearStartDate(){
+    selectedStart=null;
+    const sd=document.getElementById('startDate'); if(sd){ sd.textContent='--'; }
+    const si=document.getElementById('startDateInput'); if(si){ si.value=''; }
+    updateSelectedDateRangeHighlight();
+    updateHoursSelectEnabled();
+  }
+
+  function clearEndDate(){
+    selectedEnd=null;
+    const ed=document.getElementById('endDate'); if(ed){ ed.textContent='--'; }
+    const ei=document.getElementById('endDateInput'); if(ei){ ei.value=''; }
+    updateSelectedDateRangeHighlight();
+  }
+
   function clearDates(){
     resetReservationForm();
     updateSelectedDateRangeHighlight();
@@ -2212,9 +2234,27 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     if(!cb) return;
     cb.addEventListener('change', function(){
       const s=document.getElementById('startDateInput').value;
+      const endInput=document.getElementById('endDateInput');
+      const endText=document.getElementById('endDate');
+      clearCalendarSelectionHighlight();
       if(this.checked){
-        if(s){ selectedEnd=s; document.getElementById('endDateInput').value=s; document.getElementById('endDate').textContent=formatDateToMMDDYYYY(s); }
+        if(s){
+          selectedStart=s;
+          selectedEnd=s;
+          document.getElementById('startDateInput').value=s;
+          const sd=document.getElementById('startDate'); if(sd){ sd.textContent=formatDateToMMDDYYYY(s); }
+          if(endInput){ endInput.value=s; }
+          if(endText){ endText.textContent=formatDateToMMDDYYYY(s); }
+        } else {
+          selectedStart=null;
+          selectedEnd=null;
+        }
+      } else {
+        selectedEnd=null;
+        if(endInput){ endInput.value=''; }
+        if(endText){ endText.textContent='--'; }
       }
+      renderCalendar(currentMonth, currentYear);
       updateSelectedDateRangeHighlight();
       computeAvailability();
       renderTimeSlotButtons();
