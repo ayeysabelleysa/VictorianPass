@@ -3715,10 +3715,12 @@ async function changePersons(val){
     const closeBtn = document.getElementById('pointsRedemptionCloseBtn');
     const confirmBtn = document.getElementById('pointsRedemptionConfirmBtn');
     if (cancelBtn) cancelBtn.addEventListener('click', function(){
+      window.__rewardRedemptionProceed = false;
       setRedemptionConfirmed(false);
       closePointsRedemptionConfirm();
     });
     if (closeBtn) closeBtn.addEventListener('click', function(){
+      window.__rewardRedemptionProceed = false;
       setRedemptionConfirmed(false);
       closePointsRedemptionConfirm();
     });
@@ -3726,6 +3728,12 @@ async function changePersons(val){
       setRedemptionConfirmed(true);
       closePointsRedemptionConfirm();
       showToast('VHEcoPoint redemption confirmed.','success');
+      if (window.__rewardRedemptionProceed) {
+        window.__rewardRedemptionProceed = false;
+        if (typeof window.rewardRedemptionProceedToAmenity === 'function') {
+          window.rewardRedemptionProceedToAmenity();
+        }
+      }
     });
   })();
 
@@ -4680,9 +4688,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Reward cards are browse-only. While the Rewards popup is open, the
   // resident's amenity selection and the Amenity Picking page stay untouched.
-  // Only the "Redeem" button closes the popup and proceeds to the amenity the
-  // resident ALREADY selected, opening its reservation/calendar page without
-  // changing that selection.
+  // The "Redeem" button opens the Confirm Redemption dialog first; the resident
+  // moves to their already-selected amenity's reservation page only after
+  // clicking Confirm Redemption. That selection is never changed by the popup.
   function proceedWithRewardRedemption() {
     if (!selectedAmenity) {
       showToast('Please select an amenity first, then use Redeem.', 'warning');
@@ -4691,13 +4699,32 @@ document.addEventListener('DOMContentLoaded', function() {
     if (viewRewardsModal) {
       viewRewardsModal.style.display = 'none';
     }
+    window.__rewardRedemptionProceed = true;
+    if (typeof showPointsRedemptionConfirm === 'function') {
+      showPointsRedemptionConfirm();
+    } else {
+      window.__rewardRedemptionProceed = false;
+    }
+  }
+
+  // Runs after the resident clicks Confirm Redemption in the rewards flow:
+  // moves to the already-selected amenity and re-applies the confirmed
+  // redemption. The Book Now flow resets the form, so the toggle is re-checked
+  // and the redemption is re-marked as confirmed afterwards.
+  window.rewardRedemptionProceedToAmenity = function(){
+    if (!selectedAmenity) return;
     const key = getAmenityKeyFromName(selectedAmenity);
     const amenityCard = document.querySelector(`.amenity-card[data-key="${key}"]`);
     const bookNowBtn = amenityCard ? amenityCard.querySelector('button[data-action="book-now"]') : null;
-    if (bookNowBtn) {
-      runBookNowFlow(bookNowBtn);
+    if (!bookNowBtn) return;
+    runBookNowFlow(bookNowBtn);
+    const toggle = document.getElementById('use-points-toggle');
+    if (toggle) {
+      toggle.checked = true;
+      setRedemptionConfirmed(true);
+      updateRedemptionInfo();
     }
-  }
+  };
 
   // Attach handlers to all amenity-reward-card elements
   const amenityRewardCards = document.querySelectorAll('.amenity-reward-card');
@@ -4707,8 +4734,8 @@ document.addEventListener('DOMContentLoaded', function() {
     card.addEventListener('click', function(e) {
       // Intentionally a no-op while the resident browses rewards.
     });
-    // Only the "Redeem" button closes the popup and proceeds to the
-    // already-selected amenity.
+    // Only the "Redeem" button opens the Confirm Redemption dialog; the move to
+    // the already-selected amenity happens after the resident confirms.
     const btn = card.querySelector('button');
     if (btn) {
       btn.addEventListener('click', function(e) {
