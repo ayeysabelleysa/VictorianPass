@@ -51,6 +51,9 @@ CREATE TABLE IF NOT EXISTS users (
   INDEX idx_email (email)
 ) ENGINE=InnoDB;
 
+INSERT IGNORE INTO users (first_name, last_name, phone, email, user_type, password, sex, birthdate, house_number, address, status) VALUES
+('Test', 'User', '09171234567', 'test@victorianpass.com', 'resident', '$2y$10$yJRMpGAJG6IyoSCaMqDO6uun7Z.eeQHLWwkpud7mKJCtARYGt5x.G', 'Male', '1995-05-15', '101', 'Unit 101, Victorian Heights, Brgy. San Isidro', 'active');
+
 CREATE TABLE IF NOT EXISTS entry_passes (
   id INT AUTO_INCREMENT PRIMARY KEY,
   full_name VARCHAR(150) NOT NULL,

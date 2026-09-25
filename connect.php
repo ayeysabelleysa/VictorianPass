@@ -150,6 +150,18 @@ if (!function_exists('vpMarkSchemaDone')) {
   }
 }
 
+if (!vpSchemaDone($con, 'vt_test_account')) {
+    try {
+        require_once __DIR__ . '/test_account_seed.php';
+        if (function_exists('vpEnsureTestAccount')) {
+            @vpEnsureTestAccount($con);
+        }
+        vpMarkSchemaDone($con, 'vt_test_account');
+    } catch (Throwable $e) {
+        @error_log("[SQL] test account seed failed: " . $e->getMessage());
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Signed auth cookie helpers.
 // Used to read user_id/user_type on GET page loads WITHOUT starting a PHP
