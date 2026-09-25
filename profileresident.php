@@ -26,6 +26,8 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_type']) || $_SESSION[
 }
 
 $userId = intval($_SESSION['user_id']);
+$vhecoShowAnnouncement = empty($_SESSION['vheco_announcement_shown']);
+$_SESSION['vheco_announcement_shown'] = true;
 $user = null;
 
 // Fetch resident details
@@ -7608,22 +7610,17 @@ window.VP_CSRF_TOKEN = <?php echo json_encode(function_exists('vpCsrfGetToken') 
 })();
 </script>
 <?php endif; ?>
+<?php if ($vhecoShowAnnouncement): ?>
 <script>
 (function(){
-  var uid = <?php echo (int)$userId; ?>;
-  var flag = 'vhecopointAnnounced_' + uid;
-  try {
-    if(sessionStorage.getItem(flag)) return;
-  } catch(e){ return; }
   var overlay = document.getElementById('vhecopointAnnouncement');
   if(!overlay) return;
   var closeBtn = document.getElementById('vhecopointPopupClose');
-  var popupCard = overlay.querySelector('.vhecopoint-popup-card');
   function hide(){
     overlay.style.display = 'none';
     overlay.classList.remove('vhecopoint-popup-open');
   }
-  closeBtn.addEventListener('click', hide);
+  if(closeBtn) closeBtn.addEventListener('click', hide);
   overlay.addEventListener('click', function(e){
     if(e.target === overlay) hide();
   });
@@ -7631,7 +7628,6 @@ window.VP_CSRF_TOKEN = <?php echo json_encode(function_exists('vpCsrfGetToken') 
     if(e.key === 'Escape' && overlay.style.display !== 'none') hide();
   });
   setTimeout(function(){
-    try { sessionStorage.setItem(flag, '1'); } catch(e){}
     overlay.style.display = 'flex';
     requestAnimationFrame(function(){ overlay.classList.add('vhecopoint-popup-open'); });
     var learn = document.getElementById('vhecopointPopupLearn');
@@ -7639,5 +7635,6 @@ window.VP_CSRF_TOKEN = <?php echo json_encode(function_exists('vpCsrfGetToken') 
   }, 600);
 })();
 </script>
+<?php endif; ?>
 </body>
 </html>
