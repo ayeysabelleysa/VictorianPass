@@ -704,6 +704,12 @@ html, body { max-width: 100%; overflow-x: hidden; height: auto; min-height: 100%
   transform: none;
 }
 
+.btn-submit.disabled:hover {
+  opacity: 0.6;
+  transform: none;
+  box-shadow: none;
+}
+
 .btn-main {
   background: linear-gradient(135deg, #23412e 0%, #345c40 100%);
   color: #fff;

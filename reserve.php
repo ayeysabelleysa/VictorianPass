@@ -3337,7 +3337,9 @@ async function changePersons(val){
     const persons=parseInt(document.getElementById('personsInput').value||'0');
     const hours=parseInt(document.getElementById('hoursInput')?.value||'0');
     if(!amen||!s||!eD) return false;
-    if(s && eD && eD < s) return false;
+    if(s < minDateStr) return false;
+    if(eD < s) return false;
+    if(Math.floor((new Date(eD) - new Date(s))/(1000*60*60*24)) > 6) return false;
     if(!st) return false;
     if(st){ if(!et){ computeEndTimeFromHours(); } const [sh,sm]=(st||'').split(':'), [eh,em]=(document.getElementById('endTimeInput').value||'').split(':'); const sMin=(parseInt(sh||'0',10)*60)+parseInt(sm||'0',10); const eMin=(parseInt(eh||'0',10)*60)+parseInt(em||'0',10); if(eMin<=sMin) return false; }
     if(isHourBasedAmenity(amen)){ if(hours<1) return false; }
@@ -3345,6 +3347,32 @@ async function changePersons(val){
     const max=getAmenityMaxPersons(amen);
     if(max!==Infinity && persons>max) return false;
     return true;
+  }
+
+  function getNextButtonMissingFields(){
+    const amen=document.getElementById('amenityField').value;
+    const s=document.getElementById('startDateInput').value;
+    const eD=document.getElementById('endDateInput').value;
+    const st=document.getElementById('startTimeInput').value;
+    const et=document.getElementById('endTimeInput').value;
+    const persons=parseInt(document.getElementById('personsInput').value||'0');
+    const hours=parseInt(document.getElementById('hoursInput')?.value||'0');
+    const missing=[];
+    const max=getAmenityMaxPersons(amen);
+    if(!amen) missing.push('an amenity');
+    if(!s) missing.push('a start date');
+    if(!eD) missing.push('an end date');
+    if(!st || !et) missing.push('a start time');
+    if(s && eD){
+      if(s < minDateStr){ missing.push('a start date at least 1 day ahead'); }
+      else if(eD < s){ missing.push('an end date on or after the start date'); }
+      else if(Math.floor((new Date(eD) - new Date(s))/(1000*60*60*24)) > 6){ missing.push('a booking within 1 week'); }
+    }
+    if(st && et){ const [sh,sm]=st.split(':'), [eh,em]=et.split(':'); const sMin=(parseInt(sh||'0',10)*60)+parseInt(sm||'0',10); const eMin=(parseInt(eh||'0',10)*60)+parseInt(em||'0',10); if(eMin<=sMin) missing.push('an end time after the start time'); }
+    if(isHourBasedAmenity(amen)){ if(hours<1) missing.push('at least 1 hour'); }
+    if(persons<1) missing.push('at least 1 person');
+    if(max!==Infinity && persons>max) missing.push('a maximum of '+max+' persons');
+    return missing;
   }
 
   document.getElementById("prevMonth").onclick=()=>{currentMonth=currentMonth===0?11:currentMonth-1;currentYear=currentMonth===11?currentYear-1:currentYear;renderCalendar(currentMonth,currentYear)};
@@ -3445,6 +3473,12 @@ async function changePersons(val){
       e.preventDefault();
       if(submitting){ return; }
       persistForm();
+      if(typeof formIsComplete==='function' && !formIsComplete()){
+        showIncompleteWarnings(true);
+        const miss=(typeof getNextButtonMissingFields==='function')?getNextButtonMissingFields():[];
+        showToast(miss.length ? 'Next is blocked - complete the highlighted fields to continue: ' + miss.join(', ') : 'Please complete all fields accurately before proceeding.','warning');
+        return;
+      }
       let verifyAllowed=true;
       const gateEl=document.getElementById('submitAllowed');
       if(gateEl && gateEl.value==='0'){ verifyAllowed=false; setFieldWarning('amenityField','Payment pending. Complete downpayment to continue.'); }
@@ -3673,9 +3707,10 @@ async function changePersons(val){
     if(xBtn){ xBtn.addEventListener('click', function(){ if(vm){ vpHideModal(vm); } }); }
     if(pBtn){
       pBtn.addEventListener('click', function(){
-        showIncompleteWarnings();
-        if(!formIsComplete()){
-          showToast('Please fix the highlighted fields before proceeding.','warning');
+        showIncompleteWarnings(true);
+        if(typeof formIsComplete==='function' && !formIsComplete()){
+          const miss=(typeof getNextButtonMissingFields==='function')?getNextButtonMissingFields():[];
+          showToast(miss.length ? 'Next is blocked - complete the highlighted fields to continue: ' + miss.join(', ') : 'Please fix the highlighted fields before proceeding.','warning');
           return;
         }
         var bookingForField = document.getElementById('bookingForField');
@@ -3934,31 +3969,23 @@ async function changePersons(val){
     nl.__t=setTimeout(function(){ nl.style.display='none'; }, 4000);
   }
   function updateActionStates(){
-    const s=document.getElementById('startDateInput').value;
-    const eD=document.getElementById('endDateInput').value;
-    const amenVal=document.getElementById('amenityField').value;
-    const stInput=document.getElementById('startTimeInput');
-    const etInput=document.getElementById('endTimeInput');
-    const st=stInput ? stInput.value : '';
-    const et=etInput ? etInput.value : '';
-    const persons=parseInt(document.getElementById('personsInput').value||'0');
-    const hours=parseInt(document.getElementById('hoursInput')?.value||'0');
     const submitBtn=document.getElementById('submitBtn');
     const gate=document.getElementById('submitAllowed');
-    let allowed=true;
-    const max=getAmenityMaxPersons(amenVal);
-    if(!amenVal) allowed=false;
-    if(!s||!eD) allowed=false;
-    const requiresTime = true;
-    if(requiresTime && (!st||!et)) allowed=false;
-    if(s&&eD && eD < s) allowed=false;
-    if(s&&eD){ const sDate=new Date(s); const eDate=new Date(eD); const diff=Math.floor((eDate - sDate)/(1000*60*60*24)); if(diff>6) allowed=false; }
-    if(requiresTime && st&&et){ const [sh,sm]=(st||'').split(':'), [eh,em]=(et||'').split(':'); const sMin=(parseInt(sh||'0',10)*60)+parseInt(sm||'0',10); const eMin=(parseInt(eh||'0',10)*60)+parseInt(em||'0',10); if(eMin<=sMin) allowed=false; }
-    if(isHourBasedAmenity(amenVal)){ if(hours<1) allowed=false; }
-    if(persons<1) allowed=false;
-    if(max!==Infinity && persons>max) allowed=false;
-    
-    if(submitBtn){ if(allowed){ submitBtn.classList.remove('disabled'); submitBtn.removeAttribute('disabled'); } else { submitBtn.classList.add('disabled'); submitBtn.setAttribute('disabled','disabled'); } }
+    const missing=(typeof getNextButtonMissingFields==='function')?getNextButtonMissingFields():[];
+    const allowed=missing.length===0;
+    if(submitBtn){
+      if(allowed){
+        submitBtn.classList.remove('disabled');
+        submitBtn.removeAttribute('aria-disabled');
+        submitBtn.removeAttribute('disabled');
+        submitBtn.title='';
+      } else {
+        submitBtn.classList.add('disabled');
+        submitBtn.setAttribute('aria-disabled','true');
+        submitBtn.removeAttribute('disabled');
+        submitBtn.title='Next is blocked - complete the highlighted fields to continue: ' + missing.join(', ');
+      }
+    }
     const sw=document.getElementById('submitWrap'); if(sw){ sw.style.display = 'flex'; }
   }
   function persistForm(){
