@@ -127,8 +127,8 @@ function format_time_ap($t){
     return $hh . ':' . str_pad((string)$m, 2, '0', STR_PAD_LEFT) . ' ' . $ap;
 }
 
-function reservationHourlyRate($amenity, $bookingFor){
-  $isResidentBooking = strtolower(trim((string)$bookingFor)) === 'resident';
+function reservationHourlyRate($amenity, $accountType){
+  $isResidentBooking = strtolower(trim((string)$accountType)) === 'resident';
   if ($amenity === 'Basketball Court' || $amenity === 'Tennis Court') { return $isResidentBooking ? 100 : 150; }
   if ($amenity === 'Clubhouse') { return $isResidentBooking ? 300 : 450; }
   if ($amenity === 'Multi-Purpose Building') { return $isResidentBooking ? 200 : 300; }
@@ -265,7 +265,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
       // Authoritative end time = start time + hours (server-side), so a stale/legacy
       // pending session can never write a corrupt end time into the database.
       $hoursPending = isset($pending['hours']) ? intval($pending['hours']) : 0;
-      if ($hoursPending <= 0) { $hoursPending = deriveReservationHours($amenity, $booking_for, $price); }
+      if ($hoursPending <= 0) { $hoursPending = deriveReservationHours($amenity, $pending['account_type'] ?? $userType, $price); }
       if ($hoursPending > 0) { $endTime = normalizeEndTimeFromHours($startTime, $hoursPending, $amenity); }
       if(empty($msg)){
         $acct = ($continue_post === 'reserve_resident') ? 'resident' : 'visitor';
@@ -647,7 +647,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
           $persons = isset($pending['persons']) ? intval($pending['persons']) : 1;
           $usePoints = !empty($pending['use_points']);
           $pointsUsed = intval($pending['points_used'] ?? 0);
-          $hourlyRate = reservationHourlyRate($amenity, $pending['booking_for'] ?? $pending['account_type'] ?? (($userType === 'resident' && empty($pending['entry_pass_id'])) ? 'resident' : 'guest'));
+          $hourlyRate = reservationHourlyRate($amenity, $pending['account_type'] ?? $userType);
           $paidHours = $usePoints ? max(0, $hours - 1) : $hours;
           $originalAmount = $usePoints ? ($price + $hourlyRate) : $price;
           $rewardPoints = $pointsUsed > 0 ? $pointsUsed : (($amenity === 'Basketball Court' || $amenity === 'Tennis Court') ? 300 : (($amenity === 'Clubhouse') ? 600 : (($amenity === 'Multi-Purpose Building') ? 750 : 0)));

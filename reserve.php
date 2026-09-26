@@ -284,7 +284,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
       $booking_for = 'guest';
     }
-    $isResidentRate = ($acct === 'resident' && $booking_for === 'resident');
+    $isResidentRate = ($acct === 'resident');
     if (in_array($amenity, ['Basketball Court','Tennis Court'], true)) {
       $rate = $isResidentRate ? 100 : 150;
       $basePrice = max(1, $hours) * $rate;
@@ -596,6 +596,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               'price' => $price,
               'downpayment' => $downpayment,
               'user_id' => $user_id,
+              'account_type' => $acct,
               'entry_pass_id' => $entry_pass_id,
               'booking_for' => $booking_for,
               'guest_id' => $guest_id_post,
@@ -2689,7 +2690,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     try{ sessionStorage.removeItem('reserve_form'); }catch(_){}
     selectedAmenity='';
     const amenField=document.getElementById('amenityField'); if(amenField){ amenField.value=''; }
-    const bookingForField=document.getElementById('bookingForField'); if(bookingForField){ bookingForField.value=''; }
+    const bookingForField=document.getElementById('bookingForField'); if(bookingForField){ bookingForField.value=currentUserType==='resident'?'resident':'guest'; }
     const guestIdField=document.getElementById('guestIdField'); if(guestIdField){ guestIdField.value=''; }
     const guestRefField=document.getElementById('guestRefField'); if(guestRefField){ guestRefField.value=''; }
     resetReservationForm();
@@ -2862,8 +2863,7 @@ async function changePersons(val){
   function isHourBasedAmenity(amen){ return amen==='Basketball Court' || amen==='Tennis Court' || amen==='Clubhouse' || amen==='Multi-Purpose Building'; }
   function isPersonBasedAmenity(){ return false; }
   function isResidentSelfBooking(){
-    const field=document.getElementById('bookingForField');
-    return field && field.value === 'resident';
+    return currentUserType === 'resident';
   }
   function getHourlyRate(amen, residentBooking){
     const useResidentRate = typeof residentBooking === 'boolean' ? residentBooking : isResidentSelfBooking();

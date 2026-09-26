@@ -262,7 +262,7 @@ if (!$data) {
             'email' => $email,
             'address' => $address,
             'amenity' => $row['amenity'] ?? '',
-            'booking_for' => strtolower(trim((string)($row['booking_for'] ?? ($isResident ? 'resident' : 'guest')))),
+            'account_type' => strtolower(trim((string)($row['account_type'] ?? ($isResident ? 'resident' : 'visitor')))),
             'start_time' => $row['start_time'] ?? null,
             'end_time' => $row['end_time'] ?? null,
             'persons' => isset($row['persons']) ? intval($row['persons']) : null,
@@ -737,7 +737,7 @@ if (!$data) {
                 }
             }
             $rAmenityName = $data['amenity'] ?? '';
-            $rIsResidentRate = ($data['booking_for'] ?? '') === 'resident';
+            $rIsResidentRate = ($data['account_type'] ?? '') === 'resident';
             $rAmenityRate = 0;
             if (in_array($rAmenityName, ['Basketball Court','Tennis Court'], true)) $rAmenityRate = $rIsResidentRate ? 100 : 150;
             elseif ($rAmenityName === 'Clubhouse') $rAmenityRate = $rIsResidentRate ? 300 : 450;
