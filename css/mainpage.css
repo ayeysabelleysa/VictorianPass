@@ -753,7 +753,7 @@ html { scroll-behavior: smooth; }
   height: 92px;
   flex: 0 0 auto;
   border-radius: 22px;
-  background: linear-gradient(135deg, #166534 0%, #22c55e 100%);
+  background: linear-gradient(145deg, #00391f 0%, #00512d 56%, #003a22 100%);
   border: 1px solid rgba(212, 175, 55, 0.55);
   box-shadow: 0 8px 18px rgba(22, 101, 52, 0.24);
 }
@@ -761,7 +761,7 @@ html { scroll-behavior: smooth; }
 .eco-app-tile-name {
   font-size: 0.98rem;
   font-weight: 700;
-  color: #166534;
+  color: #004426;
   line-height: 1.2;
   text-align: center;
 }
@@ -1526,7 +1526,7 @@ html { scroll-behavior: smooth; }
 .ecopoint-modal .flash-modal .text{color:#555;line-height:1.7;margin:0}
 /* "Learn About VHEcoPoint" modal — compact text sizing */
 .ecopoint-modal .flash-modal{padding:22px 18px}
-.ecopoint-modal .ecopoint-title{font-size:16px}
+.ecopoint-modal .ecopoint-title{font-size:24px}
 .ecopoint-modal .ecopoint-title .ecopoint-title-icon{width:40px;height:40px;font-size:1.15rem}
 .ecopoint-modal .ecopoint-description{font-size:13px;line-height:1.5}
 .ecopoint-modal .ecopoint-card-title{font-size:14px}

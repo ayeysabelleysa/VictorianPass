@@ -352,7 +352,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
       <p class="tagline">Every home has a story — start yours in a place worth remembering.</p>
       <?php if (($isResident || !$isLoggedIn) && !$isVisitor): ?>
-      <p class="hero-eco-subtitle" data-ecopoint-modal-open="true" role="button" tabindex="0" aria-haspopup="dialog"><span class="hero-eco-subtitle-top"><span class="hero-eco-subtitle-icon" aria-hidden="true">&#9851;</span><span class="hero-eco-subtitle-main">Now with VHEcoPoint Rewards</span></span><span class="hero-eco-subtitle-sub">Recycle &amp; Earn Points</span><span class="hero-eco-subtitle-hint">See description &#9662;</span></p>
+      <p class="hero-eco-subtitle" data-ecopoint-modal-open="true" role="button" tabindex="0" aria-haspopup="dialog"><span class="hero-eco-subtitle-top"><span class="hero-eco-subtitle-icon" aria-hidden="true">&#9851;</span><span class="hero-eco-subtitle-main">Now with VHEcoPoint</span></span><span class="hero-eco-subtitle-sub">Recycle Smart. Earn Eco Points. Enjoy Victorian Heights.</span><span class="hero-eco-subtitle-hint">See description &#9662;</span></p>
       <!-- Mobile-only: See description button for VHEcoPoint (short, close to subtitle) -->
       <button class="mobile-ecopoint-btn" data-ecopoint-modal-open="true" aria-controls="ecopointModal" aria-expanded="false">See VHEcoPoint description</button>
       <?php endif; ?>
@@ -393,7 +393,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       <button type="button" class="close-profile-modal" id="ecopointModalClose" aria-label="Close">&times;</button>
       <div class="ecopoint-shell">
         <div class="ecopoint-intro-card" style="margin-bottom:18px;">
-          <h2 class="section-title ecopoint-title" id="ecopointModalTitle"><span class="ecopoint-title-icon" aria-hidden="true"><i class="fa-solid fa-leaf"></i></span><span>Learn About VHEcoPoint</span></h2>
+          <h2 class="section-title ecopoint-title" id="ecopointModalTitle">Learn About VHEcoPoint</h2>
           <div class="section-divider"></div>          <?php if (!$isLoggedIn): ?>
           <div style="background:#fef3c7; border:1px solid #fcd34d; border-radius:8px; padding:12px 14px; margin-bottom:16px; color:#92400e;">
             <strong style="display:block; margin-bottom:4px;">For Residents Exclusively</strong>
