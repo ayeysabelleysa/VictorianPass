@@ -19,10 +19,14 @@
   // =====================================================================
   // Configuration
   // =====================================================================
+  // Endpoints are resolved relative to the current document (profileresident.php)
+  // so the app keeps working whether it is served from the web root or from a
+  // sub-folder such as /VictorianPass/. Root-absolute "/api/..." 404s in the
+  // sub-folder case, which silently killed both SSE and the polling fallback.
   const CONFIG = {
-    SSE_ENDPOINT: '/api/ecopoint_sse.php',
-    POLL_ENDPOINT: '/api/ecopoint_session_status.php',
-    END_SESSION_ENDPOINT: '/api/ecopoint_end_session.php',
+    SSE_ENDPOINT: 'api/ecopoint_sse.php',
+    POLL_ENDPOINT: 'api/ecopoint_session_status.php',
+    END_SESSION_ENDPOINT: 'api/ecopoint_end_session.php',
     POLL_INTERVAL_MS: 5000, // fallback poll if SSE fails
     NOTIFICATION_DURATION_MS: 6000,
     UI_UPDATE_THROTTLE_MS: 200, // prevent excessive DOM updates
@@ -622,19 +626,28 @@
   }
 
   function updateCurrentBalance(balance) {
-    const balanceEl = getElement('ecopoint-current-balance');
-    if (balanceEl) {
-      setText('ecopoint-current-balance', number_format(balance) + ' pts');
-    }
+    if (balance === null || balance === undefined) return;
+    // The KPI card renders "<number> / 3,000 pts", so only the number is
+    // replaced here — appending " pts" would duplicate the unit.
+    setText('ecopoint-current-balance', number_format(balance));
+  }
+
+  function updateWeeklyPoints(capState) {
+    if (!capState) return;
+
+    const weeklyUsed = Math.round(parseFloat(capState.weekly_points_used || 0));
+    const weeklyRemaining = Math.max(0, Math.round(parseFloat(capState.weekly_points_left || 0)));
+
+    setText('ecopoint-weekly-points', number_format(weeklyUsed));
+    setText('ecopoint-weekly-remaining', number_format(weeklyRemaining) + ' pts remain before this week\'s program cap resets.');
   }
 
   function updateCapState(capState) {
     if (!capState) return;
 
     const dailyUsed = Math.round(parseFloat(capState.daily_points_used || 0));
-    const dailyRemaining = Math.round(parseFloat(capState.daily_points_left || 0));
-    const weeklyRemaining = Math.round(parseFloat(capState.weekly_points_left || 0));
-    const dailySessions = parseInt(capState.daily_sessions_left || 0);
+    const dailyRemaining = Math.max(0, Math.round(parseFloat(capState.daily_points_left || 0)));
+    const dailySessions = Math.max(0, parseInt(capState.daily_sessions_left || 0, 10));
 
     const ptsTodayEl = getElement('ecopoint-daily-pts-today');
     if (ptsTodayEl) {
@@ -647,20 +660,44 @@
       setText('ecopoint-daily-remaining', dailyRemaining + ' pts');
     }
 
-    const weeklyEl = getElement('ecopoint-weekly-remaining');
-    if (weeklyEl) {
-      setText('ecopoint-weekly-remaining', weeklyRemaining + ' pts');
-    }
-
     const sessionsEl = getElement('ecopoint-sessions-remaining');
     if (sessionsEl) {
-      setText('ecopoint-sessions-remaining', dailySessions + ' sessions');
+      setText(
+        'ecopoint-sessions-remaining',
+        dailySessions + ' session' + (dailySessions === 1 ? '' : 's') + ' remaining. Maximum of 3 VHEcoPoint station visits per day.'
+      );
     }
   }
 
   // Simple number formatter
   function number_format(num) {
     return Math.round(parseFloat(num)).toLocaleString();
+  }
+
+  // Coalesce bursts of snapshots into a single render pass, and run each
+  // updater independently so one failing function cannot stop the others
+  // (an uncaught throw here previously left the whole panel frozen).
+  function scheduleUiUpdate(snapshot) {
+    if (!snapshot) return;
+    if (uiUpdateTimeout) {
+      clearTimeout(uiUpdateTimeout);
+    }
+    uiUpdateTimeout = setTimeout(() => {
+      uiUpdateTimeout = null;
+      const updaters = [
+        ['updateLiveSessionUI', () => updateLiveSessionUI(snapshot)],
+        ['updateCurrentBalance', () => updateCurrentBalance(snapshot.current_balance)],
+        ['updateWeeklyPoints', () => updateWeeklyPoints(snapshot.cap_state)],
+        ['updateCapState', () => updateCapState(snapshot.cap_state)],
+      ];
+      updaters.forEach(function(entry) {
+        try {
+          entry[1]();
+        } catch (e) {
+          log('UI update failed: ' + entry[0], e);
+        }
+      });
+    }, CONFIG.UI_UPDATE_THROTTLE_MS);
   }
 
   // =====================================================================
@@ -803,15 +840,7 @@
           lastSnapshot = snapshot;
 
           // Throttle UI updates
-          if (uiUpdateTimeout) {
-            clearTimeout(uiUpdateTimeout);
-          }
-          uiUpdateTimeout = setTimeout(() => {
-            updateLiveSessionUI(snapshot);
-            updateCurrentBalance(snapshot.current_balance);
-            updateWeeklyPoints(snapshot.cap_state);
-            updateCapState(snapshot.cap_state);
-          }, CONFIG.UI_UPDATE_THROTTLE_MS);
+          scheduleUiUpdate(snapshot);
 
           reconnectAttempts = 0; // Reset on successful message
         } catch (e) {
@@ -896,15 +925,7 @@
             detectAndNotifyChanges(snapshot);
             lastSnapshot = snapshot;
 
-            if (uiUpdateTimeout) {
-              clearTimeout(uiUpdateTimeout);
-            }
-            uiUpdateTimeout = setTimeout(() => {
-              updateLiveSessionUI(snapshot);
-              updateCurrentBalance(snapshot.current_balance);
-              updateWeeklyPoints(snapshot.cap_state);
-              updateCapState(snapshot.cap_state);
-            }, CONFIG.UI_UPDATE_THROTTLE_MS);
+            scheduleUiUpdate(snapshot);
           }
         })
         .catch(e => {

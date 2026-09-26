@@ -3825,7 +3825,7 @@ body.modal-open{overflow:hidden}
                   $ecoBalanceDigits = strlen((string)(int)abs((float)$currentPoints));
                   $ecoBalanceFontSize = (string)max(1.4, 2.0 - (max(0, $ecoBalanceDigits - 4) * 0.1));
                 ?>
-                <div class="ecopoint-kpi-value ecopoint-balance-value"><i class="fa-solid fa-star ecopoint-balance-star" aria-hidden="true"></i><span class="ecopoint-balance-number" style="font-size:<?php echo $ecoBalanceFontSize; ?>rem;"><?php echo number_format($currentPoints); ?></span><span class="ecopoint-balance-limit">/ <?php echo number_format(3000); ?> pts</span></div>
+                <div class="ecopoint-kpi-value ecopoint-balance-value"><i class="fa-solid fa-star ecopoint-balance-star" aria-hidden="true"></i><span class="ecopoint-balance-number" id="ecopoint-current-balance" style="font-size:<?php echo $ecoBalanceFontSize; ?>rem;"><?php echo number_format($currentPoints); ?></span><span class="ecopoint-balance-limit">/ <?php echo number_format(3000); ?> pts</span></div>
                 <div class="ecopoint-kpi-subtext"><i class="fa-solid fa-circle-info ecopoint-info" title="Earned points add to this balance; redeemed or adjusted points subtract from it. The maximum balance is 3,000 points."></i> Net balance from VHEcoPoint recycling ledger (earn − redeem ± adjustments). Maximum balance is 3,000 pts.</div>
                 <?php if ($ecoPointsLimitReached): ?>
                 <div class="ecopoint-limit-banner"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>Maximum limit of <?php echo number_format($ecoPointMaxBalance); ?> points reached. You cannot earn additional points until your balance decreases.</span></div>
@@ -3833,8 +3833,8 @@ body.modal-open{overflow:hidden}
               </div>
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label"><i class="fa-solid fa-chart-line" style="margin-right:5px; opacity:0.7;"></i>Weekly Points Earned</div>
-                <div class="ecopoint-kpi-value"><?php echo number_format($ecoPointWeeklyPoints); ?> / <?php echo number_format($ecoPointWeeklyCap); ?> pts</div>
-                <div class="ecopoint-kpi-subtext"><i class="fa-solid fa-circle-info ecopoint-info" title="How many of this week's allowed points you have already earned toward the program cap."></i> <?php echo number_format($ecoPointWeeklyRemaining); ?> pts remain before this week's program cap resets.</div>
+                <div class="ecopoint-kpi-value"><span id="ecopoint-weekly-points"><?php echo number_format($ecoPointWeeklyPoints); ?></span> / <?php echo number_format($ecoPointWeeklyCap); ?> pts</div>
+                <div class="ecopoint-kpi-subtext"><i class="fa-solid fa-circle-info ecopoint-info" title="How many of this week's allowed points you have already earned toward the program cap."></i> <span id="ecopoint-weekly-remaining"><?php echo number_format($ecoPointWeeklyRemaining); ?> pts remain before this week's program cap resets.</span></div>
               </div>
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label"><i class="fa-solid fa-bolt" style="margin-right:5px; opacity:0.7;"></i>Daily Points Earned</div>
@@ -3844,7 +3844,7 @@ body.modal-open{overflow:hidden}
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label"><i class="fa-solid fa-right-to-bracket" style="margin-right:5px; opacity:0.7;"></i>Daily Sessions Used</div>
                 <div class="ecopoint-kpi-value"><?php echo number_format($ecoPointTodaySessionsUsed); ?> / <?php echo number_format($ecoPointDailySessionsMax); ?> Used Today</div>
-                <div class="ecopoint-kpi-subtext"><i class="fa-solid fa-circle-info ecopoint-info" title="Each session is one VHEcoPoint station visit. The daily maximum is 3 visits."></i> <?php echo number_format($ecoPointSessionsRemaining); ?> session<?php echo $ecoPointSessionsRemaining === 1 ? '' : 's'; ?> remaining. Maximum of 3 VHEcoPoint station visits per day.</div>
+                <div class="ecopoint-kpi-subtext"><i class="fa-solid fa-circle-info ecopoint-info" title="Each session is one VHEcoPoint station visit. The daily maximum is 3 visits."></i> <span id="ecopoint-sessions-remaining"><?php echo number_format($ecoPointSessionsRemaining); ?> session<?php echo $ecoPointSessionsRemaining === 1 ? '' : 's'; ?> remaining. Maximum of 3 VHEcoPoint station visits per day.</span></div>
               </div>
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label"><i class="fa-solid fa-clock" style="margin-right:5px; opacity:0.7;"></i>Points Expiry Countdown</div>
@@ -7559,7 +7559,13 @@ function replaceProof(reportId, proofId){
 <script>
 window.VP_CSRF_TOKEN = <?php echo json_encode(function_exists('vpCsrfGetToken') ? vpCsrfGetToken() : ''); ?>;
 </script>
-<script src="js/ecopoint_dashboard.js"></script>
+<?php
+  // Cache-bust with the script's mtime so browsers always pick up the current
+  // live-session build (a cached copy kept rendering the old "0.00 kg" panel).
+  $vpEcoJs = __DIR__ . '/js/ecopoint_dashboard.js';
+  $vpEcoJsV = is_file($vpEcoJs) ? (string)filemtime($vpEcoJs) : '1';
+?>
+<script src="js/ecopoint_dashboard.js?v=<?php echo $vpEcoJsV; ?>"></script>
 <div id="vhecopointAnnouncement" class="vhecopoint-popup-overlay" role="dialog" aria-modal="true" aria-labelledby="vhecopointPopupTitle" aria-describedby="vhecopointPopupText" style="display:none;">
   <div class="vhecopoint-popup-card">
     <button type="button" class="vhecopoint-popup-close" id="vhecopointPopupClose" aria-label="Close announcement">&times;</button>

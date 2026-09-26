@@ -1612,7 +1612,14 @@ function getVisitors($con) {
 }
 
 function getResidents($con) {
-    $query = "SELECT * FROM users WHERE user_type = 'resident' ORDER BY created_at DESC";
+    // Alphabetical by name. The "Name" column renders "first_name last_name",
+    // so sort on that same order to keep the list matching what is displayed.
+    // COALESCE keeps rows with a blank name from jumping to the top.
+    $query = "SELECT * FROM users
+              WHERE user_type = 'resident'
+              ORDER BY COALESCE(first_name, '') ASC,
+                       COALESCE(last_name, '') ASC,
+                       id ASC";
     $result = $con->query($query);
     if ($result) {
         return $result;
