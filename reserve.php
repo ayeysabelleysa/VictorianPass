@@ -1037,6 +1037,9 @@ vpMark('household');
   <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
   <link rel="stylesheet" href="css/reserve.css?v=<?php echo substr(@md5_file(__DIR__ . '/css/reserve.css') ?: '', 0, 12); ?>">
   <link rel="stylesheet" href="css/navbar.css?v=<?php echo substr(@md5_file(__DIR__ . '/css/navbar.css') ?: '', 0, 12); ?>">
+  <?php if (strtolower((string)$sessionUserType) === 'resident'): ?>
+  <link rel="stylesheet" href="css/ecopoint-brand.css?v=<?php echo substr(@md5_file(__DIR__ . '/css/ecopoint-brand.css') ?: '', 0, 12); ?>">
+  <?php endif; ?>
 </head>
 <?php
 // Flush the <head> HTML now so the browser can start loading CSS/JS while the
@@ -1047,7 +1050,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
 <body>
   <div id="notifyLayer" class="toast"></div>
    
-<?php include __DIR__ . '/navbar.php'; ?>
+<?php $navUseEcoPointBrand = (strtolower((string)$sessionUserType) === 'resident'); $navHideUserProfile = true; include __DIR__ . '/navbar.php'; ?>
 
 <section class="hero">
   <div class="layout">

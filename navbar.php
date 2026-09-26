@@ -48,21 +48,26 @@ if ($navUid > 0 && isset($con) && ($con instanceof mysqli)) {
 
 $navDashboardUrl = (strtolower($navUserType) === 'resident') ? 'profileresident.php' : 'dashboardvisitor.php';
 $navGreeting = $navUserFirstName !== '' ? $navUserFirstName : ($navUserName !== '' ? $navUserName : 'User');
+$navHideUserProfile = !empty($navHideUserProfile);
+$navUseEcoPointBrand = !empty($navUseEcoPointBrand) && $navIsLoggedIn && strtolower($navUserType) === 'resident';
+if ($navUseEcoPointBrand) { require_once __DIR__ . '/ecopoint_brand.php'; }
 ?>
 <header class="top-header">
   <div class="header-brand">
-    <a href="mainpage.php" class="header-brand-link" aria-label="Go to Main Page"><img src="images/logo.svg" alt="VictorianPass Logo"></a>
+    <a href="mainpage.php" class="header-brand-link" aria-label="Go to Main Page"><?php echo $navUseEcoPointBrand ? vh_eco_logo('VHEcoPoint') : '<img src="images/logo.svg" alt="VictorianPass Logo">'; ?></a>
     <div class="brand-text">
-      <span class="brand-main">VictorianPass</span>
-      <span class="brand-sub">Victorian Heights Subdivision</span>
+      <span class="brand-main"><?php echo $navUseEcoPointBrand ? 'VHEcoPoint' : 'VictorianPass'; ?></span>
+      <span class="brand-sub"><?php echo $navUseEcoPointBrand ? 'Smart Waste Segregation Station' : 'Victorian Heights Subdivision'; ?></span>
     </div>
   </div>
   <div class="header-actions">
     <?php if ($navIsLoggedIn): ?>
+      <?php if (!$navHideUserProfile): ?>
       <a href="<?php echo htmlspecialchars($navDashboardUrl); ?>" class="user-profile">
         <span class="user-name">Hi, <?php echo htmlspecialchars($navGreeting); ?></span>
         <img src="<?php echo htmlspecialchars($navProfilePicUrl); ?>" alt="Profile" class="user-avatar" onerror="this.onerror=null;this.src='images/logo.svg'">
       </a>
+      <?php endif; ?>
     <?php else: ?>
       <div class="nav-links" style="display:flex; gap:10px;">
         <a href="login.php" class="btn-nav btn-login">Login</a>

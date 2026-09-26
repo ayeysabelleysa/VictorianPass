@@ -478,7 +478,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <span><strong>Maximum Account Balance:</strong> 3,000 pts</span>
               </div>
             </div>
-            <p class="pg-note" style="color:#4b5563;">Earn up to <strong>100 EcoPoints per day</strong> from recyclable materials, spread across up to 3 recycling sessions. Reach the daily limit and no further EcoPoints are awarded that day &mdash; you receive exactly what you earned.</p>
           </article>
 
           <article class="ecopoint-card">
