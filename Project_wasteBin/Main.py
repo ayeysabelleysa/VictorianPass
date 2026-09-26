@@ -9,6 +9,7 @@ from qr_scanner import (
     start_scanner,
     read_qr,
     is_victorianpass,
+    extract_resident_code,
     close_scanner
 )
 
@@ -25,6 +26,8 @@ from inductive import (
     wait_for_metal_stable,
     close_inductive
 )
+
+import Servo
 
 
 # =========================================================
@@ -75,10 +78,17 @@ METAL_STABLE_TIME = 0.5
 MAX_SESSIONS = 3
 DAILY_POINT_CAP = 100
 CAMERA_TIMEOUT = 0.5
-CAMERA_CLASSIFICATION_TIMEOUT = 3.0
+
+# CameraYolo needs roughly STABLE_TIME (3.0s) of continuous
+# dominant detection PLUS at least one inference cycle
+# (DETECTION_INTERVAL 0.6s) before it reports
+# confirmed = true. A 3.0s poll therefore always timed out
+# and every plastic/paper item fell through to the inductive
+# sensor, which then rejected it. 8.0s gives it room to settle.
+CAMERA_CLASSIFICATION_TIMEOUT = 8.0
 
 # Resident session timeout.
-# If no item is placed for 2 minutes,
+# If no item is placed for this many seconds,
 # only the resident session ends.
 IDLE_TIMEOUT = 90
 
@@ -168,15 +178,39 @@ def create_api_session(qr_code):
     print()
     print("Verifying VictorianPass with Hostinger...")
 
+    # =====================================================
+    # READ THE RESIDENT HOUSE CODE FROM THE SCANNED QR
+    #
+    # extract_resident_code() already handles:
+    #   - direct house codes            VH-0019
+    #   - the website QR URL            ?code=VH-0019
+    #   - uppercase query keys          ?CODE=VH-0019
+    #   - extra query parameters        ?code=VH-0019&x=1
+    #
+    # The previous inline "CODE=" split was case sensitive
+    # and sent the whole URL to the API, which never matched.
+    # =====================================================
+
+    resident_code = extract_resident_code(qr_code)
+
     print(
         "QR VALUE SENT TO API:",
-        repr(qr_code.split("CODE=")[-1].strip())
+        repr(resident_code)
     )
+
+    # Fail cleanly instead of sending an unusable value.
+    if not resident_code:
+        print(
+            "Could not read a resident house "
+            "code from the QR."
+        )
+
+        return None
 
     result = api_post(
         QR_API,
         {
-            "qr_code": qr_code.split("CODE=")[-1].strip()
+            "qr_code": resident_code
         }
     )
 
@@ -749,6 +783,18 @@ def process_item():
     else:
         return "REJECTED"
 
+    # =====================================================
+    # 6. SORT MATERIAL INTO THE CORRECT BIN
+    # =====================================================
+
+    try:
+        Servo.sort_material(material)
+
+    except Exception as e:
+        print(
+            f"[SERVO] Sort failed: {e}"
+        )
+
     return weight, points, material
 
 
@@ -769,6 +815,14 @@ try:
     start_weight()
     start_inductive()
 
+    try:
+        Servo.start()
+
+    except Exception as e:
+        print(
+            f"[SERVO] Unavailable: {e}"
+        )
+
     scanner = start_scanner()
 
     print()
@@ -788,7 +842,7 @@ try:
     # MAIN STATION LOOP
     #
     # THIS LOOP NEVER ENDS BECAUSE
-    # OF A RESIDENT'S 2-MINUTE TIMEOUT.
+    # OF A RESIDENT'S IDLE_TIMEOUT.
     # =====================================================
 
     while True:
@@ -910,7 +964,7 @@ try:
             result = process_item()
 
             # =================================================
-            # 2-MINUTE IDLE
+            # IDLE (no item placed before IDLE_TIMEOUT)
             # =================================================
 
             if result == "IDLE":
@@ -921,8 +975,8 @@ try:
                 print("================================")
 
                 print(
-                    "No item detected for "
-                    "2 minutes."
+                    f"No item detected for "
+                    f"{IDLE_TIMEOUT} seconds."
                 )
 
                 print(
@@ -930,13 +984,41 @@ try:
                 )
 
                 # -------------------------------------------------
-                # CANCEL ONLY THIS HOSTINGER SESSION
+                # DECIDE: CANCEL OR COMPLETE
+                #
+                # items counts the items that were ALREADY
+                # physically sorted AND already accepted by
+                # submit_waste_data.php.
+                #
+                # - 0 items  -> nothing was recorded, so the
+                #   session is cancelled (no points are lost,
+                #   because nothing was ever submitted).
+                #
+                # - 1+ items -> waste WAS recorded. Cancelling
+                #   here would leave those WASTE_DATA events
+                #   unawarded forever, so we must NOT cancel.
+                #   complete_api_session() is called by the
+                #   existing post-loop code below, which is
+                #   the same path the daily-cap break already
+                #   uses, so points are still awarded exactly
+                #   once.
                 # -------------------------------------------------
 
-                cancel_api_session(
-                    session_token,
-                    "No item detected for 2 minutes"
-                )
+                if items > 0:
+
+                    print(
+                        f"{items} item(s) already "
+                        "submitted. Finalizing session "
+                        "to award points."
+                    )
+
+                else:
+
+                    cancel_api_session(
+                        session_token,
+                        f"No item detected for "
+                        f"{IDLE_TIMEOUT} seconds"
+                    )
 
                 print()
 
@@ -958,6 +1040,10 @@ try:
                 #
                 # The outer while True
                 # continues.
+                #
+                # Completion of the session is handled by the
+                # shared post-loop code below, so the daily-cap
+                # path and this path cannot double award.
                 # -------------------------------------------------
 
                 break
@@ -1169,6 +1255,12 @@ finally:
 
     try:
         close_inductive()
+
+    except Exception:
+        pass
+
+    try:
+        Servo.close()
 
     except Exception:
         pass

@@ -212,9 +212,9 @@ def sort_material(material):
 
     Material mapping:
 
-        Paper/Cardboard -> LEFT
-        Plastic/PET     -> CENTER
-        Aluminum/Metal  -> RIGHT
+        Plastic/PET     -> LEFT   (45 degrees)
+        Paper/Cardboard -> CENTER (90 degrees)
+        Aluminum/Metal  -> RIGHT  (135 degrees)
     """
 
     if pca is None:
@@ -234,16 +234,16 @@ def sort_material(material):
     # --------------------------------------------------------
 
     if material in (
-        "paper",
-        "cardboard",
-        "paper_cardboard"
+        "plastic",
+        "pet",
+        "bottle"
     ):
         mg996r_left()
 
     elif material in (
-        "plastic",
-        "pet",
-        "bottle"
+        "paper",
+        "cardboard",
+        "paper_cardboard"
     ):
         mg996r_center()
 
@@ -278,6 +278,10 @@ def sort_material(material):
 
     # Small settling delay.
     time.sleep(0.3)
+
+    # Return the horizontal diverter to center so the next item
+    # always starts from a known position instead of a full sweep.
+    mg996r_center()
 
     return True
 
@@ -319,7 +323,7 @@ if __name__ == "__main__":
     print("================================")
     print()
     print("MG995  = Channel 12")
-    print("MG996R = Channel 15")
+    print("MG996R = Channel 14")
     print()
 
     try:

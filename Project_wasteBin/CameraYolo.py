@@ -31,6 +31,12 @@ mixed_material = False
 material_percent = {}
 unrecognized_item = False
 
+# Latest boxes from detect(), in 256x192 detection space.
+# (material, confidence, x1, y1, x2, y2)
+# Published by detect() so the video stream can draw them
+# without running a second YOLO inference.
+detected_boxes = []
+
 lock = threading.Lock()
 yolo_lock = threading.Lock()
 
@@ -101,6 +107,7 @@ def detect():
     global mixed_material
     global material_percent
     global unrecognized_item
+    global detected_boxes
 
     while True:
 
@@ -173,6 +180,7 @@ def detect():
                 mixed_material = False
                 material_percent = {}
                 unrecognized_item = False
+                detected_boxes = []
 
             time.sleep(DETECTION_INTERVAL)
             continue
@@ -204,6 +212,10 @@ def detect():
             mixed_material = is_mixed
             material_percent = percentages
             unrecognized_item = False
+
+            # Publish the boxes we just computed so the video
+            # stream can draw them without inferring again.
+            detected_boxes = boxes
 
             if is_mixed:
 
@@ -242,40 +254,30 @@ def video():
             confirmed = confirmed_material
             mixed = mixed_material
             percentages = material_percent.copy()
+            boxes = detected_boxes
 
         if image is None:
             time.sleep(0.05)
             continue
 
         # Draw YOLO boxes
-        if frame is not None:
-
-            results = model(
-                cv2.resize(
-                    image,
-                    (256, 192),
-                    interpolation=cv2.INTER_AREA
-                ),
-                imgsz=YOLO_SIZE,
-                conf=CONFIDENCE,
-                verbose=False
-            )
+        #
+        # These boxes come from detect(), which already ran the
+        # model on the same 256x192 frame. The previous code ran a
+        # SECOND, unlocked inference here for every streamed
+        # frame. That doubled the model's CPU load, starving
+        # detect(), and it raced with detect() over the shared
+        # predictor state. Reusing the published boxes keeps the
+        # identical overlay while leaving the model free to
+        # actually detect.
+        if boxes:
 
             scale_x = image.shape[1] / 256
             scale_y = image.shape[0] / 192
 
-            for box in results[0].boxes:
+            for box in boxes:
 
-                class_id = int(box.cls[0])
-                name = model.names[class_id].lower()
-
-                if name not in MATERIALS:
-                    continue
-
-                x1, y1, x2, y2 = map(
-                    int,
-                    box.xyxy[0]
-                )
+                x1, y1, x2, y2 = box[2], box[3], box[4], box[5]
 
                 x1 = int(x1 * scale_x)
                 x2 = int(x2 * scale_x)
