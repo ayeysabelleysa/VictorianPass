@@ -291,7 +291,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_visitor_details' && isset(
                                     r.payment_status AS r_payment_status, r.price AS r_price, r.downpayment AS r_downpayment,
                                     r.amenity AS r_amenity, r.start_date AS r_start_date, r.end_date AS r_end_date,
                                     r.start_time AS r_start_time, r.end_time AS r_end_time,
-                                    r.receipt_path AS r_receipt_path, r.receipt_attempts AS receipt_attempts,
+                                    r.receipt_path AS r_receipt_path, r.receipt_uploaded_at AS r_receipt_uploaded_at,
+                                    r.receipt_attempts AS receipt_attempts,
                                     r.persons AS r_persons, r.ref_code AS r_ref_code
                              FROM guest_forms gf
                              LEFT JOIN users u ON u.id = (
@@ -345,6 +346,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_visitor_details' && isset(
             'price' => $isAmenity ? (isset($row['price']) ? floatval($row['price']) : (isset($row['r_price']) ? floatval($row['r_price']) : null)) : null,
             'downpayment' => $isAmenity ? (isset($row['r_downpayment']) ? floatval($row['r_downpayment']) : null) : null,
             'payment_status' => isset($row['r_payment_status']) ? strtolower($row['r_payment_status']) : null,
+            'receipt_url' => !empty($row['r_receipt_path']) ? admin_receipt_url($row['r_receipt_path']) : '',
+            'receipt_uploaded_at' => $row['r_receipt_uploaded_at'] ?? null,
             'ref_code' => ($row['r_ref_code'] ?: $row['ref_code']),
             'approval_status' => $row['approval_status'],
             'approved_by' => $row['approved_by'],
@@ -374,7 +377,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_visitor_details' && isset(
         $result = $stmt->get_result();
         if ($result && $row = $result->fetch_assoc()) {
             $isAmenity = !empty($row['amenity']); $ps = strtolower($row['payment_status'] ?? '');
-            
+          $row['receipt_url'] = !empty($row['receipt_path']) ? admin_receipt_url($row['receipt_path']) : '';
             echo json_encode(['success' => true, 'details' => $row]);
             exit;
         }
@@ -395,7 +398,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_resident_reservation_detai
     $id = intval($_GET['id']);
     $stmt = $con->prepare("SELECT r.id, r.user_id, r.ref_code, r.amenity, r.start_date, r.end_date, r.start_time, r.end_time, r.persons, r.purpose,
                                     r.created_at, r.approval_status, r.approved_by, r.approval_date,
-                                    r.price, r.downpayment, r.payment_status, r.receipt_path, r.receipt_attempts, r.denial_reason, r.booking_for, r.account_type, r.booked_by_role, r.booked_by_name,
+                                    r.price, r.downpayment, r.payment_status, r.receipt_path, r.receipt_uploaded_at, r.receipt_attempts, r.denial_reason, r.booking_for, r.account_type, r.booked_by_role, r.booked_by_name,
                                     r.use_points,
                                     COALESCE((SELECT SUM(pt.amount) FROM point_transactions pt WHERE pt.user_id = r.user_id AND pt.reservation_ref_code = r.ref_code AND pt.transaction_type = 'redeem'), 0) AS points_used,
                                     u.first_name, u.middle_name, u.last_name, u.email, u.phone, u.house_number, u.user_type,
@@ -409,6 +412,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_resident_reservation_detai
     $stmt->execute();
     $res = $stmt->get_result();
     if ($res && ($row = $res->fetch_assoc())) {
+      $row['receipt_url'] = !empty($row['receipt_path']) ? admin_receipt_url($row['receipt_path']) : '';
         echo json_encode(['success' => true, 'details' => $row]);
     } else {
         echo json_encode(['success' => false, 'message' => 'Reservation not found']);
@@ -434,7 +438,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_reservation_details' && is
   $query = "SELECT r.id, r.user_id, r.ref_code, r.amenity, r.start_date, r.end_date,
            r.start_time, r.end_time, r.persons, r.purpose, r.created_at,
            r.approval_status, r.approved_by, r.approval_date, r.price,
-           r.downpayment, r.payment_status, r.receipt_path, r.receipt_attempts,
+           r.downpayment, r.payment_status, r.receipt_path, r.receipt_uploaded_at, r.receipt_attempts,
            r.denial_reason, r.booking_for, r.account_type, r.booked_by_role, r.booked_by_name,
            r.entry_pass_id, r.use_points,
            COALESCE((SELECT SUM(pt.amount) FROM point_transactions pt WHERE pt.user_id = r.user_id AND pt.reservation_ref_code = r.ref_code AND pt.transaction_type = 'redeem'), 0) AS points_used,
@@ -465,6 +469,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_reservation_details' && is
   $row = $result ? $result->fetch_assoc() : null;
   $stmt->close();
   if ($row) {
+    $row['receipt_url'] = !empty($row['receipt_path']) ? admin_receipt_url($row['receipt_path']) : '';
     echo json_encode(['success' => true, 'details' => $row]);
   } else {
     http_response_code(404);
@@ -6454,10 +6459,10 @@ body.modal-open { overflow: hidden; }
 
                   $payStatus = null; $resIdMatch = null; $receiptPath = null; $isAmenity = !empty($req['amenity']);
                   if (!empty($req['ref_code'])) {
-                    $stmtPay2 = $con->prepare("SELECT id, payment_status, receipt_path, receipt_attempts, denial_reason FROM reservations WHERE ref_code = ? LIMIT 1");
+                    $stmtPay2 = $con->prepare("SELECT id, payment_status, receipt_path, receipt_uploaded_at, receipt_attempts, denial_reason FROM reservations WHERE ref_code = ? LIMIT 1");
                     $stmtPay2->bind_param('s', $req['ref_code']);
                     $stmtPay2->execute(); $rp2 = $stmtPay2->get_result();
-                    if($rp2 && ($pr2=$rp2->fetch_assoc())){ $payStatus = $pr2['payment_status'] ?? null; $resIdMatch = intval($pr2['id'] ?? 0); $receiptPath = $pr2['receipt_path'] ?? null; $receiptAttempts = intval($pr2['receipt_attempts'] ?? 0); $denialReasonVal = trim((string)($pr2['denial_reason'] ?? '')); }
+                    if($rp2 && ($pr2=$rp2->fetch_assoc())){ $payStatus = $pr2['payment_status'] ?? null; $resIdMatch = intval($pr2['id'] ?? 0); $receiptPath = $pr2['receipt_path'] ?? null; $receiptUploadedAt = $pr2['receipt_uploaded_at'] ?? null; $receiptAttempts = intval($pr2['receipt_attempts'] ?? 0); $denialReasonVal = trim((string)($pr2['denial_reason'] ?? '')); }
                     $stmtPay2->close();
                   }
                   echo "<button type='button' class='btn btn-view' onclick=\"showVisitorDetails(" . intval($req['id']) . ", '" . htmlspecialchars($srcAttr, ENT_QUOTES) . "')\"><i class='fa-solid fa-eye'></i> View More Details</button>";
@@ -6470,10 +6475,11 @@ body.modal-open { overflow: hidden; }
                           echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars(admin_receipt_url($receiptPath), ENT_QUOTES, 'UTF-8') . "', " . intval($resIdMatch) . ", 'resident_guest_forms')\" style='margin:6px 0;'><i class='fa-solid fa-file'></i> Open Receipt (PDF)</button>";
                         }
                       } else {
-                        echo "<div class='muted' style='margin:6px 0;'>No receipt uploaded.</div>";
+                        $receiptMessage = (!empty($receiptUploadedAt) || in_array($payStatusLower, ['submitted', 'pending_update'], true)) ? 'Payment submitted, but the receipt file is unavailable.' : 'No receipt uploaded.';
+                        echo "<div class='muted' style='margin:6px 0;'>" . htmlspecialchars($receiptMessage, ENT_QUOTES, 'UTF-8') . "</div>";
                       }
                     }
-                    if ($resIdMatch && !empty($receiptPath) && $payStatusLower !== 'verified') {
+                    if ($resIdMatch && $payStatusLower !== 'verified') {
                       if (($receiptAttempts ?? 0) >= 3) {
                         echo "<form method='post' class='action-form action-deny' onsubmit='return openDenyModal(this)'>";
                         echo "<input type='hidden' name='reservation_id' value='" . intval($resIdMatch) . "'>";
@@ -7110,10 +7116,11 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
                         echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars(admin_receipt_url($receiptPath), ENT_QUOTES, 'UTF-8') . "', " . intval($rr['id']) . ", 'requests')\"><i class='fa-solid fa-file'></i> Open Receipt (PDF)</button>";
                       }
                     } else {
-                      echo "<div class='muted'>No receipt uploaded.</div>";
+                      $receiptMessage = (!empty($rr['receipt_uploaded_at']) || in_array($payStatusLower, ['submitted', 'pending_update'], true)) ? 'Payment submitted, but the receipt file is unavailable.' : 'No receipt uploaded.';
+                      echo "<div class='muted'>" . htmlspecialchars($receiptMessage, ENT_QUOTES, 'UTF-8') . "</div>";
                     }
                   }
-                  if (!empty($rr['id']) && !empty($receiptPath) && $payStatusLower !== 'verified') {
+                  if (!empty($rr['id']) && $payStatusLower !== 'verified') {
                     if ($attempts >= 3) {
                       echo "<form method='post' class='action-form action-deny' onsubmit='return openDenyModal(this)'>";
                       echo "<input type='hidden' name='reservation_id' value='" . intval($rr['id']) . "'>";
@@ -7328,10 +7335,11 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
                       echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars(admin_receipt_url($receiptPath), ENT_QUOTES, 'UTF-8') . "', " . intval($rr['id']) . ", 'visitor_requests')\"><i class='fa-solid fa-file'></i> Open Receipt (PDF)</button>";
                     }
                   } else {
-                    echo "<div class='muted'>No receipt uploaded.</div>";
+                    $receiptMessage = (!empty($rr['receipt_uploaded_at']) || in_array($payStatusLower, ['submitted', 'pending_update'], true)) ? 'Payment submitted, but the receipt file is unavailable.' : 'No receipt uploaded.';
+                    echo "<div class='muted'>" . htmlspecialchars($receiptMessage, ENT_QUOTES, 'UTF-8') . "</div>";
                   }
                   }
-                  if (!empty($rr['id']) && !empty($receiptPath) && $payStatusLower !== 'verified') {
+                  if (!empty($rr['id']) && $payStatusLower !== 'verified') {
                     $attempts = intval($rr['receipt_attempts'] ?? 0);
                     if ($attempts >= 3) {
                       echo "<form method='post' class='action-form action-deny' onsubmit='return openDenyModal(this)'>";
@@ -7778,7 +7786,32 @@ function showVisitorDetails(id, source) {
             </div>
           </div>
           `;
-        document.getElementById('visitorDetailsContent').innerHTML = content;
+        contentEl.innerHTML = content;
+        const receiptUrl = String(details.receipt_url || '').trim();
+        if (!isGuestEntry && receiptUrl) {
+          const proofSection = document.createElement('div');
+          proofSection.className = 'details-section';
+          const proofHeading = document.createElement('h4');
+          proofHeading.textContent = 'Proof of Payment';
+          proofSection.appendChild(proofHeading);
+
+          const proofLink = document.createElement('a');
+          proofLink.href = receiptUrl;
+          proofLink.target = '_blank';
+          proofLink.rel = 'noopener';
+          if (/\.pdf$/i.test(receiptUrl)) {
+            proofLink.textContent = 'Open uploaded proof (PDF)';
+          } else {
+            const proofImage = document.createElement('img');
+            proofImage.src = receiptUrl;
+            proofImage.alt = 'Uploaded proof of payment';
+            proofImage.style.maxWidth = '100%';
+            proofImage.style.height = 'auto';
+            proofLink.appendChild(proofImage);
+          }
+          proofSection.appendChild(proofLink);
+          contentEl.appendChild(proofSection);
+        }
       } else {
         document.getElementById('visitorDetailsContent').innerHTML = '<div style="padding:20px;text-align:center;color:red;">Error: ' + (data.message||'Unknown error') + '</div>';
       }
@@ -7955,7 +7988,7 @@ function showReservationDetails(reservationId, expectedType){
           <div class="info-row" style="flex-wrap:wrap;"><span class="info-label">Note</span><span class="info-value" style="font-weight:500;font-size:0.85rem;">1 free hour deducted from the duration. Remaining hours are charged at regular rate.</span></div>
         </div>`;
       })() : '';
-      const receiptPath = (d.receipt_path||'').toString().trim();
+      const receiptPath = (d.receipt_url||d.receipt_path||'').toString().trim();
       const payStatus = ps;
       const isPdf = /\.pdf$/i.test(receiptPath);
       const redirectPage = isResidentGuest ? 'resident_guest_forms' : (userType === 'visitor' ? 'visitor_requests' : 'requests');
@@ -7968,7 +8001,7 @@ function showReservationDetails(reservationId, expectedType){
           ${isPdf ? `<a href="${receiptPath}" target="_blank" style="color:#23412e;font-weight:600;">Open uploaded proof (PDF)</a>` : `<a href="${receiptPath}" target="_blank"><img src="${receiptPath}" alt="Uploaded proof of payment" style="max-width:100%; height:auto; border-radius:8px; cursor:pointer;"></a>`}
           ${payStatus !== 'verified' && d.id ? `<form method="post" style="display:flex;justify-content:center;margin-top:12px;"><input type="hidden" name="reservation_id" value="${d.id}"><input type="hidden" name="action" value="verify_receipt"><input type="hidden" name="redirect_page" value="${redirectPage}"><button type="submit" class="btn btn-approve">Verify</button></form>` : ''}
         </div>`
-      ) : `<div class="details-section"><h4>Proof of Payment</h4><p>${isFullyRedeemed ? 'No receipt uploaded. No proof of payment is required because this reservation was fully covered by the VHEcoPoint redemption.' : 'No receipt uploaded.'}</p></div>`;
+      ) : `<div class="details-section"><h4>Proof of Payment</h4><p>${isFullyRedeemed ? 'No receipt uploaded. No proof of payment is required because this reservation was fully covered by the VHEcoPoint redemption.' : (d.receipt_uploaded_at || ['submitted', 'pending_update'].includes(payStatus) ? 'Payment submitted, but the receipt file is unavailable.' : 'No receipt uploaded.')}</p></div>`;
       const denialHtml = '';
       const content = `
         <div class="request-details">
@@ -8161,7 +8194,7 @@ function showResidentReservationDetails(rrId){
           <div class="info-row" style="flex-wrap:wrap;"><span class="info-label">Note</span><span class="info-value" style="font-weight:500;font-size:0.85rem;">1 free hour deducted from the duration. Remaining hours are charged at regular rate.</span></div>
         </div>`;
       })() : '';
-      const receiptPath = (d.receipt_path||'').toString().trim();
+      const receiptPath = (d.receipt_url||d.receipt_path||'').toString().trim();
       const isPdf = /\.pdf$/i.test(receiptPath);
       const denialReason = (d.denial_reason||'').toString().trim();
       const att = parseInt(d.receipt_attempts||0, 10);
@@ -8173,7 +8206,7 @@ function showResidentReservationDetails(rrId){
           ${isPdf ? `<a href="${receiptPath}" target="_blank" style="color:#23412e;font-weight:600;">Open uploaded proof (PDF)</a>` : `<a href="${receiptPath}" target="_blank"><img src="${receiptPath}" alt="Uploaded proof of payment" style="max-width:100%; height:auto; border-radius:8px; cursor:pointer;"></a>`}
           ${ps !== 'verified' && d.id ? `<form method="post" style="display:flex;justify-content:center;margin-top:12px;"><input type="hidden" name="reservation_id" value="${d.id}"><input type="hidden" name="action" value="verify_receipt"><input type="hidden" name="redirect_page" value="${isResidentGuest ? 'resident_guest_forms' : (d.entry_pass_id || d.user_type === 'visitor' ? 'visitor_requests' : 'requests')}"><button type="submit" class="btn btn-approve">Verify</button></form>` : ''}
         </div>`
-      ) : `<div class="details-section"><h4>Proof of Payment</h4><p>${isFullyRedeemed2 ? 'No receipt uploaded. No proof of payment is required because this reservation was fully covered by the VHEcoPoint redemption.' : 'No receipt uploaded.'}</p></div>`;
+      ) : `<div class="details-section"><h4>Proof of Payment</h4><p>${isFullyRedeemed2 ? 'No receipt uploaded. No proof of payment is required because this reservation was fully covered by the VHEcoPoint redemption.' : (d.receipt_uploaded_at || ['submitted', 'pending_update'].includes(ps) ? 'Payment submitted, but the receipt file is unavailable.' : 'No receipt uploaded.')}</p></div>`;
       const denialHtml = showDenial ? (
         `<div style="margin-top:12px;padding:12px;border-radius:10px;background:#fee2e2;color:#991b1b;font-weight:600;">
           <div>Reason: ${denialReason}</div>

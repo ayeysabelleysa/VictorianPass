@@ -4410,7 +4410,7 @@ body.modal-open{overflow:hidden}
       var ref=btn.getAttribute('data-ref')||'';
       var n=parseInt(btn.getAttribute('data-persons')||'1',10);
       if(!ref || isNaN(n)||n<1) n=1;
-      var title = n>1 ? 'Participant QR Passes ('+n+')' : 'Entry QR Pass';
+      var title = n>1 ? 'QR Entry Passes ('+n+')' : 'Entry QR Pass';
       if(window.buildEntryPassView) window.openEntryPassLightbox(title, window.buildEntryPassView(ref, n));
     };
     window.downloadEntryPassQr = function(url, type, ref){
