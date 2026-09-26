@@ -2343,7 +2343,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $refCodeRes = null; $psRes = null; $amenRes = null;
                 if($resChk && ($rwC=$resChk->fetch_assoc())){ $amenRes = $rwC['amenity'] ?? ''; $psRes = strtolower($rwC['payment_status'] ?? ''); $refCodeRes = $rwC['ref_code'] ?? null; }
                 $stmtCheck->close();
-                if (!empty($amenRes) && $psRes !== 'verified') {
+                if ($approval_status === 'approved' && !empty($amenRes) && $psRes !== 'verified') {
                   header("Location: admin.php?page=visitor_requests&msg=payment_required");
                   exit;
                 }
@@ -7149,6 +7149,13 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
                     echo "<input type='hidden' name='action' value='approve_resident_reservation'>";
                     echo "<input type='hidden' name='redirect_page' value='requests'>";
                     echo "<button type='submit' class='btn " . ($disabled ? "btn-disabled" : "btn-approve") . "' " . ($disabled ? "disabled title='Verify payment receipt first'" : "") . ">Approve</button>";
+                    echo "</form>";
+                    echo "<form method='post' class='action-form action-deny' onsubmit='return openDenyModal(this)'>";
+                    echo "<input type='hidden' name='reservation_id' value='" . intval($rr['id']) . "'>";
+                    echo "<input type='hidden' name='action' value='deny_request'>";
+                    echo "<input type='hidden' name='redirect_page' value='requests'>";
+                    echo "<input type='hidden' name='denial_reason' class='denial-reason'>";
+                    echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'>Reject</button>";
                     echo "</form>";
 
                 } elseif ($approval_status == 'denied' || $approval_status == 'cancelled') {
