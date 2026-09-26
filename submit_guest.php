@@ -1,5 +1,9 @@
 <?php
 require_once __DIR__ . '/session_bootstrap.php';
+$sessionUserId = isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : 0;
+if (session_status() === PHP_SESSION_ACTIVE) {
+  session_write_close();
+}
 header('Content-Type: application/json');
 require_once 'connect.php';
 
@@ -140,8 +144,8 @@ $ref_code = 'VP-' . strtoupper(bin2hex(random_bytes(4)));
 
 // Attempt to link to a resident account
 $resident_user_id = null;
-if (isset($_SESSION['user_id']) && intval($_SESSION['user_id']) > 0) {
-  $sid = intval($_SESSION['user_id']);
+if ($sessionUserId > 0) {
+  $sid = $sessionUserId;
   $stmtV = $con->prepare("SELECT id FROM users WHERE id = ? AND user_type = 'resident' LIMIT 1");
   if ($stmtV) {
     $stmtV->bind_param('i', $sid);

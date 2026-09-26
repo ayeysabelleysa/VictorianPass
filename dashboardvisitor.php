@@ -210,9 +210,9 @@ $activities = [];
 // Reservations
 $prevDvResMode = function_exists('mysqli_report') ? mysqli_report(MYSQLI_REPORT_OFF) : null;
 try {
-    $stmt = $con->prepare("SELECT 'reservation' as type, amenity, start_date, end_date, start_time, end_time, status, approval_status, payment_status, denial_reason, receipt_attempts, price, downpayment, receipt_path, receipt_uploaded_at, created_at, ref_code, scanned_at, persons FROM reservations WHERE user_id = ? AND status <> 'deleted' AND approval_status <> 'deleted' ORDER BY created_at DESC");
+    $stmt = $con->prepare("SELECT 'reservation' as type, id AS reservation_id, amenity, start_date, end_date, start_time, end_time, status, approval_status, payment_status, denial_reason, receipt_attempts, price, downpayment, receipt_path, receipt_uploaded_at, created_at, ref_code, scanned_at, persons FROM reservations WHERE user_id = ? AND status <> 'deleted' AND approval_status <> 'deleted' ORDER BY created_at DESC");
 } catch (Throwable $e) {
-    $stmt = $con->prepare("SELECT 'reservation' as type, amenity, start_date, end_date, start_time, end_time, status, approval_status, payment_status, NULL as denial_reason, 0 as receipt_attempts, price, downpayment, receipt_path, receipt_uploaded_at, created_at, ref_code, NULL as scanned_at, persons FROM reservations WHERE user_id = ? AND status <> 'deleted' AND approval_status <> 'deleted' ORDER BY created_at DESC");
+    $stmt = $con->prepare("SELECT 'reservation' as type, id AS reservation_id, amenity, start_date, end_date, start_time, end_time, status, approval_status, payment_status, NULL as denial_reason, 0 as receipt_attempts, price, downpayment, receipt_path, receipt_uploaded_at, created_at, ref_code, NULL as scanned_at, persons FROM reservations WHERE user_id = ? AND status <> 'deleted' AND approval_status <> 'deleted' ORDER BY created_at DESC");
 }
 if ($prevDvResMode !== null && function_exists('mysqli_report')) { mysqli_report($prevDvResMode); }
 if ($stmt) {
@@ -298,6 +298,7 @@ if ($stmt) {
             'date' => $row['created_at'],
             'event_timestamp' => $eventTs,
             'ref_code' => $row['ref_code'] ?? 'RES',
+            'reservation_id' => intval($row['reservation_id'] ?? 0),
             'payment_status' => $row['payment_status'] ?? null,
             'attempts' => intval($row['receipt_attempts'] ?? 0),
             'scanned_at' => $row['scanned_at'] ?? null,
@@ -968,6 +969,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
               <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($amenityName ?? ''); ?>" data-booked-by="<?php echo htmlspecialchars($fullName); ?>" data-persons="<?php echo isset($act['persons']) ? intval($act['persons']) : 1; ?>" data-price="<?php echo htmlspecialchars((string)($act['price'] ?? '')); ?>" data-downpayment="<?php echo htmlspecialchars((string)($act['downpayment'] ?? '')); ?>" data-receipt-path="<?php echo htmlspecialchars((string)($act['receipt_path'] ?? '')); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars((string)($act['receipt_uploaded_at'] ?? '')); ?>">
                  <div class="item-icon"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
+                   <span hidden class="reservation-id"><?php echo intval($act['reservation_id'] ?? 0); ?></span>
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
                      <div class="item-left">
                        <span class="status-badge <?php echo $statusClass; ?>"><?php echo $displayStatus; ?></span>
@@ -1055,6 +1057,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
               <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($amenityName ?? ''); ?>" data-booked-by="<?php echo htmlspecialchars($fullName); ?>" data-persons="<?php echo isset($act['persons']) ? intval($act['persons']) : 1; ?>">
                  <div class="item-icon"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
+                   <span hidden class="reservation-id"><?php echo intval($act['reservation_id'] ?? 0); ?></span>
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
                      <div class="item-left">
                        <span class="status-badge <?php echo $statusClass; ?>"><?php echo $displayStatus; ?></span>
@@ -1548,6 +1551,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
             
             // Always update the status attribute to keep in sync with server
             li.setAttribute('data-status',newStatus);
+            if(newItem.reservation_id !== undefined){ li.setAttribute('data-reservation-id', String(newItem.reservation_id || '')); }
             if(newItem.payment_status !== undefined){
               li.setAttribute('data-payment-status', newItem.payment_status || '');
             }
@@ -1694,6 +1698,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
               li=document.createElement('div');
               li.className='list-item';
               li.setAttribute('data-ref-code',code);
+              if(item.reservation_id !== undefined){ li.setAttribute('data-reservation-id', String(item.reservation_id || '')); }
               li.setAttribute('data-status', item.status || 'cancelled');
               li.setAttribute('data-type', item.type || 'reservation');
               if(item.scanned_at !== undefined){ li.setAttribute('data-scanned-at', item.scanned_at || ''); }
@@ -1744,6 +1749,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
               li.setAttribute('data-scanned-at', item.scanned_at || '');
             }
             if(String(item.type || '').toLowerCase() === 'reservation'){
+              li.setAttribute('data-reservation-id', String(item.reservation_id || ''));
               li.setAttribute('data-price', item.price == null ? '' : String(item.price));
               li.setAttribute('data-downpayment', item.downpayment == null ? '' : String(item.downpayment));
               li.setAttribute('data-receipt-path', item.receipt_path || '');
@@ -1871,6 +1877,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
   var updateProofPreview=document.getElementById('updateProofPreview');
   var updateProofActions=updateProofModal?updateProofModal.querySelector('.update-proof-actions'):null;
   var updateProofRef=null;
+  var updateProofReservationId=0;
   var updateProofLi=null;
 
   function resetUpdateProofForm(){
@@ -1886,6 +1893,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
     if(!updateProofModal) return;
     updateProofLi=li;
     updateProofRef=ref;
+    var reservationIdEl=li.querySelector('.reservation-id');
+    updateProofReservationId=parseInt(li.getAttribute('data-reservation-id')||(reservationIdEl?reservationIdEl.textContent:'0'),10)||0;
     resetUpdateProofForm();
     updateProofModal.style.display='flex';
     requestAnimationFrame(function(){ updateProofModal.classList.add('is-open'); });
@@ -1899,6 +1908,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
     }, 250);
     updateProofLi=null;
     updateProofRef=null;
+    updateProofReservationId=0;
     resetUpdateProofForm();
   }
 
@@ -2236,6 +2246,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
       if(!file || !updateProofRef || !updateProofLi) return;
       var fd=new FormData();
       fd.append('ref_code', updateProofRef);
+      fd.append('reservation_id', String(updateProofReservationId));
       fd.append('receipt', file);
       updateProofSubmitBtn.disabled=true;
       fetch('upload_receipt.php',{method:'POST',body:fd})
@@ -2247,6 +2258,9 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
             return;
           }
           var newPayStatus = (data.payment_status || 'pending_update');
+          if(data.file_path){ updateProofLi.setAttribute('data-receipt-path', data.file_path); }
+          if(data.reservation_id){ updateProofLi.setAttribute('data-reservation-id', String(data.reservation_id)); }
+          updateProofLi.setAttribute('data-receipt-uploaded-at', new Date().toISOString());
           updateProofLi.setAttribute('data-payment-status', newPayStatus);
           updateProofLi.setAttribute('data-status', newPayStatus);
           var badge=updateProofLi.querySelector('.status-badge');
@@ -2785,7 +2799,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
         var uploadedText=receiptUploadedAt?formatNotifDateTime(receiptUploadedAt):'Upload date unavailable';
         html+='<div class="visitor-proof-row"><a class="visitor-proof-preview" href="'+esc(receiptUrl)+'" target="_blank" rel="noopener">'+receiptPreview+'</a><div class="visitor-proof-meta"><strong>'+esc(receiptName)+'</strong><span>Uploaded '+esc(uploadedText)+'</span></div><a class="visitor-open-file" href="'+esc(receiptUrl)+'" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open file</a></div>';
       }else{
-        html+='<div class="visitor-proof-empty">No proof of payment uploaded.</div>';
+        html+='<div class="visitor-proof-empty">No receipt uploaded.</div>';
       }
       html+='</div>';
     }

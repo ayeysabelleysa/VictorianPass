@@ -516,9 +516,9 @@ if (!vpSchemaDone($con, 'profile_res_v1') && ($con instanceof mysqli)) {
 }
 $prevResMode = function_exists('mysqli_report') ? mysqli_report(MYSQLI_REPORT_OFF) : null;
 try {
-    $stmt = $con->prepare("SELECT 'reservation' as type, r.amenity, r.start_date, r.end_date, r.start_time, r.end_time, r.status, r.approval_status, r.payment_status, r.denial_reason, r.created_at, r.updated_at, r.ref_code, r.booking_for, r.account_type, r.booked_by_role, r.booked_by_name, r.scanned_at, r.receipt_attempts, r.price, r.downpayment, r.receipt_path, r.receipt_uploaded_at, r.persons, r.use_points, r.points_used, gf.id AS gf_id, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name FROM reservations r LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code WHERE r.user_id = ? AND r.status <> 'deleted' AND r.approval_status <> 'deleted' ORDER BY r.created_at DESC");
+    $stmt = $con->prepare("SELECT 'reservation' as type, r.id AS reservation_id, r.amenity, r.start_date, r.end_date, r.start_time, r.end_time, r.status, r.approval_status, r.payment_status, r.denial_reason, r.created_at, r.updated_at, r.ref_code, r.booking_for, r.account_type, r.booked_by_role, r.booked_by_name, r.scanned_at, r.receipt_attempts, r.price, r.downpayment, r.receipt_path, r.receipt_uploaded_at, r.persons, r.use_points, r.points_used, gf.id AS gf_id, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name FROM reservations r LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code WHERE r.user_id = ? AND r.status <> 'deleted' AND r.approval_status <> 'deleted' ORDER BY r.created_at DESC");
 } catch (Throwable $e) {
-    $stmt = $con->prepare("SELECT 'reservation' as type, r.amenity, r.start_date, r.end_date, r.start_time, r.end_time, r.status, r.approval_status, r.payment_status, NULL as denial_reason, r.created_at, r.updated_at, r.ref_code, NULL as booking_for, NULL as account_type, NULL as booked_by_role, NULL as booked_by_name, NULL as scanned_at, 0 as receipt_attempts, NULL as price, NULL as downpayment, NULL as receipt_path, NULL as receipt_uploaded_at, NULL as persons, 0 as use_points, 0 as points_used, gf.id AS gf_id, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name FROM reservations r LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code WHERE r.user_id = ? AND r.status <> 'deleted' AND r.approval_status <> 'deleted' ORDER BY r.created_at DESC");
+    $stmt = $con->prepare("SELECT 'reservation' as type, r.id AS reservation_id, r.amenity, r.start_date, r.end_date, r.start_time, r.end_time, r.status, r.approval_status, r.payment_status, NULL as denial_reason, r.created_at, r.updated_at, r.ref_code, NULL as booking_for, NULL as account_type, NULL as booked_by_role, NULL as booked_by_name, NULL as scanned_at, 0 as receipt_attempts, NULL as price, NULL as downpayment, NULL as receipt_path, NULL as receipt_uploaded_at, NULL as persons, 0 as use_points, 0 as points_used, gf.id AS gf_id, gf.visitor_first_name, gf.visitor_middle_name, gf.visitor_last_name FROM reservations r LEFT JOIN guest_forms gf ON r.ref_code = gf.ref_code WHERE r.user_id = ? AND r.status <> 'deleted' AND r.approval_status <> 'deleted' ORDER BY r.created_at DESC");
 }
 if ($prevResMode !== null && function_exists('mysqli_report')) { mysqli_report($prevResMode); }
 if ($stmt) {
@@ -600,6 +600,7 @@ if ($stmt) {
             'date' => $actionDate,
             'event_timestamp' => $eTime ? $eTime : strtotime($start . ' 23:59:59'),
             'ref_code' => $refCodeVal,
+            'reservation_id' => intval($row['reservation_id'] ?? 0),
             'reserved_by' => $reservedBy,
             'payment_status' => $row['payment_status'] ?? null,
             'attempts' => intval($row['receipt_attempts'] ?? 0),
@@ -3767,6 +3768,7 @@ body.modal-open{overflow:hidden}
                  <div class="item-icon request-toggle"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
                    <span hidden class="reservation-account-type"><?php echo htmlspecialchars($act['account_type'] ?? 'resident'); ?></span>
+                   <span hidden class="reservation-id"><?php echo intval($act['reservation_id'] ?? 0); ?></span>
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
                      <div class="item-left">
                        <span class="status-badge <?php echo $statusClass; ?>"><?php echo $displayStatus; ?></span>
@@ -4064,6 +4066,7 @@ body.modal-open{overflow:hidden}
                  <div class="item-icon request-toggle"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
                    <span hidden class="reservation-account-type"><?php echo htmlspecialchars($act['account_type'] ?? 'resident'); ?></span>
+                   <span hidden class="reservation-id"><?php echo intval($act['reservation_id'] ?? 0); ?></span>
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
                      <div class="item-left">
                        <span class="status-badge <?php echo $statusClass; ?>"><?php echo $displayStatus; ?></span>
@@ -4621,6 +4624,7 @@ body.modal-open{overflow:hidden}
   var updateProofPreview=document.getElementById('updateProofPreview');
   var updateProofActions=updateProofModal?updateProofModal.querySelector('.update-proof-actions'):null;
   var updateProofRef=null;
+  var updateProofReservationId=0;
   var updateProofLi=null;
 
   function resetUpdateProofForm(){
@@ -4636,6 +4640,8 @@ body.modal-open{overflow:hidden}
     if(!updateProofModal) return;
     updateProofLi=li;
     updateProofRef=ref;
+    var reservationIdEl=li.querySelector('.reservation-id');
+    updateProofReservationId=parseInt(li.getAttribute('data-reservation-id')||(reservationIdEl?reservationIdEl.textContent:'0'),10)||0;
     resetUpdateProofForm();
     updateProofModal.style.display='flex';
     requestAnimationFrame(function(){ updateProofModal.classList.add('is-open'); });
@@ -4649,6 +4655,7 @@ body.modal-open{overflow:hidden}
     }, 250);
     updateProofLi=null;
     updateProofRef=null;
+    updateProofReservationId=0;
     resetUpdateProofForm();
   }
 
@@ -5116,6 +5123,7 @@ body.modal-open{overflow:hidden}
       if(!file || !updateProofRef || !updateProofLi) return;
       var fd=new FormData();
       fd.append('ref_code', updateProofRef);
+      fd.append('reservation_id', String(updateProofReservationId));
       fd.append('receipt', file);
       updateProofSubmitBtn.disabled=true;
       fetch('upload_receipt.php',{method:'POST',body:fd})
@@ -5127,6 +5135,9 @@ body.modal-open{overflow:hidden}
             return;
           }
           var newPayStatus = (data.payment_status || 'pending_update');
+          if(data.file_path){ updateProofLi.setAttribute('data-receipt-path', data.file_path); }
+          if(data.reservation_id){ updateProofLi.setAttribute('data-reservation-id', String(data.reservation_id)); }
+          updateProofLi.setAttribute('data-receipt-uploaded-at', new Date().toISOString());
           updateProofLi.setAttribute('data-payment-status', newPayStatus);
           updateProofLi.setAttribute('data-status', newPayStatus);
           var badge=updateProofLi.querySelector('.status-badge');
@@ -5749,9 +5760,9 @@ body.modal-open{overflow:hidden}
           proofHtml+='<a class="rst-proof-open" href="'+esc(proofUrl)+'" target="_blank" rel="noopener"><i class="fa-solid fa-up-right-from-square"></i> Open file</a>';
           proofHtml+='</div></div>';
         } else if(fullyRedeemed){
-          proofHtml+='<div class="rst-none rst-none-ok">No proof of payment required — this reservation was fully covered by the VHEcoPoint reward.</div>';
+          proofHtml+='<div class="rst-none rst-none-ok">No receipt uploaded. No proof of payment is required because this reservation was fully covered by the VHEcoPoint reward.</div>';
         } else {
-          proofHtml+='<div class="rst-none">No proof of payment uploaded</div>';
+          proofHtml+='<div class="rst-none">No receipt uploaded.</div>';
         }
         html+='<div class="rst-section"><div class="rst-title">Proof of Payment</div>'+proofHtml+'</div>';
       }
@@ -6695,6 +6706,7 @@ body.modal-open{overflow:hidden}
                     if(item.start_time_raw !== undefined){ li.setAttribute('data-start-time', item.start_time_raw || ''); }
                     if(item.end_time_raw !== undefined){ li.setAttribute('data-end-time', item.end_time_raw || ''); }
                     if(item.amenity !== undefined){ li.setAttribute('data-amenity', item.amenity || ''); }
+                    if(item.reservation_id !== undefined){ li.setAttribute('data-reservation-id', String(item.reservation_id || '')); }
                     if(item.account_type !== undefined){ li.setAttribute('data-account-type', item.account_type || ''); }
                     if(item.price !== undefined){ li.setAttribute('data-price', item.price!=null&&item.price!==''?String(item.price):''); }
                     if(item.downpayment !== undefined){ li.setAttribute('data-downpayment', item.downpayment!=null&&item.downpayment!==''?String(item.downpayment):''); }
@@ -6878,6 +6890,7 @@ body.modal-open{overflow:hidden}
               if(item.start_time_raw!==undefined){ li.setAttribute('data-start-time', item.start_time_raw || ''); }
               if(item.end_time_raw!==undefined){ li.setAttribute('data-end-time', item.end_time_raw || ''); }
               if(item.amenity!==undefined){ li.setAttribute('data-amenity', item.amenity || ''); }
+              if(item.reservation_id!==undefined){ li.setAttribute('data-reservation-id', String(item.reservation_id || '')); }
               if(item.account_type!==undefined){ li.setAttribute('data-account-type', item.account_type || ''); }
               if(item.price!==undefined){ li.setAttribute('data-price', item.price!=null&&item.price!==''?String(item.price):''); }
               if(item.downpayment!==undefined){ li.setAttribute('data-downpayment', item.downpayment!=null&&item.downpayment!==''?String(item.downpayment):''); }
@@ -7147,6 +7160,7 @@ body.modal-open{overflow:hidden}
       li.setAttribute('data-start-time', item.start_time_raw||'');
       li.setAttribute('data-end-time', item.end_time_raw||'');
       li.setAttribute('data-amenity', item.amenity||'');
+      li.setAttribute('data-reservation-id', String(item.reservation_id||''));
       li.setAttribute('data-account-type', item.account_type||'');
       li.setAttribute('data-price', item.price!=null&&item.price!==''?String(item.price):'');
       li.setAttribute('data-downpayment', item.downpayment!=null&&item.downpayment!==''?String(item.downpayment):'');

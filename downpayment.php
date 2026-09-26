@@ -166,24 +166,51 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     }
     $continue_post = isset($_POST['continue']) ? $_POST['continue'] : $continue;
     $entry_pass_id_post_form = isset($_POST['entry_pass_id']) ? intval($_POST['entry_pass_id']) : $entry_pass_id;
+    $reservationId = 0;
     if (!is_string($tokenPosted) || !hash_equals($_SESSION['csrf_token'] ?? '', $tokenPosted)) {
       $msg = 'Invalid submission.';
     } else if ($ref_code !== '' && empty($msg)) {
+      $stmtOwnedReservation = $con->prepare("SELECT id FROM reservations WHERE ref_code = ? AND ((user_id = ? AND user_id IS NOT NULL) OR (entry_pass_id = ? AND entry_pass_id IS NOT NULL)) LIMIT 1");
+      if ($stmtOwnedReservation) {
+        $ownerUserId = intval($user_id ?? 0);
+        $ownerEntryPassId = intval($pending['entry_pass_id'] ?? $entry_pass_id_post_form);
+        $stmtOwnedReservation->bind_param('sii', $ref_code, $ownerUserId, $ownerEntryPassId);
+        if ($stmtOwnedReservation->execute()) {
+          $ownedResult = $stmtOwnedReservation->get_result();
+          if ($ownedResult && ($ownedRow = $ownedResult->fetch_assoc())) { $reservationId = intval($ownedRow['id']); }
+        }
+        $stmtOwnedReservation->close();
+      }
+      if ($reservationId <= 0) {
+        $stmtRefExists = $con->prepare("SELECT id FROM reservations WHERE ref_code = ? LIMIT 1");
+        $refExists = false;
+        if ($stmtRefExists) {
+          $stmtRefExists->bind_param('s', $ref_code);
+          if ($stmtRefExists->execute()) { $refExistsResult = $stmtRefExists->get_result(); $refExists = $refExistsResult && $refExistsResult->num_rows > 0; }
+          $stmtRefExists->close();
+        }
+        $pendingRefCode = is_array($pending) ? (string)($pending['ref_code'] ?? '') : '';
+        if ($refExists || $pendingRefCode !== $ref_code) {
+          $msg = 'Reservation not found for this account.';
+        }
+      }
+      if (!empty($msg)) { /* Keep the upload and payment state unchanged. */ }
+      else {
       $receiptPath = null;
       if(!isset($_FILES['receipt']) || !is_array($_FILES['receipt']) || ($_FILES['receipt']['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK){
         $msg = 'Please upload your payment receipt before confirming.';
       } else {
-        $allowedExt=['png','jpg','jpeg','pdf'];
-        $origName=$_FILES['receipt']['name']??'';
-        $ext=strtolower(pathinfo($origName,PATHINFO_EXTENSION));
-        if(!in_array($ext,$allowedExt,true)){
+        $mimeExtensions=['image/png'=>'png','image/jpeg'=>'jpg','application/pdf'=>'pdf'];
+        $fileInfo=new finfo(FILEINFO_MIME_TYPE);
+        $mimeType=$fileInfo->file($_FILES['receipt']['tmp_name']);
+        $ext=$mimeExtensions[$mimeType]??'';
+        if($ext===''){
           $msg='Unsupported receipt file type. Please upload a JPG, PNG, or PDF.';
         } else if(($_FILES['receipt']['size']??0) > 5*1024*1024){
           $msg='Receipt file is too large (max 5MB).';
         } else {
           $uploadsDir=__DIR__.DIRECTORY_SEPARATOR.'uploads'.DIRECTORY_SEPARATOR.'receipts'; if(!is_dir($uploadsDir)) { @mkdir($uploadsDir,0775,true); }
-          $base=preg_replace('/[^a-zA-Z0-9_-]/','_', $ref_code);
-          $fname=$base.'-'.date('YmdHis').'.'.$ext;
+          $fname='receipt_'.($reservationId > 0 ? $reservationId : 'new').'_'.bin2hex(random_bytes(12)).'.'.$ext;
           $target=$uploadsDir.DIRECTORY_SEPARATOR.$fname;
           $relative='uploads/receipts/'.$fname;
           if(@move_uploaded_file($_FILES['receipt']['tmp_name'],$target)){ $receiptPath=$relative; } else { $msg='Unable to save receipt upload. Please try again.'; }
@@ -309,21 +336,27 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
         $updTypes .= 's';
         $updSets[] = "payment_status='submitted'";
         $updSets[] = "approval_status='pending'";
-        $updSets[] = 'receipt_uploaded_at = COALESCE(receipt_uploaded_at, NOW())';
+        $updSets[] = 'receipt_uploaded_at = NOW()';
 
-        $stmt = $con->prepare('UPDATE reservations SET ' . implode(', ', $updSets) . " WHERE ref_code = ?");
+        $stmt = $reservationId > 0
+          ? $con->prepare('UPDATE reservations SET ' . implode(', ', $updSets) . " WHERE id = ? AND ((user_id = ? AND user_id IS NOT NULL) OR (entry_pass_id = ? AND entry_pass_id IS NOT NULL))")
+          : false;
         $affected = 0;
         if ($stmt) {
           $valsAll = $updVals;
-          $valsAll[] = $ref_code;
-          $refs = [$updTypes . 's'];
+          $valsAll[] = $reservationId;
+          $valsAll[] = intval($user_id ?? 0);
+          $valsAll[] = intval($entry_pass_id_post ?? 0);
+          $refs = [$updTypes . 'iii'];
           foreach ($valsAll as $k => $v) { $refs[] = &$valsAll[$k]; }
           call_user_func_array([$stmt, 'bind_param'], $refs);
-          $stmt->execute();
-          $affected = $stmt->affected_rows;
+          if ($stmt->execute()) { $affected = $stmt->affected_rows; }
           $stmt->close();
         }
-        if ($affected === 0) {
+        if ($reservationId > 0 && $affected === 0) {
+          $msg = 'Failed to update the reservation receipt. Please try again.';
+          if (isset($target) && is_file($target)) { @unlink($target); }
+        } else if ($reservationId === 0 && empty($msg)) {
           $insCols = ['ref_code','amenity','start_date','end_date','start_time','end_time','persons','price','downpayment','receipt_path'];
           $insTypes = 'ssssssidds';
           $insVals = [$ref_code, $amenity, $start, $end, $startTime, $endTime, $persons, $price, $downpayment, $receiptPath];
@@ -342,8 +375,16 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
             $refsIns = [$insTypes];
             foreach ($insVals as $k => $v) { $refsIns[] = &$insVals[$k]; }
             call_user_func_array([$ins, 'bind_param'], $refsIns);
-            $ins->execute();
+            if ($ins->execute()) {
+              $reservationId = intval($ins->insert_id);
+            } else {
+              $msg = 'Failed to save the reservation receipt. Please try again.';
+              if (isset($target) && is_file($target)) { @unlink($target); }
+            }
             $ins->close();
+          } else {
+            $msg = 'Failed to save the reservation receipt. Please try again.';
+            if (isset($target) && is_file($target)) { @unlink($target); }
           }
         }
         if ($acct === 'resident') {
@@ -369,8 +410,8 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
           } catch (Throwable $_) { }
         }
       }
-      $_SESSION['pending_reservation'] = null;
       if(empty($msg)){
+        $_SESSION['pending_reservation'] = null;
         $_SESSION['flash_notice'] = 'Request submitted, waiting for approval';
         unset($_SESSION['flash_ref_code']);
       }
@@ -406,6 +447,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
       if ($email === '' && $user_email_prefill !== '') { $email = $user_email_prefill; }
       if ($full_name === '') { $full_name = 'Guest'; }
 
+    }
     }
     $residentPaymentFlow = (($continue_post ?? $continue) === 'reserve_resident' || $userType === 'resident');
     if (empty($msg) && $residentPaymentFlow) {

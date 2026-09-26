@@ -1,6 +1,11 @@
 <?php
-header('Content-Type: application/json');
-include 'connect.php';
+require_once __DIR__ . '/session_bootstrap.php';
+$sessionUserId = isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : 0;
+if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+}
+header('Content-Type: application/json; charset=utf-8');
+require_once __DIR__ . '/connect.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'message' => 'Invalid request method']);
@@ -8,10 +13,33 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $ref_code = isset($_POST['ref_code']) ? trim($_POST['ref_code']) : '';
-if (empty($ref_code)) {
-    echo json_encode(['success' => false, 'message' => 'Reference code is required']);
+$reservationId = isset($_POST['reservation_id']) ? intval($_POST['reservation_id']) : 0;
+if ($sessionUserId <= 0 || ($reservationId <= 0 && $ref_code === '')) {
+    http_response_code($sessionUserId <= 0 ? 401 : 400);
+    echo json_encode(['success' => false, 'message' => 'A valid reservation is required']);
     exit;
 }
+
+if ($reservationId > 0) {
+    $stmtCheck = $con->prepare("SELECT id, ref_code, payment_status FROM reservations WHERE id = ? AND user_id = ? LIMIT 1");
+    if ($stmtCheck) { $stmtCheck->bind_param('ii', $reservationId, $sessionUserId); }
+} else {
+    $stmtCheck = $con->prepare("SELECT id, ref_code, payment_status FROM reservations WHERE ref_code = ? AND user_id = ? LIMIT 1");
+    if ($stmtCheck) { $stmtCheck->bind_param('si', $ref_code, $sessionUserId); }
+}
+$reservation = null;
+if ($stmtCheck && $stmtCheck->execute()) {
+    $reservationResult = $stmtCheck->get_result();
+    $reservation = $reservationResult ? $reservationResult->fetch_assoc() : null;
+}
+if ($stmtCheck) { $stmtCheck->close(); }
+if (!$reservation) {
+    http_response_code(404);
+    echo json_encode(['success' => false, 'message' => 'Reservation not found']);
+    exit;
+}
+$reservationId = intval($reservation['id']);
+$ref_code = (string)$reservation['ref_code'];
 
 // Check if file was uploaded
 if (!isset($_FILES['receipt']) || $_FILES['receipt']['error'] !== UPLOAD_ERR_OK) {
@@ -20,12 +48,14 @@ if (!isset($_FILES['receipt']) || $_FILES['receipt']['error'] !== UPLOAD_ERR_OK)
 }
 
 $file = $_FILES['receipt'];
-$allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+$allowedTypes = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'application/pdf' => 'pdf'];
 $maxSize = 5 * 1024 * 1024; // 5MB
 
-// Validate file type
-if (!in_array($file['type'], $allowedTypes)) {
-    echo json_encode(['success' => false, 'message' => 'Invalid file type. Only JPEG, PNG, and GIF are allowed']);
+// Validate the file content rather than trusting the browser-provided MIME type.
+$fileInfo = new finfo(FILEINFO_MIME_TYPE);
+$mimeType = $fileInfo->file($file['tmp_name']);
+if (!isset($allowedTypes[$mimeType])) {
+    echo json_encode(['success' => false, 'message' => 'Invalid file type. Only JPEG, PNG, GIF, and PDF are allowed']);
     exit;
 }
 
@@ -38,12 +68,15 @@ if ($file['size'] > $maxSize) {
 // Create uploads directory if it doesn't exist
 $uploadDir = __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'receipts';
 if (!is_dir($uploadDir)) {
-    mkdir($uploadDir, 0755, true);
+    if (!mkdir($uploadDir, 0755, true) && !is_dir($uploadDir)) {
+        echo json_encode(['success' => false, 'message' => 'Receipt storage is unavailable']);
+        exit;
+    }
 }
 
-// Generate unique filename
-$fileExtension = pathinfo($file['name'], PATHINFO_EXTENSION);
-$fileName = $ref_code . '_' . time() . '.' . $fileExtension;
+// Unique names prevent simultaneous uploads from replacing any stored receipt.
+$fileExtension = $allowedTypes[$mimeType];
+$fileName = 'receipt_' . $reservationId . '_' . bin2hex(random_bytes(12)) . '.' . $fileExtension;
 $filePath = $uploadDir . DIRECTORY_SEPARATOR . $fileName;
 $storedPath = 'uploads/receipts/' . $fileName;
 
@@ -53,27 +86,19 @@ if (!move_uploaded_file($file['tmp_name'], $filePath)) {
     exit;
 }
 
-$currentStatus = '';
-if ($con instanceof mysqli) {
-    $stmtCheck = $con->prepare("SELECT payment_status FROM reservations WHERE ref_code = ? LIMIT 1");
-    if ($stmtCheck) {
-        $stmtCheck->bind_param('s', $ref_code);
-        if ($stmtCheck->execute()) {
-            $res = $stmtCheck->get_result();
-            if ($res && ($row = $res->fetch_assoc())) {
-                $currentStatus = strtolower(trim($row['payment_status'] ?? ''));
-            }
-        }
-        $stmtCheck->close();
-    }
-}
+$currentStatus = strtolower(trim($reservation['payment_status'] ?? ''));
 $newStatus = ($currentStatus === 'rejected') ? 'pending_update' : 'pending';
 
 // Update database with receipt path and reset payment verification
-$stmt = $con->prepare("UPDATE reservations SET receipt_path = ?, payment_status = ?, verified_by = NULL, verification_date = NULL, receipt_uploaded_at = NOW() WHERE ref_code = ?");
-    $stmt->bind_param('sss', $storedPath, $newStatus, $ref_code);
+$stmt = $con->prepare("UPDATE reservations SET receipt_path = ?, payment_status = ?, verified_by = NULL, verification_date = NULL, receipt_uploaded_at = NOW() WHERE id = ? AND user_id = ?");
+if (!$stmt) {
+    @unlink($filePath);
+    echo json_encode(['success' => false, 'message' => 'Failed to update reservation']);
+    exit;
+}
+$stmt->bind_param('ssii', $storedPath, $newStatus, $reservationId, $sessionUserId);
 
-if ($stmt->execute()) {
+if ($stmt->execute() && $stmt->affected_rows === 1) {
     if ($newStatus === 'pending_update') {
         try {
             $con->query("CREATE TABLE IF NOT EXISTS notifications (
@@ -103,6 +128,7 @@ if ($stmt->execute()) {
         'success' => true, 
         'message' => 'Receipt uploaded successfully',
         'file_path' => $storedPath,
+        'reservation_id' => $reservationId,
         'payment_status' => $newStatus
     ]);
 } else {

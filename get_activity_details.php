@@ -986,6 +986,8 @@ if (!$data) {
           <img src="<?php echo htmlspecialchars($receipt); ?>" alt="Uploaded proof of payment">
         <?php endif; ?>
       </div>
+            <?php else: ?>
+            <div class="pay-proof"><p>No receipt uploaded.</p></div>
       <?php endif; ?>
     </div>
     <?php endif; ?>

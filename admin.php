@@ -1526,7 +1526,7 @@ function renderVerifyReceiptsCard($con){
                 echo '<td><a class="receipt-link" href="#" onclick="openReceiptModal(' . htmlspecialchars(json_encode($receiptUrl), ENT_QUOTES, 'UTF-8') . ', ' . ($canVerify ? intval($row['id']) : 0) . ', \'requests\'); return false;"><img class="receipt-thumbnail" src="' . htmlspecialchars($receiptUrl, ENT_QUOTES, 'UTF-8') . '" alt="Receipt"></a></td>';
                   }
                 } else {
-                  echo '<td><span class="muted">No receipt</span></td>';
+                  echo '<td><span class="muted">No receipt uploaded.</span></td>';
                 }
                 $uploadedAt = !empty($row['receipt_uploaded_at']) ? $row['receipt_uploaded_at'] : ($row['created_at'] ?? null);
                 $uploadedStr = $uploadedAt ? date('Y-m-d H:i', strtotime($uploadedAt)) : '-';
@@ -6465,7 +6465,7 @@ body.modal-open { overflow: hidden; }
                           echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars(admin_receipt_url($receiptPath), ENT_QUOTES, 'UTF-8') . "', " . intval($resIdMatch) . ", 'resident_guest_forms')\" style='margin:6px 0;'><i class='fa-solid fa-file'></i> Verify Payment Receipt</button>";
                         }
                       } else {
-                        echo "<div class='muted' style='margin:6px 0;'>No receipt</div>";
+                        echo "<div class='muted' style='margin:6px 0;'>No receipt uploaded.</div>";
                       }
                     }
                     if ($resIdMatch && !empty($receiptPath) && $payStatusLower !== 'verified') {
@@ -7107,7 +7107,7 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
                         echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars(admin_receipt_url($receiptPath), ENT_QUOTES, 'UTF-8') . "', " . intval($rr['id']) . ", 'requests')\"><i class='fa-solid fa-file'></i> Verify Payment Receipt</button>";
                       }
                     } else {
-                      echo "<div class='muted'>No receipt</div>";
+                      echo "<div class='muted'>No receipt uploaded.</div>";
                     }
                   }
                   if (!empty($rr['id']) && !empty($receiptPath) && $payStatusLower !== 'verified') {
@@ -7327,7 +7327,7 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
                       echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars(admin_receipt_url($receiptPath), ENT_QUOTES, 'UTF-8') . "', " . intval($rr['id']) . ", 'visitor_requests')\"><i class='fa-solid fa-file'></i> Verify Payment Receipt</button>";
                     }
                   } else {
-                    echo "<div class='muted'>No receipt</div>";
+                    echo "<div class='muted'>No receipt uploaded.</div>";
                   }
                   }
                   if (!empty($rr['id']) && !empty($receiptPath) && $payStatusLower !== 'verified') {
@@ -7964,12 +7964,12 @@ function showReservationDetails(reservationId, expectedType){
       const denialReason = (d.denial_reason||'').toString().trim();
       const showDenial = denialReason && (payStatus === 'rejected' || payStatus === 'pending_update' || approvalStatus.includes('denied') || approvalStatus.includes('reject'));
       const waitNote = payStatus === 'rejected' ? ((att>=3) ? 'Denied — Max Attempts Reached. Payment rejected 3 times. No further uploads allowed.' : 'Wait for the updated proof.') : '';
-      const receiptHtml = (receiptPath && payStatus==='verified') ? (
+      const receiptHtml = receiptPath ? (
         `<div class="details-section" style="animation: fadeIn 0.5s ease;">
           <h4>Proof of Payment</h4>
           ${isPdf ? `<a href="${receiptPath}" target="_blank" style="color:#23412e;font-weight:600;">Open uploaded proof (PDF)</a>` : `<a href="${receiptPath}" target="_blank"><img src="${receiptPath}" alt="Uploaded proof of payment" style="max-width:100%; height:auto; border-radius:8px; cursor:pointer;"></a>`}
         </div>`
-      ) : '';
+      ) : `<div class="details-section"><h4>Proof of Payment</h4><p>No receipt uploaded.</p></div>`;
       const denialHtml = '';
       const content = `
         <div class="request-details">
@@ -8167,12 +8167,12 @@ function showResidentReservationDetails(rrId){
       const att = parseInt(d.receipt_attempts||0, 10);
       const showDenial = denialReason && (ps === 'rejected' || ps === 'pending_update' || approvalStatus.includes('denied') || approvalStatus.includes('reject'));
       const waitNote = ps === 'rejected' ? ((att>=3) ? 'Denied — Max Attempts Reached. Payment rejected 3 times. No further uploads allowed.' : 'Wait for the updated proof.') : '';
-      const receiptHtml = (receiptPath && ps==='verified') ? (
+      const receiptHtml = receiptPath ? (
         `<div class="details-section" style="animation: fadeIn 0.5s ease;">
           <h4>Proof of Payment</h4>
           ${isPdf ? `<a href="${receiptPath}" target="_blank" style="color:#23412e;font-weight:600;">Open uploaded proof (PDF)</a>` : `<a href="${receiptPath}" target="_blank"><img src="${receiptPath}" alt="Uploaded proof of payment" style="max-width:100%; height:auto; border-radius:8px; cursor:pointer;"></a>`}
         </div>`
-      ) : '';
+      ) : `<div class="details-section"><h4>Proof of Payment</h4><p>No receipt uploaded.</p></div>`;
       const denialHtml = showDenial ? (
         `<div style="margin-top:12px;padding:12px;border-radius:10px;background:#fee2e2;color:#991b1b;font-weight:600;">
           <div>Reason: ${denialReason}</div>
