@@ -5723,7 +5723,7 @@ body.modal-open{overflow:hidden}
         var payNoteHtml='';
         if(fullyRedeemed){
           payNoteHtml+='<div class="rst-paynote rst-paynote-ok">♻ Fully Redeemed — 1 Free Hour</div>';
-          payNoteHtml+='<div class="rst-paynote rst-paynote-ok">No payment required. The entire 1-hour reservation was covered by the VHEcoPoint reward.</div>';
+          payNoteHtml+='<div class="rst-paynote rst-paynote-ok">No payment required. The entire 1-hour reservation was covered by the VHEcoPoint redemption.</div>';
         } else if(payVerified){
           payNoteHtml+='<div class="rst-paynote rst-paynote-ok">Downpayment verified — Remaining '+esc(remainingTxt)+' payable at the Administration Office</div>';
         } else if(paymentStatus==='verified'){
@@ -5763,7 +5763,7 @@ body.modal-open{overflow:hidden}
           proofHtml+='<a class="rst-proof-open" href="'+esc(proofUrl)+'" target="_blank" rel="noopener"><i class="fa-solid fa-up-right-from-square"></i> Open file</a>';
           proofHtml+='</div></div>';
         } else if(fullyRedeemed){
-          proofHtml+='<div class="rst-none rst-none-ok">No receipt uploaded. No proof of payment is required because this reservation was fully covered by the VHEcoPoint reward.</div>';
+          proofHtml+='<div class="rst-none rst-none-ok">No receipt uploaded. No proof of payment is required because this reservation was fully covered by the VHEcoPoint redemption.</div>';
         } else {
           proofHtml+='<div class="rst-none">No receipt uploaded.</div>';
         }

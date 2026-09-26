@@ -655,7 +655,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
           ecoAppTile.classList.add('is-hint-visible');
           hintTimer = window.setTimeout(function(){
             ecoAppTile.classList.remove('is-hint-visible');
-          }, 5000);
+          }, 2500);
         }
         setTimeout(function(){
           if(closeBtn) closeBtn.focus();

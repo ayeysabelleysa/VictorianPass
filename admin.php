@@ -396,7 +396,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_resident_reservation_detai
     $stmt = $con->prepare("SELECT r.id, r.user_id, r.ref_code, r.amenity, r.start_date, r.end_date, r.start_time, r.end_time, r.persons, r.purpose,
                                     r.created_at, r.approval_status, r.approved_by, r.approval_date,
                                     r.price, r.downpayment, r.payment_status, r.receipt_path, r.receipt_attempts, r.denial_reason, r.booking_for, r.account_type, r.booked_by_role, r.booked_by_name,
-                                    r.use_points, r.points_used,
+                                    r.use_points,
+                                    COALESCE((SELECT SUM(pt.amount) FROM point_transactions pt WHERE pt.user_id = r.user_id AND pt.reservation_ref_code = r.ref_code AND pt.transaction_type = 'redeem'), 0) AS points_used,
                                     u.first_name, u.middle_name, u.last_name, u.email, u.phone, u.house_number, u.user_type,
                                     gf.id AS gf_id, gf.visitor_first_name AS guest_first_name, gf.visitor_middle_name AS guest_middle_name,
                                     gf.visitor_last_name AS guest_last_name, gf.visitor_email AS guest_email, gf.visitor_contact AS guest_contact
@@ -435,7 +436,9 @@ if (isset($_GET['action']) && $_GET['action'] == 'get_reservation_details' && is
            r.approval_status, r.approved_by, r.approval_date, r.price,
            r.downpayment, r.payment_status, r.receipt_path, r.receipt_attempts,
            r.denial_reason, r.booking_for, r.account_type, r.booked_by_role, r.booked_by_name,
-           r.entry_pass_id, r.use_points, r.points_used, u.first_name, u.middle_name, u.last_name,
+           r.entry_pass_id, r.use_points,
+           COALESCE((SELECT SUM(pt.amount) FROM point_transactions pt WHERE pt.user_id = r.user_id AND pt.reservation_ref_code = r.ref_code AND pt.transaction_type = 'redeem'), 0) AS points_used,
+           u.first_name, u.middle_name, u.last_name,
            u.email, u.phone, u.house_number, u.user_type,
            gf.id AS gf_id, gf.visitor_first_name AS guest_first_name,
            gf.visitor_middle_name AS guest_middle_name, gf.visitor_last_name AS guest_last_name,
@@ -3473,6 +3476,7 @@ $currentSystem = in_array($currentPage, $vhEcoPointPages) ? 'ecopoint' : 'victor
 
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="css/ecopoint-brand.css?v=<?php echo substr(@md5_file(__DIR__ . '/css/ecopoint-brand.css') ?: '', 0, 12); ?>">
 
 <style>
 /* Modern Admin Dashboard CSS */
@@ -5197,7 +5201,7 @@ body.modal-open { overflow: hidden; }
   white-space: normal;
 }
 #reservationDetailsContent .eco-badge::before, #residentReservationDetailsContent .eco-badge::before {
-  content: "♻ VHEcoPoint Reward Used";
+  content: "♻ EcoPoints Used";
   display: inline-flex;
   align-items: center;
   min-height: 30px;
@@ -5212,15 +5216,18 @@ body.modal-open { overflow: hidden; }
   white-space: nowrap;
 }
 #reservationDetailsContent .eco-confirm-btn, #residentReservationDetailsContent .eco-confirm-btn {
+  --vh-eco-logo-size: 18px;
+  --vh-eco-logo-radius: 3px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 30px;
+  gap: 6px;
   margin: 0;
   padding: 7px 12px;
-  border: 1px solid #0f766e;
-  border-radius: 6px;
-  background: #0f766e;
+  border: 1px solid #166534;
+  border-radius: 20px;
+  background: #166534;
   color: #fff;
   font-size: 0.75rem;
   font-weight: 700;
@@ -5229,8 +5236,8 @@ body.modal-open { overflow: hidden; }
   white-space: nowrap;
 }
 #reservationDetailsContent .eco-confirm-btn:hover, #residentReservationDetailsContent .eco-confirm-btn:hover {
-  background: #115e59;
-  border-color: #115e59;
+  background: #14532d;
+  border-color: #14532d;
 }
 @media (max-width: 600px) {
   #reservationDetailsContent .eco-badge, #residentReservationDetailsContent .eco-badge {
@@ -6595,7 +6602,7 @@ body.modal-open { overflow: hidden; }
                   else if ($payStatusLower === 'rejected') { $statusClass = 'badge-rejected'; $statusLabel = 'Rejected (Attempt ' . max($attemptsRr,1) . ' of 3)'; }
                   echo "<td><span class='badge $statusClass'>" . $statusLabel . "</span></td>";
                   echo "<td class='actions'>";
-                  echo "<button type='button' class='btn btn-view' onclick='showReservationDetails(" . intval($rr['id']) . ")' style='margin-bottom: 5px;'><i class='fa-solid fa-eye'></i> View Details</button>";
+                  echo "<button type='button' class='btn btn-view' onclick='showReservationDetails(" . intval($rr['id']) . ")' style='margin-bottom: 5px;'>View Details</button>";
                   $psTmp = strtolower($rr['payment_status'] ?? '');
                   if ($psTmp === 'rejected') { echo "<div class='muted' style='margin-top:6px;'>Wait for the updated proof.</div>"; echo "</td>"; echo "</tr>"; continue; }
                   if ($approval_status == 'pending') {
@@ -6662,7 +6669,7 @@ body.modal-open { overflow: hidden; }
               echo "<td>" . $resident['house_number'] . "</td>";
               echo "<td>" . date('M d, Y', strtotime($resident['created_at'])) . "</td>";
               echo "<td class='actions'>";
-              echo "<button type='button' class='btn btn-view' onclick='showUserDetails(" . intval($resident['id']) . ",\"resident\")'><i class='fa-solid fa-eye'></i> View Details</button>";
+              echo "<button type='button' class='btn btn-view' onclick='showUserDetails(" . intval($resident['id']) . ",\"resident\")'>View Details</button>";
               $status = strtolower($resident['status'] ?? 'active');
               if ($status !== 'disabled') {
                 echo "<form method='post' style='display:inline;' onsubmit='return openAdminConfirm(this, \"Deactivate this account?\")'>";
@@ -6718,7 +6725,7 @@ body.modal-open { overflow: hidden; }
               echo "<td><span class='badge $statusClass'>" . $statusLabel . "</span></td>";
               echo "<td>" . (!empty($visitor['created_at']) ? date('M d, Y', strtotime($visitor['created_at'])) : '-') . "</td>";
               echo "<td class='actions'>";
-              echo "<button type='button' class='btn btn-view' onclick='showUserDetails(" . intval($visitor['id']) . ",\"visitor\")'><i class='fa-solid fa-eye'></i> View Details</button>";
+              echo "<button type='button' class='btn btn-view' onclick='showUserDetails(" . intval($visitor['id']) . ",\"visitor\")'>View Details</button>";
               if ($status !== 'disabled') {
                 echo "<form method='post' style='display:inline;' onsubmit='return openAdminConfirm(this, \"Deactivate this account?\")'>";
                 echo "<input type='hidden' name='user_id' value='" . intval($visitor['id']) . "'>";
@@ -6798,7 +6805,7 @@ window.addEventListener('click', function(e){ var m=document.getElementById('pri
         <input type="hidden" name="reservation_id" id="receiptVerifyId">
         <input type="hidden" name="action" value="verify_receipt">
         <input type="hidden" name="redirect_page" id="receiptVerifyRedirect" value="requests">
-        <button type="submit" class="btn btn-approve"><i class="fa-solid fa-receipt"></i> <i class="fa-solid fa-check"></i> Verify</button>
+        <button type="submit" class="btn btn-approve">Verify</button>
       </form>
       <div id="receiptVerifiedNote" class="muted" style="display:none;text-align:center;">Payment verified</div>
     </div>
@@ -7075,7 +7082,7 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
                 }
                 echo "<td><span class='badge $statusClass'>" . $statusLabel . "</span></td>";
                 echo "<td class='actions'>";
-                echo "<button type='button' class='btn btn-view' onclick='showReservationDetails(" . intval($rr['id']) . ",\"visitor\")'><i class='fa-solid fa-eye'></i> View Details</button>";
+                echo "<button type='button' class='btn btn-view' onclick='showReservationDetails(" . intval($rr['id']) . ",\"visitor\")'>View Details</button>";
                 $payStatusLower = strtolower($rr['payment_status'] ?? '');
                 if ($payStatusLower === 'rejected') { 
                   $attempts = intval($rr['receipt_attempts'] ?? 0);
@@ -7199,7 +7206,7 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
               echo '<td><span class="' . $badgeClass . '">' . ucfirst($status) . '</span></td>';
               // Actions
               echo '<td>';
-              echo '<button type="button" class="btn btn-view" onclick="showIncidentDetails(' . intval($r['id']) . ')" style="margin-right:6px;"><i class="fa-solid fa-eye"></i> View Details</button>';
+              echo '<button type="button" class="btn btn-view" onclick="showIncidentDetails(' . intval($r['id']) . ')" style="margin-right:6px;">View Details</button>';
               echo '<form method="POST" style="display:inline-block;margin-right:6px;">';
               echo '<input type="hidden" name="report_id" value="' . intval($r['id']) . '">';
               if ($status === 'new' || $status === 'in_progress') {
@@ -7293,7 +7300,7 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
                   if ($payStatusLower === 'rejected') { $statusClass = 'badge-rejected'; $statusLabel = 'Rejected (Attempt ' . max($attempts,1) . ' of 3)'; }
                   echo "<td><span class='badge $statusClass'>" . $statusLabel . "</span></td>";
                   echo "<td class='actions'>";
-                  echo "<button type='button' class='btn btn-view' onclick='showReservationDetails(" . intval($rr['id']) . ",\"visitor\")'><i class='fa-solid fa-eye'></i> View Details</button>";
+                  echo "<button type='button' class='btn btn-view' onclick='showReservationDetails(" . intval($rr['id']) . ",\"visitor\")'>View Details</button>";
                   $payStatusLower = strtolower($rr['payment_status'] ?? '');
                   if ($payStatusLower === 'rejected') { 
                     $attempts = intval($rr['receipt_attempts'] ?? 0);
@@ -7693,6 +7700,13 @@ function showVisitorDetails(id, source) {
           <div class="request-details">
             ${statusBadge}
             <div>
+              <div class="section-title">Request Status</div>
+              <div class="info-grid">
+                <div class="info-row"><span class="info-label">Status</span><span class="info-value">${stLabel}</span></div>
+                ${details.entry_created ? `<div class="info-row"><span class="info-label">Request Submitted</span><span class="info-value">${fmtRequestSubmitted(details.entry_created)}</span></div>` : ''}
+              </div>
+            </div>
+            <div>
               <div class="section-title">Resident Information</div>
               <div class="info-grid">
                 ${residentName ? `<div class="info-row"><span class="info-label">Name</span><span class="info-value">${residentName}</span></div>` : ''}
@@ -7732,20 +7746,18 @@ function showVisitorDetails(id, source) {
               </div>
             </div>
             ` : ''}
-            <div>
-              <div class="section-title">Request Status</div>
-              <div class="info-grid">
-                <div class="info-row"><span class="info-label">Status</span><span class="info-value">${stLabel}</span></div>
-                ${details.entry_created ? `<div class="info-row"><span class="info-label">Request Date</span><span class="info-value">${fmtDateTime(details.entry_created)}</span></div>` : ''}
-                ${details.approved_by ? `<div class="info-row"><span class="info-label">Approved By</span><span class="info-value">Admin</span></div>` : ''}
-                ${details.approval_date ? `<div class="info-row"><span class="info-label">Approval Date</span><span class="info-value">${fmtDateTimeSec(details.approval_date)}</span></div>` : ''}
-              </div>
-            </div>
           </div>
           `
           : `
           <div class="request-details">
             ${statusBadge}
+            <div>
+              <div class="section-title">Request Status</div>
+              <div class="info-grid">
+                <div class="info-row"><span class="info-label">Status</span><span class="info-value">${stLabel}</span></div>
+                ${details.entry_created ? `<div class="info-row"><span class="info-label">Request Submitted</span><span class="info-value">${fmtRequestSubmitted(details.entry_created)}</span></div>` : ''}
+              </div>
+            </div>
             <div>
               <div class="section-title">Personal Information</div>
               <div class="info-grid">
@@ -7768,15 +7780,6 @@ function showVisitorDetails(id, source) {
                 ${details.persons ? `<div class="info-row"><span class="info-label">No. of Persons</span><span class="info-value">${details.persons}</span></div>` : ''}
                 ${details.purpose ? `<div class="info-row"><span class="info-label">Purpose of Visit</span><span class="info-value">${details.purpose}</span></div>` : ''}
                 ${priceBlock}
-              </div>
-            </div>
-            <div>
-              <div class="section-title">Request Status</div>
-              <div class="info-grid">
-                <div class="info-row"><span class="info-label">Status</span><span class="info-value">${stLabel}</span></div>
-                ${details.entry_created ? `<div class="info-row"><span class="info-label">Request Date</span><span class="info-value">${fmtDateTime(details.entry_created)}</span></div>` : ''}
-                ${details.approved_by ? `<div class="info-row"><span class="info-label">Approved By</span><span class="info-value">Admin</span></div>` : ''}
-                ${details.approval_date ? `<div class="info-row"><span class="info-label">Approval Date</span><span class="info-value">${fmtDateTimeSec(details.approval_date)}</span></div>` : ''}
               </div>
             </div>
           </div>
@@ -7899,7 +7902,8 @@ function showReservationDetails(reservationId, expectedType){
         return `<div class="price-section">
           <div class="info-row"><span class="info-label">VHEcoPoint Redemption</span><span class="info-value">Fully Redeemed</span></div>
           <div class="info-row"><span class="info-label">Original Duration</span><span class="info-value">1 hour</span></div>
-          <div class="info-row"><span class="info-label">Reward</span><span class="info-value">-1 Free Hour (${fmtNum(pts)} pts)</span></div>
+          <div class="info-row"><span class="info-label">EcoPoints Used</span><span class="info-value">${fmtNum(pts)} pts</span></div>
+          <div class="info-row"><span class="info-label">Benefit</span><span class="info-value">1 Free Hour</span></div>
           <div class="info-row"><span class="info-label">Paid Duration</span><span class="info-value">0 hours</span></div>
           <div class="info-row"><span class="info-label">Original Amount</span><span class="info-value">${fmtMoney(rate)}</span></div>
           <div class="info-row price-down"><span class="info-label">VHEcoPoint Discount</span><span class="info-value">-${fmtMoney(rate)} (${fmtNum(pts)} pts)</span></div>
@@ -7920,7 +7924,8 @@ function showReservationDetails(reservationId, expectedType){
         return `<div class="price-section">
           <div class="info-row"><span class="info-label">VHEcoPoint Redemption</span><span class="info-value">Discounted Redemption</span></div>
           <div class="info-row"><span class="info-label">Original Duration</span><span class="info-value">${hours} hours</span></div>
-          <div class="info-row"><span class="info-label">Reward</span><span class="info-value">-1 Free Hour (${fmtNum(pointsUsed)} pts)</span></div>
+          <div class="info-row"><span class="info-label">EcoPoints Used</span><span class="info-value">${fmtNum(pointsUsed)} pts</span></div>
+          <div class="info-row"><span class="info-label">Benefit</span><span class="info-value">1 Free Hour</span></div>
           <div class="info-row"><span class="info-label">Paid Duration</span><span class="info-value">${Math.max(0, hours - 1)} hours</span></div>
           <div class="info-row"><span class="info-label">Original Amount</span><span class="info-value">${fmtMoney(originalAmount)}</span></div>
           <div class="info-row price-down"><span class="info-label">VHEcoPoint Discount</span><span class="info-value">-${fmtMoney(discountValue)} (${fmtNum(pointsUsed)} pts)</span></div>
@@ -7931,7 +7936,7 @@ function showReservationDetails(reservationId, expectedType){
           <div class="info-row total-price"><span class="info-label">Payment Status</span><span class="info-value">${paymentLabel}</span></div>
         </div>`;
       })()) : '';
-      const ecoBadge = (pointsUsed > 0) ? `<span class="status-badge-lg eco-badge">♻ VHEcoPoint Reward Used <a class="eco-confirm-btn" href="?page=smart_waste_logs" target="_blank" rel="noopener">Confirm in VHEcoPoint</a></span>` : '';
+      const ecoBadge = (pointsUsed > 0) ? `<span class="status-badge-lg eco-badge">♻ EcoPoints Used <a class="eco-confirm-btn" href="?page=smart_waste_logs" target="_blank" rel="noopener"><?php echo vh_eco_logo('', 'eco-confirm-logo'); ?><span>Confirm in VHEcoPoint</span></a></span>` : '';
       const redemptionSection = (pointsUsed > 0) ? (`
         <div class="section-title">VHEcoPoint Redemption</div>
         <div class="info-grid">
@@ -7940,8 +7945,8 @@ function showReservationDetails(reservationId, expectedType){
           ${d.amenity?`<div class="info-row"><span class="info-label">Amenity</span><span class="info-value">${d.amenity}</span></div>`:''}
           ${d.start_date?`<div class="info-row"><span class="info-label">Reservation Date</span><span class="info-value">${fmtDate(d.start_date)}</span></div>`:''}
           ${fmtDuration(d.start_time,d.end_time)?`<div class="info-row"><span class="info-label">Reserved Duration</span><span class="info-value">${fmtDuration(d.start_time,d.end_time)}</span></div>`:''}
-          <div class="info-row"><span class="info-label">Points Redeemed</span><span class="info-value">${fmtNum(pointsUsed)} pts</span></div>
-          <div class="info-row"><span class="info-label">Reward</span><span class="info-value">1 Free Hour</span></div>
+          <div class="info-row"><span class="info-label">EcoPoints Used</span><span class="info-value">${fmtNum(pointsUsed)} pts</span></div>
+          <div class="info-row"><span class="info-label">Benefit</span><span class="info-value">1 Free Hour</span></div>
           <div class="info-row"><span class="info-label">Discount / Savings</span><span class="info-value">${fmtMoney(discountValue)}</span></div>
           <div class="info-row"><span class="info-label">Redemption Status</span><span class="info-value">${isFullyRedeemed ? 'Fully Redeemed' : 'Partially Redeemed'}</span></div>
           <div class="info-row" style="flex-wrap:wrap;"><span class="info-label">Note</span><span class="info-value" style="font-weight:500;font-size:0.85rem;">No payment proof is required for the redeemed portion.</span></div>
@@ -7951,8 +7956,7 @@ function showReservationDetails(reservationId, expectedType){
       const pointsBlock = (parseInt(d.use_points,10) === 1 && parseInt(d.points_used,10) > 0) ? (()=>{
         const pts = parseInt(d.points_used,10) || 0;
         return `<div class="price-section">
-          <div class="info-row total-price"><span class="info-label">Redeem Points</span><span class="info-value">${pts.toLocaleString()} pts = 1 free hour</span></div>
-          <div class="info-row"><span class="info-label">Points Redeemed</span><span class="info-value">${pts.toLocaleString()} pts</span></div>
+          <div class="info-row total-price"><span class="info-label">EcoPoints Used</span><span class="info-value">${pts.toLocaleString()} pts</span></div>
           <div class="info-row"><span class="info-label">Benefit</span><span class="info-value">1 free hour</span></div>
           <div class="info-row" style="flex-wrap:wrap;"><span class="info-label">Note</span><span class="info-value" style="font-weight:500;font-size:0.85rem;">1 free hour deducted from the duration. Remaining hours are charged at regular rate.</span></div>
         </div>`;
@@ -7969,11 +7973,16 @@ function showReservationDetails(reservationId, expectedType){
           <h4>Proof of Payment</h4>
           ${isPdf ? `<a href="${receiptPath}" target="_blank" style="color:#23412e;font-weight:600;">Open uploaded proof (PDF)</a>` : `<a href="${receiptPath}" target="_blank"><img src="${receiptPath}" alt="Uploaded proof of payment" style="max-width:100%; height:auto; border-radius:8px; cursor:pointer;"></a>`}
         </div>`
-      ) : `<div class="details-section"><h4>Proof of Payment</h4><p>No receipt uploaded.</p></div>`;
+      ) : `<div class="details-section"><h4>Proof of Payment</h4><p>${isFullyRedeemed ? 'No receipt uploaded. No proof of payment is required because this reservation was fully covered by the VHEcoPoint redemption.' : 'No receipt uploaded.'}</p></div>`;
       const denialHtml = '';
       const content = `
         <div class="request-details">
           <div class="request-status" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><span class="status-badge-lg ${stClass}">${stLabel}</span>${ecoBadge}</div>
+          <div class="section-title">Request Status</div>
+          <div class="info-grid">
+            <div class="info-row"><span class="info-label">Status</span><span class="info-value">${stLabel}</span></div>
+            ${d.created_at?`<div class="info-row"><span class="info-label">Request Submitted</span><span class="info-value">${fmtSubmittedOn(d.created_at)}</span></div>`:''}
+          </div>
           <div class="section-title">${whoLabel} Information</div>
           <div class="info-grid">
             ${displayName?`<div class="info-row"><span class="info-label">Name</span><span class="info-value">${displayName}</span></div>`:''}
@@ -8000,18 +8009,13 @@ function showReservationDetails(reservationId, expectedType){
             ${d.end_time?`<div class="info-row"><span class="info-label">End Time</span><span class="info-value">${fmtTime(d.end_time)}</span></div>`:''}
             ${fmtDuration(d.start_time,d.end_time)?`<div class="info-row"><span class="info-label">Duration</span><span class="info-value">${fmtDuration(d.start_time,d.end_time)}</span></div>`:''}
             ${d.persons?`<div class="info-row"><span class="info-label">Persons</span><span class="info-value">${d.persons}</span></div>`:''}
+          </div>
+          <div class="section-title">Payment Details</div>
+          <div class="info-grid">
             ${pointsUsed > 0 ? payMethodBlock : (priceBlock + pointsBlock)}
           </div>
-          
           ${receiptHtml}
           ${denialHtml}
-          <div class="section-title">Request Status</div>
-          <div class="info-grid">
-            <div class="info-row"><span class="info-label">Status</span><span class="info-value">${stLabel}</span></div>
-            ${d.created_at?`<div class="info-row"><span class="info-label">Requested</span><span class="info-value">${fmtDateTime(d.created_at)}</span></div>`:''}
-            ${d.approved_by?`<div class="info-row"><span class="info-label">Approved By</span><span class="info-value">Admin</span></div>`:''}
-              ${d.approval_date?`<div class="info-row"><span class="info-label">Approval Date</span><span class="info-value">${fmtDateTimeSec(d.approval_date)}</span></div>`:''}
-          </div>
         </div>`;
       document.getElementById('reservationDetailsContent').innerHTML = content;
       document.getElementById('reservationModal').style.display = 'flex';
@@ -8045,7 +8049,7 @@ window.addEventListener('click', function(event){
 function fmtTime(t){ if(!t) return ''; var p=String(t).split(':'), hh=parseInt(p[0]||'0',10), m=(p[1]||'00'); var ap=hh>=12?'PM':'AM'; var h=hh%12; if(h===0) h=12; return (String(h)+":"+String(m).padStart(2,'0')+" "+ap); }
 function fmtDate(d){ if(!d) return ''; var p=String(d).split('-'); if(p.length!==3) return d; var m=(p[1]||'').padStart(2,'0'); var dd=(p[2]||'').padStart(2,'0'); var y=String(p[0]).slice(-2); return m+'/'+dd+'/'+y; }
 function fmtDuration(st, et){ if(!st || !et) return ''; var m1=String(st).match(/^(\d{1,2}):(\d{2})/); var m2=String(et).match(/^(\d{1,2}):(\d{2})/); if(!m1 || !m2) return ''; var sm=parseInt(m1[1],10)*60+parseInt(m1[2],10); var em=parseInt(m2[1],10)*60+parseInt(m2[2],10); var diff=em-sm; if(diff===0) return ''; if(diff<0) diff=(24*60)-sm+em; if(diff<=0) return ''; var h=Math.floor(diff/60); var mins=diff%60; var out=[]; if(h>0) out.push(h+(h===1?' hr':' hrs')); if(mins>0) out.push(mins+' min'); return out.join(' ')||''; }
-function fmtSubmittedOn(dt){ try{ var d=new Date(dt); var months=['January','February','March','April','May','June','July','August','September','October','November','December']; var mm=months[d.getMonth()]; var dd=d.getDate(); var yy=d.getFullYear(); var hh=d.getHours(); var m=String(d.getMinutes()).padStart(2,'0'); var ap=hh>=12?'PM':'AM'; var h=hh%12; if(h===0) h=12; return (mm+' '+dd+', '+yy+' at '+h+':'+m+' '+ap); }catch(e){ return String(dt); } }
+function fmtSubmittedOn(dt){ try{ var d=new Date(dt); var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; var mm=months[d.getMonth()]; var dd=d.getDate(); var yy=d.getFullYear(); var hh=d.getHours(); var m=String(d.getMinutes()).padStart(2,'0'); var ap=hh>=12?'PM':'AM'; var h=hh%12; if(h===0) h=12; return (mm+' '+dd+', '+yy+' at '+h+':'+m+' '+ap); }catch(e){ return String(dt); } }
 function fmtDateTime(dt){ try{ var d=new Date(dt); var mm=String(d.getMonth()+1).padStart(2,'0'); var dd=String(d.getDate()).padStart(2,'0'); var yy=String(d.getFullYear()).slice(-2); var hh=d.getHours(); var m=String(d.getMinutes()).padStart(2,'0'); var ap=hh>=12?'PM':'AM'; var h=hh%12; if(h===0) h=12; return (mm+"."+dd+"."+yy+" "+h+":"+m+" "+ap); }catch(e){ return String(dt); } }
 function fmtDateTimeSec(dt){ try{ var d=new Date(dt); var mm=String(d.getMonth()+1).padStart(2,'0'); var dd=String(d.getDate()).padStart(2,'0'); var yy=String(d.getFullYear()).slice(-2); var hh=d.getHours(); var m=String(d.getMinutes()).padStart(2,'0'); var s=String(d.getSeconds()).padStart(2,'0'); var ap=hh>=12?'PM':'AM'; var h=hh%12; if(h===0) h=12; return (mm+"."+dd+"."+yy+" "+h+":"+m+":"+s+" "+ap); }catch(e){ return String(dt); } }
 function showResidentReservationDetails(rrId){
@@ -8073,7 +8077,8 @@ function showResidentReservationDetails(rrId){
         return `<div class="price-section">
           <div class="info-row"><span class="info-label">VHEcoPoint Redemption</span><span class="info-value">Fully Redeemed</span></div>
           <div class="info-row"><span class="info-label">Original Duration</span><span class="info-value">1 hour</span></div>
-          <div class="info-row"><span class="info-label">Reward</span><span class="info-value">-1 Free Hour (${fmtNum(pts)} pts)</span></div>
+          <div class="info-row"><span class="info-label">EcoPoints Used</span><span class="info-value">${fmtNum(pts)} pts</span></div>
+          <div class="info-row"><span class="info-label">Benefit</span><span class="info-value">1 Free Hour</span></div>
           <div class="info-row"><span class="info-label">Paid Duration</span><span class="info-value">0 hours</span></div>
           <div class="info-row"><span class="info-label">Original Amount</span><span class="info-value">${fmtMoney(rate)}</span></div>
           <div class="info-row price-down"><span class="info-label">VHEcoPoint Discount</span><span class="info-value">-${fmtMoney(rate)} (${fmtNum(pts)} pts)</span></div>
@@ -8094,7 +8099,8 @@ function showResidentReservationDetails(rrId){
         return `<div class="price-section">
           <div class="info-row"><span class="info-label">VHEcoPoint Redemption</span><span class="info-value">Discounted Redemption</span></div>
           <div class="info-row"><span class="info-label">Original Duration</span><span class="info-value">${hours} hours</span></div>
-          <div class="info-row"><span class="info-label">Reward</span><span class="info-value">-1 Free Hour (${fmtNum(pointsUsed2)} pts)</span></div>
+          <div class="info-row"><span class="info-label">EcoPoints Used</span><span class="info-value">${fmtNum(pointsUsed2)} pts</span></div>
+          <div class="info-row"><span class="info-label">Benefit</span><span class="info-value">1 Free Hour</span></div>
           <div class="info-row"><span class="info-label">Paid Duration</span><span class="info-value">${Math.max(0, hours - 1)} hours</span></div>
           <div class="info-row"><span class="info-label">Original Amount</span><span class="info-value">${fmtMoney(originalAmount)}</span></div>
           <div class="info-row price-down"><span class="info-label">VHEcoPoint Discount</span><span class="info-value">-${fmtMoney(discountValue2)} (${fmtNum(pointsUsed2)} pts)</span></div>
@@ -8105,7 +8111,7 @@ function showResidentReservationDetails(rrId){
           <div class="info-row total-price"><span class="info-label">Payment Status</span><span class="info-value">${paymentLabel}</span></div>
         </div>`;
       })()) : '';
-      const ecoBadge2 = (pointsUsed2 > 0) ? `<span class="status-badge-lg eco-badge">♻ VHEcoPoint Reward Used <a class="eco-confirm-btn" href="?page=smart_waste_logs" target="_blank" rel="noopener">Confirm in VHEcoPoint</a></span>` : '';
+      const ecoBadge2 = (pointsUsed2 > 0) ? `<span class="status-badge-lg eco-badge">♻ EcoPoints Used <a class="eco-confirm-btn" href="?page=smart_waste_logs" target="_blank" rel="noopener"><?php echo vh_eco_logo('', 'eco-confirm-logo'); ?><span>Confirm in VHEcoPoint</span></a></span>` : '';
       const redemptionSection2 = (pointsUsed2 > 0) ? (`
         <div class="section-title">VHEcoPoint Redemption</div>
         <div class="info-grid">
@@ -8114,8 +8120,8 @@ function showResidentReservationDetails(rrId){
           ${d.amenity?`<div class="info-row"><span class="info-label">Amenity</span><span class="info-value">${d.amenity}</span></div>`:''}
         ${d.start_date?`<div class="info-row"><span class="info-label">Reservation Date</span><span class="info-value">${fmtDate(d.start_date)}</span></div>`:''}
           ${fmtDuration(d.start_time,d.end_time)?`<div class="info-row"><span class="info-label">Reserved Duration</span><span class="info-value">${fmtDuration(d.start_time,d.end_time)}</span></div>`:''}
-          <div class="info-row"><span class="info-label">Points Redeemed</span><span class="info-value">${fmtNum(pointsUsed2)} pts</span></div>
-          <div class="info-row"><span class="info-label">Reward</span><span class="info-value">1 Free Hour</span></div>
+          <div class="info-row"><span class="info-label">EcoPoints Used</span><span class="info-value">${fmtNum(pointsUsed2)} pts</span></div>
+          <div class="info-row"><span class="info-label">Benefit</span><span class="info-value">1 Free Hour</span></div>
           <div class="info-row"><span class="info-label">Discount / Savings</span><span class="info-value">${fmtMoney(discountValue2)}</span></div>
           <div class="info-row"><span class="info-label">Redemption Status</span><span class="info-value">${isFullyRedeemed2 ? 'Fully Redeemed' : 'Partially Redeemed'}</span></div>
           <div class="info-row" style="flex-wrap:wrap;"><span class="info-label">Note</span><span class="info-value" style="font-weight:500;font-size:0.85rem;">No payment proof is required for the redeemed portion.</span></div>
@@ -8155,8 +8161,7 @@ function showResidentReservationDetails(rrId){
       const pointsBlock = (parseInt(d.use_points,10) === 1 && parseInt(d.points_used,10) > 0) ? (()=>{
         const pts = parseInt(d.points_used,10) || 0;
         return `<div class="price-section">
-          <div class="info-row total-price"><span class="info-label">Redeem Points</span><span class="info-value">${pts.toLocaleString()} pts = 1 free hour</span></div>
-          <div class="info-row"><span class="info-label">Points Redeemed</span><span class="info-value">${pts.toLocaleString()} pts</span></div>
+          <div class="info-row total-price"><span class="info-label">EcoPoints Used</span><span class="info-value">${pts.toLocaleString()} pts</span></div>
           <div class="info-row"><span class="info-label">Benefit</span><span class="info-value">1 free hour</span></div>
           <div class="info-row" style="flex-wrap:wrap;"><span class="info-label">Note</span><span class="info-value" style="font-weight:500;font-size:0.85rem;">1 free hour deducted from the duration. Remaining hours are charged at regular rate.</span></div>
         </div>`;
@@ -8172,7 +8177,7 @@ function showResidentReservationDetails(rrId){
           <h4>Proof of Payment</h4>
           ${isPdf ? `<a href="${receiptPath}" target="_blank" style="color:#23412e;font-weight:600;">Open uploaded proof (PDF)</a>` : `<a href="${receiptPath}" target="_blank"><img src="${receiptPath}" alt="Uploaded proof of payment" style="max-width:100%; height:auto; border-radius:8px; cursor:pointer;"></a>`}
         </div>`
-      ) : `<div class="details-section"><h4>Proof of Payment</h4><p>No receipt uploaded.</p></div>`;
+      ) : `<div class="details-section"><h4>Proof of Payment</h4><p>${isFullyRedeemed2 ? 'No receipt uploaded. No proof of payment is required because this reservation was fully covered by the VHEcoPoint redemption.' : 'No receipt uploaded.'}</p></div>`;
       const denialHtml = showDenial ? (
         `<div style="margin-top:12px;padding:12px;border-radius:10px;background:#fee2e2;color:#991b1b;font-weight:600;">
           <div>Reason: ${denialReason}</div>
@@ -8182,6 +8187,11 @@ function showResidentReservationDetails(rrId){
       const content = `
           <div class="request-details">
             <div class="request-status" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><span class="status-badge-lg ${stClass}">${stLabel}</span>${ecoBadge2}</div>
+            <div class="section-title">Request Status</div>
+            <div class="info-grid">
+              <div class="info-row"><span class="info-label">Status</span><span class="info-value">${stLabel}</span></div>
+              ${d.created_at?`<div class="info-row"><span class="info-label">Request Submitted</span><span class="info-value">${fmtSubmittedOn(d.created_at)}</span></div>`:''}
+            </div>
             <div class="section-title">${primarySectionTitle} Information</div>
             <div class="info-grid">
               ${displayName?`<div class="info-row"><span class="info-label">Name</span><span class="info-value">${displayName}</span></div>`:''}
@@ -8197,13 +8207,6 @@ function showResidentReservationDetails(rrId){
               ${d.email?`<div class="info-row"><span class="info-label">Email</span><span class="info-value">${d.email}</span></div>`:''}
               ${d.phone?`<div class="info-row"><span class="info-label">Phone</span><span class="info-value">${d.phone}</span></div>`:''}
             </div>` : ''}
-            <div class="section-title">Request Information</div>
-            <div class="info-grid">
-              <div class="info-row"><span class="info-label">Request Status</span><span class="info-value">${stLabel}</span></div>
-              ${d.created_at?`<div class="info-row"><span class="info-label">Submitted On</span><span class="info-value">${fmtSubmittedOn(d.created_at)}</span></div>`:''}
-              ${d.approved_by?`<div class="info-row"><span class="info-label">Approved By</span><span class="info-value">Admin</span></div>`:''}
-              ${d.approval_date?`<div class="info-row"><span class="info-label">Approval Date</span><span class="info-value">${fmtDateTimeSec(d.approval_date)}</span></div>`:''}
-            </div>
             <div class="section-title">Reservation Details</div>
             <div class="info-grid">
               ${d.ref_code?`<div class="info-row"><span class="info-label">Reference Code</span><span class="info-value">${d.ref_code}</span></div>`:''}
@@ -8215,19 +8218,14 @@ function showResidentReservationDetails(rrId){
               ${d.end_time?`<div class="info-row"><span class="info-label">End Time</span><span class="info-value">${fmtTime(d.end_time)}</span></div>`:''}
               ${fmtDuration(d.start_time,d.end_time)?`<div class="info-row"><span class="info-label">Duration</span><span class="info-value">${fmtDuration(d.start_time,d.end_time)}</span></div>`:''}
               ${d.persons?`<div class="info-row"><span class="info-label">Persons</span><span class="info-value">${d.persons}</span></div>`:''}
+            </div>
+            <div class="section-title">Payment Details</div>
+            <div class="info-grid">
               ${pointsUsed2 > 0 ? payMethodBlock2 : (priceBlock + pointsBlock)}
               ${pointsUsed2 > 0 ? '' : `<div class="info-row"><span class="info-label">Downpayment</span><span class="info-value"><span class="badge ${psClass}">${ps.charAt(0).toUpperCase()+ps.slice(1)}</span></span></div>`}
             </div>
-            
             ${receiptHtml}
             ${denialHtml}
-            <div class="section-title">Request Status</div>
-            <div class="info-grid">
-              <div class="info-row"><span class="info-label">Status</span><span class="info-value">${stLabel}</span></div>
-              ${d.created_at?`<div class="info-row"><span class="info-label">Requested</span><span class="info-value">${fmtDateTime(d.created_at)}</span></div>`:''}
-              ${d.approved_by?`<div class="info-row"><span class="info-label">Approved By</span><span class="info-value">Admin</span></div>`:''}
-              ${d.approval_date?`<div class="info-row"><span class="info-label">Approval Date</span><span class="info-value">${fmtDateTimeSec(d.approval_date)}</span></div>`:''}
-            </div>
           </div>`;
       document.getElementById('residentReservationDetailsContent').innerHTML = content;
     })

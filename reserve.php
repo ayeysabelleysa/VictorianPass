@@ -1081,12 +1081,12 @@ if (ob_get_level() > 0) { ob_end_flush(); }
       <?php $isResident = ($sessionUserType === 'resident'); ?>
 
       <?php if ($isResident): ?>
-        <!-- View Rewards Modal -->
+        <!-- EcoPoints Redemption Modal -->
         <div id="viewRewardsModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:10000; align-items:center; justify-content:center; padding:20px;">
           <div class="view-rewards-content" style="background:#fff; border-radius:20px; max-width:800px; width:100%; max-height:90vh; overflow-y:auto; position:relative;">
             <!-- Modal Header -->
             <div class="view-rewards-header" style="padding:24px 24px 0; display:flex; justify-content:space-between; align-items:center;">
-              <h2 style="margin:0; color:#23412e; font-size:1.5rem; font-weight:800;"><i class="fa-solid fa-gift" aria-hidden="true"></i> View Rewards</h2>
+              <h2 style="margin:0; color:#23412e; font-size:1.5rem; font-weight:800;"><i class="fa-solid fa-coins" aria-hidden="true"></i> Redeem EcoPoints</h2>
               <button type="button" id="closeRewardsModal" class="close-profile-modal" aria-label="Close">
                 &times;
               </button>
@@ -1111,7 +1111,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
                 </div>
               </div>
 
-              <!-- All Available Amenity Rewards -->
+              <!-- Available Amenities -->
               <div class="view-rewards-amenities" style="margin-bottom:24px;">
                 <div style="font-size:1.25rem; font-weight:800; color:#23412e; margin-bottom:16px;">All Available Amenities</div>
                 <div class="view-rewards-grid" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px;">
@@ -1205,9 +1205,9 @@ if (ob_get_level() > 0) { ob_end_flush(); }
             <span class="points-balance-limit">pts</span>
           </div>
         </div>
-        <div class="points-tracker-note">These are your VHEcoPoint rewards - earn points by recycling at the Smart Waste Segregation Station.</div>
+        <div class="points-tracker-note">Earn EcoPoints by recycling at the VHEcoPoint Smart Waste Segregation Station.</div>
         <div class="points-tracker-body">
-          <button class="view-rewards-btn" id="viewRewardsBtn">View Rewards<span class="view-rewards-btn-badge" id="viewRewardsBadge"<?php echo ($redeemableRewards > 0) ? '' : ' style="display:none;"'; ?>><?php echo intval($redeemableRewards); ?></span></button>
+          <button class="view-rewards-btn" id="viewRewardsBtn">Redeem EcoPoints<span class="view-rewards-btn-badge" id="viewRewardsBadge"<?php echo ($redeemableRewards > 0) ? '' : ' style="display:none;"'; ?>><?php echo intval($redeemableRewards); ?></span></button>
         </div>
         <button class="points-tracker-toggle" id="trackerToggleBtn" aria-label="Toggle points tracker">−</button>
       </div>
@@ -1535,7 +1535,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     <p class="points-redemption-confirm-message" id="pointsRedemptionConfirmMessage">Are you sure you want to redeem your VHEcoPoint points for 1 Free Hour?</p>
     <div class="points-redemption-confirm-summary">
       <div><span>Points to Redeem:</span><strong id="pointsRedemptionConfirmAmount">0 pts</strong></div>
-      <div><span>Reward:</span><strong>1 Free Hour</strong></div>
+      <div><span>Benefit:</span><strong>1 Free Hour</strong></div>
     </div>
     <div class="points-redemption-confirm-actions">
       <button type="button" class="btn-cancel" id="pointsRedemptionCancelBtn">Cancel</button>
@@ -1547,11 +1547,11 @@ if (ob_get_level() > 0) { ob_end_flush(); }
 <div id="switchRewardRedemptionModal" class="modal" style="display:none;">
   <div class="modal-content points-redemption-confirm-content">
     <button type="button" class="close-profile-modal" id="switchRewardRedemptionCloseBtn" aria-label="Close">&times;</button>
-    <h2>Switch Reward?</h2>
+    <h2>Switch Amenity?</h2>
     <p class="points-redemption-confirm-message" id="switchRewardRedemptionMessage"></p>
     <div class="points-redemption-confirm-actions">
       <button type="button" class="btn-cancel" id="keepRewardRedemptionBtn">Keep Current</button>
-      <button type="button" class="btn-confirm" id="confirmRewardRedemptionSwitchBtn">Switch Reward</button>
+      <button type="button" class="btn-confirm" id="confirmRewardRedemptionSwitchBtn">Switch Amenity</button>
     </div>
   </div>
 </div>
@@ -2981,9 +2981,9 @@ async function changePersons(val){
           rows += '<div class="bd-row"><span>Original Duration: ' + hours + ' hour' + (hours !== 1 ? 's' : '') + '</span><span>₱' + fullBase.toFixed(2) + '</span></div>';
           if(usePoints){
             const discountVal = hourlyRate;
-            rows += '<div class="bd-row bd-reward"><span>VHEcoPoint Reward: -1 Free Hour (' + requiredPoints.toLocaleString() + ' pts)</span><span>-₱' + discountVal.toFixed(2) + '</span></div>';
+            rows += '<div class="bd-row bd-reward"><span>EcoPoints Used: ' + requiredPoints.toLocaleString() + ' pts (1 Free Hour)</span><span>-₱' + discountVal.toFixed(2) + '</span></div>';
           }else if(currentUserType === 'resident'){
-            rows += '<div class="bd-row"><span>VHEcoPoint Reward: 0</span><span>₱0.00</span></div>';
+            rows += '<div class="bd-row"><span>EcoPoints Used: 0</span><span>₱0.00</span></div>';
           }
           rows += '<div class="bd-row"><span>Paid Duration: ' + paidHours + ' hour' + (paidHours !== 1 ? 's' : '') + '</span><span>₱' + base.toFixed(2) + '</span></div>';
           rows += '<div class="bd-row bd-total"><span>Final Amount</span><span>₱' + base.toFixed(2) + '</span></div>';
@@ -2991,7 +2991,7 @@ async function changePersons(val){
         }else{
           bd.innerHTML =
             '<div class="bd-row"><span>Original Duration: 0 hours</span><span>₱0.00</span></div>' +
-            (currentUserType === 'resident' ? '<div class="bd-row"><span>VHEcoPoint Reward: 0</span><span>₱0.00</span></div>' : '') +
+            (currentUserType === 'resident' ? '<div class="bd-row"><span>EcoPoints Used: 0</span><span>₱0.00</span></div>' : '') +
             '<div class="bd-row"><span>Paid Duration: 0 hours</span><span>₱0.00</span></div>' +
             '<div class="bd-row bd-total"><span>Final Amount</span><span>₱0.00</span></div>';
         }
@@ -3786,7 +3786,8 @@ async function changePersons(val){
           summaryHTML += '<div class="vs-section vs-reward">'
             + '<div class="vs-section-title">VHEcoPoint Redemption: ' + redemptionLabel + '</div>'
             + vsRow('Original Duration', hoursVal + ' hour' + (hoursVal > 1 ? 's' : ''))
-            + vsRow('Reward', '-1 Free Hour (' + pointsNeeded.toLocaleString() + ' pts)', 'vs-good')
+            + vsRow('EcoPoints Used', pointsNeeded.toLocaleString() + ' pts', 'vs-good')
+            + vsRow('Benefit', '1 Free Hour', 'vs-good')
             + vsRow('Paid Duration', paidHours + ' hour' + (paidHours !== 1 ? 's' : ''))
             + '</div>';
 
@@ -4827,7 +4828,7 @@ window.addEventListener('resize', updateBookingStepsOffset);
 window.addEventListener('load', updateBookingStepsOffset);
 
 
-// View Rewards Modal and Amenity Clicks
+// EcoPoints Redemption Modal and Amenity Selection
 document.addEventListener('DOMContentLoaded', function() {
   // Modal elements
   const viewRewardsBtn = document.getElementById('viewRewardsBtn');
@@ -4866,11 +4867,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Reward cards are browse-only. While the Rewards popup is open, the
+  // Amenity cards are browse-only. While the EcoPoints popup is open, the
   // resident's amenity selection and the Amenity Picking page stay untouched.
   // The "Redeem" button opens the Confirm Redemption dialog first; the resident
-  // moves to the selected reward amenity's reservation page only after clicking
-  // Confirm Redemption. The amenity always comes from the reward card that was
+  // moves to the selected amenity's reservation page only after clicking
+  // Confirm Redemption. The amenity always comes from the card that was
   // clicked, so it can never fall back to a default clubhouse value.
   function proceedWithRewardRedemption(amenityName) {
     if (!amenityName) {
