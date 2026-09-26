@@ -7134,27 +7134,6 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
                       echo "<div class='muted'>" . htmlspecialchars($receiptMessage, ENT_QUOTES, 'UTF-8') . "</div>";
                     }
                   }
-                  if (!empty($rr['id']) && $payStatusLower !== 'verified') {
-                    if ($attempts >= 3) {
-                      echo "<form method='post' class='action-form action-deny' onsubmit='return openDenyModal(this)'>";
-                      echo "<input type='hidden' name='reservation_id' value='" . intval($rr['id']) . "'>";
-                      echo "<input type='hidden' name='action' value='deny_request'>";
-                      echo "<input type='hidden' name='redirect_page' value='requests'>";
-                      $valueAttr = ($payStatusLower === 'pending_update' ? " value='" . htmlspecialchars(trim((string)($rr['denial_reason'] ?? '')), ENT_QUOTES) . "'" : "");
-                      echo "<input type='hidden' name='denial_reason' class='denial-reason'".$valueAttr.">";
-                      echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'>Deny</button>";
-                      echo "</form>";
-                    } else {
-                      echo "<form method='post' onsubmit='return openDenyModal(this)'>";
-                      echo "<input type='hidden' name='reservation_id' value='" . intval($rr['id']) . "'>";
-                      echo "<input type='hidden' name='action' value='reject_receipt'>";
-                      echo "<input type='hidden' name='redirect_page' value='requests'>";
-                      $valueAttr = ($payStatusLower === 'pending_update' ? " value='" . htmlspecialchars(trim((string)($rr['denial_reason'] ?? '')), ENT_QUOTES) . "'" : "");
-                      echo "<input type='hidden' name='denial_reason' class='denial-reason'".$valueAttr.">";
-                      echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'>Reject Receipt</button>";
-                      echo "</form>";
-                    }
-                  }
                 }
                 if ($approval_status == 'pending') {
                     $disabled = !isAmenityPaymentVerified($con, $rr['ref_code'] ?? '');
@@ -8013,7 +7992,7 @@ function showReservationDetails(reservationId, expectedType){
         `<div class="details-section" style="animation: fadeIn 0.5s ease;">
           <h4>Proof of Payment</h4>
           ${isPdf ? `<a href="${receiptPath}" target="_blank" style="color:#23412e;font-weight:600;">Open uploaded proof (PDF)</a>` : `<a href="${receiptPath}" target="_blank"><img src="${receiptPath}" alt="Uploaded proof of payment" style="max-width:100%; height:auto; border-radius:8px; cursor:pointer;"></a>`}
-          ${payStatus !== 'verified' && d.id ? `<form method="post" style="display:flex;justify-content:center;margin-top:12px;"><input type="hidden" name="reservation_id" value="${d.id}"><input type="hidden" name="action" value="verify_receipt"><input type="hidden" name="redirect_page" value="${redirectPage}"><button type="submit" class="btn btn-approve">Verify</button></form>` : ''}
+          ${payStatus !== 'verified' && d.id ? `<div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:12px;"><form method="post" style="margin:0;"><input type="hidden" name="reservation_id" value="${d.id}"><input type="hidden" name="action" value="verify_receipt"><input type="hidden" name="redirect_page" value="${redirectPage}"><button type="submit" class="btn btn-approve">Verify Payment Receipt</button></form>${att < 3 && payStatus !== 'rejected' ? `<form method="post" class="action-form action-deny" onsubmit="return openDenyModal(this)" style="margin:0;"><input type="hidden" name="reservation_id" value="${d.id}"><input type="hidden" name="action" value="reject_receipt"><input type="hidden" name="redirect_page" value="${redirectPage}"><input type="hidden" name="denial_reason" class="denial-reason"><button type="submit" class="btn btn-reject">Reject Receipt</button></form>` : ''}</div>` : ''}
         </div>`
       ) : `<div class="details-section"><h4>Proof of Payment</h4><p>${isFullyRedeemed ? 'No receipt uploaded. No proof of payment is required because this reservation was fully covered by the VHEcoPoint redemption.' : (d.receipt_uploaded_at || ['submitted', 'pending_update'].includes(payStatus) ? 'Payment submitted, but the receipt file is unavailable.' : 'No receipt uploaded.')}</p></div>`;
       const denialHtml = '';
@@ -8214,11 +8193,12 @@ function showResidentReservationDetails(rrId){
       const att = parseInt(d.receipt_attempts||0, 10);
       const showDenial = denialReason && (ps === 'rejected' || ps === 'pending_update' || approvalStatus.includes('denied') || approvalStatus.includes('reject'));
       const waitNote = ps === 'rejected' ? ((att>=3) ? 'Denied — Max Attempts Reached. Payment rejected 3 times. No further uploads allowed.' : 'Wait for the updated proof.') : '';
+      const receiptRedirectPage = isResidentGuest ? 'resident_guest_forms' : (d.entry_pass_id || d.user_type === 'visitor' ? 'visitor_requests' : 'requests');
       const receiptHtml = receiptPath ? (
         `<div class="details-section" style="animation: fadeIn 0.5s ease;">
           <h4>Proof of Payment</h4>
           ${isPdf ? `<a href="${receiptPath}" target="_blank" style="color:#23412e;font-weight:600;">Open uploaded proof (PDF)</a>` : `<a href="${receiptPath}" target="_blank"><img src="${receiptPath}" alt="Uploaded proof of payment" style="max-width:100%; height:auto; border-radius:8px; cursor:pointer;"></a>`}
-          ${ps !== 'verified' && d.id ? `<form method="post" style="display:flex;justify-content:center;margin-top:12px;"><input type="hidden" name="reservation_id" value="${d.id}"><input type="hidden" name="action" value="verify_receipt"><input type="hidden" name="redirect_page" value="${isResidentGuest ? 'resident_guest_forms' : (d.entry_pass_id || d.user_type === 'visitor' ? 'visitor_requests' : 'requests')}"><button type="submit" class="btn btn-approve">Verify</button></form>` : ''}
+          ${ps !== 'verified' && d.id ? `<div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:12px;"><form method="post" style="margin:0;"><input type="hidden" name="reservation_id" value="${d.id}"><input type="hidden" name="action" value="verify_receipt"><input type="hidden" name="redirect_page" value="${receiptRedirectPage}"><button type="submit" class="btn btn-approve">Verify Payment Receipt</button></form>${att < 3 && ps !== 'rejected' ? `<form method="post" class="action-form action-deny" onsubmit="return openDenyModal(this)" style="margin:0;"><input type="hidden" name="reservation_id" value="${d.id}"><input type="hidden" name="action" value="reject_receipt"><input type="hidden" name="redirect_page" value="${receiptRedirectPage}"><input type="hidden" name="denial_reason" class="denial-reason"><button type="submit" class="btn btn-reject">Reject Receipt</button></form>` : ''}</div>` : ''}
         </div>`
       ) : `<div class="details-section"><h4>Proof of Payment</h4><p>${isFullyRedeemed2 ? 'No receipt uploaded. No proof of payment is required because this reservation was fully covered by the VHEcoPoint redemption.' : (d.receipt_uploaded_at || ['submitted', 'pending_update'].includes(ps) ? 'Payment submitted, but the receipt file is unavailable.' : 'No receipt uploaded.')}</p></div>`;
       const denialHtml = showDenial ? (
