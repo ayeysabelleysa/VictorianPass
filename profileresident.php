@@ -4188,6 +4188,9 @@ body.modal-open{overflow:hidden}
                   <label for="visit_time">Time of Entry*</label>
                 </div>
               </div>
+              <div class="privacy-note" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#14532d;padding:10px 12px;border-radius:8px;margin:0 0 10px;font-size:0.88rem;line-height:1.4;">
+                Entry schedules must be submitted at least 1 day in advance. Choose tomorrow or a later date; same-day and past dates are not allowed.
+              </div>
               <div class="privacy-note" style="background:#f9fafb;border:1px solid #e5e7eb;color:#374151;padding:10px 12px;border-radius:8px;margin:10px 0;font-size:0.92rem;line-height:1.35;">
                 The admin will review this request and confirm the arrival schedule. Once approved, a unique QR entry pass will be generated that is valid only on the approved date and time.
               </div>
@@ -6391,6 +6394,23 @@ body.modal-open{overflow:hidden}
     birthdateEl.setAttribute('max',d.toISOString().split('T')[0]);
   }
 
+  var visitDateEl=document.getElementById('visit_date');
+  var minimumVisitDate='';
+  if(visitDateEl){
+    var minEntryDate=new Date();
+    minEntryDate.setHours(0,0,0,0);
+    minEntryDate.setDate(minEntryDate.getDate()+1);
+    minimumVisitDate=[minEntryDate.getFullYear(),String(minEntryDate.getMonth()+1).padStart(2,'0'),String(minEntryDate.getDate()).padStart(2,'0')].join('-');
+    visitDateEl.min=minimumVisitDate;
+    visitDateEl.addEventListener('change',function(){
+      if(visitDateEl.value && visitDateEl.value<minimumVisitDate){
+        setWarning('visit_date','Entry date must be at least 1 day in advance. Choose tomorrow or a later date.');
+      }else{
+        setWarning('visit_date','');
+      }
+    });
+  }
+
   function validateGuestForm(){
     var valid=true;
     var reqIds=['resident_full_name','resident_house','resident_email','resident_contact','visitor_first_name','visitor_last_name','visitor_address','birthdate','visitor_contact','visit_date','visit_time'];
@@ -6422,11 +6442,9 @@ body.modal-open{overflow:hidden}
         setWarning('birthdate','');
       }
     }
-    var visitDateEl=document.getElementById('visit_date');
     if(visitDateEl && visitDateEl.value){
-      var todayStr2=new Date().toISOString().split('T')[0];
-      if(visitDateEl.value<todayStr2){
-        setWarning('visit_date','Date of Entry cannot be in the past.');
+      if(visitDateEl.value<minimumVisitDate){
+        setWarning('visit_date','Entry date must be at least 1 day in advance. Choose tomorrow or a later date.');
         valid=false;
       }else{
         setWarning('visit_date','');
@@ -6586,6 +6604,8 @@ body.modal-open{overflow:hidden}
           else if(msg.indexOf('Guest phone')!==-1) setWarning('visitor_contact', msg);
           else if(msg.indexOf('Resident name')!==-1) setWarning('resident_full_name', msg);
           else if(msg.indexOf('Guest name')!==-1) setWarning('visitor_first_name', msg);
+          else if(msg.indexOf('Guest Entry Date')!==-1 || msg.indexOf('Invalid Guest Entry Date')!==-1) setWarning('visit_date', msg);
+          else if(msg.indexOf('Guest Entry Time')!==-1) setWarning('visit_time', msg);
           else if(msg.indexOf('valid ID')!==-1) setWarning('visitor_valid_id', msg);
           else if(msg.indexOf('Resident email')!==-1) setWarning('resident_email', msg);
           else if(msg.indexOf('Guest email')!==-1) setWarning('visitor_email', msg);

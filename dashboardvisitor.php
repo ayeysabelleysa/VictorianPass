@@ -870,9 +870,6 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <button type="button" class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="Close navigation"><i class="fa-solid fa-xmark"></i></button>
-    <div class="sidebar-header">
-      <a href="mainpage.php" class="back-btn"><i class="fa-solid fa-arrow-left"></i></a>
-    </div>
 
     <nav class="nav-menu">
       <a href="#" class="nav-item active" data-section="panel-requests"><i class="fa-solid fa-list"></i> <span>My Requests</span></a>
@@ -909,13 +906,20 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
       </div>
     </header>
 
+    <div class="dashboard-back-row">
+      <a href="mainpage.php" class="back-btn" id="dashboardBackBtn" aria-label="Back to main page"><i class="fa-solid fa-arrow-left"></i></a>
+      <div class="page-title-wrap">
+        <h1 class="page-title" id="dashboardPageTitle">My Requests</h1>
+        <p class="page-subtitle" id="dashboardPageSubtitle">View and manage all of your amenity and guest requests.</p>
+      </div>
+    </div>
+
     <div class="content-wrapper">
       <div class="right-panel">
         
         <!-- ACTIVE REQUESTS PANEL -->
         <div class="panel-section" id="panel-requests">
           <div class="activity-list-header">
-            <div>My Requests</div>
             <div class="search-bar">
               <i class="fa-solid fa-magnifying-glass"></i>
               <input type="text" placeholder="Search by code or keyword" class="request-search" data-target="active">
@@ -966,8 +970,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
                   }
                   $createdText = date('m/d/y g:i A', strtotime($act['date']));
               ?>
-              <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($amenityName ?? ''); ?>" data-booked-by="<?php echo htmlspecialchars($fullName); ?>" data-persons="<?php echo isset($act['persons']) ? intval($act['persons']) : 1; ?>" data-price="<?php echo htmlspecialchars((string)($act['price'] ?? '')); ?>" data-downpayment="<?php echo htmlspecialchars((string)($act['downpayment'] ?? '')); ?>" data-receipt-path="<?php echo htmlspecialchars((string)($act['receipt_path'] ?? '')); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars((string)($act['receipt_uploaded_at'] ?? '')); ?>">
-                 <div class="item-icon"><i class="fa-solid fa-chevron-right"></i></div>
+                <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($amenityName ?? ''); ?>" data-booked-by="<?php echo htmlspecialchars($fullName); ?>" data-persons="<?php echo isset($act['persons']) ? intval($act['persons']) : 1; ?>" data-price="<?php echo htmlspecialchars((string)($act['price'] ?? '')); ?>" data-downpayment="<?php echo htmlspecialchars((string)($act['downpayment'] ?? '')); ?>" data-receipt-path="<?php echo htmlspecialchars((string)($act['receipt_path'] ?? '')); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars((string)($act['receipt_uploaded_at'] ?? '')); ?>">
+                  <div class="item-icon request-toggle"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
                    <span hidden class="reservation-id"><?php echo intval($act['reservation_id'] ?? 0); ?></span>
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
@@ -1002,7 +1006,6 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
         <!-- HISTORY PANEL -->
         <div class="panel-section" id="panel-history" style="display:none;">
           <div class="activity-list-header">
-            <div>History</div>
             <div class="search-bar">
               <i class="fa-solid fa-magnifying-glass"></i>
               <input type="text" placeholder="Search history..." class="request-search" data-target="history">
@@ -1274,6 +1277,10 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
           sections.forEach(function(s) { s.style.display = 'none'; });
           var target = document.getElementById(sectionId);
           if (target) target.style.display = 'block';
+            var title = document.getElementById('dashboardPageTitle');
+            var subtitle = document.getElementById('dashboardPageSubtitle');
+            if (title) title.textContent = sectionId === 'panel-history' ? 'History' : 'My Requests';
+            if (subtitle) subtitle.textContent = sectionId === 'panel-history' ? 'Review your past amenity and guest requests.' : 'View and manage all of your amenity and guest requests.';
       });
   });
 
@@ -1718,7 +1725,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
                 li.setAttribute('data-receipt-uploaded-at', item.receipt_uploaded_at || '');
               }
               if(item.attempts!==undefined){ li.setAttribute('data-attempts', String(item.attempts || 0)); }
-              li.innerHTML='<div class="item-icon"><i class="fa-solid fa-chevron-right"></i></div>'
+              li.innerHTML='<div class="item-icon request-toggle"><i class="fa-solid fa-chevron-right"></i></div>'
                 +'<div class="item-content">'
                 +  '<div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">'
                 +    '<div class="item-left">'
@@ -2292,43 +2299,65 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
   var overlay = document.getElementById('sidebarOverlay');
 
   if(menuToggle && sidebar && overlay) {
+      var DESKTOP_MIN = 901;
+      function isDesktop() { return window.innerWidth >= DESKTOP_MIN; }
       function setMenuActive(isOpen) {
-          menuToggle.classList.toggle('active', isOpen);
+        menuToggle.classList.toggle('active', isOpen);
+        menuToggle.setAttribute('aria-expanded', String(isOpen));
+      }
+      function setCollapsed(collapsed) {
+        document.body.classList.toggle('sidebar-collapsed', collapsed);
+        setMenuActive(collapsed);
       }
       function openSidebar() {
-          sidebar.classList.add('open');
-          overlay.classList.add('show');
-          setMenuActive(true);
+        sidebar.classList.add('open');
+        overlay.classList.add('show');
+        setMenuActive(true);
       }
       function closeSidebar() {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('show');
+        setMenuActive(false);
+      }
+      function syncToViewport() {
+        if (isDesktop()) {
           sidebar.classList.remove('open');
           overlay.classList.remove('show');
-          setMenuActive(false);
+          setMenuActive(document.body.classList.contains('sidebar-collapsed'));
+        } else {
+          document.body.classList.remove('sidebar-collapsed');
+          setMenuActive(sidebar.classList.contains('open'));
+        }
       }
 
       menuToggle.addEventListener('click', function() {
-          if (sidebar.classList.contains('open')) {
-              closeSidebar();
-          } else {
-              sidebar.classList.add('open');
-              overlay.classList.add('show');
-              setMenuActive(true);
-          }
+        if (isDesktop()) {
+          setCollapsed(!document.body.classList.contains('sidebar-collapsed'));
+        } else if (sidebar.classList.contains('open')) {
+          closeSidebar();
+        } else {
+          openSidebar();
+        }
       });
 
       var sidebarCloseBtn = document.getElementById('sidebarCloseBtn');
       if(sidebarCloseBtn) { sidebarCloseBtn.addEventListener('click', closeSidebar); }
 
       overlay.addEventListener('click', closeSidebar);
+        window.addEventListener('resize', syncToViewport);
 
       // Auto-close the drawer when a menu item / Log Out is tapped
       document.querySelectorAll('.sidebar .nav-menu .nav-item, .sidebar-footer .logout-btn').forEach(function(item) {
-          item.addEventListener('click', closeSidebar);
+          item.addEventListener('click', function() {
+            if (!isDesktop()) closeSidebar();
+          });
       });
 
       // Open the drawer automatically on arrival (mobile only; desktop always shows it)
       if(window.innerWidth <= 900){
           openSidebar();
+        } else {
+          setMenuActive(document.body.classList.contains('sidebar-collapsed'));
       }
   }
 

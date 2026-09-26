@@ -42,13 +42,18 @@ if ($visit_date === '' || $visit_time === '') {
   echo json_encode(['success' => false, 'message' => 'Guest Entry Date and Guest Entry Time are required.']);
   exit;
 }
-$todayStr = date('Y-m-d');
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $visit_date)) {
   echo json_encode(['success' => false, 'message' => 'Invalid Guest Entry Date.']);
   exit;
 }
-if ($visit_date < $todayStr) {
-  echo json_encode(['success' => false, 'message' => 'Guest Entry Date cannot be in the past.']);
+$parsedVisitDate = DateTimeImmutable::createFromFormat('!Y-m-d', $visit_date);
+if (!$parsedVisitDate || $parsedVisitDate->format('Y-m-d') !== $visit_date) {
+  echo json_encode(['success' => false, 'message' => 'Invalid Guest Entry Date.']);
+  exit;
+}
+$minimumVisitDate = new DateTimeImmutable('tomorrow 00:00:00');
+if ($parsedVisitDate < $minimumVisitDate) {
+  echo json_encode(['success' => false, 'message' => 'Guest Entry Date must be at least 1 day in advance. Please choose tomorrow or a later date.']);
   exit;
 }
 if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/', $visit_time)) {
