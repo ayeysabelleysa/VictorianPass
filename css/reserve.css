@@ -980,9 +980,15 @@ select:focus {
   justify-content: center;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+}
+
+#switchRewardRedemptionModal {
+  z-index: 10001;
 }
 
 .modal-content {
+  box-sizing: border-box;
   background: #ffffff;
   color: #111827;
   padding: 30px;
@@ -2313,12 +2319,13 @@ input:focus-visible {
   #viewRewardsModal {
     padding: 10px !important;
     overflow-x: hidden;
+    box-sizing: border-box;
   }
   #viewRewardsModal .view-rewards-content {
-    width: min(86vw, 380px) !important;
-    max-width: min(86vw, 380px) !important;
-    max-height: calc(100vh - 40px) !important;
-    max-height: calc(100dvh - 40px) !important;
+    width: min(94vw, 720px) !important;
+    max-width: min(94vw, 720px) !important;
+    max-height: calc(100vh - 24px) !important;
+    max-height: calc(100dvh - 24px) !important;
     border-radius: 14px;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch;
@@ -2367,8 +2374,9 @@ input:focus-visible {
     margin-bottom: 10px !important;
   }
   #viewRewardsModal .view-rewards-grid {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: minmax(0, 1fr) !important;
     gap: 10px !important;
+    min-width: 0;
   }
   #viewRewardsModal .amenity-reward-card {
     padding: 10px 12px !important;
@@ -2446,6 +2454,12 @@ input:focus-visible {
 
 /* ============ View Rewards modal — MOBILE ONLY ============ */
 @media (max-width: 380px) {
+  #viewRewardsModal .view-rewards-content {
+    width: calc(100vw - 20px) !important;
+    max-width: calc(100vw - 20px) !important;
+    max-height: calc(100dvh - 20px) !important;
+  }
+
   #viewRewardsModal .view-rewards-card-bottom {
     flex-direction: column;
     align-items: stretch !important;
