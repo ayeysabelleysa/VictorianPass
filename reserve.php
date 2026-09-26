@@ -1549,8 +1549,8 @@ if (ob_get_level() > 0) { ob_end_flush(); }
 <div id="vhecoRedemptionSuccessModal" class="modal" style="display:none;">
   <div class="modal-content vheco-success-content">
     <button type="button" class="close-profile-modal" id="vhecoRedemptionSuccessCloseBtn" aria-label="Close">&times;</button>
-    <div class="vheco-success-icon"><i class="fa-solid fa-circle-check" aria-hidden="true"></i></div>
-    <h2>VHEcoPoint Redemption Confirmed</h2>
+    <div class="vheco-success-icon" id="vhecoRedemptionSuccessIcon"><i class="fa-solid fa-circle-check" aria-hidden="true"></i></div>
+    <h2 id="vhecoRedemptionSuccessHeading">VHEcoPoint Redemption Confirmed</h2>
     <p class="vheco-success-message" id="vhecoRedemptionSuccessMessage">Your VHEcoPoint points have been applied for 1 Free Hour.</p>
     <div class="validation-error-actions" style="margin-top:20px;">
       <button type="button" class="btn-confirm" id="vhecoRedemptionSuccessOkBtn">OK</button>
@@ -2535,9 +2535,26 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     return false;
   }
 
-  function showVhecoRedemptionSuccess() {
+  function showVhecoRedemptionSuccess(config) {
     const modal = document.getElementById('vhecoRedemptionSuccessModal');
-    if (modal) vpShowModal(modal);
+    if (!modal) return;
+    const cfg = (config && typeof config === 'object') ? config : {};
+    const headingEl = document.getElementById('vhecoRedemptionSuccessHeading');
+    const msgEl = document.getElementById('vhecoRedemptionSuccessMessage');
+    const iconEl = document.getElementById('vhecoRedemptionSuccessIcon');
+    const iconI = iconEl ? iconEl.querySelector('i') : null;
+    if (headingEl && cfg.heading) headingEl.textContent = cfg.heading;
+    if (msgEl && cfg.message) msgEl.textContent = cfg.message;
+    if (iconEl) {
+      if (cfg.icon === 'cancel') {
+        iconEl.className = 'vheco-success-icon vheco-success-icon-cancel';
+        if (iconI) iconI.className = 'fa-solid fa-circle-xmark';
+      } else {
+        iconEl.className = 'vheco-success-icon';
+        if (iconI) iconI.className = 'fa-solid fa-circle-check';
+      }
+    }
+    vpShowModal(modal);
   }
 
   (function initErrorModal(){
@@ -3824,7 +3841,13 @@ async function changePersons(val){
       setRedemptionConfirmed(false);
       closeSwitchToCashConfirm();
       switchToCashMode();
-      showToast('Redemption cancelled. Returning points to your balance.','info');
+      if (typeof showVhecoRedemptionSuccess === 'function'){
+        showVhecoRedemptionSuccess({
+          heading: 'VHEcoPoint Redemption Cancelled',
+          message: 'Redemption cancelled. Returning points to your balance.',
+          icon: 'cancel'
+        });
+      }
     });
   })();
 
