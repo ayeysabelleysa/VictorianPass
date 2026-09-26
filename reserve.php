@@ -277,23 +277,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // All session reads needed for validation are complete. Do not hold the
     // session lock while availability and payment queries run.
     session_write_close();
-    $booking_for = $booking_for_post;
-    if ($booking_for === '') {
-      if ($guestResidentId) {
-        $booking_for = 'guest';
-      } else if ($acct === 'resident') {
-        $booking_for = 'resident';
-      }
+    if ($guestResidentId) {
+      $booking_for = 'guest';
+    } else if ($acct === 'resident') {
+      $booking_for = ($booking_for_post === 'guest') ? 'guest' : 'resident';
+    } else {
+      $booking_for = 'guest';
     }
-    if ($booking_for === '') { $booking_for = null; }
+    $isResidentRate = ($acct === 'resident' && $booking_for === 'resident');
     if (in_array($amenity, ['Basketball Court','Tennis Court'], true)) {
-      $rate = ($booking_for === 'resident') ? 100 : 150;
+      $rate = $isResidentRate ? 100 : 150;
       $basePrice = max(1, $hours) * $rate;
     } else if ($amenity === 'Clubhouse') {
-      $rate = ($booking_for === 'resident') ? 300 : 450;
+      $rate = $isResidentRate ? 300 : 450;
       $basePrice = max(1, $hours) * $rate;
     } else if ($amenity === 'Multi-Purpose Building') {
-      $rate = ($booking_for === 'resident') ? 200 : 300;
+      $rate = $isResidentRate ? 200 : 300;
       $basePrice = max(1, $hours) * $rate;
     } else {
       $basePrice = 0;

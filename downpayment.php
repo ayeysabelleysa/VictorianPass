@@ -78,7 +78,7 @@ $user_id = isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : null;
 $pending = isset($_SESSION['pending_reservation']) ? $_SESSION['pending_reservation'] : null;
 
 if ((!is_array($pending) || empty($pending)) && $ref_code !== '' && ($con instanceof mysqli)) {
-    $colsC = ['amenity', 'start_date', 'end_date', 'start_time', 'end_time', 'persons', 'price', 'downpayment', 'entry_pass_id'];
+    $colsC = ['amenity', 'start_date', 'end_date', 'start_time', 'end_time', 'persons', 'price', 'downpayment', 'entry_pass_id', 'account_type'];
     $bookingForExists = downpaymentColumnExists($con, 'booking_for');
     if ($bookingForExists) { $colsC[] = 'booking_for'; }
     $usePointsExists = downpaymentColumnExists($con, 'use_points');
@@ -101,6 +101,7 @@ if ((!is_array($pending) || empty($pending)) && $ref_code !== '' && ($con instan
                 'price' => isset($rwC['price']) ? floatval($rwC['price']) : null,
                 'downpayment' => isset($rwC['downpayment']) ? floatval($rwC['downpayment']) : null,
                 'entry_pass_id' => isset($rwC['entry_pass_id']) ? intval($rwC['entry_pass_id']) : null,
+                'account_type' => $rwC['account_type'] ?? null,
                 'booking_for' => $rwC['booking_for'] ?? null,
                 'use_points' => $usePointsExists ? intval($rwC['use_points'] ?? 0) : 0,
                 'points_used' => $pointsUsedExists ? intval($rwC['points_used'] ?? 0) : 0
@@ -126,12 +127,17 @@ function format_time_ap($t){
     return $hh . ':' . str_pad((string)$m, 2, '0', STR_PAD_LEFT) . ' ' . $ap;
 }
 
+function reservationHourlyRate($amenity, $bookingFor){
+  $isResidentBooking = strtolower(trim((string)$bookingFor)) === 'resident';
+  if ($amenity === 'Basketball Court' || $amenity === 'Tennis Court') { return $isResidentBooking ? 100 : 150; }
+  if ($amenity === 'Clubhouse') { return $isResidentBooking ? 300 : 450; }
+  if ($amenity === 'Multi-Purpose Building') { return $isResidentBooking ? 200 : 300; }
+  return 0;
+}
+
 function deriveReservationHours($amenity, $bookingFor, $price){
-    if (!$amenity || $price <= 0) return 0;
-    $rate = 0;
-    if ($amenity === 'Basketball Court' || $amenity === 'Tennis Court') { $rate = ($bookingFor === 'resident') ? 100 : 150; }
-    else if ($amenity === 'Clubhouse') { $rate = ($bookingFor === 'resident') ? 300 : 450; }
-    else if ($amenity === 'Multi-Purpose Building') { $rate = ($bookingFor === 'resident') ? 200 : 300; }
+  if (!$amenity || $price <= 0) return 0;
+  $rate = reservationHourlyRate($amenity, $bookingFor);
     if ($rate <= 0) return 0;
     $h = (int)round($price / $rate);
     return $h > 0 ? $h : 0;
@@ -192,8 +198,15 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
       $price = isset($pending['price']) ? floatval($pending['price']) : null;
       $downpayment = isset($pending['downpayment']) ? floatval($pending['downpayment']) : null;
       $entry_pass_id_post = isset($pending['entry_pass_id']) ? intval($pending['entry_pass_id']) : ($entry_pass_id_post_form ?: null);
-      $booking_for = isset($pending['booking_for']) ? trim($pending['booking_for']) : '';
-      if ($booking_for === '') { $booking_for = null; }
+      $booking_for = isset($pending['booking_for']) ? strtolower(trim($pending['booking_for'])) : '';
+      if ($booking_for === '') {
+        $booking_for = strtolower(trim((string)($pending['account_type'] ?? '')));
+        if ($booking_for === '') {
+          $booking_for = ($userType === 'resident' && empty($pending['entry_pass_id'])) ? 'resident' : 'guest';
+        } else if ($booking_for === 'visitor') {
+          $booking_for = 'guest';
+        }
+      }
       $guest_id = isset($pending['guest_id']) ? trim($pending['guest_id']) : '';
       $guest_ref_code = isset($pending['guest_ref_code']) ? trim($pending['guest_ref_code']) : '';
       $booked_by_role = null;
@@ -634,14 +647,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
           $persons = isset($pending['persons']) ? intval($pending['persons']) : 1;
           $usePoints = !empty($pending['use_points']);
           $pointsUsed = intval($pending['points_used'] ?? 0);
-          $hourlyRate = 0;
-          if ($amenity === 'Basketball Court' || $amenity === 'Tennis Court') {
-            $hourlyRate = 100;
-          } elseif ($amenity === 'Clubhouse') {
-            $hourlyRate = 300;
-          } elseif ($amenity === 'Multi-Purpose Building') {
-            $hourlyRate = 200;
-          }
+          $hourlyRate = reservationHourlyRate($amenity, $pending['booking_for'] ?? $pending['account_type'] ?? (($userType === 'resident' && empty($pending['entry_pass_id'])) ? 'resident' : 'guest'));
           $paidHours = $usePoints ? max(0, $hours - 1) : $hours;
           $originalAmount = $usePoints ? ($price + $hourlyRate) : $price;
           $rewardPoints = $pointsUsed > 0 ? $pointsUsed : (($amenity === 'Basketball Court' || $amenity === 'Tennis Court') ? 300 : (($amenity === 'Clubhouse') ? 600 : (($amenity === 'Multi-Purpose Building') ? 750 : 0)));

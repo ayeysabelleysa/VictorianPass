@@ -609,6 +609,7 @@ if ($stmt) {
             'start_time_raw' => $row['start_time'] ?? '',
             'end_time_raw' => $row['end_time'] ?? '',
             'amenity' => $row['amenity'] ?? '',
+            'booking_for' => strtolower(trim((string)($row['booking_for'] ?? 'resident'))),
             'price' => isset($row['price']) && $row['price'] !== null && $row['price'] !== '' ? (float)$row['price'] : null,
             'downpayment' => isset($row['downpayment']) && $row['downpayment'] !== null && $row['downpayment'] !== '' ? (float)$row['downpayment'] : null,
             'receipt_path' => $row['receipt_path'] ?? '',
@@ -3765,6 +3766,7 @@ body.modal-open{overflow:hidden}
               <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($act['amenity'] ?? ''); ?>" data-price="<?php echo ($act['price'] ?? null) !== null ? number_format((float)$act['price'], 2, '.', '') : ''; ?>" data-downpayment="<?php echo ($act['downpayment'] ?? null) !== null ? number_format((float)$act['downpayment'], 2, '.', '') : ''; ?>" data-receipt-path="<?php echo htmlspecialchars($act['receipt_path'] ?? ''); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars($act['receipt_uploaded_at'] ?? ''); ?>" data-persons="<?php echo ($act['persons'] ?? null) !== null ? intval($act['persons']) : ''; ?>" data-use-points="<?php echo !empty($act['use_points']) ? intval($act['use_points']) : 0; ?>" data-points-used="<?php echo isset($act['points_used']) ? intval($act['points_used']) : 0; ?>"<?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; echo ' data-guest-sex="' . htmlspecialchars($act['guest_sex'] ?? '') . '"'; echo ' data-guest-birthdate="' . htmlspecialchars($act['guest_birthdate'] ?? '') . '"'; echo ' data-guest-contact="' . htmlspecialchars($act['guest_contact'] ?? '') . '"'; echo ' data-guest-email="' . htmlspecialchars($act['guest_email'] ?? '') . '"'; echo ' data-res-name="' . htmlspecialchars($act['resident_name'] ?? '') . '"'; echo ' data-res-contact="' . htmlspecialchars($act['resident_contact'] ?? '') . '"'; echo ' data-res-email="' . htmlspecialchars($act['resident_email'] ?? '') . '"'; echo ' data-res-house="' . htmlspecialchars($act['resident_house'] ?? '') . '"'; echo ' data-valid-id="' . htmlspecialchars($act['valid_id'] ?? '') . '"'; echo ' data-visit-date="' . htmlspecialchars($act['visit_date'] ?? '') . '"'; echo ' data-visit-time="' . htmlspecialchars($act['visit_time'] ?? '') . '"'; } ?>>
                  <div class="item-icon request-toggle"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
+                   <span hidden class="reservation-booking-for"><?php echo htmlspecialchars($act['booking_for'] ?? 'resident'); ?></span>
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
                      <div class="item-left">
                        <span class="status-badge <?php echo $statusClass; ?>"><?php echo $displayStatus; ?></span>
@@ -4061,6 +4063,7 @@ body.modal-open{overflow:hidden}
               <div class="list-item" data-ref-code="<?php echo htmlspecialchars($act['ref_code']); ?>" data-status="<?php echo htmlspecialchars($act['status']); ?>" data-type="<?php echo htmlspecialchars($act['type']); ?>" data-reserved-by="<?php echo htmlspecialchars($act['reserved_by'] ?? ''); ?>" data-payment-status="<?php echo htmlspecialchars($act['payment_status'] ?? ''); ?>" data-start-date="<?php echo htmlspecialchars($act['start_date_raw'] ?? ''); ?>" data-end-date="<?php echo htmlspecialchars($act['end_date_raw'] ?? ''); ?>" data-start-time="<?php echo htmlspecialchars($act['start_time_raw'] ?? ''); ?>" data-end-time="<?php echo htmlspecialchars($act['end_time_raw'] ?? ''); ?>" data-schedule="<?php echo htmlspecialchars($scheduleText); ?>" data-reason="<?php echo htmlspecialchars($reasonText); ?>" data-attempts="<?php echo isset($act['attempts']) ? intval($act['attempts']) : 0; ?>" data-scanned-at="<?php echo htmlspecialchars($act['scanned_at'] ?? ''); ?>" data-amenity="<?php echo htmlspecialchars($act['amenity'] ?? ''); ?>" data-price="<?php echo ($act['price'] ?? null) !== null ? number_format((float)$act['price'], 2, '.', '') : ''; ?>" data-downpayment="<?php echo ($act['downpayment'] ?? null) !== null ? number_format((float)$act['downpayment'], 2, '.', '') : ''; ?>" data-receipt-path="<?php echo htmlspecialchars($act['receipt_path'] ?? ''); ?>" data-receipt-uploaded-at="<?php echo htmlspecialchars($act['receipt_uploaded_at'] ?? ''); ?>" data-persons="<?php echo ($act['persons'] ?? null) !== null ? intval($act['persons']) : ''; ?>" data-use-points="<?php echo !empty($act['use_points']) ? intval($act['use_points']) : 0; ?>" data-points-used="<?php echo isset($act['points_used']) ? intval($act['points_used']) : 0; ?>"<?php if (($act['type'] ?? '') === 'report') { echo ' data-report-id="' . htmlspecialchars($act['report_id'] ?? '') . '"'; echo ' data-report-subject="' . htmlspecialchars($act['subject'] ?? '') . '"'; echo ' data-report-address="' . htmlspecialchars($act['address'] ?? '') . '"'; echo ' data-report-date="' . htmlspecialchars($act['report_date'] ?? '') . '"'; echo ' data-report-nature="' . htmlspecialchars($act['nature'] ?? '') . '"'; echo ' data-report-other="' . htmlspecialchars($act['other_concern'] ?? '') . '"'; } ?><?php if (($act['type'] ?? '') === 'guest_form') { echo ' data-guest-name="' . htmlspecialchars($act['guest_name'] ?? '') . '"'; echo ' data-guest-sex="' . htmlspecialchars($act['guest_sex'] ?? '') . '"'; echo ' data-guest-birthdate="' . htmlspecialchars($act['guest_birthdate'] ?? '') . '"'; echo ' data-guest-contact="' . htmlspecialchars($act['guest_contact'] ?? '') . '"'; echo ' data-guest-email="' . htmlspecialchars($act['guest_email'] ?? '') . '"'; echo ' data-res-name="' . htmlspecialchars($act['resident_name'] ?? '') . '"'; echo ' data-res-contact="' . htmlspecialchars($act['resident_contact'] ?? '') . '"'; echo ' data-res-email="' . htmlspecialchars($act['resident_email'] ?? '') . '"'; echo ' data-res-house="' . htmlspecialchars($act['resident_house'] ?? '') . '"'; echo ' data-valid-id="' . htmlspecialchars($act['valid_id'] ?? '') . '"'; echo ' data-visit-date="' . htmlspecialchars($act['visit_date'] ?? '') . '"'; echo ' data-visit-time="' . htmlspecialchars($act['visit_time'] ?? '') . '"'; } ?>>
                  <div class="item-icon request-toggle"><i class="fa-solid fa-chevron-right"></i></div>
                  <div class="item-content">
+                   <span hidden class="reservation-booking-for"><?php echo htmlspecialchars($act['booking_for'] ?? 'resident'); ?></span>
                    <div class="item-row" style="display:flex; justify-content:space-between; margin-bottom:5px;">
                      <div class="item-left">
                        <span class="status-badge <?php echo $statusClass; ?>"><?php echo $displayStatus; ?></span>
@@ -5244,6 +5247,8 @@ body.modal-open{overflow:hidden}
     var startTimeRaw=li.getAttribute('data-start-time')||'';
     var endTimeRaw=li.getAttribute('data-end-time')||'';
     var amenityName=li.getAttribute('data-amenity')||'';
+    var bookingForEl=li.querySelector('.reservation-booking-for');
+    var bookingForRaw=li.getAttribute('data-booking-for')||(bookingForEl?bookingForEl.textContent:'');
     var priceRaw=li.getAttribute('data-price')||'';
     var downpaymentRaw=li.getAttribute('data-downpayment')||'';
     var receiptPath=li.getAttribute('data-receipt-path')||'';
@@ -5447,10 +5452,11 @@ body.modal-open{overflow:hidden}
       parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
       return (num < 0 ? '-' : '') + '₱' + parts[0] + '.' + parts[1];
     }
-    function reservationHourlyRate(amenity){
-      if(amenity === 'Basketball Court' || amenity === 'Tennis Court') return 100;
-      if(amenity === 'Clubhouse') return 300;
-      if(amenity === 'Multi-Purpose Building') return 200;
+    function reservationHourlyRate(amenity, bookingFor){
+      var isResidentBooking=String(bookingFor||'resident').toLowerCase()==='resident';
+      if(amenity === 'Basketball Court' || amenity === 'Tennis Court') return isResidentBooking?100:150;
+      if(amenity === 'Clubhouse') return isResidentBooking?300:450;
+      if(amenity === 'Multi-Purpose Building') return isResidentBooking?200:300;
       return 0;
     }
     function resStatusLabel(rawStatusValue){
@@ -5650,7 +5656,7 @@ body.modal-open{overflow:hidden}
         var downpaymentLabel = paymentStatus === 'verified' ? 'Downpayment Verified' : (hasSubmittedProof ? 'Downpayment Submitted' : 'Downpayment Required');
         var payCells='';
         if(fullyRedeemed){
-          var fullyRedeemedRate = reservationHourlyRate(amenityName);
+          var fullyRedeemedRate = reservationHourlyRate(amenityName, bookingForRaw);
           payCells+=rstCell('Original Duration', fmtDurationHours(originalHoursNum));
           payCells+=rstCell('VHEcoPoint Redemption', 'Fully Redeemed');
           payCells+=rstCell('Reward', '-1 Free Hour (' + pointsUsed.toLocaleString() + ' pts)');
@@ -5681,7 +5687,7 @@ body.modal-open{overflow:hidden}
           }
           if(usedEcoPoints){
             var paidHours = Math.max(0, originalHoursNum - 1);
-            var discountAmount = reservationHourlyRate(amenityName);
+            var discountAmount = reservationHourlyRate(amenityName, bookingForRaw);
             var originalAmount = parseFloat(priceRaw) + discountAmount;
             payCells+=rstCell('VHEcoPoint Redemption', 'Discounted Redemption');
             payCells+=rstCell('Original Duration', fmtDurationHours(originalHoursNum));
@@ -6689,6 +6695,7 @@ body.modal-open{overflow:hidden}
                     if(item.start_time_raw !== undefined){ li.setAttribute('data-start-time', item.start_time_raw || ''); }
                     if(item.end_time_raw !== undefined){ li.setAttribute('data-end-time', item.end_time_raw || ''); }
                     if(item.amenity !== undefined){ li.setAttribute('data-amenity', item.amenity || ''); }
+                    if(item.booking_for !== undefined){ li.setAttribute('data-booking-for', item.booking_for || ''); }
                     if(item.price !== undefined){ li.setAttribute('data-price', item.price!=null&&item.price!==''?String(item.price):''); }
                     if(item.downpayment !== undefined){ li.setAttribute('data-downpayment', item.downpayment!=null&&item.downpayment!==''?String(item.downpayment):''); }
                     if(item.receipt_path !== undefined){ li.setAttribute('data-receipt-path', item.receipt_path || ''); }
@@ -6871,6 +6878,7 @@ body.modal-open{overflow:hidden}
               if(item.start_time_raw!==undefined){ li.setAttribute('data-start-time', item.start_time_raw || ''); }
               if(item.end_time_raw!==undefined){ li.setAttribute('data-end-time', item.end_time_raw || ''); }
               if(item.amenity!==undefined){ li.setAttribute('data-amenity', item.amenity || ''); }
+              if(item.booking_for!==undefined){ li.setAttribute('data-booking-for', item.booking_for || ''); }
               if(item.price!==undefined){ li.setAttribute('data-price', item.price!=null&&item.price!==''?String(item.price):''); }
               if(item.downpayment!==undefined){ li.setAttribute('data-downpayment', item.downpayment!=null&&item.downpayment!==''?String(item.downpayment):''); }
               if(item.receipt_path!==undefined){ li.setAttribute('data-receipt-path', item.receipt_path || ''); }
@@ -7139,6 +7147,7 @@ body.modal-open{overflow:hidden}
       li.setAttribute('data-start-time', item.start_time_raw||'');
       li.setAttribute('data-end-time', item.end_time_raw||'');
       li.setAttribute('data-amenity', item.amenity||'');
+      li.setAttribute('data-booking-for', item.booking_for||'');
       li.setAttribute('data-price', item.price!=null&&item.price!==''?String(item.price):'');
       li.setAttribute('data-downpayment', item.downpayment!=null&&item.downpayment!==''?String(item.downpayment):'');
       li.setAttribute('data-receipt-path', item.receipt_path||'');

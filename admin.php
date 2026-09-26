@@ -7819,12 +7819,14 @@ window.onclick = function(event) {
 </div>
 
 <script>
-function amenityHourlyRate(amenityName){
+function amenityHourlyRate(amenityName, bookingFor, accountType){
   const a = String(amenityName||'').toLowerCase();
-  if(a.indexOf('basketball') !== -1) return 100;
-  if(a.indexOf('clubhouse') !== -1) return 300;
-  if(a.indexOf('multi') !== -1 || a.indexOf('purpose') !== -1) return 200;
-  if(a.indexOf('tennis') !== -1) return 100;
+  const bookingType = String(bookingFor||'').toLowerCase();
+  const isResidentBooking = bookingType ? bookingType === 'resident' : String(accountType||'').toLowerCase() === 'resident';
+  if(a.indexOf('basketball') !== -1) return isResidentBooking ? 100 : 150;
+  if(a.indexOf('clubhouse') !== -1) return isResidentBooking ? 300 : 450;
+  if(a.indexOf('multi') !== -1 || a.indexOf('purpose') !== -1) return isResidentBooking ? 200 : 300;
+  if(a.indexOf('tennis') !== -1) return isResidentBooking ? 100 : 150;
   return 0;
 }
 function durationHours(startTimeRaw, endTimeRaw){
@@ -7890,10 +7892,10 @@ function showReservationDetails(reservationId, expectedType){
       else if (approvalStatus.includes('expire')) { stClass = 'st-expired'; stLabel = 'Expired'; }
       const isFullyRedeemed = (parseInt(d.use_points,10) === 1 && parseInt(d.points_used,10) > 0 && Math.abs(durationHours(d.start_time, d.end_time) - 1) < 0.001);
       const pointsUsed = (parseInt(d.use_points,10) === 1) ? (parseInt(d.points_used,10) || 0) : 0;
-      const discountValue = pointsUsed > 0 ? (amenityHourlyRate(d.amenity) || 0) : 0;
+      const discountValue = pointsUsed > 0 ? (amenityHourlyRate(d.amenity, d.booking_for, d.user_type) || 0) : 0;
       const payMethodBlock = (pointsUsed > 0) ? (isFullyRedeemed ? (()=>{ 
         const pts = pointsUsed;
-        const rate = amenityHourlyRate(d.amenity) || 0;
+        const rate = amenityHourlyRate(d.amenity, d.booking_for, d.user_type) || 0;
         return `<div class="price-section">
           <div class="info-row"><span class="info-label">VHEcoPoint Redemption</span><span class="info-value">Fully Redeemed</span></div>
           <div class="info-row"><span class="info-label">Original Duration</span><span class="info-value">1 hour</span></div>
@@ -7908,7 +7910,7 @@ function showReservationDetails(reservationId, expectedType){
         </div>`; 
       })() : (()=>{
         const hours = durationHours(d.start_time, d.end_time);
-        const rate = amenityHourlyRate(d.amenity) || 0;
+        const rate = amenityHourlyRate(d.amenity, d.booking_for, d.user_type) || 0;
         const finalAmount = parseFloat(d.price) || Math.max(0, hours - 1) * rate;
         const originalAmount = hours * rate;
         const requiredDownpayment = finalAmount * 0.5;
@@ -8064,10 +8066,10 @@ function showResidentReservationDetails(rrId){
       const guestName = [d.guest_first_name||'', d.guest_middle_name||'', d.guest_last_name||''].join(' ').replace(/\s+/g,' ').trim();
       const isFullyRedeemed2 = (parseInt(d.use_points,10) === 1 && parseInt(d.points_used,10) > 0 && Math.abs(durationHours(d.start_time, d.end_time) - 1) < 0.001);
       const pointsUsed2 = (parseInt(d.use_points,10) === 1) ? (parseInt(d.points_used,10) || 0) : 0;
-      const discountValue2 = pointsUsed2 > 0 ? (amenityHourlyRate(d.amenity) || 0) : 0;
+      const discountValue2 = pointsUsed2 > 0 ? (amenityHourlyRate(d.amenity, d.booking_for, d.user_type) || 0) : 0;
       const payMethodBlock2 = (pointsUsed2 > 0) ? (isFullyRedeemed2 ? (()=>{ 
         const pts = pointsUsed2;
-        const rate = amenityHourlyRate(d.amenity) || 0;
+        const rate = amenityHourlyRate(d.amenity, d.booking_for, d.user_type) || 0;
         return `<div class="price-section">
           <div class="info-row"><span class="info-label">VHEcoPoint Redemption</span><span class="info-value">Fully Redeemed</span></div>
           <div class="info-row"><span class="info-label">Original Duration</span><span class="info-value">1 hour</span></div>
@@ -8082,7 +8084,7 @@ function showResidentReservationDetails(rrId){
         </div>`; 
       })() : (()=>{
         const hours = durationHours(d.start_time, d.end_time);
-        const rate = amenityHourlyRate(d.amenity) || 0;
+        const rate = amenityHourlyRate(d.amenity, d.booking_for, d.user_type) || 0;
         const finalAmount = parseFloat(d.price) || Math.max(0, hours - 1) * rate;
         const originalAmount = hours * rate;
         const requiredDownpayment = finalAmount * 0.5;
