@@ -5061,6 +5061,20 @@ body.modal-open { overflow: hidden; }
 
 .btn-reject, .btn-danger { background: var(--danger); color: #fff; }
 .btn-reject:hover { background: #dc2626; }
+.receipt-action-row {
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+.receipt-action-row form { flex: 1 1 190px; max-width: 250px; margin: 0; }
+.receipt-action-row .btn { width: 100%; min-height: 40px; gap: 8px; font-weight: 600; line-height: 1.2; }
+.receipt-action-row .btn i { flex: 0 0 auto; }
+@media (max-width: 480px) {
+  .receipt-action-row form { flex-basis: 100%; max-width: none; }
+}
 
 .btn-delete { background: var(--bg-body); color: var(--danger); border: 1px solid var(--border); }
 .btn-delete:hover { background: #fee2e2; border-color: var(--danger); }
@@ -7992,7 +8006,7 @@ function showReservationDetails(reservationId, expectedType){
         `<div class="details-section" style="animation: fadeIn 0.5s ease;">
           <h4>Proof of Payment</h4>
           ${isPdf ? `<a href="${receiptPath}" target="_blank" style="color:#23412e;font-weight:600;">Open uploaded proof (PDF)</a>` : `<a href="${receiptPath}" target="_blank"><img src="${receiptPath}" alt="Uploaded proof of payment" style="max-width:100%; height:auto; border-radius:8px; cursor:pointer;"></a>`}
-          ${payStatus !== 'verified' && d.id ? `<div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:12px;"><form method="post" style="margin:0;"><input type="hidden" name="reservation_id" value="${d.id}"><input type="hidden" name="action" value="verify_receipt"><input type="hidden" name="redirect_page" value="${redirectPage}"><button type="submit" class="btn btn-approve">Verify Payment Receipt</button></form>${att < 3 && payStatus !== 'rejected' ? `<form method="post" class="action-form action-deny" onsubmit="return openDenyModal(this)" style="margin:0;"><input type="hidden" name="reservation_id" value="${d.id}"><input type="hidden" name="action" value="reject_receipt"><input type="hidden" name="redirect_page" value="${redirectPage}"><input type="hidden" name="denial_reason" class="denial-reason"><button type="submit" class="btn btn-reject">Reject Receipt</button></form>` : ''}</div>` : ''}
+          ${payStatus !== 'verified' && d.id ? `<div class="receipt-action-row"><form method="post"><input type="hidden" name="reservation_id" value="${d.id}"><input type="hidden" name="action" value="verify_receipt"><input type="hidden" name="redirect_page" value="${redirectPage}"><button type="submit" class="btn btn-approve"><i class="fa-solid fa-check" aria-hidden="true"></i>Verify Payment Receipt</button></form>${att < 3 && payStatus !== 'rejected' ? `<form method="post" class="action-form action-deny" onsubmit="return openDenyModal(this)"><input type="hidden" name="reservation_id" value="${d.id}"><input type="hidden" name="action" value="reject_receipt"><input type="hidden" name="redirect_page" value="${redirectPage}"><input type="hidden" name="denial_reason" class="denial-reason"><button type="submit" class="btn btn-reject"><i class="fa-solid fa-xmark" aria-hidden="true"></i>Reject Receipt</button></form>` : ''}</div>` : ''}
         </div>`
       ) : `<div class="details-section"><h4>Proof of Payment</h4><p>${isFullyRedeemed ? 'No receipt uploaded. No proof of payment is required because this reservation was fully covered by the VHEcoPoint redemption.' : (d.receipt_uploaded_at || ['submitted', 'pending_update'].includes(payStatus) ? 'Payment submitted, but the receipt file is unavailable.' : 'No receipt uploaded.')}</p></div>`;
       const denialHtml = '';
@@ -8198,7 +8212,7 @@ function showResidentReservationDetails(rrId){
         `<div class="details-section" style="animation: fadeIn 0.5s ease;">
           <h4>Proof of Payment</h4>
           ${isPdf ? `<a href="${receiptPath}" target="_blank" style="color:#23412e;font-weight:600;">Open uploaded proof (PDF)</a>` : `<a href="${receiptPath}" target="_blank"><img src="${receiptPath}" alt="Uploaded proof of payment" style="max-width:100%; height:auto; border-radius:8px; cursor:pointer;"></a>`}
-          ${ps !== 'verified' && d.id ? `<div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:12px;"><form method="post" style="margin:0;"><input type="hidden" name="reservation_id" value="${d.id}"><input type="hidden" name="action" value="verify_receipt"><input type="hidden" name="redirect_page" value="${receiptRedirectPage}"><button type="submit" class="btn btn-approve">Verify Payment Receipt</button></form>${att < 3 && ps !== 'rejected' ? `<form method="post" class="action-form action-deny" onsubmit="return openDenyModal(this)" style="margin:0;"><input type="hidden" name="reservation_id" value="${d.id}"><input type="hidden" name="action" value="reject_receipt"><input type="hidden" name="redirect_page" value="${receiptRedirectPage}"><input type="hidden" name="denial_reason" class="denial-reason"><button type="submit" class="btn btn-reject">Reject Receipt</button></form>` : ''}</div>` : ''}
+          ${ps !== 'verified' && d.id ? `<div class="receipt-action-row"><form method="post"><input type="hidden" name="reservation_id" value="${d.id}"><input type="hidden" name="action" value="verify_receipt"><input type="hidden" name="redirect_page" value="${receiptRedirectPage}"><button type="submit" class="btn btn-approve"><i class="fa-solid fa-check" aria-hidden="true"></i>Verify Payment Receipt</button></form>${att < 3 && ps !== 'rejected' ? `<form method="post" class="action-form action-deny" onsubmit="return openDenyModal(this)"><input type="hidden" name="reservation_id" value="${d.id}"><input type="hidden" name="action" value="reject_receipt"><input type="hidden" name="redirect_page" value="${receiptRedirectPage}"><input type="hidden" name="denial_reason" class="denial-reason"><button type="submit" class="btn btn-reject"><i class="fa-solid fa-xmark" aria-hidden="true"></i>Reject Receipt</button></form>` : ''}</div>` : ''}
         </div>`
       ) : `<div class="details-section"><h4>Proof of Payment</h4><p>${isFullyRedeemed2 ? 'No receipt uploaded. No proof of payment is required because this reservation was fully covered by the VHEcoPoint redemption.' : (d.receipt_uploaded_at || ['submitted', 'pending_update'].includes(ps) ? 'Payment submitted, but the receipt file is unavailable.' : 'No receipt uploaded.')}</p></div>`;
       const denialHtml = showDenial ? (
