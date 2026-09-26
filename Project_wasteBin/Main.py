@@ -69,6 +69,7 @@ API_HEADERS = {
 
 
 MIN_WEIGHT = 6.0
+MAX_WEIGHT = 2000.0
 WEIGHT_STABLE_TIME = 0.5
 METAL_STABLE_TIME = 0.5
 MAX_SESSIONS = 3
@@ -251,6 +252,17 @@ def create_api_session(qr_code):
 # =========================================================
 
 def submit_waste_data(session_token, material, weight):
+    if (
+        weight is None
+        or weight < MIN_WEIGHT
+        or weight > MAX_WEIGHT
+    ):
+        print(
+            "Refusing to submit invalid weight."
+        )
+
+        return None
+
     result = api_post(
         SUBMIT_WASTE_API,
         {
@@ -671,9 +683,18 @@ def process_item():
 
     weight = wait_for_weight_stable()
 
-    if weight < MIN_WEIGHT:
+    if (
+        weight is None
+        or weight < MIN_WEIGHT
+        or weight > MAX_WEIGHT
+    ):
         print(
-            "Item removed. Please try again."
+            "Invalid weight reading. "
+            "Item will not be counted."
+        )
+
+        print(
+            "Please remove the item and try again."
         )
 
         return "REJECTED"
@@ -715,6 +736,13 @@ def process_item():
     print("Verifying item...")
 
     if material == "plastic" or material == "paper" or material == "aluminum":
+
+        if (
+            weight is None
+            or weight < MIN_WEIGHT
+            or weight > MAX_WEIGHT
+        ):
+            return "REJECTED"
 
         points = weight * 0.303
 

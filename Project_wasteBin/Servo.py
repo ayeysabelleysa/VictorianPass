@@ -1,5 +1,7 @@
 import time
-from smbus2 import SMBus
+import board
+import busio
+from adafruit_pca9685 import PCA9685 as AdafruitPCA9685
 
 
 # ============================================================
@@ -11,7 +13,7 @@ PCA9685_ADDRESS = 0x40
 
 # PCA9685 channels
 MG995_CHANNEL = 12
-MG996R_CHANNEL = 15
+MG996R_CHANNEL = 14
 
 PWM_FREQUENCY = 50      # Standard servo frequency
 
@@ -58,113 +60,18 @@ LED0_ON_L = 0x06
 class PCA9685:
 
     def __init__(self, bus=I2C_BUS, address=PCA9685_ADDRESS):
-        self.bus = SMBus(bus)
-        self.address = address
-
-        self.reset()
-        self.set_pwm_frequency(PWM_FREQUENCY)
-
-    def reset(self):
-        self.bus.write_byte_data(
-            self.address,
-            MODE1,
-            0x00
-        )
-
-        time.sleep(0.01)
-
-    def set_pwm_frequency(self, frequency):
-        """
-        Set PCA9685 PWM frequency.
-        Servos normally use 50 Hz.
-        """
-
-        prescale_value = 25000000.0
-        prescale_value /= 4096.0
-        prescale_value /= float(frequency)
-        prescale_value -= 1.0
-
-        prescale = int(round(prescale_value))
-
-        old_mode = self.bus.read_byte_data(
-            self.address,
-            MODE1
-        )
-
-        sleep_mode = (old_mode & 0x7F) | 0x10
-
-        self.bus.write_byte_data(
-            self.address,
-            MODE1,
-            sleep_mode
-        )
-
-        self.bus.write_byte_data(
-            self.address,
-            PRESCALE,
-            prescale
-        )
-
-        self.bus.write_byte_data(
-            self.address,
-            MODE1,
-            old_mode
-        )
-
-        time.sleep(0.005)
-
-        # Restart oscillator
-        self.bus.write_byte_data(
-            self.address,
-            MODE1,
-            old_mode | 0x80
-        )
-
-    def set_pwm(self, channel, on, off):
-        """
-        Set PWM timing for one PCA9685 channel.
-        """
-
-        register = LED0_ON_L + (4 * channel)
-
-        data = [
-            on & 0xFF,
-            (on >> 8) & 0xFF,
-            off & 0xFF,
-            (off >> 8) & 0xFF
-        ]
-
-        self.bus.write_i2c_block_data(
-            self.address,
-            register,
-            data
-        )
+        self.i2c = busio.I2C(board.SCL, board.SDA)
+        self.pca = AdafruitPCA9685(self.i2c, address=address)
+        self.pca.frequency = PWM_FREQUENCY
 
     def set_servo_pulse(self, channel, pulse_us):
-        """
-        Convert pulse width in microseconds into
-        PCA9685 12-bit PWM value.
-        """
-
-        period_us = 1_000_000.0 / PWM_FREQUENCY
-
-        pulse_count = int(
-            (pulse_us / period_us) * 4096
-        )
-
-        pulse_count = max(
-            0,
-            min(4095, pulse_count)
-        )
-
-        self.set_pwm(
-            channel,
-            0,
-            pulse_count
-        )
+        period_us = 1_000_000.0 / self.pca.frequency
+        duty_cycle = int((pulse_us / period_us) * 65535)
+        duty_cycle = max(0, min(65535, duty_cycle))
+        self.pca.channels[channel].duty_cycle = duty_cycle
 
     def close(self):
-        self.bus.close()
+        self.pca.deinit()
 
 
 # ============================================================
@@ -194,7 +101,7 @@ def start():
 
     print("[SERVO] PCA9685 initialized")
     print("[SERVO] MG995  -> Channel 12")
-    print("[SERVO] MG996R -> Channel 15")
+    print("[SERVO] MG996R -> Channel 14")
 
 
 def angle_to_pulse(angle):

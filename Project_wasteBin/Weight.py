@@ -6,6 +6,11 @@ SCK_PIN = 6
 CALIBRATION_FACTOR = 28.95
 ZERO_OFFSET = -98306
 
+MAX_WEIGHT_G = 2000.0
+MAX_RAW_DELTA = MAX_WEIGHT_G * CALIBRATION_FACTOR
+MAX_RAW_SPREAD = 2.0 * CALIBRATION_FACTOR
+HX711_INVALID_RAW = (-1, 0, 8388607, -8388608)
+
 h = None
 
 
@@ -48,6 +53,19 @@ def read_hx711():
     return value
 
 
+def is_valid_raw(value):
+    if value is None:
+        return False
+
+    if value in HX711_INVALID_RAW:
+        return False
+
+    if abs(value - ZERO_OFFSET) > MAX_RAW_DELTA:
+        return False
+
+    return True
+
+
 def average_reading(samples=10):
     readings = []
 
@@ -57,7 +75,16 @@ def average_reading(samples=10):
         if value is None:
             return None
 
+        if not is_valid_raw(value):
+            return None
+
         readings.append(value)
+
+    if not readings:
+        return None
+
+    if (max(readings) - min(readings)) > MAX_RAW_SPREAD:
+        return None
 
     return sum(readings) / len(readings)
 
@@ -68,10 +95,16 @@ def get_weight(samples=5):
     if raw is None:
         return 0
 
+    if not is_valid_raw(raw):
+        return 0
+
     weight = (raw - ZERO_OFFSET) / CALIBRATION_FACTOR
 
     if weight < 0:
         weight = 0
+
+    if weight > MAX_WEIGHT_G:
+        return 0
 
     return weight
 
