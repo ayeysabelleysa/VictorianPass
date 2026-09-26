@@ -39,6 +39,8 @@ body {
     align-items: center;
 }
 
+/* Back button — same gold circle treatment as the reserve page
+   (.btn-secondary.back-account-btn in css/reserve.css). */
 .back-btn {
     width: 42px;
     height: 42px;
@@ -46,18 +48,28 @@ body {
     border: none;
     background-color: #d4a017;
     color: #ffffff;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
+    padding: 0;
     text-decoration: none;
     font-size: 1.2rem;
     font-weight: bold;
-    transition: all 0.2s;
+    box-shadow: 0 6px 14px rgba(212, 160, 23, 0.35);
+    transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
 }
 .back-btn i { color: #ffffff; }
 
 .back-btn:hover {
-    filter: brightness(0.95);
+    background-color: #b68912;
+    transform: translateY(-1px);
+    box-shadow: 0 8px 16px rgba(212, 160, 23, 0.4);
+    opacity: 0.95;
+}
+
+.back-btn:focus-visible {
+    outline: 2px solid #b68912;
+    outline-offset: 2px;
 }
 
 .sidebar-close-btn {
@@ -80,13 +92,8 @@ body {
 .sidebar-close-btn i { color: #ffffff; }
 .sidebar-close-btn:hover { filter: brightness(0.95); }
 
-.sidebar-header .back-btn {
-    background: #d4a017;
-    color: #ffffff;
-    border: none;
-}
-.sidebar-header .back-btn:hover { background: #b8860b; filter: brightness(1); }
-.sidebar-header .back-btn i { color: #ffffff; }
+/* The back button lives in the page content, directly above the page title and
+   description, not in the sidebar. The sidebar is navigation only. */
 
 .nav-menu {
     flex: 1;
@@ -329,10 +336,14 @@ body {
     overflow-y: auto;
 }
 
+/* Page heading block. The back button stacks above the page title and
+   description, so every section (My Requests, Guest Form, History and
+   VHEcoPoint) reads: [Back Button] / Title / Description. */
 .dashboard-back-row {
     display: flex;
-    align-items: center;
-    gap: 14px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
     padding: 24px 30px 0;
 }
 
@@ -769,8 +780,12 @@ body {
 }
 
 /* Responsive Dashboard */
+/* The same hamburger that opens the mobile drawer also collapses the desktop
+   sidebar, so the control is identical on every screen size. */
 .menu-toggle {
-    display: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: none;
     border: none;
     color: #fff;
@@ -1350,8 +1365,10 @@ body {
         padding-top: 64px;
     }
     
+    /* Keep inline-flex (not block) so the bars stay centred in the button,
+       exactly as they are on desktop. */
     .menu-toggle {
-        display: block;
+        display: inline-flex;
     }
     
     .sidebar-overlay.show {
@@ -3553,6 +3570,44 @@ body.profile-modal-open {
     .sidebar .nav-item.active {
         font-weight: 700;
         box-shadow: none;
+    }
+
+    /* ---- Desktop: sidebar collapsed to an icon rail ----
+       Triggered by the same hamburger as mobile. The rail keeps every nav
+       icon so navigation is unchanged, it just hides the labels. */
+    body.sidebar-collapsed .sidebar {
+        width: 72px;
+    }
+
+    body.sidebar-collapsed .main-content {
+        margin-left: 72px;
+        width: calc(100% - 72px);
+    }
+
+    body.sidebar-collapsed .sidebar .nav-menu {
+        padding: 20px 10px;
+        align-items: center;
+    }
+
+    /* Hide the labels but keep the row height so the rail does not reflow. */
+    body.sidebar-collapsed .sidebar .nav-item {
+        padding: 14px 0;
+        width: 52px;
+        justify-content: center;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    body.sidebar-collapsed .sidebar .nav-item > span,
+    body.sidebar-collapsed .sidebar .nav-item > small,
+    body.sidebar-collapsed .sidebar .logout-btn > span {
+        display: none;
+    }
+
+    body.sidebar-collapsed .sidebar .nav-item i,
+    body.sidebar-collapsed .sidebar .nav-item img,
+    body.sidebar-collapsed .sidebar .logout-btn i {
+        margin-right: 0;
     }
 }
 

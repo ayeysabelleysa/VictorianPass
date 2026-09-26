@@ -3544,9 +3544,6 @@ body.modal-open{overflow:hidden}
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <button type="button" class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="Close navigation"><i class="fa-solid fa-xmark"></i></button>
-    <div class="sidebar-header">
-      <a href="mainpage.php" class="back-btn" aria-label="Back to Main Page"><i class="fa-solid fa-arrow-left"></i></a>
-    </div>
     <nav class="nav-menu">
       <a href="#" class="nav-item <?php echo $activeSection === 'panel-requests' ? 'active' : ''; ?>" data-section="panel-requests"><i class="fa-solid fa-list"></i> <span>My Requests</span></a>
       <a href="reserve.php" class="nav-item"><i class="fa-solid fa-ticket"></i> <span>Amenity Reservation</span></a>
@@ -3704,7 +3701,7 @@ body.modal-open{overflow:hidden}
     </header>
 
     <div class="dashboard-back-row">
-      <a href="mainpage.php" class="back-btn" id="dashboardBackBtn" aria-label="Back to main page" style="<?php echo in_array($activeSection, ['panel-requests', 'panel-guest-form', 'panel-my-guests', 'panel-history', 'panel-points-history'], true) ? 'display:none;' : ''; ?>"><i class="fa-solid fa-arrow-left"></i></a>
+      <a href="mainpage.php" class="back-btn" id="dashboardBackBtn" aria-label="Back to main page"><i class="fa-solid fa-arrow-left"></i></a>
       <div class="page-title-wrap">
         <h1 class="page-title" id="dashboardPageTitle"><?php echo htmlspecialchars($dashboardPageTitle); ?></h1>
         <p class="page-subtitle" id="dashboardPageSubtitle"><?php echo htmlspecialchars($dashboardPageSubtitle); ?></p>
@@ -5172,7 +5169,34 @@ body.modal-open{overflow:hidden}
           setMenuActive(false);
       }
 
+      // The hamburger drives the same sidebar on every screen size, it just
+      // behaves the way that size expects: an overlay drawer on mobile, a
+      // collapse to an icon rail on desktop.
+      var DESKTOP_MIN = 901;
+      function isDesktop() { return window.innerWidth >= DESKTOP_MIN; }
+      function isCollapsed() { return document.body.classList.contains('sidebar-collapsed'); }
+      function setCollapsed(collapsed) {
+          document.body.classList.toggle('sidebar-collapsed', collapsed);
+          setMenuActive(collapsed);
+      }
+      // Leaving the desktop breakpoint must not strand the rail: reset to the
+      // mobile drawer, which is shown by default there.
+      function syncToViewport() {
+          if (isDesktop()) {
+              if (sidebar.classList.contains('open')) {
+                  sidebar.classList.remove('open');
+                  overlay.classList.remove('show');
+              }
+          } else {
+              document.body.classList.remove('sidebar-collapsed');
+          }
+      }
+
       menuToggle.addEventListener('click', function() {
+          if (isDesktop()) {
+              setCollapsed(!isCollapsed());
+              return;
+          }
           if (sidebar.classList.contains('open')) {
               closeSidebar();
           } else {
@@ -5187,14 +5211,18 @@ body.modal-open{overflow:hidden}
 
       overlay.addEventListener('click', closeSidebar);
 
+      window.addEventListener('resize', syncToViewport);
+
       // Auto-close the drawer when a menu item / Log Out is tapped
       document.querySelectorAll('.sidebar .nav-menu .nav-item, .sidebar-footer .logout-btn').forEach(function(item) {
-          item.addEventListener('click', closeSidebar);
+          item.addEventListener('click', function() {
+              if (!isDesktop()) closeSidebar();
+          });
       });
 
       // Open the drawer automatically on arrival (mobile only; desktop always shows it)
         var reservationJustSubmitted = new URLSearchParams(window.location.search).get('reservation_success') === '1';
-        if(window.innerWidth <= 900 && !reservationJustSubmitted){
+        if(!isDesktop() && !reservationJustSubmitted){
           openSidebar();
       }
   }
@@ -6114,21 +6142,40 @@ body.modal-open{overflow:hidden}
     'panel-history':'See the log of your past passes, reservations, and requests.',
     'panel-points-history':'Earn points by recycling and redeem them for amenity hours.'
   };
-  // The VHEcoPoint brand lockup is fixed system-wide (one logo file, one size,
-  // one wordmark), so switching panels no longer rewrites the header identity.
-  // Only the green accent theme still follows the active section.
+  // The header still switches identity with the active section (VHEcoPoint for
+  // the points panel, VictorianPass elsewhere) - that is intended. What must
+  // not change is the logo's box: both branches use .brand-logo so the mark
+  // keeps one size, proportion and placement and the header never jumps.
   function applyResidentThemeBySection(id){
     var mainContent = document.querySelector('.main-content');
+    var brandMain = document.querySelector('.top-header .brand-main');
+    var brandSub = document.querySelector('.top-header .brand-sub');
+    var brandLogoLink = document.querySelector('.top-header .header-brand-link');
     var isEcoPoint = id === 'panel-points-history';
+
     if (mainContent) {
       mainContent.classList.toggle('ecopoint-active', isEcoPoint);
     }
+    if (brandMain) {
+      brandMain.textContent = isEcoPoint ? 'VHEcoPoint' : 'VictorianPass';
+    }
+    if (brandSub) {
+      brandSub.textContent = isEcoPoint ? 'Smart Waste Segregation Station' : 'Victorian Heights Subdivision';
+    }
+    if (brandLogoLink) {
+      brandLogoLink.innerHTML = isEcoPoint
+        ? '<?php echo vh_eco_logo('VHEcoPoint'); ?>'
+        : '<img src="images/logo.svg" alt="VictorianPass Logo" class="brand-logo">';
+    }
   }
+  // The back button now lives in the page content, directly above the page
+  // title and description, so it is present for every section (My Requests,
+  // Guest Form, History and VHEcoPoint) and never needs to be toggled.
   function updateBackButtonVisibility(id){
     var backBtn=document.getElementById('dashboardBackBtn');
-    if(!backBtn) return;
-    var noBackSections=['panel-requests','panel-guest-form','panel-my-guests','panel-history','panel-points-history'];
-    backBtn.style.display=noBackSections.indexOf(id)!==-1?'none':'';
+    if(backBtn){
+      backBtn.hidden=false;
+    }
   }
   function showPanel(id){
     sections.forEach(function(sec){
@@ -6166,13 +6213,13 @@ body.modal-open{overflow:hidden}
       }
     });
   });
-  if (document.querySelector('.nav-menu .nav-item[data-section="panel-points-history"].active')) {
-    applyResidentThemeBySection('panel-points-history');
-    updateBackButtonVisibility('panel-points-history');
-  } else {
-    applyResidentThemeBySection('panel-requests');
-    updateBackButtonVisibility('panel-requests');
-  }
+  // Derive the initial section from whichever nav item the server marked
+  // active, rather than assuming VHEcoPoint or My Requests, so a direct load
+  // of ?section=panel-guest-form / panel-history starts on the right section.
+  var initialActiveNav=document.querySelector('.nav-menu .nav-item[data-section].active');
+  var initialSection=initialActiveNav ? initialActiveNav.getAttribute('data-section') : 'panel-requests';
+  applyResidentThemeBySection(initialSection);
+  updateBackButtonVisibility(initialSection);
   var entryForm=document.getElementById('entryForm');
   var birthdateEl=document.getElementById('birthdate');
   var idInput=document.getElementById('visitor_valid_id');
