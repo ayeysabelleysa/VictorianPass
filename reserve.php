@@ -175,34 +175,6 @@ function reserveCalcVHEcoBalance(mysqli $con, int $userId): int {
     return max(0, intval($row['balance'] ?? 0));
 }
 
-  function reserveFindActiveRewardRedemption(mysqli $con, int $userId): ?array {
-    $redemption = null;
-    if ($userId > 0 && reserveTableColumnExists($con, 'reservations', 'use_points')) {
-      $sql = "SELECT ref_code, amenity FROM reservations
-          WHERE user_id = ? AND use_points = 1
-            AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history'))
-            AND (approval_status IS NULL OR approval_status NOT IN ('cancelled','deleted','moved_to_history','denied'))
-            AND (end_date IS NULL OR end_date >= CURDATE())
-          ORDER BY created_at DESC LIMIT 1";
-      $stmt = $con->prepare($sql);
-      if (!$stmt) {
-        error_log('reserveFindActiveRewardRedemption prepare failed: ' . $con->error);
-        $redemption = ['amenity' => 'an existing amenity', 'ref_code' => ''];
-      } else {
-        $stmt->bind_param('i', $userId);
-        if (!$stmt->execute()) {
-          error_log('reserveFindActiveRewardRedemption execute failed: ' . $stmt->error);
-          $redemption = ['amenity' => 'an existing amenity', 'ref_code' => ''];
-        } else {
-          $result = $stmt->get_result();
-          $redemption = $result ? $result->fetch_assoc() : null;
-        }
-        $stmt->close();
-      }
-    }
-    return $redemption;
-  }
-
 // Reward catalog used for VHEcoPoint amenity redemptions (source of truth for the
 // redeemable-rewards badge; must mirror the $allAmenities array in the modal markup).
 function reserveAmenityRewardCatalog(): array {
@@ -299,13 +271,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($guestResidentId) { $entry_pass_id = NULL; }
     $user_id = $guestResidentId ?: $sessionUserId;
     $acct = ($guestResidentId || ($sessionUserType === 'resident' && (empty($entry_pass_id)))) ? 'resident' : 'visitor';
-    if ($use_points_post && $acct === 'resident' && $sessionUserId !== null) {
-      $activeRedemption = reserveFindActiveRewardRedemption($con, intval($sessionUserId));
-      if ($activeRedemption) {
-        $activeAmenity = trim((string)($activeRedemption['amenity'] ?? '')) ?: 'another amenity';
-        $errorMsg = 'You already have an active VHEcoPoint redemption for ' . $activeAmenity . '. Complete or cancel that reservation before redeeming another amenity.';
-      }
-    }
     if ($use_points_post && $acct === 'resident' && !$redemption_confirmed_post) {
       $errorMsg = 'Please confirm your VHEcoPoint redemption before submitting the reservation.';
     }
@@ -666,10 +631,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   $errorMsg = 'Unable to verify your account for point redemption. Please try again.';
                 }
                 if ($deductOk) {
-                  $activeRedemption = reserveFindActiveRewardRedemption($con, intval($sessionUserId));
-                  if ($activeRedemption) {
-                    $activeAmenity = trim((string)($activeRedemption['amenity'] ?? '')) ?: 'another amenity';
-                    $errorMsg = 'You already have an active VHEcoPoint redemption for ' . $activeAmenity . '. Complete or cancel that reservation before redeeming another amenity.';
+                  $lockedBalance = reserveCalcVHEcoBalance($con, intval($sessionUserId));
+                  if ($lockedBalance < $points_required) {
+                    $errorMsg = 'Insufficient VHEcoPoint Balance: You need ' . $points_required . ' pts to redeem 1 free hour for this amenity, but your current VHEcoPoint ledger balance is ' . $lockedBalance . ' pts. Earn more points by recycling eligible materials at the VHEcoPoint Smart Waste Segregation Station.';
                     $deductOk = false;
                   }
                 }
@@ -1013,7 +977,6 @@ vpMark('resident_guests');
 $currentResident = null;
 $residentPoints = 0;
 $redeemableRewards = 0;
-$activeRewardRedemption = null;
 $householdResidents = [];
 if ($sessionUserType === 'resident' && $sessionUserId !== null && ($con instanceof mysqli)) {
   $rid = intval($sessionUserId);
@@ -1028,7 +991,6 @@ if ($sessionUserType === 'resident' && $sessionUserId !== null && ($con instance
       $currentResident = $resU->fetch_assoc();
       $residentPoints = reserveCalcVHEcoBalance($con, $rid);
       $redeemableRewards = reserveRedeemableRewardCount($residentPoints);
-      $activeRewardRedemption = reserveFindActiveRewardRedemption($con, $rid);
     }
     $stmtU->close();
   }
@@ -1152,9 +1114,6 @@ if (ob_get_level() > 0) { ob_end_flush(); }
               <!-- All Available Amenity Rewards -->
               <div class="view-rewards-amenities" style="margin-bottom:24px;">
                 <div style="font-size:1.25rem; font-weight:800; color:#23412e; margin-bottom:16px;">All Available Amenities</div>
-                <?php if ($activeRewardRedemption): ?>
-                  <div class="active-reward-notice" role="status" style="padding:12px 14px; margin:0 0 16px; border:1px solid #a7f3d0; border-radius:10px; background:#ecfdf5; color:#14532d; line-height:1.45;">You already have an active VHEcoPoint redemption for <strong><?php echo htmlspecialchars((string)$activeRewardRedemption['amenity'], ENT_QUOTES); ?></strong>. Complete or cancel that reservation before redeeming another amenity.</div>
-                <?php endif; ?>
                 <div class="view-rewards-grid" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px;">
                   <?php 
                     $allAmenities = [
@@ -1189,8 +1148,8 @@ if (ob_get_level() > 0) { ob_end_flush(); }
                           <span style="color:#6b7280; font-size:0.8rem;">Your balance:</span>
                           <span style="font-weight:800; color:#111827; font-size:0.9rem;"><?php echo number_format($residentPoints); ?> pts</span>
                         </div>
-                        <button type="button" class="view-rewards-card-btn" <?php echo ($isEligible && !$activeRewardRedemption) ? '' : 'disabled'; ?> style="padding:8px 16px; border-radius:10px; border:none; font-weight:700; font-size:0.85rem; cursor:pointer; transition:all 0.2s; white-space:nowrap; <?php echo ($isEligible && !$activeRewardRedemption) ? 'background:linear-gradient(135deg,#23412e,#1f5a33); color:#fff; box-shadow:0 2px 8px rgba(35,65,46,0.2);' : 'background:#e5e7eb; color:#6b7280; cursor:not-allowed;'; ?>">
-                          <?php echo $activeRewardRedemption ? 'Redemption Active' : ($isEligible ? 'Redeem' : 'Not Enough Points'); ?>
+                        <button type="button" class="view-rewards-card-btn" <?php echo $isEligible ? '' : 'disabled'; ?> style="padding:8px 16px; border-radius:10px; border:none; font-weight:700; font-size:0.85rem; cursor:pointer; transition:all 0.2s; white-space:nowrap; <?php echo $isEligible ? 'background:linear-gradient(135deg,#23412e,#1f5a33); color:#fff; box-shadow:0 2px 8px rgba(35,65,46,0.2);' : 'background:#e5e7eb; color:#6b7280; cursor:not-allowed;'; ?>">
+                          <?php echo $isEligible ? 'Redeem' : 'Not Enough Points'; ?>
                         </button>
                       </div>
                     </div>
@@ -4961,16 +4920,17 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   })();
 
-  // Runs after the resident clicks Confirm Redemption in the rewards flow:
-  // moves to the redeemed amenity and re-applies the confirmed redemption. The
-  // Book Now flow resets the form, so the toggle is re-checked and the
-  // redemption is re-marked as confirmed afterwards.
+  // Each confirmed reward starts a clean reservation instead of continuing a
+  // saved form or attaching to a reservation reference from an earlier flow.
   window.rewardRedemptionProceedToAmenity = function(){
     const amenityName = window.__rewardRedemptionAmenity || '';
     if (!amenityName) return;
     const amenityCard = document.querySelector(`.amenity-card[data-amenity="${amenityName}"]`);
     const bookNowBtn = amenityCard ? amenityCard.querySelector('button[data-action="book-now"]') : null;
     if (!bookNowBtn) return;
+    clearBookingFormState();
+    const refCodeField = document.getElementById('refCodeField');
+    if (refCodeField) refCodeField.value = '';
     runBookNowFlow(bookNowBtn);
     const toggle = document.getElementById('use-points-toggle');
     if (toggle) {
