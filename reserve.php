@@ -2631,7 +2631,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
       const toggle = document.getElementById('use-points-toggle'); if(toggle){ toggle.checked = false; }
       usePoints = false;
       setRedemptionConfirmed(false);
-      showStartDateError(''); showDateError(''); setFieldWarning('startTimeInput',''); setFieldWarning('endTimeInput',''); setFieldWarning('personsInput',''); setFieldWarning('hoursInput','');
+      showStartDateError(''); showDateError(''); showTimeError(''); setFieldWarning('startTimeInput',''); setFieldWarning('endTimeInput',''); setFieldWarning('personsInput',''); setFieldWarning('hoursInput',''); setFieldWarning('downpaymentInput','');
       updateDisplayedPrice(); updateDownpaymentSuggestion();
       updateActionStates();
       updateParticipantVisibility();
@@ -2801,6 +2801,7 @@ async function changePersons(val){
     updateDownpaymentSuggestion();
     renderTimeSlotButtons();
     updateBookingSummary();
+    showIncompleteWarnings(false);
   }
 
   function selectDuration(hours){
@@ -2818,6 +2819,7 @@ async function changePersons(val){
     updateActionStates();
     const hc=document.getElementById('hoursChosen'); if(hc){ hc.value='1'; }
     updateBookingSummary();
+    showIncompleteWarnings(false);
   }
 
   async function fetchBookedTimesFor(date){
@@ -3241,17 +3243,20 @@ async function changePersons(val){
     } catch(_) { return 0; }
   }
   async function checkTimeAvailability(){
-    const amenSel=document.getElementById('amenityField').value; if(!amenSel){ computeAvailability(); return; }
+    const amenSel=document.getElementById('amenityField').value; if(!amenSel){ showTimeError(''); computeAvailability(); return; }
     const s=document.getElementById('startDateInput').value;
     const e=document.getElementById('endDateInput').value;
     const st=document.getElementById('startTimeInput').value;
     const et=document.getElementById('endTimeInput').value;
     const card=document.querySelector('.amenity-card.selected');
-    if(!card) return;
+    // Every early exit below means "not enough data to judge the time right now".
+    // Any previous time complaint is therefore stale, so clear it instead of
+    // leaving the old message on screen.
+    if(!card) { showTimeError(''); return; }
     const pill=card.querySelector('.status-pill');
-    if(!pill) { return; }
-    if(!s||!e||!st||!et){computeAvailability();return}
-    if(s!==e){computeAvailability();return}
+    if(!pill) { showTimeError(''); return; }
+    if(!s||!e||!st||!et){ showTimeError(''); computeAvailability(); return; }
+    if(s!==e){ showTimeError(''); computeAvailability(); return; }
     if(st && et){
       const sMin=toMinutes(st);
       const eMin=toMinutes(et);
@@ -3262,7 +3267,7 @@ async function changePersons(val){
       const shH=Math.floor(sMin/60); const ehH=Math.floor(eMin/60);
       if(eMin<=sMin || shH<minHour || ehH>maxHour){
         pill.textContent='Invalid time'; pill.className='status-pill unavailable';
-        const te=document.getElementById('timeError'); if(te){ te.style.display='block'; te.textContent='Selected time is outside operating hours.'; }
+        showTimeError('Selected time is outside operating hours.');
         return;
       }
     }
@@ -3282,17 +3287,26 @@ async function changePersons(val){
       else if(reservedHours>0){ pill.textContent='Partially Booked'; pill.className='status-pill partly'; }
       else { pill.textContent='Available'; pill.className='status-pill available'; }
     }
-    const te=document.getElementById('timeError');
-    if(te){
-      if(overlap){ te.style.display='block'; te.textContent='Time slot is already booked. Please choose a different time.'; }
-      else { te.style.display='none'; te.textContent=''; }
-    }
+    // Route through showTimeError() rather than writing textContent directly:
+    // a raw write wipes the .msg span and × button, which then stops the × from
+    // working and leaves orphaned text behind on the next update.
+    if(overlap){ showTimeError('Time slot is already booked. Please choose a different time.'); }
+    else { showTimeError(''); }
   }
 
   function isDateBooked(ds){ try { return bookedDates && bookedDates.has(ds); } catch(e){ return false; } }
-  function showStartDateError(msg){ const el=document.getElementById('startDateError'); if(!el) return; if(msg){ el.style.display='block'; let m=el.querySelector('.msg'); if(!m){ m=document.createElement('span'); m.className='msg'; el.appendChild(m);} m.textContent=msg; let close=el.querySelector('.close-warn'); if(!close){ close=document.createElement('button'); close.className='close-warn'; close.type='button'; close.textContent='\u00d7'; close.style.marginLeft='8px'; close.style.background='transparent'; close.style.border='0'; close.style.cursor='pointer'; close.style.color='#888'; el.appendChild(close); close.addEventListener('click',function(){ el.style.display='none'; m.textContent=''; }); } } else { el.style.display='none'; const m2=el.querySelector('.msg'); if(m2){ m2.textContent=''; } } }
-  function showDateError(msg){ const el=document.getElementById('dateError'); if(!el) return; if(msg){ el.style.display='block'; let m=el.querySelector('.msg'); if(!m){ m=document.createElement('span'); m.className='msg'; el.appendChild(m);} m.textContent=msg; let close=el.querySelector('.close-warn'); if(!close){ close=document.createElement('button'); close.className='close-warn'; close.type='button'; close.textContent='\u00d7'; close.style.marginLeft='8px'; close.style.background='transparent'; close.style.border='0'; close.style.cursor='pointer'; close.style.color='#888'; el.appendChild(close); close.addEventListener('click',function(){ el.style.display='none'; m.textContent=''; }); } } else { el.style.display='none'; const m2=el.querySelector('.msg'); if(m2){ m2.textContent=''; } } }
-  function showTimeError(msg){ const el=document.getElementById('timeError'); if(!el) return; if(msg){ el.style.display='block'; let m=el.querySelector('.msg'); if(!m){ m=document.createElement('span'); m.className='msg'; el.appendChild(m);} m.textContent=msg; let close=el.querySelector('.close-warn'); if(!close){ close=document.createElement('button'); close.className='close-warn'; close.type='button'; close.textContent='\u00d7'; close.style.marginLeft='8px'; close.style.background='transparent'; close.style.border='0'; close.style.cursor='pointer'; close.style.color='#888'; el.appendChild(close); close.addEventListener('click',function(){ el.style.display='none'; m.textContent=''; }); } } else { el.style.display='none'; const m2=el.querySelector('.msg'); if(m2){ m2.textContent=''; } } }
+  // Hides an error banner and wipes every scrap of message text inside it,
+  // including any bare text node written straight onto the element (older code
+  // paths did that, which left a stale message behind after "clearing").
+  function clearErrorBanner(el){
+    if(!el) return;
+    el.style.display='none';
+    Array.prototype.forEach.call(el.childNodes,function(n){ if(n.nodeType===3){ n.nodeValue=''; } });
+    const m=el.querySelector('.msg'); if(m){ m.textContent=''; }
+  }
+  function showStartDateError(msg){ const el=document.getElementById('startDateError'); if(!el) return; if(msg){ el.style.display='block'; let m=el.querySelector('.msg'); if(!m){ m=document.createElement('span'); m.className='msg'; el.appendChild(m);} m.textContent=msg; let close=el.querySelector('.close-warn'); if(!close){ close=document.createElement('button'); close.className='close-warn'; close.type='button'; close.textContent='\u00d7'; close.style.marginLeft='8px'; close.style.background='transparent'; close.style.border='0'; close.style.cursor='pointer'; close.style.color='#888'; el.appendChild(close); close.addEventListener('click',function(){ clearErrorBanner(el); }); } } else { clearErrorBanner(el); } }
+  function showDateError(msg){ const el=document.getElementById('dateError'); if(!el) return; if(msg){ el.style.display='block'; let m=el.querySelector('.msg'); if(!m){ m=document.createElement('span'); m.className='msg'; el.appendChild(m);} m.textContent=msg; let close=el.querySelector('.close-warn'); if(!close){ close=document.createElement('button'); close.className='close-warn'; close.type='button'; close.textContent='\u00d7'; close.style.marginLeft='8px'; close.style.background='transparent'; close.style.border='0'; close.style.cursor='pointer'; close.style.color='#888'; el.appendChild(close); close.addEventListener('click',function(){ clearErrorBanner(el); }); } } else { clearErrorBanner(el); } }
+  function showTimeError(msg){ const el=document.getElementById('timeError'); if(!el) return; if(msg){ el.style.display='block'; let m=el.querySelector('.msg'); if(!m){ m=document.createElement('span'); m.className='msg'; el.appendChild(m);} m.textContent=msg; let close=el.querySelector('.close-warn'); if(!close){ close=document.createElement('button'); close.className='close-warn'; close.type='button'; close.textContent='\u00d7'; close.style.marginLeft='8px'; close.style.background='transparent'; close.style.border='0'; close.style.cursor='pointer'; close.style.color='#888'; el.appendChild(close); close.addEventListener('click',function(){ clearErrorBanner(el); }); } } else { clearErrorBanner(el); } }
   function validateDates(){
     const s=document.getElementById('startDateInput').value;
     const e=document.getElementById('endDateInput').value;
@@ -3337,6 +3351,22 @@ async function changePersons(val){
   let __dirtyFields = {};
   function markDirty(id){ try{ __dirtyFields[id] = true; }catch(_){} }
   function isDirty(id){ try{ return !!__dirtyFields[id]; }catch(_){ return false; } }
+  // Downpayment warnings are only raised on submit, so nothing else ever took
+  // them away. Drop the warning once the amount is inside the valid range.
+  // The rules themselves are unchanged: blank/non-numeric is left alone (no
+  // warning exists for it) and a still-out-of-range amount keeps its message.
+  function clearDownpaymentWarning(){
+    const dpRaw=(document.getElementById('downpaymentInput')?.value||'').trim();
+    if(dpRaw==='' || isNaN(Number(dpRaw))) return;
+    const dpNum=Number(dpRaw);
+    if(dpNum<0) return;
+    const rCount=parseInt(document.getElementById('residentsCountInput')?.value||'0',10);
+    const gCount=parseInt(document.getElementById('guestsCountInput')?.value||'0',10);
+    const hrs=parseInt(document.getElementById('hoursInput')?.value||'0',10);
+    const basePrice=computeDynamicPrice(document.getElementById('amenityField')?.value||'', rCount, gCount, hrs);
+    if(!isFinite(basePrice) || dpNum>basePrice) return;
+    setFieldWarning('downpaymentInput','');
+  }
   function showIncompleteWarnings(force){
     const amen=document.getElementById('amenityField').value;
     const s=document.getElementById('startDateInput').value;
@@ -3371,6 +3401,17 @@ async function changePersons(val){
     if(!st){ if(force||isDirty('startTimeInput')) setFieldWarning('startTimeInput','Start time is required.'); } else { setFieldWarning('startTimeInput',''); }
     // End time is auto-computed from start time + hours; no manual warning
     if(st && !et){ computeEndTimeFromHours(); }
+    // ...but the submit handler can flag it ("End time must be after start
+    // time"). Clear that as soon as the computed range is valid again, so the
+    // message doesn't outlive the mistake that caused it.
+    if(st && et){
+      const [sh,sm]=(st||'').split(':');
+      const [eh,em]=(et||'').split(':');
+      const sMinE=(parseInt(sh||'0',10)*60)+parseInt(sm||'0',10);
+      const eMinE=(parseInt(eh||'0',10)*60)+parseInt(em||'0',10);
+      if(eMinE>sMinE){ setFieldWarning('endTimeInput',''); }
+    }
+    clearDownpaymentWarning();
     if(isHourBasedAmenity(amen)){
       if(hours<1){ if(force||isDirty('hoursInput')) setFieldWarning('hoursInput','Number of hours must be at least 1.'); } else { setFieldWarning('hoursInput',''); }
     }
@@ -3484,6 +3525,7 @@ async function changePersons(val){
     updateDownpaymentSuggestion();
     const chosen=document.getElementById('hoursChosen'); if(chosen) chosen.value='1';
     renderTimeSlotButtons();
+    showIncompleteWarnings(false);
   }); }
   document.addEventListener('DOMContentLoaded',function(){
     renderHoursDropdownForAmenity();
@@ -4271,7 +4313,7 @@ displaySlotError('Please select the number of hours before choosing a start time
     }
     window.__slotRenderTokenCounter=(window.__slotRenderTokenCounter||0)+1; const __token=window.__slotRenderTokenCounter; window.__activeSlotRenderToken=__token; if(!date){ container.innerHTML=''; if(notice){ notice.style.display='none'; notice.textContent=''; notice.classList.remove('notice-available','notice-partly','notice-disabled'); } const sErr2=document.getElementById('timeSlotError'); if(sErr2){ sErr2.style.display='none'; sErr2.textContent=''; } return; } fetchBookedTimesFor(date).then(data=>{ if(window.__activeSlotRenderToken!==__token) return; const booked=data.times||[]; window.__bookedTimesForDate=booked||[]; let anyEnabled=false; let disabledCount=0; slots.forEach(slot=>{ const startHour=parseInt(slot.value.split(':')[0],10); const maxPossible=computeMaxDuration(amen,startHour,booked,date); const valid=(maxPossible>=hours); const btn=document.createElement('button'); btn.type='button'; btn.className='slot-btn airbnb'; btn.textContent=slot.label; btn.dataset.slot=slot.value; if(!valid){ disabledCount++; const taken=isSlotTakenByBooking(amen,startHour,hours,booked,date); btn.classList.add(taken?'taken':'unavailable'); btn.setAttribute('aria-disabled','true'); btn.onclick=function(){ showToast(taken ? 'This start time has already been booked by another guest. Please select a different start time or date.' : 'This start time cannot accommodate the selected duration. Please choose a different start time or duration.','warning'); }; } else { anyEnabled=true; btn.classList.add('available'); btn.onclick=function(){ selectTimeSlot(slot.value); }; } container.appendChild(btn); }); let hasBookedHours=false; (booked||[]).forEach(function(t){ if(!t.has_time){ hasBookedHours=true; return; } const bS=parseInt(String(t.start).split(':')[0],10); const bE=parseInt(String(t.end).split(':')[0],10); if(bE>bS){ hasBookedHours=true; } }); if(notice){ notice.classList.remove('notice-available','notice-partly','notice-disabled'); if(hasBookedHours && !anyEnabled){ notice.style.display='block'; notice.textContent='Fully Booked — no start times are available for this date.'; notice.classList.add('notice-disabled'); } else if(hasBookedHours && disabledCount>0){ notice.style.display='block'; notice.textContent='Partially Booked — some start times are unavailable.'; notice.classList.add('notice-partly'); } else { notice.style.display='block'; notice.textContent='All start times are available — please select your preferred start time.'; notice.classList.add('notice-available'); } } if(!anyEnabled){ showTimeError('No start times are available for the selected duration. Please adjust the number of hours.'); } else { showTimeError(''); } const st=document.getElementById('startTimeInput').value; if(st){ const selBtn=Array.from(container.children).find(b=>b.tagName==='BUTTON' && b.dataset.slot===st); if(selBtn) selBtn.classList.add('selected'); } updateActionStates(); }); }
 
-  function selectTimeSlot(start){ const hInput=document.getElementById('hoursInput'); const hrs=parseInt(hInput?.value||'0',10); if(!hrs || hrs<1){ showTimeError('Please select the number of hours before choosing a start time.'); return; } const amen=document.getElementById('amenityField').value; const booked=window.__bookedTimesForDate||[]; const startHour=parseInt(start.split(':')[0],10); const selDate=document.getElementById('startDateInput')?.value||''; if(computeMaxDuration(amen,startHour,booked,selDate) < Math.max(1,hrs)){ displaySlotError('This start time cannot accommodate the selected duration. Please choose a different start time or duration.'); showToast(`<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Not enough consecutive open hours remain from this start time to accommodate ${hrs} hour${hrs>1?'s':''}.`,'warning'); return; } document.getElementById('startTimeInput').value=start; computeEndTimeFromHours(); const sh=startHour, eh=sh+hrs; const tr=document.getElementById('selectedTimeRange'); if(tr){ tr.innerHTML='<i class="fa-regular fa-clock" aria-hidden="true"></i> Selected Time: '+formatTimeSlot(sh)+' - '+formatTimeSlot(eh); tr.style.display='block'; } const tn=document.getElementById('selectedTimeNote'); if(tn){ tn.style.display='none'; } const cont=document.getElementById('timeSlotContainer'); if(cont){ Array.from(cont.querySelectorAll('.slot-btn')).forEach(function(b){ b.classList.remove('selected'); }); const sel=Array.from(cont.querySelectorAll('.slot-btn')).find(function(b){ return b.dataset.slot===start; }); if(sel){ sel.classList.add('selected'); } } displaySlotError(''); showTimeError(''); updateActionStates(); }
+  function selectTimeSlot(start){ const hInput=document.getElementById('hoursInput'); const hrs=parseInt(hInput?.value||'0',10); if(!hrs || hrs<1){ showTimeError('Please select the number of hours before choosing a start time.'); return; } const amen=document.getElementById('amenityField').value; const booked=window.__bookedTimesForDate||[]; const startHour=parseInt(start.split(':')[0],10); const selDate=document.getElementById('startDateInput')?.value||''; if(computeMaxDuration(amen,startHour,booked,selDate) < Math.max(1,hrs)){ displaySlotError('This start time cannot accommodate the selected duration. Please choose a different start time or duration.'); showToast(`<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Not enough consecutive open hours remain from this start time to accommodate ${hrs} hour${hrs>1?'s':''}.`,'warning'); return; } document.getElementById('startTimeInput').value=start; computeEndTimeFromHours(); const sh=startHour, eh=sh+hrs; const tr=document.getElementById('selectedTimeRange'); if(tr){ tr.innerHTML='<i class="fa-regular fa-clock" aria-hidden="true"></i> Selected Time: '+formatTimeSlot(sh)+' - '+formatTimeSlot(eh); tr.style.display='block'; } const tn=document.getElementById('selectedTimeNote'); if(tn){ tn.style.display='none'; } const cont=document.getElementById('timeSlotContainer'); if(cont){ Array.from(cont.querySelectorAll('.slot-btn')).forEach(function(b){ b.classList.remove('selected'); }); const sel=Array.from(cont.querySelectorAll('.slot-btn')).find(function(b){ return b.dataset.slot===start; }); if(sel){ sel.classList.add('selected'); } } displaySlotError(''); showTimeError(''); updateActionStates(); showIncompleteWarnings(false); }
   function renderHoursDropdownForAmenity(){
     const amen=document.getElementById('amenityField').value;
     const sel=document.getElementById('hoursSelect');
