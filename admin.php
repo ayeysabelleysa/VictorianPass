@@ -6468,8 +6468,6 @@ body.modal-open { overflow: hidden; }
                         $isPdf = (bool)preg_match('/\.pdf$/i', (string)$receiptPath);
                         if ($isPdf) {
                           echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars(admin_receipt_url($receiptPath), ENT_QUOTES, 'UTF-8') . "', " . intval($resIdMatch) . ", 'resident_guest_forms')\" style='margin:6px 0;'><i class='fa-solid fa-file'></i> Open Receipt (PDF)</button>";
-                        } else {
-                          echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars(admin_receipt_url($receiptPath), ENT_QUOTES, 'UTF-8') . "', " . intval($resIdMatch) . ", 'resident_guest_forms')\" style='margin:6px 0;'><i class='fa-solid fa-file'></i> Verify Payment Receipt</button>";
                         }
                       } else {
                         echo "<div class='muted' style='margin:6px 0;'>No receipt uploaded.</div>";
@@ -7110,8 +7108,6 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
                       $isPdf = (bool)preg_match('/\.pdf$/i', (string)$receiptPath);
                       if ($isPdf) {
                         echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars(admin_receipt_url($receiptPath), ENT_QUOTES, 'UTF-8') . "', " . intval($rr['id']) . ", 'requests')\"><i class='fa-solid fa-file'></i> Open Receipt (PDF)</button>";
-                      } else {
-                        echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars(admin_receipt_url($receiptPath), ENT_QUOTES, 'UTF-8') . "', " . intval($rr['id']) . ", 'requests')\"><i class='fa-solid fa-file'></i> Verify Payment Receipt</button>";
                       }
                     } else {
                       echo "<div class='muted'>No receipt uploaded.</div>";
@@ -7330,8 +7326,6 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
                     $isPdf = (bool)preg_match('/\.pdf$/i', (string)$receiptPath);
                     if ($isPdf) {
                       echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars(admin_receipt_url($receiptPath), ENT_QUOTES, 'UTF-8') . "', " . intval($rr['id']) . ", 'visitor_requests')\"><i class='fa-solid fa-file'></i> Open Receipt (PDF)</button>";
-                    } else {
-                      echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars(admin_receipt_url($receiptPath), ENT_QUOTES, 'UTF-8') . "', " . intval($rr['id']) . ", 'visitor_requests')\"><i class='fa-solid fa-file'></i> Verify Payment Receipt</button>";
                     }
                   } else {
                     echo "<div class='muted'>No receipt uploaded.</div>";
@@ -7972,6 +7966,7 @@ function showReservationDetails(reservationId, expectedType){
         `<div class="details-section" style="animation: fadeIn 0.5s ease;">
           <h4>Proof of Payment</h4>
           ${isPdf ? `<a href="${receiptPath}" target="_blank" style="color:#23412e;font-weight:600;">Open uploaded proof (PDF)</a>` : `<a href="${receiptPath}" target="_blank"><img src="${receiptPath}" alt="Uploaded proof of payment" style="max-width:100%; height:auto; border-radius:8px; cursor:pointer;"></a>`}
+          ${payStatus !== 'verified' && d.id ? `<form method="post" style="display:flex;justify-content:center;margin-top:12px;"><input type="hidden" name="reservation_id" value="${d.id}"><input type="hidden" name="action" value="verify_receipt"><input type="hidden" name="redirect_page" value="${redirectPage}"><button type="submit" class="btn btn-approve">Verify</button></form>` : ''}
         </div>`
       ) : `<div class="details-section"><h4>Proof of Payment</h4><p>${isFullyRedeemed ? 'No receipt uploaded. No proof of payment is required because this reservation was fully covered by the VHEcoPoint redemption.' : 'No receipt uploaded.'}</p></div>`;
       const denialHtml = '';
@@ -8176,6 +8171,7 @@ function showResidentReservationDetails(rrId){
         `<div class="details-section" style="animation: fadeIn 0.5s ease;">
           <h4>Proof of Payment</h4>
           ${isPdf ? `<a href="${receiptPath}" target="_blank" style="color:#23412e;font-weight:600;">Open uploaded proof (PDF)</a>` : `<a href="${receiptPath}" target="_blank"><img src="${receiptPath}" alt="Uploaded proof of payment" style="max-width:100%; height:auto; border-radius:8px; cursor:pointer;"></a>`}
+          ${ps !== 'verified' && d.id ? `<form method="post" style="display:flex;justify-content:center;margin-top:12px;"><input type="hidden" name="reservation_id" value="${d.id}"><input type="hidden" name="action" value="verify_receipt"><input type="hidden" name="redirect_page" value="${isResidentGuest ? 'resident_guest_forms' : (d.entry_pass_id || d.user_type === 'visitor' ? 'visitor_requests' : 'requests')}"><button type="submit" class="btn btn-approve">Verify</button></form>` : ''}
         </div>`
       ) : `<div class="details-section"><h4>Proof of Payment</h4><p>${isFullyRedeemed2 ? 'No receipt uploaded. No proof of payment is required because this reservation was fully covered by the VHEcoPoint redemption.' : 'No receipt uploaded.'}</p></div>`;
       const denialHtml = showDenial ? (
