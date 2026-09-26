@@ -135,54 +135,6 @@ if (isset($_FILES['visitor_valid_id']) && $_FILES['visitor_valid_id']['error'] =
   exit;
 }
 
-// Ensure guest_forms table exists
-$con->query("CREATE TABLE IF NOT EXISTS guest_forms (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  resident_user_id INT NULL,
-  resident_house VARCHAR(100) NULL,
-  resident_email VARCHAR(150) NULL,
-  visitor_first_name VARCHAR(100) NOT NULL,
-  visitor_middle_name VARCHAR(100) NULL,
-  visitor_last_name VARCHAR(100) NOT NULL,
-  visitor_sex VARCHAR(20) NULL,
-  visitor_birthdate DATE NULL,
-  visitor_contact VARCHAR(50) NULL,
-  visitor_email VARCHAR(150) NULL,
-  visitor_address VARCHAR(255) NULL,
-  valid_id_path VARCHAR(255) NULL,
-  visit_date DATE NULL,
-  visit_time VARCHAR(20) NULL,
-  purpose VARCHAR(255) NULL,
-  wants_amenity TINYINT(1) NOT NULL DEFAULT 0,
-  persons INT NULL,
-  ref_code VARCHAR(50) NOT NULL UNIQUE,
-  approval_status ENUM('pending','approved','denied') DEFAULT 'pending',
-  approved_by INT NULL,
-  approval_date DATETIME NULL,
-  qr_path VARCHAR(255) NULL,
-  entered_at DATETIME NULL,
-  entered_by INT NULL,
-  scanned_at DATETIME NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NULL,
-  INDEX idx_resident_user_id (resident_user_id),
-  INDEX idx_ref_code (ref_code)
-) ENGINE=InnoDB");
-
-$columnCheck = $con->query("SHOW COLUMNS FROM guest_forms LIKE 'visitor_address'");
-if ($columnCheck && $columnCheck->num_rows === 0) {
-  $con->query("ALTER TABLE guest_forms ADD COLUMN visitor_address VARCHAR(255) NULL");
-}
-
-$fcChecks = ['entered_at' => 'DATETIME NULL', 'entered_by' => 'INT NULL', 'scanned_at' => 'DATETIME NULL'];
-foreach ($fcChecks as $fcName => $fcDef) {
-  $fc = $con->query("SHOW COLUMNS FROM guest_forms LIKE '" . $con->real_escape_string($fcName) . "'");
-  if ($fc && $fc->num_rows === 0) {
-    $con->query("ALTER TABLE guest_forms ADD COLUMN $fcName $fcDef");
-  }
-  if ($fc instanceof mysqli_result) { $fc->close(); }
-}
-
 // Generate a reference code for this guest form
 $ref_code = 'VP-' . strtoupper(bin2hex(random_bytes(4)));
 
@@ -225,6 +177,11 @@ $stmtGF = $con->prepare("INSERT INTO guest_forms (
   visitor_sex, visitor_birthdate, visitor_contact, visitor_email, visitor_address,
   valid_id_path, visit_date, visit_time, purpose, persons, wants_amenity, ref_code, approval_status
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')");
+if (!$stmtGF) {
+  error_log('submit_guest.php: guest form insert prepare failed: ' . $con->error);
+  echo json_encode(['success' => false, 'message' => 'Failed to save guest form. Please try again.']);
+  exit;
+}
 
 $types = 'i' . str_repeat('s', 14) . 'ii' . 's';
 $stmtGF->bind_param(
