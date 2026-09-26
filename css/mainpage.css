@@ -83,7 +83,7 @@ html { scroll-behavior: smooth; }
   gap: 8px;
   padding: 10px 16px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #3a332f 0%, #2b2623 55%, #211b18 100%);
+  background: linear-gradient(135deg, rgba(35, 65, 46, 0.96) 0%, rgba(27, 48, 34, 0.98) 100%);
   color: #f2c24f;
   font-weight: 700;
   opacity: 1;
@@ -93,7 +93,7 @@ html { scroll-behavior: smooth; }
   transition: background 0.25s ease, color 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease, transform 0.2s ease;
 }
 .page-nav .nav-ecopoint:hover{
-  background: linear-gradient(135deg, #4a403a 0%, #342e2a 55%, #28211e 100%);
+  background: linear-gradient(135deg, rgba(50, 35, 20, 0.98) 0%, rgba(35, 65, 46, 1) 100%);
   color: #f8e7b0;
   border-color: rgba(242, 194, 79, 0.9);
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.34);
@@ -167,12 +167,12 @@ html { scroll-behavior: smooth; }
   transform:translate(-50%,0);
 }
 
-/* Active state matches the VictorianPass brown header palette. */
+/* Active state when clicked (highlight green) */
 .page-nav .nav-ecopoint.active{
-  background: linear-gradient(135deg, #3a332f 0%, #2b2623 55%, #211b18 100%);
+  background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%);
   color: #ffffff;
-  border-color: rgba(242, 194, 79, 0.9);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+  border-color: rgba(16, 185, 129, 0.75);
+  box-shadow: 0 12px 30px rgba(16, 185, 129, 0.18);
 }
 
 .nav-collapse{display:flex; align-items:center; gap:18px}

@@ -922,7 +922,7 @@ body.account-blocked { overflow: hidden; }
 .account-blocked-content .btn-logout-only:hover { filter: brightness(0.95); }
 .toast-stack { position: fixed; top: 16px; right: 16px; z-index: 2500; display: flex; flex-direction: column; gap: 8px; }
 .main-content.ecopoint-active .top-header {
-  background: linear-gradient(135deg, #3f2c1c 0%, #2b1d12 100%);
+  background: radial-gradient(circle at top left, #3a332f 0%, #2b2623 55%, #211b18 100%);
   border-bottom: 1px solid rgba(212, 175, 55, 0.35);
   box-shadow: 0 4px 12px rgba(43, 29, 18, 0.28);
 }
