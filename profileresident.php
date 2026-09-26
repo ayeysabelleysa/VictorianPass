@@ -7653,8 +7653,8 @@ window.VP_CSRF_TOKEN = <?php echo json_encode(function_exists('vpCsrfGetToken') 
   <div class="vhecopoint-popup-card">
     <button type="button" class="vhecopoint-popup-close" id="vhecopointPopupClose" aria-label="Close announcement">&times;</button>
     <span class="vhecopoint-popup-icon" aria-hidden="true">&#9851;</span>
-    <div class="vhecopoint-popup-title" id="vhecopointPopupTitle">Now with VHEcoPoint Rewards!</div>
-    <div class="vhecopoint-popup-sub">Recycle &amp; Earn Points</div>
+    <div class="vhecopoint-popup-title" id="vhecopointPopupTitle">Now with VHEcoPoint!</div>
+    <div class="vhecopoint-popup-sub">Recycle Smart. Earn Eco Points. Enjoy Victorian Heights.</div>
     <p class="vhecopoint-popup-text" id="vhecopointPopupText">&ldquo;Recycle your materials at the VHEcoPoint Station, earn points, and redeem them for rewards.&rdquo;</p>
     <a href="mainpage.php?ecopoint=1#home" class="vhecopoint-popup-learn" id="vhecopointPopupLearn">Learn More</a>
   </div>

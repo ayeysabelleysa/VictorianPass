@@ -400,11 +400,13 @@ $cooldownRemaining = isset($_SESSION['login_cooldown_until']) ? max(0, intval($_
 
     .password-field {
       position: relative;
+      margin-bottom: 18px;
     }
 
     .password-field input {
       width: 100%;
       padding-right: 40px;
+      margin-bottom: 0;
     }
 
     .toggle-password {

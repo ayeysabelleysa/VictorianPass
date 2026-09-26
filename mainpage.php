@@ -288,7 +288,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         <a href="#home">Home</a>
         <?php if (!$isVisitor): ?>
         <a href="#" class="nav-ecopoint" id="navEcoPointBtn" data-ecopoint-modal-open="true">
-          <span class="nav-ecopoint-icon" aria-hidden="true">&#9851;</span>
+          <span class="nav-ecopoint-icon"><?php echo vh_eco_logo('', 'nav-eco-logo'); ?></span>
           <span class="nav-ecopoint-label">VHEcoPoint</span>
           <span class="nav-ecopoint-badge" aria-label="New feature">New!</span>
           <span class="nav-ecopoint-tooltip" role="tooltip">Earn points by recycling and redeem them for free amenity hours!</span>
@@ -352,7 +352,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
       <p class="tagline">Every home has a story — start yours in a place worth remembering.</p>
       <?php if (($isResident || !$isLoggedIn) && !$isVisitor): ?>
-      <p class="hero-eco-subtitle" data-ecopoint-modal-open="true" role="button" tabindex="0" aria-haspopup="dialog"><span class="hero-eco-subtitle-top"><span class="hero-eco-subtitle-icon" aria-hidden="true">&#9851;</span><span class="hero-eco-subtitle-main">Now with VHEcoPoint</span></span><span class="hero-eco-subtitle-sub">Recycle Smart. Earn Eco Points. Enjoy Victorian Heights.</span><span class="hero-eco-subtitle-hint">See description &#9662;</span></p>
+      <p class="hero-eco-subtitle" data-ecopoint-modal-open="true" role="button" tabindex="0" aria-haspopup="dialog"><span class="hero-eco-subtitle-top"><span class="hero-eco-subtitle-main">Now with VHEcoPoint!</span></span><span class="hero-eco-subtitle-sub"><span class="hero-eco-subtitle-icon" aria-hidden="true"><i class="fa-solid fa-recycle"></i></span>Recycle Smart. Earn Eco Points. Enjoy Victorian Heights.</span><span class="hero-eco-subtitle-hint">See description &#9662;</span></p>
       <!-- Mobile-only: See description button for VHEcoPoint (short, close to subtitle) -->
       <button class="mobile-ecopoint-btn" data-ecopoint-modal-open="true" aria-controls="ecopointModal" aria-expanded="false">See VHEcoPoint description</button>
       <?php endif; ?>
@@ -642,12 +642,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       var openBtns = document.querySelectorAll('[data-ecopoint-modal-open]');
       var modal = document.getElementById('ecopointModal');
       var closeBtn = document.getElementById('ecopointModalClose');
+      var ecoAppTile = modal ? modal.querySelector('.eco-app-tile') : null;
       var lastFocus = null;
+      var hintTimer = null;
 
       function openModal(){
         if(!modal) return;
         lastFocus = document.activeElement;
         modal.style.display = 'flex';
+        if(ecoAppTile && window.matchMedia('(max-width: 900px)').matches){
+          window.clearTimeout(hintTimer);
+          ecoAppTile.classList.add('is-hint-visible');
+          hintTimer = window.setTimeout(function(){
+            ecoAppTile.classList.remove('is-hint-visible');
+          }, 5000);
+        }
         setTimeout(function(){
           if(closeBtn) closeBtn.focus();
         }, 0);
@@ -658,6 +667,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       function closeModal(){
         if(!modal) return;
         modal.style.display = 'none';
+        window.clearTimeout(hintTimer);
+        if(ecoAppTile) ecoAppTile.classList.remove('is-hint-visible');
         var ecoBtn = document.getElementById('navEcoPointBtn');
         if(ecoBtn) ecoBtn.classList.remove('active');
         if(lastFocus && typeof lastFocus.focus === 'function'){

@@ -99,6 +99,7 @@ html { scroll-behavior: smooth; }
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.34);
 }
 .nav-ecopoint-icon{
+  --vh-eco-logo-size: 22px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -106,6 +107,7 @@ html { scroll-behavior: smooth; }
   line-height: 1;
   color: inherit;
 }
+.nav-ecopoint-icon .vh-eco-logo{--vh-eco-logo-radius:5px}
 .nav-ecopoint-label{white-space:nowrap}
 .nav-ecopoint-badge{
   display:inline-flex;
@@ -510,12 +512,24 @@ html { scroll-behavior: smooth; }
   color: #bef264;
   flex-shrink: 0;
 }
+.hero-eco-subtitle-logo {
+  display: block;
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex: 0 0 20px;
+}
 .hero-eco-subtitle-main { font-weight: 600; }
 .hero-eco-subtitle-sub {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   font-size: 0.85em;
   font-weight: 500;
   opacity: 0.92;
-  white-space: nowrap;
+  white-space: normal;
+  text-align: center;
 }
 .hero-eco-subtitle-hint{ display:none; }
 
@@ -820,8 +834,14 @@ html { scroll-behavior: smooth; }
 }
 
 .eco-app-tile:hover::after,
-.eco-app-tile:focus-visible::after {
+.eco-app-tile:focus-visible::after,
+.eco-app-tile.is-hint-visible::after {
   transform: translate(-50%, 0);
+}
+
+.eco-app-tile.is-hint-visible::before,
+.eco-app-tile.is-hint-visible::after {
+  opacity: 1;
 }
 
 .btn-change.ecopoint-secondary-btn{
@@ -2277,7 +2297,8 @@ html { max-width:100%; overflow-x:hidden; }
   }
   .hero-eco-subtitle-sub{
     font-size:0.85em;
-    white-space:nowrap;
+    gap:5px;
+    white-space:normal;
   }
   .hero-eco-subtitle-hint{
     display:inline-flex;
