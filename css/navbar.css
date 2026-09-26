@@ -45,13 +45,13 @@
   flex: 0 0 40px;
   width: 40px;
   height: 40px;
-  margin-left: 4px;
+  margin-left: auto;
   border: 1px solid rgba(212, 175, 55, 0.65);
   border-radius: 10px;
   background: linear-gradient(145deg, #00391f 0%, #00512d 56%, #003a22 100%);
 }
 
-.header-brand .header-ecopoint-link .nav-eco-logo {
+.header-ecopoint-link .nav-eco-logo {
   --vh-eco-logo-size: 32px;
   --vh-eco-logo-radius: 6px;
   width: 32px;

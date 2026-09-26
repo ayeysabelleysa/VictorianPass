@@ -57,11 +57,10 @@ $navShowEcoPoint = basename($_SERVER['SCRIPT_NAME'] ?? '') === 'reserve.php' && 
       <span class="brand-main">VictorianPass</span>
       <span class="brand-sub">Victorian Heights Subdivision</span>
     </div>
-    <?php if ($navShowEcoPoint): ?>
-      <a href="<?php echo htmlspecialchars($navDashboardUrl . '?section=panel-points-history', ENT_QUOTES); ?>" class="header-ecopoint-link" aria-label="Open VHEcoPoint dashboard" title="VHEcoPoint dashboard"><?php echo vh_eco_logo('VHEcoPoint', 'nav-eco-logo'); ?></a>
-    <?php endif; ?>
   </div>
-  <?php if (!$navShowEcoPoint): ?>
+  <?php if ($navShowEcoPoint): ?>
+    <a href="<?php echo htmlspecialchars($navDashboardUrl . '?section=panel-points-history', ENT_QUOTES); ?>" class="header-ecopoint-link" aria-label="Open VHEcoPoint dashboard" title="VHEcoPoint dashboard"><?php echo vh_eco_logo('VHEcoPoint', 'nav-eco-logo'); ?></a>
+  <?php else: ?>
     <div class="header-actions">
       <?php if ($navIsLoggedIn): ?>
         <a href="<?php echo htmlspecialchars($navDashboardUrl); ?>" class="user-profile">
