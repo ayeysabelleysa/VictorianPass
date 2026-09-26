@@ -1664,7 +1664,8 @@ function getResidentReservations($con) {
 
 function getResidentOnlyReservations($con) {
     $query = "SELECT r.*, u.first_name, u.middle_name, u.last_name, u.house_number, u.email, u.phone, u.user_type,
-                     gf.id AS gf_id
+                     gf.id AS gf_id,
+                     COALESCE((SELECT SUM(pt.amount) FROM point_transactions pt WHERE pt.user_id = r.user_id AND pt.reservation_ref_code = r.ref_code AND pt.transaction_type = 'redeem'), 0) AS points_used
               FROM reservations r
               LEFT JOIN users u ON r.user_id = u.id
               LEFT JOIN guest_forms gf ON gf.ref_code = r.ref_code AND gf.resident_user_id IS NOT NULL
@@ -7087,6 +7088,19 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
                 echo "<td><span class='badge $statusClass'>" . $statusLabel . "</span></td>";
                 echo "<td class='actions'>";
                 echo "<button type='button' class='btn btn-view' onclick='showReservationDetails(" . intval($rr['id']) . ",\"visitor\")'>View Details</button>";
+                $startTimestamp = strtotime((string)($rr['start_time'] ?? ''));
+                $endTimestamp = strtotime((string)($rr['end_time'] ?? ''));
+                $durationSeconds = ($startTimestamp !== false && $endTimestamp !== false) ? (($endTimestamp - $startTimestamp + 86400) % 86400) : 0;
+                $isFullyRedeemed = intval($rr['use_points'] ?? 0) === 1 && intval($rr['points_used'] ?? 0) > 0 && $durationSeconds === 3600;
+                if ($isFullyRedeemed) {
+                  echo "<form method='post' class='action-form action-deny' onsubmit='return openDenyModal(this)'>";
+                  echo "<input type='hidden' name='reservation_id' value='" . intval($rr['id']) . "'>";
+                  echo "<input type='hidden' name='action' value='deny_request'>";
+                  echo "<input type='hidden' name='redirect_page' value='requests'>";
+                  echo "<input type='hidden' name='denial_reason' class='denial-reason'>";
+                  echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'>Reject</button>";
+                  echo "</form>";
+                }
                 $payStatusLower = strtolower($rr['payment_status'] ?? '');
                 if ($payStatusLower === 'rejected') { 
                   $attempts = intval($rr['receipt_attempts'] ?? 0);
@@ -7137,7 +7151,7 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
                       echo "<input type='hidden' name='redirect_page' value='requests'>";
                       $valueAttr = ($payStatusLower === 'pending_update' ? " value='" . htmlspecialchars(trim((string)($rr['denial_reason'] ?? '')), ENT_QUOTES) . "'" : "");
                       echo "<input type='hidden' name='denial_reason' class='denial-reason'".$valueAttr.">";
-                      echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'>Reject</button>";
+                      echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'>Reject Receipt</button>";
                       echo "</form>";
                     }
                   }
@@ -7149,13 +7163,6 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
                     echo "<input type='hidden' name='action' value='approve_resident_reservation'>";
                     echo "<input type='hidden' name='redirect_page' value='requests'>";
                     echo "<button type='submit' class='btn " . ($disabled ? "btn-disabled" : "btn-approve") . "' " . ($disabled ? "disabled title='Verify payment receipt first'" : "") . ">Approve</button>";
-                    echo "</form>";
-                    echo "<form method='post' class='action-form action-deny' onsubmit='return openDenyModal(this)'>";
-                    echo "<input type='hidden' name='reservation_id' value='" . intval($rr['id']) . "'>";
-                    echo "<input type='hidden' name='action' value='deny_request'>";
-                    echo "<input type='hidden' name='redirect_page' value='requests'>";
-                    echo "<input type='hidden' name='denial_reason' class='denial-reason'>";
-                    echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'>Reject</button>";
                     echo "</form>";
 
                 } elseif ($approval_status == 'denied' || $approval_status == 'cancelled') {
