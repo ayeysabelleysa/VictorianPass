@@ -922,9 +922,9 @@ body.account-blocked { overflow: hidden; }
 .account-blocked-content .btn-logout-only:hover { filter: brightness(0.95); }
 .toast-stack { position: fixed; top: 16px; right: 16px; z-index: 2500; display: flex; flex-direction: column; gap: 8px; }
 .main-content.ecopoint-active .top-header {
-  background: linear-gradient(135deg, #0f2f27, #1a5240);
+  background: linear-gradient(135deg, #3f2c1c 0%, #2b1d12 100%);
   border-bottom: 1px solid rgba(212, 175, 55, 0.35);
-  box-shadow: 0 4px 12px rgba(9,18,14,0.18);
+  box-shadow: 0 4px 12px rgba(43, 29, 18, 0.28);
 }
 .main-content.ecopoint-active .top-header .brand-main { color: #f4f4f4; }
 .main-content.ecopoint-active .top-header .header-brand-link { display: inline-flex; align-items: center; }

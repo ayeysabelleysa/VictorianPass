@@ -13,6 +13,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
   }
 }
 require_once __DIR__ . '/session_bootstrap.php';
+// Canonical VHEcoPoint logo helper (single source of truth for the logo file).
+require_once __DIR__ . '/ecopoint_brand.php';
 
 // Initialize error message for inline display
 $error = '';
@@ -262,9 +264,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   <link rel="icon" type="image/png" href="images/logo.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
-  <?php $mainCssVer = substr(@md5_file(__DIR__ . '/css/mainpage.css') ?: '', 0, 12); $respCssVer = substr(@md5_file(__DIR__ . '/css/responsive.css') ?: '', 0, 12); ?>
+  <?php $mainCssVer = substr(@md5_file(__DIR__ . '/css/mainpage.css') ?: '', 0, 12); $respCssVer = substr(@md5_file(__DIR__ . '/css/responsive.css') ?: '', 0, 12); $ecoBrandCss = substr(@md5_file(__DIR__ . '/css/ecopoint-brand.css') ?: '', 0, 12); ?>
   <link rel="stylesheet" href="css/mainpage.css?v=<?php echo $mainCssVer; ?>">
   <link rel="stylesheet" href="css/responsive.css?v=<?php echo $respCssVer; ?>">
+  <!-- Canonical VHEcoPoint brand lockup: one file, one size, one placement for the whole system. -->
+  <link rel="stylesheet" href="css/ecopoint-brand.css?v=<?php echo $ecoBrandCss; ?>">
   
 </head>
 <body>
@@ -402,7 +406,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             </div>
             <?php if ($isResident): ?>
             <div class="ecopoint-home-actions" style="justify-content:center; margin-top:14px;">
-              <a href="profileresident.php?section=panel-points-history" class="btn-change ecopoint-home-cta"><i class="fa-solid fa-leaf" aria-hidden="true" style="margin-right:8px;"></i>View VHEcoPoint</a>
+              <a href="profileresident.php?section=panel-points-history" class="eco-app-tile" data-hint="Click this to go to the VHEcoPoint dashboard" aria-label="Open the VHEcoPoint dashboard">
+                <span class="eco-app-tile-icon"><?php echo vh_eco_logo('VHEcoPoint'); ?></span>
+                <span class="eco-app-tile-name">VHEcoPoint</span>
+              </a>
             </div>
             <?php endif; ?>
             <h3 class="ecopoint-card-title">How It Works</h3>

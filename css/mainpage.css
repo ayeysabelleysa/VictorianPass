@@ -699,7 +699,131 @@ html { scroll-behavior: smooth; }
   justify-content:flex-start;
   margin:18px 0 6px;
 }
-.ecopoint-home-cta{text-decoration:none}
+/* ---- App-style VHEcoPoint app icon (replaces the old "View VHEcoPoint" pill) ----
+   The whole tile (logo + name) is one link to the VHEcoPoint dashboard.
+
+   The tile scales the canonical logo by re-declaring --vh-eco-logo-size on its
+   OWN scope only. css/ecopoint-brand.css therefore stays the single source of
+   truth for the logo file, its proportions and the .vh-eco-logo box; nothing
+   here sets width/height/border/margin on the logo itself. */
+.eco-app-tile {
+  --vh-eco-logo-size: 60px;
+  --vh-eco-logo-radius: 14px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 11px;
+
+  width: 100%;
+  max-width: 210px;
+  margin: 0 auto;
+  padding: 18px 16px 16px;
+
+  position: relative;
+
+  border: 1px solid rgba(34, 197, 94, 0.45);
+  border-radius: 20px;
+  background: linear-gradient(160deg, #ecfdf5 0%, #d1fae5 100%);
+  box-shadow: 0 6px 18px rgba(22, 101, 52, 0.14);
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.eco-app-tile:hover {
+  transform: translateY(-2px);
+  border-color: rgba(212, 175, 55, 0.65);
+  background: linear-gradient(160deg, #d1fae5 0%, #bbf7d0 100%);
+  box-shadow: 0 12px 26px rgba(22, 101, 52, 0.2);
+}
+
+.eco-app-tile:focus-visible {
+  outline: 2px solid #d4a017;
+  outline-offset: 3px;
+}
+
+/* The app icon well — same green gradient as .ecopoint-title-icon above, with
+   a gold hairline to carry the second brand colour. */
+.eco-app-tile-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 92px;
+  height: 92px;
+  flex: 0 0 auto;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #166534 0%, #22c55e 100%);
+  border: 1px solid rgba(212, 175, 55, 0.55);
+  box-shadow: 0 8px 18px rgba(22, 101, 52, 0.24);
+}
+
+.eco-app-tile-name {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #166534;
+  line-height: 1.2;
+  text-align: center;
+}
+
+/* ---- Hover hint: "Click this to go to the VHEcoPoint dashboard" ----
+   Dark pill + arrow, matching the .nav-ecopoint-tooltip treatment. It sits
+   BELOW the tile on purpose: the modal is a scroll container
+   (overflow-y:auto / overflow-x:hidden), so a bubble above the tile would be
+   clipped as soon as the tile scrolled near the top edge. */
+.eco-app-tile::before,
+.eco-app-tile::after {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.eco-app-tile::after {
+  content: attr(data-hint);
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 12px);
+  transform: translate(-50%, -4px);
+  width: max-content;
+  max-width: 200px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: rgba(17, 24, 39, 0.96);
+  color: #f9fafb;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  text-align: center;
+  z-index: 5;
+}
+
+.eco-app-tile::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 6px);
+  transform: translateX(-50%) rotate(45deg);
+  width: 12px;
+  height: 12px;
+  background: rgba(17, 24, 39, 0.96);
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  z-index: 6;
+}
+
+.eco-app-tile:hover::before,
+.eco-app-tile:hover::after,
+.eco-app-tile:focus-visible::before,
+.eco-app-tile:focus-visible::after {
+  opacity: 1;
+}
+
+.eco-app-tile:hover::after,
+.eco-app-tile:focus-visible::after {
+  transform: translate(-50%, 0);
+}
+
 .btn-change.ecopoint-secondary-btn{
   background: transparent;
   color: #23412e;
@@ -1410,7 +1534,9 @@ html { scroll-behavior: smooth; }
 .ecopoint-modal .ecopoint-step-copy p{font-size:13px;line-height:1.5}
 .ecopoint-modal .ecopoint-step-icon{width:40px;height:40px;border-radius:12px;font-size:1.1rem}
 .ecopoint-modal .ecopoint-step-icon i{font-size:1.1rem}
-.ecopoint-modal .btn-change.ecopoint-home-cta{font-size:13px;padding:10px 18px}
+.ecopoint-modal .eco-app-tile-icon{width:76px;height:76px;border-radius:19px}
+.ecopoint-modal .eco-app-tile{--vh-eco-logo-size:50px;padding:15px 14px 14px}
+.ecopoint-modal .eco-app-tile-name{font-size:0.9rem}
 .close-profile-modal{
   position:sticky;
   top:8px;
@@ -1842,7 +1968,7 @@ html { max-width:100%; overflow-x:hidden; }
 
   /* Ecopoint home actions */
   .ecopoint-home-actions{ justify-content:center; width:100%; }
-  .ecopoint-home-actions .btn-change{ width:100%; max-width:320px; }
+  .ecopoint-home-actions .eco-app-tile{ max-width:190px; }
 
   /* Sections */
   .section{ padding:32px 4%; }
