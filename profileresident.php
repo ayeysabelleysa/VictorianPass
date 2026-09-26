@@ -903,9 +903,11 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
 <title>Resident Dashboard - Victorian Heights</title>
 <link rel="icon" type="image/png" href="images/logo.svg">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<?php $_dashCss = substr(@md5_file(__DIR__ . '/css/dashboard.css') ?: '', 0, 12); $_gfCss = substr(@md5_file(__DIR__ . '/css/guestform.css') ?: '', 0, 12); ?>
+<?php $_dashCss = substr(@md5_file(__DIR__ . '/css/dashboard.css') ?: '', 0, 12); $_gfCss = substr(@md5_file(__DIR__ . '/css/guestform.css') ?: '', 0, 12); $_ecoBrandCss = substr(@md5_file(__DIR__ . '/css/ecopoint-brand.css') ?: '', 0, 12); ?>
 <link rel="stylesheet" href="css/dashboard.css?v=<?php echo $_dashCss; ?>">
 <link rel="stylesheet" href="css/guestform.css?v=<?php echo $_gfCss; ?>">
+<!-- Canonical VHEcoPoint logo lockup: one file, one size, one placement for the whole system. -->
+<link rel="stylesheet" href="css/ecopoint-brand.css?v=<?php echo $_ecoBrandCss; ?>"><?php echo "\n"; ?>
 <!-- FontAwesome for icons -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
@@ -1214,7 +1216,10 @@ body.account-blocked { overflow: hidden; }
   .top-header { padding: 6px 10px; }
   .header-brand { gap: 0; min-width: 0; overflow: hidden; }
   .main-content.ecopoint-active .top-header .ecopoint-header-logo { font-size: 28px; }
-  .header-brand img { height: 28px; margin-right: 6px; flex-shrink: 0; }
+  /* .vh-eco-logo is sized centrally by css/ecopoint-brand.css - do not
+     re-declare .header-brand img dimensions here or the header drifts from
+     every other VHEcoPoint surface. */
+  .header-brand .vh-eco-logo { margin-right: 6px; }
   .menu-toggle { width: 32px; height: 30px; font-size: 1.1rem; margin-right: 6px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .brand-text { min-width: 0; overflow: hidden; }
   .brand-main { font-size: 0.88rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1228,7 +1233,7 @@ body.account-blocked { overflow: hidden; }
 
 @media (max-width: 430px) {
   .top-header { padding: 6px 8px; }
-  .header-brand img { height: 26px; margin-right: 5px; }
+  .header-brand .vh-eco-logo { margin-right: 5px; }
   .brand-main { font-size: 0.82rem; max-width: 100px; }
   .brand-sub { font-size: 0.56rem; max-width: 90px; }
   .header-actions { gap: 6px; }
@@ -3681,7 +3686,7 @@ body.modal-open{overflow:hidden}
     <header class="top-header<?php echo $isEcoPointThemeActive ? ' ecopoint-theme-header' : ''; ?>">
       <div class="header-brand">
         <button class="menu-toggle" id="menuToggle"><i class="fa-solid fa-bars"></i></button>
-        <a href="mainpage.php" aria-label="Go to Main Page" class="header-brand-link"><?php echo $isEcoPointThemeActive ? '<img src="images/logo-leaf.svg" alt="VHEcoPoint Logo">' : '<img src="images/logo.svg" alt="Logo">'; ?></a>
+        <a href="mainpage.php" aria-label="Go to Main Page" class="header-brand-link"><?php echo $isEcoPointThemeActive ? vh_eco_logo('VHEcoPoint') : '<img src="images/logo.svg" alt="VictorianPass Logo" class="brand-logo">'; ?></a>
         <div class="brand-text">
           <span class="brand-main"><?php echo $isEcoPointThemeActive ? 'VHEcoPoint' : 'VictorianPass'; ?></span>
           <span class="brand-sub"><?php echo $isEcoPointThemeActive ? 'Smart Waste Segregation Station' : 'Victorian Heights Subdivision'; ?></span>
@@ -3801,7 +3806,7 @@ body.modal-open{overflow:hidden}
           <div class="ecopoint-panel-shell" style="margin-top:20px;">
             <div class="ecopoint-header-card">
               <div class="ecopoint-header-kicker">Resident Dashboard</div>
-              <div class="ecopoint-header-title"><i class="fa-solid fa-leaf" style="margin-right:8px; font-size:0.9em;"></i>Your VHEcoPoint Dashboard</div>
+              <div class="ecopoint-header-title vh-eco-brand-head"><?php echo vh_eco_logo('VHEcoPoint'); ?><span class="vh-eco-brand-head-text">Your VHEcoPoint Dashboard</span></div>
               <div class="ecopoint-header-desc"><i class="fa-solid fa-circle-info ecopoint-info" style="float:left; margin:2px 6px 0 0;" title="Your personal VHEcoPoint dashboard: see your point balance, weekly progress, daily session usage, expiry countdown, and station-ready QR access all in one place."></i>Track your current point balance, weekly recycling progress, daily session usage, expiry countdown, and station-ready QR access in one place.</div>
               <div style="background:#ecfdf5; border:1px solid #86efac; border-radius:10px; padding:10px 14px; margin-top:10px; color:#166534; font-size:0.85rem; line-height:1.5;"><i class="fa-solid fa-clock" style="margin-right:5px;"></i><strong>Station Availability:</strong> The VHEcoPoint Station is located at the <strong>Clubhouse</strong>, available <strong>weekdays only (Monday to Friday)</strong>, from <strong>9:00 AM to 9:00 PM</strong>.</div>
             </div>
@@ -3854,7 +3859,7 @@ body.modal-open{overflow:hidden}
             </div>
             <!-- Live session panel: shows real-time weight/points when using VHEcoPoint station -->
             <div class="ecopoint-card ecopoint-live-panel" id="ecopoint-live-panel" style="display:block; margin-top:14px;">
-              <div class="ecopoint-live-card-title">Live Station Session</div>
+              <div class="ecopoint-live-card-title vh-eco-brand-head"><?php echo vh_eco_logo('VHEcoPoint'); ?><span class="vh-eco-brand-head-text">Live Station Session</span></div>
               <div class="ecopoint-live-header">
                 <div class="ecopoint-live-header-text">
                   <div class="ecopoint-live-status-badge" id="ecopoint-live-status">No Active Session</div>
@@ -6109,26 +6114,14 @@ body.modal-open{overflow:hidden}
     'panel-history':'See the log of your past passes, reservations, and requests.',
     'panel-points-history':'Earn points by recycling and redeem them for amenity hours.'
   };
+  // The VHEcoPoint brand lockup is fixed system-wide (one logo file, one size,
+  // one wordmark), so switching panels no longer rewrites the header identity.
+  // Only the green accent theme still follows the active section.
   function applyResidentThemeBySection(id){
     var mainContent = document.querySelector('.main-content');
-    var brandMain = document.querySelector('.top-header .brand-main');
-    var brandSub = document.querySelector('.top-header .brand-sub');
-    var brandLogoLink = document.querySelector('.top-header .header-brand-link');
     var isEcoPoint = id === 'panel-points-history';
-
     if (mainContent) {
       mainContent.classList.toggle('ecopoint-active', isEcoPoint);
-    }
-    if (brandMain) {
-      brandMain.textContent = isEcoPoint ? 'VHEcoPoint' : 'VictorianPass';
-    }
-    if (brandSub) {
-      brandSub.textContent = isEcoPoint ? 'Smart Waste Segregation Station' : 'Victorian Heights Subdivision';
-    }
-    if (brandLogoLink) {
-      brandLogoLink.innerHTML = isEcoPoint
-        ? '<img src="images/logo-leaf.svg" alt="VHEcoPoint Logo">'
-        : '<img src="images/logo.svg" alt="Logo">';
     }
   }
   function updateBackButtonVisibility(id){

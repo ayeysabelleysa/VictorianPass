@@ -1,0 +1,118 @@
+/* ==========================================================================
+   VHEcoPoint canonical brand lockup
+   --------------------------------------------------------------------------
+   Single source of truth for the VHEcoPoint logo across the whole system.
+
+   There is exactly ONE VHEcoPoint logo file: images/logo-leaf.svg
+   It is emitted by the vh_eco_logo() helper in ecopoint_brand.php, which
+   always tags the <img> with the .vh-eco-logo class defined below.
+
+   Rules that keep it from drifting apart again:
+     - Do not add width/height/border/margin to the logo at a call site.
+     - Do not re-declare .vh-eco-logo in a page's inline <style>.
+     - Do not point the logo at any other image.
+     - Need a different scale? Change --vh-eco-logo-size in ONE place here.
+
+   Platform-only surfaces (login, signup, About page, favicons, the
+   VictorianPass resident ID card) intentionally keep the platform emblem
+   images/logo.svg and are NOT styled by this file.
+   ========================================================================== */
+
+:root {
+  /* The one and only VHEcoPoint logo size. Everything scales from this. */
+  --vh-eco-logo-size: 32px;
+  /* Gap between the logo and its wordmark inside a lockup. */
+  --vh-eco-logo-gap: 10px;
+  --vh-eco-logo-radius: 8px;
+}
+
+/* --------------------------------------------------------------------------
+   The logo itself.
+   The mark is square (113x113 / 512x512 viewBox), so width and height are
+   pinned to the same value and aspect-ratio keeps it that way even if a
+   parent tries to squash it.
+   -------------------------------------------------------------------------- */
+.vh-eco-logo {
+  display: block;
+  flex: 0 0 auto;
+
+  width: var(--vh-eco-logo-size);
+  height: var(--vh-eco-logo-size);
+  min-width: var(--vh-eco-logo-size);
+  min-height: var(--vh-eco-logo-size);
+  max-width: var(--vh-eco-logo-size);
+  max-height: var(--vh-eco-logo-size);
+
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  object-position: center;
+
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--vh-eco-logo-radius);
+  background: transparent;
+
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+/* --------------------------------------------------------------------------
+   The lockup: logo + wordmark, always horizontal, always vertically centred,
+   always the same gap.
+   -------------------------------------------------------------------------- */
+.vh-eco-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vh-eco-logo-gap);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.vh-eco-lockup-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.vh-eco-lockup-main {
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vh-eco-lockup-sub {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --------------------------------------------------------------------------
+   Card / banner headers that carry the brand. The logo sits in a fixed-size
+   well so the title text lines up identically on every surface.
+   -------------------------------------------------------------------------- */
+.vh-eco-brand-head {
+  display: flex;
+  align-items: center;
+  gap: var(--vh-eco-logo-gap);
+  min-width: 0;
+}
+
+.vh-eco-brand-head-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+/* Keep the lockup intact on narrow screens instead of letting it wrap or
+   collapse into an unbranded state. */
+@media (max-width: 480px) {
+  :root {
+    --vh-eco-logo-size: 28px;
+    --vh-eco-logo-gap: 8px;
+  }
+}

@@ -2631,7 +2631,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
       const toggle = document.getElementById('use-points-toggle'); if(toggle){ toggle.checked = false; }
       usePoints = false;
       setRedemptionConfirmed(false);
-      showStartDateError(''); showDateError(''); showTimeError(''); setFieldWarning('startTimeInput',''); setFieldWarning('endTimeInput',''); setFieldWarning('personsInput',''); setFieldWarning('hoursInput',''); setFieldWarning('downpaymentInput','');
+      showStartDateError(''); showDateError(''); showTimeError(''); setFieldWarning('startTimeInput',''); setFieldWarning('endTimeInput',''); clearParticipantsWarnings(); setFieldWarning('hoursInput',''); setFieldWarning('downpaymentInput','');
       updateDisplayedPrice(); updateDownpaymentSuggestion();
       updateActionStates();
       updateParticipantVisibility();
@@ -2727,7 +2727,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     }
     const note=document.getElementById('personsMaxNote');
     if(note){ note.textContent = max?(`Maximum: ${max} persons`):''; }
-    if(count>=max){ setFieldWarning('personsInput',`Maximum is ${max} persons.`); } else { setFieldWarning('personsInput',''); }
+    if(count>=max){ setFieldWarning('personsInput',`Maximum is ${max} persons.`); } else { clearParticipantsWarnings(); }
     updateDisplayedPrice();
     updateDownpaymentSuggestion();
     updateBookingSummary();
@@ -2747,7 +2747,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     const personEl=document.getElementById('participantTotal'); if(personEl){ if('value' in personEl){ personEl.value=String(count); } else { personEl.textContent=String(count); } }
     const note=document.getElementById('personsMaxNote'); if(note){ note.textContent = `Maximum: ${max} persons`; }
     updateParticipantStepperState(count, max);
-    if(count>=max){ setFieldWarning('reserveTotalCount',`Maximum is ${max} persons.`); } else { setFieldWarning('reserveTotalCount',''); }
+    if(count>=max){ setFieldWarning('personsInput',`Maximum is ${max} persons.`); } else { clearParticipantsWarnings(); }
     if(typeof updateDisplayedPrice==='function') updateDisplayedPrice();
     if(typeof updateDownpaymentSuggestion==='function') updateDownpaymentSuggestion();
     if(typeof updateBookingSummary==='function') updateBookingSummary();
@@ -3348,6 +3348,19 @@ async function changePersons(val){
     } else { if(w) w.remove(); }
   }
 
+  // The Participants block can raise its error under two different ids: the
+  // hidden mirror 'personsInput' (used by the submit handler, the incomplete-
+  // warning pass and the resident/guest checkbox sync) and the visible stepper
+  // 'reserveTotalCount' (used by setReserveTotalCount). Both resolve to the
+  // same .res-item container, so each one produced its own independent
+  // .field-warning node. A message raised under one id was therefore never
+  // removed when the user corrected the count through the other, leaving a
+  // stale error behind. Every participants correction now clears both.
+  function clearParticipantsWarnings(){
+    setFieldWarning('personsInput','');
+    setFieldWarning('reserveTotalCount','');
+  }
+
   let __dirtyFields = {};
   function markDirty(id){ try{ __dirtyFields[id] = true; }catch(_){} }
   function isDirty(id){ try{ return !!__dirtyFields[id]; }catch(_){ return false; } }
@@ -3418,7 +3431,7 @@ async function changePersons(val){
     const max=getAmenityMaxPersons(amen);
     if(persons<1){ if(force||isDirty('personsInput')) setFieldWarning('personsInput','Persons must be at least 1.'); }
     else if(persons>max && max!==Infinity){ setFieldWarning('personsInput',`Maximum is ${max} persons.`); }
-    else { setFieldWarning('personsInput',''); }
+    else { clearParticipantsWarnings(); }
   }
 
   function formIsComplete(){
@@ -3941,7 +3954,7 @@ async function changePersons(val){
         setFieldWarning('personsInput',`Maximum is ${max} persons.`);
         hasPersonsError=true;
       } else {
-        setFieldWarning('personsInput','');
+        clearParticipantsWarnings();
       }
       updateDisplayedPrice();
       updateDownpaymentSuggestion();

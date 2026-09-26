@@ -1,4 +1,9 @@
 <?php
+// Canonical VHEcoPoint brand helper (single logo file + shared styling).
+// Included here because connect.php is the common bootstrap for every page,
+// which guarantees the helper is available wherever the logo is rendered.
+require_once __DIR__ . '/ecopoint_brand.php';
+
 // Set default timezone to Asia/Manila (UTC+8)
 date_default_timezone_set('Asia/Manila');
 
