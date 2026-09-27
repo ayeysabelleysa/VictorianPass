@@ -4,6 +4,17 @@ header('Content-Type: application/json');
 header('Cache-Control: no-cache, no-store, must-revalidate');
 header('Pragma: no-cache');
 header('Expires: 0');
+
+// Every POST action below (cancel / move_to_history / delete) is a pure DB
+// endpoint: it never reads or writes $_SESSION. Release the PHP session file
+// lock before any query work runs, otherwise the dashboards' 15s poll, the
+// notifications SSE stream and every other logged-in request queue up behind
+// this call. That lock contention is what makes "Cancel" feel like it hangs.
+$isStatusApiPost = ($_SERVER['REQUEST_METHOD'] === 'POST');
+if ($isStatusApiPost && session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+}
+
 include 'connect.php';
 
 if (!vpSchemaDone($con, 'status_v1') && ($con instanceof mysqli)) {
@@ -53,7 +64,9 @@ if (!vpSchemaDone($con, 'status_v1') && ($con instanceof mysqli)) {
     vpMarkSchemaDone($con, 'status_v1');
 }
 
-if ($con instanceof mysqli) {
+// Only the guard/confirm GET flow reads entry_scans, so the POST endpoints skip
+// this metadata round trip entirely.
+if (!$isStatusApiPost && $con instanceof mysqli) {
     $pc = $con->query("SHOW COLUMNS FROM entry_scans LIKE 'participant_no'");
     if ($pc && $pc->num_rows === 0) { @$con->query("ALTER TABLE entry_scans ADD COLUMN participant_no INT NULL AFTER ref_code"); }
     if ($pc) { $pc->close(); }
@@ -84,19 +97,82 @@ function notifyAccessGrantedOnce(mysqli $con, int $userId, string $refCode, stri
     }
 }
 
+// One fsync per commit is the dominant cost of a cancel on shared hosting, so
+// every write in a single action goes through one transaction. Degrades
+// gracefully to autocommit if transactions are unavailable.
+if (!function_exists('vpTxBegin')) {
+    function vpTxBegin($con) { if ($con instanceof mysqli) { @$con->begin_transaction(); } }
+}
+if (!function_exists('vpTxCommit')) {
+    function vpTxCommit($con) { if ($con instanceof mysqli) { @$con->commit(); } }
+}
+if (!function_exists('vpTxRollback')) {
+    function vpTxRollback($con) { if ($con instanceof mysqli) { @$con->rollback(); } }
+}
+
 function resetPoolPersonsOnCancel($con, $code){
     if (!($con instanceof mysqli)) return;
     $code = trim((string)$code);
     if ($code === '') return;
-    $hasRes = false;
-    $hasRR = false;
-    $hasGF = false;
-    $c1 = $con->query("SHOW COLUMNS FROM reservations LIKE 'persons'"); if ($c1 && $c1->num_rows > 0) { $hasRes = true; }
-    $c2 = $con->query("SHOW COLUMNS FROM resident_reservations LIKE 'persons'"); if ($c2 && $c2->num_rows > 0) { $hasRR = true; }
-    $c3 = $con->query("SHOW COLUMNS FROM guest_forms LIKE 'persons'"); if ($c3 && $c3->num_rows > 0) { $hasGF = true; }
-    if ($hasRes) { $s = $con->prepare("UPDATE reservations SET persons = 0 WHERE ref_code = ? AND amenity = 'Pool'"); $s->bind_param('s', $code); $s->execute(); $s->close(); }
-    if ($hasRR) { $s = $con->prepare("UPDATE resident_reservations SET persons = 0 WHERE ref_code = ? AND amenity = 'Pool'"); $s->bind_param('s', $code); $s->execute(); $s->close(); }
-    if ($hasGF) { $s = $con->prepare("UPDATE guest_forms SET persons = 0 WHERE ref_code = ? AND amenity = 'Pool'"); $s->bind_param('s', $code); $s->execute(); $s->close(); }
+    // Schema shape is constant for the life of the deployment, so probe it once
+    // per request with a single information_schema query instead of three
+    // SHOW COLUMNS round trips.
+    static $hasPersons = null;
+    if ($hasPersons === null) {
+        $hasPersons = ['reservations' => false, 'resident_reservations' => false, 'guest_forms' => false];
+        $cols = $con->query("SELECT TABLE_NAME FROM information_schema.COLUMNS
+                             WHERE TABLE_SCHEMA = DATABASE()
+                               AND COLUMN_NAME = 'persons'
+                               AND TABLE_NAME IN ('reservations','resident_reservations','guest_forms')");
+        if ($cols) {
+            while ($colRow = $cols->fetch_assoc()) {
+                $table = $colRow['TABLE_NAME'] ?? '';
+                if (isset($hasPersons[$table])) { $hasPersons[$table] = true; }
+            }
+            $cols->close();
+        }
+    }
+    if ($hasPersons['reservations']) { $s = $con->prepare("UPDATE reservations SET persons = 0 WHERE ref_code = ? AND amenity = 'Pool'"); $s->bind_param('s', $code); $s->execute(); $s->close(); }
+    if ($hasPersons['resident_reservations']) { $s = $con->prepare("UPDATE resident_reservations SET persons = 0 WHERE ref_code = ? AND amenity = 'Pool'"); $s->bind_param('s', $code); $s->execute(); $s->close(); }
+    if ($hasPersons['guest_forms']) { $s = $con->prepare("UPDATE guest_forms SET persons = 0 WHERE ref_code = ? AND amenity = 'Pool'"); $s->bind_param('s', $code); $s->execute(); $s->close(); }
+}
+
+// Marks a reservation cancelled across every table that stores it, plus the
+// admin notification, inside a single transaction. The previous per-branch
+// copies committed once per table, so a mid-way failure could leave one table
+// cancelled while another was still pending.
+function markReservationCancelled($con, $code, array $tables, $notifyMessage = null){
+    if (!($con instanceof mysqli)) return;
+    $code = trim((string)$code);
+    if ($code === '') return;
+    $cancellations = [
+        'guest_forms'           => "UPDATE guest_forms SET approval_status='cancelled', updated_at = NOW() WHERE ref_code = ?",
+        'reservations'          => "UPDATE reservations SET approval_status='cancelled', status='cancelled', updated_at = NOW() WHERE ref_code = ?",
+        'resident_reservations' => "UPDATE resident_reservations SET approval_status='cancelled', updated_at = NOW() WHERE ref_code = ?",
+    ];
+    vpTxBegin($con);
+    try {
+        // A missing/broken notifications table must not fail the cancel itself.
+        if ($notifyMessage !== null && $notifyMessage !== '') {
+            try {
+                $stmtN = $con->prepare("INSERT INTO notifications (user_id, title, message, type, created_at) VALUES (NULL, 'Request Cancelled', ?, 'warning', NOW())");
+                if ($stmtN) { $stmtN->bind_param('s', $notifyMessage); @$stmtN->execute(); $stmtN->close(); }
+            } catch (Throwable $e) {}
+        }
+        foreach ($tables as $table) {
+            if (!isset($cancellations[$table])) continue;
+            $stmtU = $con->prepare($cancellations[$table]);
+            if (!$stmtU) continue;
+            $stmtU->bind_param('s', $code);
+            @$stmtU->execute();
+            $stmtU->close();
+        }
+        resetPoolPersonsOnCancel($con, $code);
+        vpTxCommit($con);
+    } catch (Throwable $e) {
+        vpTxRollback($con);
+        throw $e;
+    }
 }
 
 function calculateAgeYears($birthRaw){
@@ -150,28 +226,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         exit;
                     }
                 }
-                // Notify admin
-                try {
-                    $msg = "Guest request $code cancelled by resident.";
-                    $stmtN = $con->prepare("INSERT INTO notifications (user_id, title, message, type, created_at) VALUES (NULL, 'Request Cancelled', ?, 'warning', NOW())");
-                    $stmtN->bind_param('s', $msg);
-                    $stmtN->execute();
-                    $stmtN->close();
-                } catch (Throwable $e) {}
-
-                $stmtU = $con->prepare("UPDATE guest_forms SET approval_status='cancelled', updated_at = NOW() WHERE ref_code = ?");
-                $stmtU->bind_param('s', $code);
-                $stmtU->execute();
-                $stmtU->close();
-                $stmtUR = $con->prepare("UPDATE reservations SET approval_status='cancelled', status='cancelled', updated_at = NOW() WHERE ref_code = ?");
-                $stmtUR->bind_param('s', $code);
-                $stmtUR->execute();
-                $stmtUR->close();
-                $stmtURR = $con->prepare("UPDATE resident_reservations SET approval_status='cancelled', updated_at = NOW() WHERE ref_code = ?");
-                $stmtURR->bind_param('s', $code);
-                $stmtURR->execute();
-                $stmtURR->close();
-                resetPoolPersonsOnCancel($con, $code);
+                markReservationCancelled(
+                    $con,
+                    $code,
+                    ['guest_forms', 'reservations', 'resident_reservations'],
+                    "Guest request $code cancelled by resident."
+                );
                 echo json_encode(['success' => true]);
                 exit;
             }
@@ -192,25 +252,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     echo json_encode(['success' => false, 'message' => 'Only pending or pending update reservations can be cancelled.']);
                     exit;
                 }
-                try {
-                    $uid = isset($row['user_id']) ? intval($row['user_id']) : null;
-                    $eid = isset($row['entry_pass_id']) ? intval($row['entry_pass_id']) : null;
-                    $msg = "Reservation $code cancelled by " . (($eid && $eid > 0) ? "visitor" : "resident") . ".";
-                    $stmtA = $con->prepare("INSERT INTO notifications (user_id, title, message, type, created_at) VALUES (NULL, 'Request Cancelled', ?, 'warning', NOW())");
-                    $stmtA->bind_param('s', $msg);
-                    $stmtA->execute();
-                    $stmtA->close();
-                } catch (Throwable $e) {}
-
-                $stmtU2 = $con->prepare("UPDATE reservations SET approval_status='cancelled', status='cancelled', updated_at = NOW() WHERE ref_code = ?");
-                $stmtU2->bind_param('s', $code);
-                $stmtU2->execute();
-                $stmtU2->close();
-                $stmtURR = $con->prepare("UPDATE resident_reservations SET approval_status='cancelled', updated_at = NOW() WHERE ref_code = ?");
-                $stmtURR->bind_param('s', $code);
-                $stmtURR->execute();
-                $stmtURR->close();
-                resetPoolPersonsOnCancel($con, $code);
+                $eid = isset($row['entry_pass_id']) ? intval($row['entry_pass_id']) : null;
+                markReservationCancelled(
+                    $con,
+                    $code,
+                    ['reservations', 'resident_reservations'],
+                    "Reservation $code cancelled by " . (($eid && $eid > 0) ? "visitor" : "resident") . "."
+                );
                 echo json_encode(['success' => true]);
                 exit;
             }
@@ -241,33 +289,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         exit;
                     }
                 }
-                // Notify admin
-                try {
-                    $uid = isset($row['user_id']) ? intval($row['user_id']) : null;
-                    $msg = "Amenity request $code cancelled by resident.";
-                    
-                    // User notification removed as per requirement
-                    // $stmtN = $con->prepare("INSERT INTO notifications (user_id, title, message, type, created_at) VALUES (?, 'Request Cancelled', ?, 'warning', NOW())");
-                    // $stmtN->bind_param('is', $uid, $msg);
-                    // $stmtN->execute();
-                    // $stmtN->close();
-
-                    // Admin notification
-                    $stmtA = $con->prepare("INSERT INTO notifications (user_id, title, message, type, created_at) VALUES (NULL, 'Request Cancelled', ?, 'warning', NOW())");
-                    $stmtA->bind_param('s', $msg);
-                    $stmtA->execute();
-                    $stmtA->close();
-                } catch (Throwable $e) {}
-
-                $stmtU3 = $con->prepare("UPDATE resident_reservations SET approval_status='cancelled', updated_at = NOW() WHERE ref_code = ?");
-                $stmtU3->bind_param('s', $code);
-                $stmtU3->execute();
-                $stmtU3->close();
-                $stmtUR2 = $con->prepare("UPDATE reservations SET approval_status='cancelled', status='cancelled', updated_at = NOW() WHERE ref_code = ?");
-                $stmtUR2->bind_param('s', $code);
-                $stmtUR2->execute();
-                $stmtUR2->close();
-                resetPoolPersonsOnCancel($con, $code);
+                // Only the admin is notified; the resident-facing notification is
+                // intentionally not sent for amenity request cancellations.
+                markReservationCancelled(
+                    $con,
+                    $code,
+                    ['resident_reservations', 'reservations'],
+                    "Amenity request $code cancelled by resident."
+                );
                 echo json_encode(['success' => true]);
                 exit;
             }
