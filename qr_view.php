@@ -132,13 +132,15 @@ if (isset($_POST['action']) && $_POST['action'] === 'confirm_entry' && !empty($_
 
     $blocked = false;
     $postPax = 1;
+    $participantOwnerName = '';
     if ($con instanceof mysqli) {
         if ($tbl === 'guest_forms') {
-            $stmt = $con->prepare("SELECT resident_user_id, visitor_birthdate, amenity, wants_amenity, persons, visit_date, visit_time, start_date, end_date, start_time, end_time FROM guest_forms WHERE id = ? AND ref_code = ? LIMIT 1");
+            $stmt = $con->prepare("SELECT resident_user_id, visitor_first_name, visitor_middle_name, visitor_last_name, visitor_birthdate, amenity, wants_amenity, persons, visit_date, visit_time, start_date, end_date, start_time, end_time FROM guest_forms WHERE id = ? AND ref_code = ? LIMIT 1");
             $stmt->bind_param('is', $sid, $ref);
             $stmt->execute();
             $res = $stmt->get_result();
             if ($res && ($row = $res->fetch_assoc())) {
+                $participantOwnerName = trim(implode(' ', array_filter([$row['visitor_first_name'] ?? '', $row['visitor_middle_name'] ?? '', $row['visitor_last_name'] ?? ''])));
                 $birthRaw = $row['visitor_birthdate'] ?? null;
                 $isAmenity = (!empty($row['amenity'])) || (isset($row['wants_amenity']) && intval($row['wants_amenity']) === 1);
                 if (requiresGuardianBlock($birthRaw, $isAmenity)) { $blocked = true; }
@@ -146,22 +148,24 @@ if (isset($_POST['action']) && $_POST['action'] === 'confirm_entry' && !empty($_
             }
             $stmt->close();
         } elseif ($tbl === 'reservations') {
-            $stmt = $con->prepare("SELECT r.user_id, r.amenity, r.persons, r.start_date, r.end_date, r.start_time, r.end_time, u.birthdate AS user_birthdate, e.birthdate AS ep_birthdate FROM reservations r LEFT JOIN users u ON r.user_id = u.id LEFT JOIN entry_passes e ON r.entry_pass_id = e.id WHERE r.id = ? AND r.ref_code = ? LIMIT 1");
+            $stmt = $con->prepare("SELECT r.user_id, r.amenity, r.persons, r.start_date, r.end_date, r.start_time, r.end_time, u.first_name, u.middle_name, u.last_name, u.birthdate AS user_birthdate, e.full_name AS ep_full_name, e.birthdate AS ep_birthdate FROM reservations r LEFT JOIN users u ON r.user_id = u.id LEFT JOIN entry_passes e ON r.entry_pass_id = e.id WHERE r.id = ? AND r.ref_code = ? LIMIT 1");
             $stmt->bind_param('is', $sid, $ref);
             $stmt->execute();
             $res = $stmt->get_result();
             if ($res && ($row = $res->fetch_assoc())) {
+                $participantOwnerName = trim((string)($row['ep_full_name'] ?? '')) ?: trim(implode(' ', array_filter([$row['first_name'] ?? '', $row['middle_name'] ?? '', $row['last_name'] ?? ''])));
                 $birthRaw = !empty($row['ep_birthdate']) ? $row['ep_birthdate'] : ($row['user_birthdate'] ?? null);
                 if (requiresGuardianBlock($birthRaw, true)) { $blocked = true; }
                 if (isset($row['persons']) && intval($row['persons']) > 1) { $postPax = intval($row['persons']); }
             }
             $stmt->close();
         } elseif ($tbl === 'resident_reservations') {
-            $stmt = $con->prepare("SELECT rr.user_id, rr.amenity, rr.persons, rr.start_date, rr.end_date, rr.start_time, rr.end_time, u.birthdate AS user_birthdate FROM resident_reservations rr LEFT JOIN users u ON rr.user_id = u.id WHERE rr.id = ? AND rr.ref_code = ? LIMIT 1");
+            $stmt = $con->prepare("SELECT rr.user_id, rr.amenity, rr.persons, rr.start_date, rr.end_date, rr.start_time, rr.end_time, u.first_name, u.middle_name, u.last_name, u.birthdate AS user_birthdate FROM resident_reservations rr LEFT JOIN users u ON rr.user_id = u.id WHERE rr.id = ? AND rr.ref_code = ? LIMIT 1");
             $stmt->bind_param('is', $sid, $ref);
             $stmt->execute();
             $res = $stmt->get_result();
             if ($res && ($row = $res->fetch_assoc())) {
+                $participantOwnerName = trim(implode(' ', array_filter([$row['first_name'] ?? '', $row['middle_name'] ?? '', $row['last_name'] ?? ''])));
                 $birthRaw = $row['user_birthdate'] ?? null;
                 if (requiresGuardianBlock($birthRaw, true)) { $blocked = true; }
                 if (isset($row['persons']) && intval($row['persons']) > 1) { $postPax = intval($row['persons']); }
@@ -188,7 +192,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'confirm_entry' && !empty($_
         }
         if ($gname === '') { $gname = 'Guard'; }
         if ($con instanceof mysqli) {
-            $chk = $con->prepare("SELECT id FROM entry_scans WHERE ref_code = ? AND participant_no = ? AND DATE(scanned_at) = CURDATE() LIMIT 1");
+            $chk = $con->prepare("SELECT id FROM entry_scans WHERE ref_code = ? AND participant_no = ? LIMIT 1");
             $chk->bind_param('si', $ref, $postPNum);
             $chk->execute();
             $cres = $chk->get_result();
@@ -196,13 +200,14 @@ if (isset($_POST['action']) && $_POST['action'] === 'confirm_entry' && !empty($_
             $chk->close();
             if (!$alreadyEntered) {
                 $subject = 'Participant ' . $postPNum . ' of ' . $postPax;
+                if ($participantOwnerName !== '') { $subject .= ' - ' . $participantOwnerName; }
                 $etype = 'Participant Entry';
                 $stmtLog = $con->prepare("INSERT INTO entry_scans (ref_code, participant_no, scanned_by_guard_id, scanned_by_name, subject_name, entry_type, status, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?, 'permission_granted', NULL, NULL)");
                 $stmtLog->bind_param('siisss', $ref, $postPNum, $gid, $gname, $subject, $etype);
                 @$stmtLog->execute();
                 @$stmtLog->close();
             }
-            $participantCountStmt = $con->prepare("SELECT COUNT(DISTINCT participant_no) AS c FROM entry_scans WHERE ref_code = ? AND participant_no IS NOT NULL AND DATE(scanned_at) = CURDATE()");
+            $participantCountStmt = $con->prepare("SELECT COUNT(DISTINCT participant_no) AS c FROM entry_scans WHERE ref_code = ? AND participant_no > 0 AND (LOWER(status) LIKE '%approved%' OR LOWER(status) LIKE '%permission%' OR LOWER(status) LIKE '%granted%' OR LOWER(status) LIKE '%access%')");
             if ($participantCountStmt) {
                 $participantCountStmt->bind_param('s', $ref);
                 $participantCountStmt->execute();
@@ -620,13 +625,13 @@ if (empty($error)) {
         $isMultiParticipants = $data['total_participants'] > 1;
         $participantScans = [];
         if ($con instanceof mysqli) {
-            $stPc = $con->prepare("SELECT participant_no, scanned_at FROM entry_scans WHERE ref_code = ? AND participant_no IS NOT NULL ORDER BY participant_no");
+            $stPc = $con->prepare("SELECT participant_no, scanned_at FROM entry_scans WHERE ref_code = ? AND participant_no > 0 AND (LOWER(status) LIKE '%approved%' OR LOWER(status) LIKE '%permission%' OR LOWER(status) LIKE '%granted%' OR LOWER(status) LIKE '%access%') ORDER BY participant_no, scanned_at ASC");
             if ($stPc) {
                 $stPc->bind_param('s', $data['code']);
                 $stPc->execute();
                 $resPc = $stPc->get_result();
                 if ($resPc) {
-                    while ($rwPc = $resPc->fetch_assoc()) { $participantScans[intval($rwPc['participant_no'])] = $rwPc['scanned_at']; }
+                    while ($rwPc = $resPc->fetch_assoc()) { $participantNo = intval($rwPc['participant_no']); if (!isset($participantScans[$participantNo])) { $participantScans[$participantNo] = $rwPc['scanned_at']; } }
                 }
                 $stPc->close();
             }

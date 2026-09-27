@@ -444,7 +444,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'dismiss_notification' && isse
 if (isset($_GET['action']) && $_GET['action'] === 'list_today_scans') {
   header('Content-Type: application/json');
   $rows = [];
-  $q = "SELECT e.ref_code, e.subject_name, e.entry_type, e.status, e.start_date, e.end_date, e.scanned_at, e.scanned_by_name, " .
+  $q = "SELECT e.ref_code, e.participant_no, e.subject_name, e.entry_type, e.status, e.start_date, e.end_date, e.scanned_at, e.scanned_by_name, " .
       "gf.visit_date AS gf_start_date, gf.start_date AS gf_schedule_start, gf.end_date AS gf_schedule_end, " .
       "r.start_date AS r_start_date, r.end_date AS r_end_date, rr.start_date AS rr_start_date, rr.end_date AS rr_end_date, " .
        "gf.visit_time AS gf_start_time, " .
@@ -452,7 +452,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'list_today_scans') {
        "r.end_time AS r_end_time, " .
        "rr.start_time AS rr_start_time, " .
        "rr.end_time AS rr_end_time, " .
-       "gf.amenity AS gf_amenity, r.amenity AS r_amenity, rr.amenity AS rr_amenity, r.booked_by_name AS r_booked_by, " .
+      "gf.amenity AS gf_amenity, gf.persons AS gf_persons, r.amenity AS r_amenity, r.persons AS r_persons, rr.amenity AS rr_amenity, r.booked_by_name AS r_booked_by, " .
        "u_gf.first_name AS gf_res_first, u_gf.middle_name AS gf_res_middle, u_gf.last_name AS gf_res_last
         FROM entry_scans e
         LEFT JOIN guest_forms gf ON e.ref_code = gf.ref_code
@@ -471,7 +471,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'list_today_scans') {
   try { $probeOk = ($con->prepare($q) !== false); } catch (Throwable $e) { $probeOk = false; }
   if ($prevModeP !== null) { mysqli_report($prevModeP); }
   if (!$probeOk) {
-    $q = "SELECT e.ref_code, e.subject_name, e.entry_type, e.status, e.start_date, e.end_date, e.scanned_at, e.scanned_by_name, " .
+    $q = "SELECT e.ref_code, e.participant_no, e.subject_name, e.entry_type, e.status, e.start_date, e.end_date, e.scanned_at, e.scanned_by_name, " .
          "gf.visit_date AS gf_start_date, gf.start_date AS gf_schedule_start, gf.end_date AS gf_schedule_end, " .
          "r.start_date AS r_start_date, r.end_date AS r_end_date, rr.start_date AS rr_start_date, rr.end_date AS rr_end_date, " .
          "NULL AS gf_start_time, " .
@@ -479,7 +479,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'list_today_scans') {
          "NULL AS r_end_time, " .
          "NULL AS rr_start_time, " .
          "NULL AS rr_end_time, " .
-         "gf.amenity AS gf_amenity, r.amenity AS r_amenity, rr.amenity AS rr_amenity, r.booked_by_name AS r_booked_by, " .
+         "gf.amenity AS gf_amenity, gf.persons AS gf_persons, r.amenity AS r_amenity, r.persons AS r_persons, rr.amenity AS rr_amenity, r.booked_by_name AS r_booked_by, " .
          "u_gf.first_name AS gf_res_first, u_gf.middle_name AS gf_res_middle, u_gf.last_name AS gf_res_last
           FROM entry_scans e
           LEFT JOIN guest_forms gf ON e.ref_code = gf.ref_code
@@ -498,7 +498,13 @@ if (isset($_GET['action']) && $_GET['action'] === 'list_today_scans') {
   if ($res) {
     while ($r = $res->fetch_assoc()) {
       $statusLower = strtolower(trim($r['status'] ?? ''));
-      if ($statusLower === '' || (strpos($statusLower, 'permission') === false && strpos($statusLower, 'granted') === false && strpos($statusLower, 'access') === false)) {
+      $entryType = trim((string)($r['entry_type'] ?? ''));
+      $participantTotal = intval($r['r_persons'] ?? 0);
+      if ($participantTotal <= 0) { $participantTotal = intval($r['gf_persons'] ?? 0); }
+      $participantTotal = max(1, $participantTotal);
+      $tracksParticipants = $participantTotal > 1 || strcasecmp($entryType, 'Participant Entry') === 0;
+      $hasSuccessfulStatus = strpos($statusLower, 'permission') !== false || strpos($statusLower, 'granted') !== false || strpos($statusLower, 'access') !== false;
+      if ($statusLower === '' || (!$hasSuccessfulStatus && !($tracksParticipants && $statusLower === 'approved'))) {
         continue;
       }
       $startTime = $r['r_start_time'] ?? null;
@@ -523,19 +529,40 @@ if (isset($_GET['action']) && $_GET['action'] === 'list_today_scans') {
       if (!$addedBy) {
         $addedBy = trim(($r['gf_res_first'] ?? '') . ' ' . ($r['gf_res_middle'] ?? '') . ' ' . ($r['gf_res_last'] ?? ''));
       }
-      $entryType = trim((string)($r['entry_type'] ?? ''));
-      if (strcasecmp($entryType, 'Participant Entry') === 0) {
-        $participantCount = 0;
-        if (preg_match('/Participant\s+\d+\s+of\s+(\d+)/i', (string)($r['subject_name'] ?? ''), $participantMatch)) {
-          $participantCount = intval($participantMatch[1]);
+      $participantsEntered = [];
+      if ($tracksParticipants && $con instanceof mysqli) {
+        $participantStmt = $con->prepare("SELECT participant_no, subject_name, scanned_by_name, scanned_at, status FROM entry_scans WHERE ref_code = ? AND participant_no > 0 AND (LOWER(status) LIKE '%approved%' OR LOWER(status) LIKE '%permission%' OR LOWER(status) LIKE '%granted%' OR LOWER(status) LIKE '%access%') ORDER BY scanned_at ASC");
+        if ($participantStmt) {
+          $participantStmt->bind_param('s', $r['ref_code']);
+          $participantStmt->execute();
+          $participantRes = $participantStmt->get_result();
+          while ($participantRes && ($participantRow = $participantRes->fetch_assoc())) {
+            $participantNo = intval($participantRow['participant_no'] ?? 0);
+            if ($participantNo < 1 || $participantNo > $participantTotal || isset($participantsEntered[$participantNo])) { continue; }
+            $participantName = '';
+            if (preg_match('/^Participant\\s+\\d+\\s+of\\s+\\d+\\s*-\\s*(.+)$/i', trim((string)($participantRow['subject_name'] ?? '')), $participantMatch)) {
+              $participantName = trim($participantMatch[1]);
+            }
+            $participantsEntered[$participantNo] = [
+              'participant_no' => $participantNo,
+              'name' => $participantName,
+              'scanned_at' => $participantRow['scanned_at'],
+              'scanned_by' => $participantRow['scanned_by_name']
+            ];
+          }
+          $participantStmt->close();
         }
-        $entryType = $participantCount > 1 ? 'Entry Pass (' . $participantCount . ' Participants)' : 'Entry Pass';
+        ksort($participantsEntered);
+      }
+      if ($tracksParticipants) {
+        $entryType = 'Entry Pass (' . count($participantsEntered) . '/' . $participantTotal . ' Participants Entered)';
       }
       $rows[] = [
         'code' => $r['ref_code'],
         'name' => $r['subject_name'],
         'added_by' => $addedBy !== '' ? $addedBy : null,
         'type' => $entryType,
+        'participants_entered' => array_values($participantsEntered),
         'amenity' => $amenity,
         'start_date' => $startDate,
         'end_date' => $endDate,
@@ -2599,7 +2626,19 @@ function scanCode(){
 const scanQrBtn = document.getElementById('scanQrBtn');
 if(scanQrBtn){ scanQrBtn.addEventListener('click', startQrScanner); }
 window.addEventListener('beforeunload', stopQrScanner);
-function renderDashboardEntries(rows){ const tbl=document.getElementById('entryTable'); if(!tbl) return; const header=tbl.querySelector('tr'); const rowsToRemove=Array.from(tbl.querySelectorAll('tr')).slice(1); rowsToRemove.forEach(tr=>tr.remove()); if(!rows||rows.length===0){ const tr=document.createElement('tr'); tr.id='emptyRow'; tr.innerHTML=`<td colspan="5" style="text-align:center;color:#6b6b6b">Awaiting scans...</td>`; tbl.appendChild(tr); return; } rows.forEach(r=>{ const tr=document.createElement('tr'); tr.classList.add('fade-row'); const scheduleDisplay=formatScheduleRow(r); const amenityDisplay=r.amenity||'-'; const statusDisplay=formatEntryStatus(r.status); tr.innerHTML=`<td>${r.code||'-'}</td><td>${r.type||'-'}</td><td>${amenityDisplay}</td><td>${scheduleDisplay}</td><td>${statusDisplay}</td>`; tbl.appendChild(tr); }); }
+function participantEntryDetails(r){
+  const people=Array.isArray(r.participants_entered)?r.participants_entered:[];
+  if(!people.length) return '';
+  const details=people.map(p=>{
+    const participantNo=parseInt(p.participant_no,10)||0;
+    const name=p.name?` (pass holder: ${esc(p.name)})`:'';
+    const scannedAt=p.scanned_at?` · ${esc(formatDateTime(p.scanned_at))}`:'';
+    const scannedBy=p.scanned_by?` · Guard ${esc(p.scanned_by)}`:'';
+    return `<div>Participant ${participantNo}${name}${scannedAt}${scannedBy}</div>`;
+  }).join('');
+  return `<details style="margin-top:4px;font-size:0.78rem;"><summary style="cursor:pointer">View entered participants</summary><div style="padding:4px 0 0 8px;line-height:1.5">${details}</div></details>`;
+}
+function renderDashboardEntries(rows){ const tbl=document.getElementById('entryTable'); if(!tbl) return; const rowsToRemove=Array.from(tbl.querySelectorAll('tr')).slice(1); rowsToRemove.forEach(tr=>tr.remove()); if(!rows||rows.length===0){ const tr=document.createElement('tr'); tr.id='emptyRow'; tr.innerHTML=`<td colspan="5" style="text-align:center;color:#6b6b6b">Awaiting scans...</td>`; tbl.appendChild(tr); return; } rows.forEach(r=>{ const tr=document.createElement('tr'); tr.classList.add('fade-row'); const scheduleDisplay=formatScheduleRow(r); const amenityDisplay=r.amenity||'-'; const statusDisplay=formatEntryStatus(r.status); tr.innerHTML=`<td>${r.code||'-'}</td><td>${esc(r.type||'-')}${participantEntryDetails(r)}</td><td>${amenityDisplay}</td><td>${scheduleDisplay}</td><td>${statusDisplay}</td>`; tbl.appendChild(tr); }); }
 function loadDashboardEntries(){ fetch('guard.php?action=list_today_scans').then(r=>r.json()).then(data=>{ if(data&&data.success){ renderDashboardEntries(data.entries||[]); } }).catch(_=>{}); }
   function openStatusCard(){ const code=(document.getElementById('scanCode').value||'').trim(); if(!code){ showToast('Enter a code first','error'); return; } window.open(`qr_view.php?code=${encodeURIComponent(code)}`,'_blank'); }
 // Incident listing & escalation
@@ -2700,7 +2739,7 @@ function formatEntryStatus(s){
   const cleaned=raw.replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim();
   return cleaned.replace(/\b\w/g,function(m){return m.toUpperCase();});
 }
-function renderTodayEntries(rows){ const tbody=document.getElementById('todayEntriesBody'); if(!tbody) return; tbody.innerHTML=''; if(!rows||rows.length===0){ const tr=document.createElement('tr'); tr.id='todayEmpty'; tr.innerHTML=`<td colspan="5" style="text-align:center;color:#6b6b6b">No scans today</td>`; tbody.appendChild(tr); return; } rows.forEach(r=>{ const tr=document.createElement('tr'); tr.classList.add('fade-row'); const scheduleDisplay=formatScheduleRow(r); const amenityDisplay=r.amenity||'-'; const statusDisplay=formatEntryStatus(r.status); tr.innerHTML=`<td>${r.code||'-'}</td><td>${r.type||'-'}</td><td>${amenityDisplay}</td><td>${scheduleDisplay}</td><td>${statusDisplay}</td>`; tbody.appendChild(tr); }); }
+function renderTodayEntries(rows){ const tbody=document.getElementById('todayEntriesBody'); if(!tbody) return; tbody.innerHTML=''; if(!rows||rows.length===0){ const tr=document.createElement('tr'); tr.id='todayEmpty'; tr.innerHTML=`<td colspan="5" style="text-align:center;color:#6b6b6b">No scans today</td>`; tbody.appendChild(tr); return; } rows.forEach(r=>{ const tr=document.createElement('tr'); tr.classList.add('fade-row'); const scheduleDisplay=formatScheduleRow(r); const amenityDisplay=r.amenity||'-'; const statusDisplay=formatEntryStatus(r.status); tr.innerHTML=`<td>${r.code||'-'}</td><td>${esc(r.type||'-')}${participantEntryDetails(r)}</td><td>${amenityDisplay}</td><td>${scheduleDisplay}</td><td>${statusDisplay}</td>`; tbody.appendChild(tr); }); }
 function formatMDY(ymd){ try{ const d=new Date(ymd); return `${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getDate().toString().padStart(2,'0')}/${String(d.getFullYear()).slice(-2)}`; }catch(e){ return ymd; } }
 function formatDateTime(dt){ try{ const d=new Date(dt); const mm=(d.getMonth()+1).toString().padStart(2,'0'); const dd=d.getDate().toString().padStart(2,'0'); const yy=String(d.getFullYear()).slice(-2); let h=d.getHours(); const mi=d.getMinutes().toString().padStart(2,'0'); const ap=h>=12?'PM':'AM'; h=h%12; if(h===0) h=12; return `${mm}/${dd}/${yy} ${h}:${mi} ${ap}`; }catch(e){ return dt; } }
 function formatDateValue(v){ if(!v) return ''; try{ const d=new Date(v); if(isNaN(d.getTime())) return v; const mm=(d.getMonth()+1).toString().padStart(2,'0'); const dd=d.getDate().toString().padStart(2,'0'); const yy=String(d.getFullYear()).slice(-2); const hasTime=String(v).match(/\d{1,2}:\d{2}/); if(hasTime){ let h=d.getHours(); const mi=d.getMinutes().toString().padStart(2,'0'); const ap=h>=12?'PM':'AM'; h=h%12; if(h===0) h=12; return `${mm}/${dd}/${yy} ${h}:${mi} ${ap}`; } return `${mm}/${dd}/${yy}`; }catch(e){ return v; } }

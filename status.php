@@ -781,7 +781,7 @@ if ($resGF && $resGF->num_rows > 0) {
         $part = $isMulti ? $pNum : 0;
         $exists = false;
         if ($part > 0) {
-          $chk = $con->prepare("SELECT 1 FROM entry_scans WHERE ref_code = ? AND participant_no = ? AND DATE(scanned_at) = CURDATE() LIMIT 1");
+          $chk = $con->prepare("SELECT 1 FROM entry_scans WHERE ref_code = ? AND participant_no = ? LIMIT 1");
           $chk->bind_param('si', $row['ref_code'], $part);
         } else {
           $chk = $con->prepare("SELECT 1 FROM entry_scans WHERE ref_code = ? AND DATE(scanned_at) = CURDATE() LIMIT 1");
@@ -984,7 +984,7 @@ if ($result && $result->num_rows > 0) {
         $part = $isMulti ? $pNum : 0;
         $exists = false;
         if ($part > 0) {
-          $chk = $con->prepare("SELECT 1 FROM entry_scans WHERE ref_code = ? AND participant_no = ? AND DATE(scanned_at) = CURDATE() LIMIT 1");
+          $chk = $con->prepare("SELECT 1 FROM entry_scans WHERE ref_code = ? AND participant_no = ? LIMIT 1");
           $chk->bind_param('si', $row['ref_code'], $part);
         } else {
           $chk = $con->prepare("SELECT 1 FROM entry_scans WHERE ref_code = ? AND DATE(scanned_at) = CURDATE() LIMIT 1");
