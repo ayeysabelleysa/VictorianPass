@@ -6066,24 +6066,26 @@ body.modal-open { overflow: hidden; }
           }
         }
 
-        // All-time participation: unique active residents with at least one COMPLETED session
-        $r = $con->query("SELECT COUNT(DISTINCT ws.user_id) AS c FROM ecopoint_waste_sessions ws INNER JOIN users u ON u.id = ws.user_id WHERE ws.status='COMPLETED' AND u.user_type='resident'");
+        $successfulScanStatuses = "'WAITING','ACTIVE','PROCESSING','COMPLETED'";
+
+        // A successful QR scan creates a session; open and completed sessions count as participation.
+        $r = $con->query("SELECT COUNT(DISTINCT ws.user_id) AS c FROM ecopoint_waste_sessions ws INNER JOIN users u ON u.id = ws.user_id WHERE ws.status IN ($successfulScanStatuses) AND u.user_type='resident'");
         if ($r && $row = $r->fetch_assoc()) $participationStats['all_time_count'] = intval($row['c'] ?? 0);
 
-        // Participation windows: unique active residents with COMPLETED sessions
-        $r = $con->query("SELECT COUNT(DISTINCT ws.user_id) AS c FROM ecopoint_waste_sessions ws INNER JOIN users u ON u.id = ws.user_id WHERE ws.status='COMPLETED' AND u.user_type='resident' AND ws.completed_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)");
+        // Participation windows use QR scan/session creation time, including open sessions.
+        $r = $con->query("SELECT COUNT(DISTINCT ws.user_id) AS c FROM ecopoint_waste_sessions ws INNER JOIN users u ON u.id = ws.user_id WHERE ws.status IN ($successfulScanStatuses) AND u.user_type='resident' AND ws.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)");
         if ($r && $row = $r->fetch_assoc()) $participationStats['last30_count'] = intval($row['c'] ?? 0);
-        $r = $con->query("SELECT COUNT(DISTINCT ws.user_id) AS c FROM ecopoint_waste_sessions ws INNER JOIN users u ON u.id = ws.user_id WHERE ws.status='COMPLETED' AND u.user_type='resident' AND ws.completed_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)");
+        $r = $con->query("SELECT COUNT(DISTINCT ws.user_id) AS c FROM ecopoint_waste_sessions ws INNER JOIN users u ON u.id = ws.user_id WHERE ws.status IN ($successfulScanStatuses) AND u.user_type='resident' AND ws.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)");
         if ($r && $row = $r->fetch_assoc()) $participationStats['last7_count'] = intval($row['c'] ?? 0);
 
         // Participants list for sidebar
         $participants = [];
         $r = $con->query("SELECT u.id, u.first_name, u.last_name, u.house_number, u.email,
                  COUNT(ws.id) AS session_count, SUM(ws.weight_kg) AS total_kg, SUM(ws.points_awarded) AS total_pts,
-                 MAX(ws.completed_at) AS last_session
+                 MAX(ws.created_at) AS last_session
                FROM ecopoint_waste_sessions ws
                LEFT JOIN users u ON u.id = ws.user_id
-               WHERE ws.status = 'COMPLETED' AND u.id IS NOT NULL
+               WHERE ws.status IN ($successfulScanStatuses) AND u.user_type='resident'
                GROUP BY u.id, u.first_name, u.last_name, u.house_number, u.email
                ORDER BY last_session DESC");
         if ($r) { while ($row = $r->fetch_assoc()) $participants[] = $row; }
