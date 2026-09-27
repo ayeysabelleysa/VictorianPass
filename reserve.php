@@ -1634,7 +1634,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
   const minDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
   const minDateStr = `${minDate.getFullYear()}-${String(minDate.getMonth()+1).padStart(2,'0')}-${String(minDate.getDate()).padStart(2,'0')}`;
   const currentUserType="<?php echo $sessionUserType !== null ? htmlspecialchars($sessionUserType, ENT_QUOTES) : ''; ?>";
-  const residentPoints = <?php echo isset($residentPoints) ? intval($residentPoints) : 0; ?>;
+  let residentPoints = <?php echo isset($residentPoints) ? intval($residentPoints) : 0; ?>;
   let selectedStart=null,selectedEnd=null;
   let endDateRangeError=false;
   let bookedDates=new Set();
@@ -1656,6 +1656,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
   let selectedAmenity=document.getElementById('amenityField').value||'';
   let usePoints = false;
   let redemptionConfirmed = false;
+  let paymentModeCheckToken = 0;
 
   function vpShowModal(el){
     if(!el) return;
@@ -1856,17 +1857,47 @@ if (ob_get_level() > 0) { ob_end_flush(); }
   }
 
   function switchToCashMode() {
+    const checkToken = ++paymentModeCheckToken;
     const toggle = document.getElementById('use-points-toggle');
     if (toggle) toggle.checked = false;
     usePoints = false;
     setRedemptionConfirmed(false);
+    const usePointsInput = document.getElementById('use-points-input');
+    if (usePointsInput) usePointsInput.value = '0';
     updateRedemptionInfo();
+    fetchLivePointsBalance().then(function(liveBalance) {
+      if (checkToken !== paymentModeCheckToken || (toggle && toggle.checked)) return;
+      if (liveBalance !== null) {
+        residentPoints = liveBalance;
+        setPointsDisplay(residentPoints);
+        updateBookingModeCards();
+      }
+    });
+  }
+
+  async function switchToPointsMode() {
+    const toggle = document.getElementById('use-points-toggle');
+    if (!toggle) return;
+    const checkToken = ++paymentModeCheckToken;
+    toggle.checked = true;
+    usePoints = true;
+    setRedemptionConfirmed(false);
+    updateBookingModeCards();
+
+    const liveBalance = await fetchLivePointsBalance();
+    if (checkToken !== paymentModeCheckToken || !toggle.checked) return;
+    if (liveBalance !== null) residentPoints = liveBalance;
+    updateRedemptionInfo();
+    if (toggle.checked) showPointsRedemptionConfirm();
   }
 
   function setRedemptionConfirmed(value) {
     redemptionConfirmed = value === true;
     const input = document.getElementById('redemption-confirmed-input');
     if (input) input.value = redemptionConfirmed ? '1' : '0';
+    const usePointsInput = document.getElementById('use-points-input');
+    const toggle = document.getElementById('use-points-toggle');
+    if (usePointsInput) usePointsInput.value = redemptionConfirmed && toggle && toggle.checked ? '1' : '0';
   }
 
   function updateRedemptionInfo() {
@@ -1892,6 +1923,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
         if (remainingPoints < 0) {
         toggle.checked = false;
         usePoints = false;
+        setRedemptionConfirmed(false);
         const reqP = getPointsRequired(selectedAmenity);
         showPointsErrorPopup("You don\u2019t have enough points to redeem this amenity. You need " + reqP.toLocaleString() + " pts for 1 free hour, but your current balance is " + residentPoints.toLocaleString() + " pts. Please earn more points or choose Book with Cash.", true);
           if (redemptionInfo) redemptionInfo.style.display = 'none';
@@ -1906,6 +1938,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
       }
     } else {
       if (redemptionInfo) redemptionInfo.style.display = 'none';
+      setRedemptionConfirmed(false);
       if (currentPointsEl) {
         setPointsDisplay(residentPoints);
       }
@@ -1934,10 +1967,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     }
     if (pointsBtn && toggle) {
       pointsBtn.addEventListener('click', function() {
-        toggle.checked = true;
-        setRedemptionConfirmed(false);
-        updateRedemptionInfo();
-        if (toggle.checked) showPointsRedemptionConfirm();
+        switchToPointsMode();
       });
     }
     updateBookingModeCards();
@@ -2577,8 +2607,8 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     const msgEl = document.getElementById('vhecoRedemptionSuccessMessage');
     const iconEl = document.getElementById('vhecoRedemptionSuccessIcon');
     const iconI = iconEl ? iconEl.querySelector('i') : null;
-    if (headingEl && cfg.heading) headingEl.textContent = cfg.heading;
-    if (msgEl && cfg.message) msgEl.textContent = cfg.message;
+    if (headingEl) headingEl.textContent = cfg.heading || 'VHEcoPoint Redemption Confirmed';
+    if (msgEl) msgEl.textContent = cfg.message || 'Your VHEcoPoint points have been applied for 1 Free Hour.';
     if (iconEl) {
       if (cfg.icon === 'cancel') {
         iconEl.className = 'vheco-success-icon vheco-success-icon-cancel';
@@ -3870,6 +3900,8 @@ async function changePersons(val){
     try{ document.getElementById('clientConfirmed').value='1'; }catch(_){}
     // Set use points input
     const usePointsInput = document.getElementById('use-points-input');
+    const usePointsToggle = document.getElementById('use-points-toggle');
+    usePoints = !!(usePointsToggle && usePointsToggle.checked && redemptionConfirmed);
     if (usePointsInput) {
       usePointsInput.value = usePoints ? '1' : '0';
     }

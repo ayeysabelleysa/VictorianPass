@@ -1130,6 +1130,34 @@ html { scroll-behavior: smooth; }
   color: #23412e;
 }
 
+.ecopoint-step-icon img{
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+}
+
+.ecopoint-learn-more{
+  color: #1d6b3f;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
+.ecopoint-learn-more:hover{
+  color: #2a9d52;
+}
+
+.ecopoint-learn-more:focus-visible{
+  outline: 2px solid #f2c24f;
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+#acceptedMaterials{
+  scroll-margin-top: 16px;
+}
+
 .ecopoint-step-copy{
   min-width: 0;
 }

@@ -418,14 +418,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <div class="ecopoint-step-icon" aria-hidden="true"><i class="fa-solid fa-qrcode"></i></div>
                 <div class="ecopoint-step-copy">
                   <h4>Scan</h4>
-                  <p>Scan your VictorianPass QR code at the VHEcoPoint station. Your code is in the VHEcoPoint dashboard and your Profile Settings.</p>
+                  <p>Scan your VictorianPass QR code at the VHEcoPoint station. Your Personal QR code is in the VHEcoPoint dashboard and your Profile.</p>
                 </div>
               </div>
               <div class="ecopoint-step-item">
                 <div class="ecopoint-step-icon" aria-hidden="true"><i class="fa-solid fa-recycle"></i></div>
                 <div class="ecopoint-step-copy">
                   <h4>Deposit</h4>
-                  <p>Drop your recyclables &mdash; Paper (Old Documents), Plastic Bottles, and Aluminum Cans.</p>
+                  <p>Drop your recyclable materials &mdash; Paper (Old Documents), Plastic Bottles, and Aluminum Cans. <a href="#acceptedMaterials" class="ecopoint-learn-more" data-ecopoint-jump="acceptedMaterials">Learn more</a></p>
                 </div>
               </div>
               <div class="ecopoint-step-item">
@@ -512,7 +512,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
           </article>
 </div>
 
-          <article class="ecopoint-card">
+          <article class="ecopoint-card" id="acceptedMaterials">
             <h3 class="ecopoint-card-title">Accepted Materials</h3>
             <div class="ecopoint-step-list">
               <div class="ecopoint-step-item">
@@ -530,7 +530,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 </div>
               </div>
               <div class="ecopoint-step-item">
-                <div class="ecopoint-step-icon" aria-hidden="true"><i class="fa-solid fa-recycle"></i></div>
+                <div class="ecopoint-step-icon" aria-hidden="true"><img src="images/accepted-materials/aluminum-can.png" alt="" width="48" height="48" loading="lazy"></div>
                 <div class="ecopoint-step-copy">
                   <h4>Aluminum Cans</h4>
                   <p>Accepted aluminum and metal tin can materials are limited to small to medium-sized cans.</p>
@@ -689,6 +689,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         closeBtn.addEventListener('click', function(e){
           e.preventDefault();
           closeModal();
+        });
+      }
+
+      var jumpLinks = modal ? modal.querySelectorAll('[data-ecopoint-jump]') : [];
+      for(var k = 0; k < jumpLinks.length; k++){
+        jumpLinks[k].addEventListener('click', function(e){
+          e.preventDefault();
+          var card = document.getElementById(this.getAttribute('data-ecopoint-jump'));
+          if(!card) return;
+          if('scrollIntoView' in card){
+            card.scrollIntoView({behavior:'smooth', block:'start'});
+          }
+          card.setAttribute('tabindex', '-1');
+          card.focus({preventScroll:true});
         });
       }
 
