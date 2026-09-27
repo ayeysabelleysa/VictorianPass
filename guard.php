@@ -2631,11 +2631,8 @@ function participantEntryDetails(r){
   if(!people.length) return '';
   const details=people.map(p=>{
     const participantNo=parseInt(p.participant_no,10)||0;
-    const name=p.name?` (pass holder: ${esc(p.name)})`:'';
     const scannedAt=p.scanned_at?` · ${esc(formatDateTime(p.scanned_at))}`:'';
-    const guardName=String(p.scanned_by||'').trim();
-    const scannedBy=guardName?` · ${/^guard\b/i.test(guardName)?esc(guardName):'Guard '+esc(guardName)}`:'';
-    return `<div>Participant ${participantNo}${name}${scannedAt}${scannedBy}</div>`;
+    return `<div>Participant ${participantNo}${scannedAt}</div>`;
   }).join('');
   return `<details style="margin-top:4px;font-size:0.78rem;"><summary style="cursor:pointer">View entered participants</summary><div style="padding:4px 0 0 8px;line-height:1.5">${details}</div></details>`;
 }
