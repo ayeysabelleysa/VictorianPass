@@ -883,6 +883,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
         session_write_close();
     }
     header('Content-Type: application/json');
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
     $notifications = getUserNotifications($con, $userId, 20);
     $unreadCount = getUserUnreadNotificationCount($con, $userId);
     echo json_encode([
@@ -6671,7 +6673,7 @@ body.modal-open{overflow:hidden}
     return tag === 'input' || tag === 'textarea' || tag === 'select';
   }
   function refreshStatuses(){
-    fetch('profileresident.php?ajax=1',{credentials:'same-origin'})
+    fetch('profileresident.php?ajax=1',{credentials:'same-origin',cache:'no-store'})
       .then(function(r){return r.json();})
       .then(function(data){
         if(!data||!data.success) return;
@@ -7231,7 +7233,7 @@ body.modal-open{overflow:hidden}
     });
   }
   function refreshRequestsPanel(){
-    fetch('profileresident.php?ajax=1',{credentials:'same-origin'})
+    fetch('profileresident.php?ajax=1',{credentials:'same-origin',cache:'no-store'})
       .then(function(r){ return r.json(); })
       .then(function(data){
         if(!data || !data.success) return;

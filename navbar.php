@@ -48,7 +48,13 @@ if ($navUid > 0 && isset($con) && ($con instanceof mysqli)) {
 
 $navDashboardUrl = (strtolower($navUserType) === 'resident') ? 'profileresident.php' : 'dashboardvisitor.php';
 $navGreeting = $navUserFirstName !== '' ? $navUserFirstName : ($navUserName !== '' ? $navUserName : 'User');
-$navShowEcoPoint = basename($_SERVER['SCRIPT_NAME'] ?? '') === 'reserve.php' && strtolower($navUserType) === 'resident';
+$navCurrentPage = basename($_SERVER['SCRIPT_NAME'] ?? '');
+$navIsDownpayment = $navCurrentPage === 'downpayment.php';
+$navShowEcoPoint = $navIsDownpayment || ($navCurrentPage === 'reserve.php' && strtolower($navUserType) === 'resident');
+$navEcoPointUrl = strtolower($navUserType) === 'resident'
+  ? $navDashboardUrl . '?section=panel-points-history'
+  : 'reserve.php';
+$navEcoPointLabel = strtolower($navUserType) === 'resident' ? 'Open VHEcoPoint dashboard' : 'Return to reservation';
 ?>
 <header class="top-header">
   <div class="header-brand">
@@ -59,7 +65,7 @@ $navShowEcoPoint = basename($_SERVER['SCRIPT_NAME'] ?? '') === 'reserve.php' && 
     </div>
   </div>
   <?php if ($navShowEcoPoint): ?>
-    <a href="<?php echo htmlspecialchars($navDashboardUrl . '?section=panel-points-history', ENT_QUOTES); ?>" class="header-ecopoint-link" aria-label="Open VHEcoPoint dashboard" title="VHEcoPoint dashboard"><?php echo vh_eco_logo('VHEcoPoint', 'nav-eco-logo'); ?></a>
+    <a href="<?php echo htmlspecialchars($navEcoPointUrl, ENT_QUOTES); ?>" class="header-ecopoint-link" aria-label="<?php echo htmlspecialchars($navEcoPointLabel, ENT_QUOTES); ?>" title="VHEcoPoint dashboard"><?php echo vh_eco_logo('VHEcoPoint', 'nav-eco-logo'); ?></a>
   <?php else: ?>
     <div class="header-actions">
       <?php if ($navIsLoggedIn): ?>
