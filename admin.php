@@ -3740,6 +3740,7 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-main); }
 
 /* System Switcher */
 .system-switcher-header {
+  --vh-eco-logo-size: 22px;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -3748,10 +3749,10 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-main); }
 }
 
 .system-switch-header-btn {
-    display: inline-flex;
+    display: grid;
+    grid-template-columns: var(--vh-eco-logo-size) minmax(0, 1fr) var(--vh-eco-logo-size);
     align-items: center;
-    justify-content: center;
-    gap: 8px;
+    gap: 0;
     height: 34px;
     padding: 0 10px;
     border: 1px solid rgba(255,255,255,0.18);
@@ -3766,6 +3767,9 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-main); }
     text-decoration: none;
     white-space: nowrap;
 }
+  .system-switch-header-btn > span {
+    text-align: center;
+  }
 
 .system-switch-header-btn:hover {
     background: rgba(255,255,255,0.12);
@@ -3793,6 +3797,13 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-main); }
 
 .system-switch-header-btn i {
     font-size: 0.95rem;
+}
+.system-switch-header-btn .system-switch-victorian-logo {
+  display: block;
+  width: var(--vh-eco-logo-size);
+  height: var(--vh-eco-logo-size);
+  flex: 0 0 var(--vh-eco-logo-size);
+  object-fit: contain;
 }
 
 /* Old sidebar switcher - hide it */
@@ -3959,6 +3970,7 @@ body.sidebar-collapsed .system-switcher-header {
     padding: 0 2px;
 }
 body.sidebar-collapsed .system-switch-header-btn {
+  display: inline-flex;
     width: 42px;
     min-width: 42px;
     padding: 0;
@@ -5530,11 +5542,11 @@ body.modal-open { overflow: hidden; }
 
       <div class="system-switcher-header">
         <a href="?page=dashboard" class="system-switch-header-btn <?php echo $currentSystem == 'victorianpass' ? 'active' : ''; ?>" title="VictorianPass Admin">
-          <i class="fa-solid fa-building"></i>
+          <img src="images/logo.svg" alt="" aria-hidden="true" class="system-switch-victorian-logo">
           <span>Victorian Pass</span>
         </a>
         <a href="?page=smart_waste" class="system-switch-header-btn ecopoint-switch <?php echo $currentSystem == 'ecopoint' ? 'active' : ''; ?>" title="VHEcoPoint Admin">
-          <i class="fa-solid fa-recycle"></i>
+          <?php echo vh_eco_logo(''); ?>
           <span>VHEcoPoint</span>
         </a>
       </div>
