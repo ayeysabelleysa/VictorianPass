@@ -353,8 +353,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       <p class="tagline">Every home has a story — start yours in a place worth remembering.</p>
       <?php if (($isResident || !$isLoggedIn) && !$isVisitor): ?>
       <p class="hero-eco-subtitle" data-ecopoint-modal-open="true" role="button" tabindex="0" aria-haspopup="dialog"><span class="hero-eco-subtitle-top"><span class="hero-eco-subtitle-main">Now with VHEcoPoint!</span></span><span class="hero-eco-subtitle-sub"><span class="hero-eco-subtitle-icon" aria-hidden="true"><i class="fa-solid fa-recycle"></i></span>Recycle Smart. Earn Eco Points. Enjoy Victorian Heights.</span><span class="hero-eco-subtitle-hint">See description &#9662;</span></p>
-      <!-- Mobile-only: See description button for VHEcoPoint (short, close to subtitle) -->
-      <button class="mobile-ecopoint-btn" data-ecopoint-modal-open="true" aria-controls="ecopointModal" aria-expanded="false">See VHEcoPoint description</button>
       <?php endif; ?>
 
       <div class="action-buttons" style="margin-top: 30px; gap:15px; flex-wrap:wrap;">
@@ -611,7 +609,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
   <script src="js/logout-modal.js"></script>
   <script>
-    (function(){var t=document.getElementById('navToggle');var c=document.getElementById('navCollapse');if(!t||!c)return;t.addEventListener('click',function(){var o=c.classList.toggle('open');t.classList.toggle('active',o);t.setAttribute('aria-expanded',o?'true':'false');});window.addEventListener('click',function(e){if(!c.contains(e.target)&&!t.contains(e.target)){c.classList.remove('open');t.classList.remove('active');t.setAttribute('aria-expanded','false');}});window.addEventListener('resize',function(){if(window.innerWidth>900){c.classList.remove('open');t.classList.remove('active');t.setAttribute('aria-expanded','false');}});})();
+    (function(){var t=document.getElementById('navToggle');var c=document.getElementById('navCollapse');if(!t||!c)return;t.addEventListener('click',function(){var o=c.classList.toggle('open');t.classList.toggle('active',o);t.setAttribute('aria-expanded',o?'true':'false');});window.addEventListener('click',function(e){if(!c.contains(e.target)&&!t.contains(e.target)){c.classList.remove('open');t.classList.remove('active');t.setAttribute('aria-expanded','false');}});window.addEventListener('resize',function(){if(window.innerWidth>1080){c.classList.remove('open');t.classList.remove('active');t.setAttribute('aria-expanded','false');}});})();
   </script>
   <script>
     document.addEventListener('DOMContentLoaded', function(){

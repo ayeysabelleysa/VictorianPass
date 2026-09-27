@@ -69,7 +69,7 @@ html { scroll-behavior: smooth; }
 }
 
 .nav-links{display:flex;align-items:center;gap:10px}
-@media (max-width:900px){
+@media (max-width:1080px){
   .nav-links{flex-direction:column;width:100%;gap:12px;margin-top:12px}
   .nav-links .btn-nav{width:100%;max-width:520px;text-align:center;padding:12px 18px}
 }
@@ -221,6 +221,28 @@ html { scroll-behavior: smooth; }
   border-radius: 50%;
   object-fit: cover;
   cursor: pointer;
+}
+
+@media (min-width: 1081px) and (max-width: 1240px){
+  .navbar{
+    gap:12px;
+    padding-left:clamp(24px, 4vw, 48px);
+    padding-right:clamp(24px, 4vw, 48px);
+  }
+  .logo{gap:9px; flex-shrink:0;}
+  .logo img{width:clamp(34px, 3vw, 38px);}
+  .brand-text{white-space:nowrap;}
+  .brand-text h1{font-size:clamp(1rem, 1.25vw, 1.12rem);}
+  .brand-text p{font-size:clamp(0.68rem, 0.78vw, 0.76rem);}
+  .nav-collapse{gap:clamp(8px, 1vw, 12px); min-width:0;}
+  .page-nav{gap:clamp(8px, 0.95vw, 12px); min-width:0;}
+  .page-nav a{font-size:clamp(0.78rem, 0.9vw, 0.88rem); white-space:nowrap;}
+  .page-nav .nav-ecopoint{gap:6px; padding:8px clamp(9px, 1vw, 13px); flex-shrink:0;}
+  .nav-ecopoint-badge{padding:2px 6px; font-size:0.66rem;}
+  .nav-actions{flex-shrink:0;}
+  .nav-actions > div[style]{gap:clamp(6px, 0.8vw, 10px) !important; font-size:clamp(0.78rem, 0.88vw, 0.88rem); white-space:nowrap;}
+  .nav-actions > div > span{white-space:nowrap;}
+  .profile-icon{width:34px; height:34px;}
 }
 
 .profile-icon-wrap{position:relative;display:inline-flex;align-items:center}
@@ -1833,7 +1855,7 @@ html { scroll-behavior: smooth; }
 .toast{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:#23412e;color:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 8px 18px rgba(0,0,0,.12);font-size:.9rem;z-index:1000}
 .toast .code{background:#1f3526;border-radius:8px;padding:2px 8px;margin-left:6px}
 
-@media (max-width: 900px){
+@media (max-width: 1080px){
   .hamburger{display:inline-flex}
   .navbar{ flex-wrap: wrap; }
   .nav-collapse{ display:none; width:100%; background:#2b2623; padding:8px 5%; border-top:1px solid rgba(255,255,255,0.08); box-sizing:border-box; }
@@ -2032,7 +2054,7 @@ html { max-width:100%; overflow-x:hidden; }
   .nav-ecopoint-tooltip{ display:none !important; }
 }
 
-@media (max-width:900px){
+@media (max-width: 1080px){
   .profile-dropdown{ display:none !important; }
 }
 
