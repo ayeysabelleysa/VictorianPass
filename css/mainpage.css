@@ -2277,8 +2277,7 @@ html { max-width:100%; overflow-x:hidden; }
    badge, compact auto-width CTAs, left-aligned sections,
    consistent 26/18/14/11 type scale. Desktop untouched.
 ========================= */
-@media (max-width:900px){
-  /* Fix hamburger: spans must stack vertically (flex column) */
+@media (max-width:1080px){
   .hamburger{
     flex-direction:column;
     justify-content:center;
@@ -2286,10 +2285,16 @@ html { max-width:100%; overflow-x:hidden; }
     gap:3px;
   }
   .hamburger span{
+    display:block;
     width:22px;
     height:2px;
     margin:0;
+    flex:0 0 2px;
+    transform-origin:center;
   }
+  .hamburger.active span:nth-child(1){transform:translateY(5px) rotate(45deg)}
+  .hamburger.active span:nth-child(2){opacity:0}
+  .hamburger.active span:nth-child(3){transform:translateY(-5px) rotate(-45deg)}
 }
 
 @media (max-width:480px){
