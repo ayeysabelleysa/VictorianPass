@@ -553,7 +553,18 @@ html { scroll-behavior: smooth; }
   white-space: normal;
   text-align: center;
 }
-.hero-eco-subtitle-hint{ display:none; }
+.hero-eco-subtitle-hint{
+  display:inline-flex;
+  align-items:center;
+  gap:2px;
+  margin-top:3px;
+  font-size:0.72em;
+  font-weight:600;
+  color:#d9f2e2;
+  opacity:0.95;
+  border-bottom:1px dashed rgba(217,242,226,0.6);
+  padding-bottom:1px;
+}
 
 @keyframes heroEcoSubtitleFade {
   from {
