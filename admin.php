@@ -4720,6 +4720,194 @@ table td.actions .delete-form.show { width: 100%; }
 .status.rejected, .badge-rejected, .badge-denied, .status-denied { background: #fee2e2; color: #991b1b; }
 .status-cancelled { background: #f3f4f6; color: #6b7280; }
 
+/* =========================================================
+   Resident Amenity Requests  (admin.php?page=requests)
+   ========================================================= */
+
+/* Page header + subtitle */
+.page-header-stack { display: block; }
+.page-subtitle {
+    margin: 4px 0 0;
+    font-size: 0.85rem;
+    font-weight: 400;
+    line-height: 1.4;
+    color: var(--text-secondary);
+}
+
+/* Filter boxes */
+.rr-filters {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 16px;
+    margin: 0 0 16px;
+}
+.rr-filter {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
+    padding: 12px 16px;
+    min-height: 68px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    text-align: left;
+    font-family: 'Poppins', sans-serif;
+    transition: var(--transition);
+}
+.rr-filter:hover { border-color: var(--accent); background: var(--primary-light); }
+.rr-filter:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.rr-filter[aria-pressed="true"] {
+    border: 2px solid var(--accent);
+    padding: 11px 15px;
+    background: rgba(212, 175, 55, 0.12);
+}
+.rr-filter-count {
+    font-size: 1.55rem;
+    font-weight: 600;
+    line-height: 1.15;
+    color: var(--text-main);
+}
+.rr-filter[aria-pressed="true"] .rr-filter-count { color: var(--primary-dark); }
+.rr-filter-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    line-height: 1.3;
+    color: var(--text-secondary);
+}
+.rr-filter[aria-pressed="true"] .rr-filter-label { color: var(--text-main); }
+.rr-filter-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--warning);
+}
+.rr-filter-dot.is-ready { background: var(--primary); }
+
+/* Table */
+.rr-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+table.table-rr { min-width: 920px; }
+table.table-rr th {
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--border-light);
+    padding: 10px 14px;
+}
+table.table-rr td {
+    padding: 10px 14px;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--border-light);
+}
+table.table-rr tbody tr:last-child td { border-bottom: 1px solid var(--border-light); }
+table.table-rr tbody tr:hover { background: var(--primary-light); }
+table.table-rr tbody tr.rr-empty:hover { background: transparent; }
+
+.rr-resident-name {
+    display: block;
+    font-weight: 600;
+    color: var(--text-main);
+}
+.rr-resident-meta {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+.rr-ref {
+    font-weight: 500;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+.rr-amount {
+    font-weight: 600;
+    color: var(--text-main);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Status pills */
+.rr-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: nowrap;
+}
+.rr-pill-to_verify { background: #fef3c7; color: #92400e; }
+.rr-pill-ready { background: var(--primary); color: #fff; }
+.rr-pill-approved { background: #dcfce7; color: #166534; }
+.rr-pill-rejected { background: #fee2e2; color: #991b1b; }
+
+/* Actions: one horizontal row, equal buttons, no shadows */
+table.table-rr td.actions {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    gap: 8px;
+    min-width: 280px;
+}
+table.table-rr td.actions form {
+    width: auto;
+    margin: 0;
+    display: inline-flex;
+    flex-shrink: 0;
+}
+table.table-rr td.actions .btn,
+table.table-rr td.actions a.btn {
+    width: 118px;
+    min-width: 118px;
+    flex-shrink: 0;
+    min-height: 32px;
+    padding: 0 10px;
+    border-radius: var(--radius);
+    font-size: 0.78rem;
+    box-shadow: none;
+    white-space: nowrap;
+    justify-content: center;
+}
+table.table-rr td.actions .btn:hover,
+table.table-rr td.actions a.btn:hover {
+    box-shadow: none;
+    transform: none;
+}
+
+table.table-rr tbody tr.rr-empty td {
+    text-align: center;
+    padding: 28px 14px;
+    border-bottom: none;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+@media (max-width: 1100px) {
+    .rr-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+    .rr-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 440px) {
+    .rr-filters { grid-template-columns: 1fr; }
+}
+
 /* Notifications */
 .notif-btn {
     background: rgba(255,255,255,0.1);
@@ -5600,7 +5788,7 @@ body.modal-open { overflow: hidden; }
   <!-- MAIN CONTENT -->
   <main class="main">
     <?php $pageTitles = [
-      'requests' => 'Resident Requests',
+      'requests' => 'Resident amenity requests',
       'resident_guest_forms' => "Resident's Guest Request",
       'visitor_requests' => 'Visitor Requests',
       'reservations' => 'Reservations',
@@ -5661,8 +5849,13 @@ body.modal-open { overflow: hidden; }
       </div>
     </header>
 
-    <div class="page-header">
-      <h2 id="page-title"><?php echo htmlspecialchars($pageTitle); ?></h2>
+    <div class="page-header<?php echo ($currentPage === 'requests') ? ' page-header-stack' : ''; ?>">
+      <div>
+        <h2 id="page-title"><?php echo htmlspecialchars($pageTitle); ?></h2>
+        <?php if ($currentPage === 'requests'): ?>
+        <p class="page-subtitle">Verify each downpayment receipt, then approve the reservation.</p>
+        <?php endif; ?>
+      </div>
       <script>
         (function(){
           const input=document.getElementById('search-input');
@@ -7048,156 +7241,211 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
 
 <!-- REQUESTS -->
 <?php if ($currentPage == 'requests'): ?>
+<?php
+/* Load the visible request list once so the filter counts and the table rows
+   are always computed from the same set. */
+$rrStatusOrder = array('to_verify' => 0, 'ready' => 1, 'approved' => 2, 'rejected' => 3);
+$rrStatusLabels = array(
+    'to_verify' => 'To verify',
+    'ready'     => 'Ready to approve',
+    'approved'  => 'Approved',
+    'rejected'  => 'Rejected',
+);
+$rrRows = array();
+$rrRes = getResidentOnlyReservations($con);
+if ($rrRes && $rrRes->num_rows > 0) {
+    while ($rr = $rrRes->fetch_assoc()) {
+        $approval_status = $rr['approval_status'] ?? 'pending';
+        $approvalLower = strtolower((string)$approval_status);
+        $statusLower = strtolower((string)($rr['status'] ?? ''));
+        $payStatusLower = strtolower((string)($rr['payment_status'] ?? ''));
+        $attempts = intval($rr['receipt_attempts'] ?? 0);
+
+        if ($approvalLower === 'permission_granted' || $statusLower === 'permission_granted') {
+            continue;
+        }
+        if (!empty($rr['scanned_at']) && !in_array($approvalLower, array('denied','cancelled','expired','moved_to_history'), true)) {
+            $stmtGrant = $con->prepare("UPDATE reservations SET approval_status='permission_granted', status='permission_granted', updated_at = NOW() WHERE id = ?");
+            if ($stmtGrant) { $stmtGrant->bind_param('i', $rr['id']); $stmtGrant->execute(); $stmtGrant->close(); }
+            continue;
+        }
+        if ($payStatusLower === 'rejected' && $attempts >= 3 && $approvalLower !== 'denied') {
+            $stmtAuto = $con->prepare("UPDATE reservations SET approval_status='denied' WHERE id=?");
+            if ($stmtAuto) { $stmtAuto->bind_param('i', $rr['id']); $stmtAuto->execute(); $stmtAuto->close(); }
+            continue;
+        }
+
+        /* The downpayment receipt is the only thing verified at this step, so a
+           request is either waiting on that check or already past it. */
+        if ($payStatusLower === 'rejected' || $approvalLower === 'denied' || $approvalLower === 'cancelled') {
+            $rrKey = 'rejected';
+        } elseif ($approvalLower === 'approved' || $statusLower === 'approved') {
+            $rrKey = 'approved';
+        } elseif ($payStatusLower === 'verified') {
+            $rrKey = 'ready';
+        } else {
+            $rrKey = 'to_verify';
+        }
+
+        $rr['rr_key'] = $rrKey;
+        $rr['rr_label'] = $rrStatusLabels[$rrKey];
+        $rr['rr_created'] = strtotime((string)($rr['created_at'] ?? '')) ?: 0;
+        $rrRows[] = $rr;
+    }
+}
+/* Action first: To verify, then Ready to approve, then the rest. Newest first inside each group. */
+usort($rrRows, function ($a, $b) use ($rrStatusOrder) {
+    $sa = $rrStatusOrder[$a['rr_key']];
+    $sb = $rrStatusOrder[$b['rr_key']];
+    if ($sa !== $sb) { return $sa - $sb; }
+    return $b['rr_created'] - $a['rr_created'];
+});
+$rrCounts = array('all' => count($rrRows), 'to_verify' => 0, 'ready' => 0, 'approved' => 0, 'rejected' => 0);
+foreach ($rrRows as $rrCounted) { $rrCounts[$rrCounted['rr_key']]++; }
+?>
 <section class="panel" id="requests-panel">
   <div class="content-row">
-  
-  <!-- Resident Amenity Requests (from resident_reservations) -->
   <div class="card-box">
-    <h3>Resident Amenity Requests</h3>
-    <table class="table table-requests">
+
+    <div class="rr-filters" role="group" aria-label="Filter requests by status">
+      <?php
+      $rrFilterDefs = array(
+          'all'       => array('All requests',     ''),
+          'to_verify' => array('To verify',         'rr-filter-dot'),
+          'ready'     => array('Ready to approve',  'rr-filter-dot is-ready'),
+          'approved'  => array('Approved',          ''),
+          'rejected'  => array('Rejected',          ''),
+      );
+      foreach ($rrFilterDefs as $rrFilterKey => $rrFilterDef) :
+          $rrShowDot = ($rrFilterDef[1] !== '' && $rrCounts[$rrFilterKey] > 0);
+      ?>
+      <button type="button" class="rr-filter" data-rr-filter="<?php echo $rrFilterKey; ?>" aria-pressed="<?php echo ($rrFilterKey === 'all') ? 'true' : 'false'; ?>">
+        <span class="rr-filter-count"><?php echo intval($rrCounts[$rrFilterKey]); ?></span>
+        <span class="rr-filter-label">
+          <?php if ($rrShowDot): ?><span class="<?php echo $rrFilterDef[1]; ?>" aria-hidden="true"></span><?php endif; ?>
+          <?php echo htmlspecialchars($rrFilterDef[0]); ?>
+        </span>
+      </button>
+      <?php endforeach; ?>
+    </div>
+
+    <div class="rr-table-wrap">
+      <table class="table table-rr" id="rr-table">
       <thead>
         <tr>
-          <th>Name</th>
-          <th>Reference Code</th>
-          <th>Type</th>
-          <th>House #</th>
-          <th>Request Status</th>
+          <th>Resident</th>
+          <th>Reference</th>
+          <th>Amenity</th>
+          <th>Downpayment</th>
+          <th>Status</th>
           <th>Actions</th>
         </tr>
       </thead>
-      <tbody>
-        <?php
-        $residentRes = getResidentOnlyReservations($con);
-        $hasRR = false;
-        if ($residentRes && $residentRes->num_rows > 0) {
-            while ($rr = $residentRes->fetch_assoc()) {
-                $approval_status = $rr['approval_status'] ?? 'pending';
-                $statusValue = $rr['status'] ?? '';
-                $statusLower = strtolower((string)$statusValue);
-                $scannedAt = $rr['scanned_at'] ?? null;
-                $approvalLower = strtolower((string)$approval_status);
-                if ($approvalLower === 'permission_granted' || $statusLower === 'permission_granted') {
-                  continue;
-                }
-                if (!empty($scannedAt) && !in_array($approvalLower, ['denied','cancelled','expired','moved_to_history'], true)) {
-                  $stmtGrant = $con->prepare("UPDATE reservations SET approval_status='permission_granted', status='permission_granted', updated_at = NOW() WHERE id = ?");
-                  if ($stmtGrant) { $stmtGrant->bind_param('i', $rr['id']); $stmtGrant->execute(); $stmtGrant->close(); }
-                  continue;
-                }
-                $hasRR = true;
-                echo "<tr data-ref='" . htmlspecialchars($rr['ref_code'] ?? '') . "' data-id='" . intval($rr['id']) . "' data-source='resident'>";
-                $fullName = trim(($rr['first_name'] ?? '') . ' ' . ($rr['middle_name'] ?? '') . ' ' . ($rr['last_name'] ?? ''));
-                echo "<td><strong>" . htmlspecialchars($fullName) . "</strong></td>";
-                echo "<td>" . htmlspecialchars($rr['ref_code'] ?? '-') . "</td>";
-                
-                $isResidentGuest = !empty($rr['gf_id']);
-                $uType = $isResidentGuest ? "Resident’s Guest" : ucfirst($rr['user_type'] ?? 'Resident');
-                $uTypeClass = 'badge-approved';
-                echo "<td><span class='badge $uTypeClass' style='font-size:0.8rem;'>$uType</span></td>";
+      <tbody id="rr-tbody">
+      <?php
+      foreach ($rrRows as $rr) :
+          $rrId = intval($rr['id']);
+          $rrName = trim(($rr['first_name'] ?? '') . ' ' . ($rr['middle_name'] ?? '') . ' ' . ($rr['last_name'] ?? ''));
+          if ($rrName === '') { $rrName = '—'; }
+          $rrHouse = trim((string)($rr['house_number'] ?? ''));
+          $rrMeta = ($rrHouse !== '') ? ('House ' . $rrHouse . ' · Resident') : 'Resident';
 
-                echo "<td>" . htmlspecialchars($rr['house_number'] ?? '-') . "</td>";
-                $payStatusLower = strtolower($rr['payment_status'] ?? '');
-                $attempts = intval($rr['receipt_attempts'] ?? 0);
-                if ($payStatusLower === 'rejected' && $attempts >= 3 && strtolower($approval_status) !== 'denied') {
-                  $stmtAuto = $con->prepare("UPDATE reservations SET approval_status='denied' WHERE id=?");
-                  if ($stmtAuto) { $stmtAuto->bind_param('i', $rr['id']); $stmtAuto->execute(); $stmtAuto->close(); }
-                  continue;
-                }
-                $statusClass = $approval_status === 'approved' ? 'badge-approved' : (($approval_status === 'denied' || $approval_status === 'cancelled') ? 'badge-rejected' : 'badge-pending');
-                $statusLabel = ($payStatusLower === 'pending_update') ? 'Pending (Resubmitted)' : ucfirst($approval_status);
-                if ($approvalLower === 'permission_granted' || $statusLower === 'permission_granted') {
-                  $statusClass = 'badge-approved';
-                  $statusLabel = 'Access Granted';
-                }
-                if ($payStatusLower === 'rejected') { 
-                  $statusClass = 'badge-rejected'; 
-                  $statusLabel = ($attempts >= 3) ? 'Denied – Max Attempts Reached' : ('Rejected (Attempt ' . max($attempts,1) . ' of 3)');
-                }
-                echo "<td><span class='badge $statusClass'>" . $statusLabel . "</span></td>";
-                echo "<td class='actions'>";
-                echo "<button type='button' class='btn btn-view' onclick='showReservationDetails(" . intval($rr['id']) . ",\"visitor\")'>View Details</button>";
-                $startTimestamp = strtotime((string)($rr['start_time'] ?? ''));
-                $endTimestamp = strtotime((string)($rr['end_time'] ?? ''));
-                $durationSeconds = ($startTimestamp !== false && $endTimestamp !== false) ? (($endTimestamp - $startTimestamp + 86400) % 86400) : 0;
-                $isFullyRedeemed = intval($rr['use_points'] ?? 0) === 1 && intval($rr['points_used'] ?? 0) > 0 && $durationSeconds === 3600;
-                if ($isFullyRedeemed) {
-                  echo "<form method='post' class='action-form action-deny' onsubmit='return openDenyModal(this)'>";
-                  echo "<input type='hidden' name='reservation_id' value='" . intval($rr['id']) . "'>";
-                  echo "<input type='hidden' name='action' value='deny_request'>";
-                  echo "<input type='hidden' name='redirect_page' value='requests'>";
-                  echo "<input type='hidden' name='denial_reason' class='denial-reason'>";
-                  echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'>Reject</button>";
-                  echo "</form>";
-                }
-                $payStatusLower = strtolower($rr['payment_status'] ?? '');
-                if ($payStatusLower === 'rejected') { 
-                  $attempts = intval($rr['receipt_attempts'] ?? 0);
-                  $note = ($attempts >= 3) ? 'Denied — Max Attempts Reached. Payment rejected 3 times. No further uploads allowed.' : 'Wait for the updated proof.';
-                  echo "<div class='muted' style='margin-top:6px;'>$note</div>"; 
-                  $denReason = trim((string)($rr['denial_reason'] ?? ''));
-                  if ($denReason !== '') {
-                    echo "<div style='margin-top:6px;padding:8px 12px;border-radius:10px;background:#fee2e2;color:#991b1b;font-weight:600;width:100%;box-sizing:border-box;'>Reason: " . htmlspecialchars($denReason) . "</div>";
-                  }
-                }
-                $receiptPath = $rr['receipt_path'] ?? null;
-                $attempts = intval($rr['receipt_attempts'] ?? 0);
-                if ($attempts >= 3) {
-                  echo "<form method='post' class='action-form action-deny' onsubmit='return openDenyModal(this)'>";
-                  echo "<input type='hidden' name='reservation_id' value='" . intval($rr['id']) . "'>";
-                  echo "<input type='hidden' name='action' value='deny_request'>";
-                  echo "<input type='hidden' name='redirect_page' value='requests'>";
-                  $valueAttr = ($payStatusLower === 'pending_update' ? " value='" . htmlspecialchars(trim((string)($rr['denial_reason'] ?? '')), ENT_QUOTES) . "'" : "");
-                  echo "<input type='hidden' name='denial_reason' class='denial-reason'".$valueAttr.">";
-                  echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'>Deny</button>";
-                  echo "</form>";
-                } else if ($payStatusLower !== 'rejected') {
-                  if ($payStatusLower !== 'verified') {
-                    if (!empty($receiptPath)) {
-                      $isPdf = (bool)preg_match('/\.pdf$/i', (string)$receiptPath);
-                      if ($isPdf) {
-                        echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars(admin_receipt_url($receiptPath), ENT_QUOTES, 'UTF-8') . "', " . intval($rr['id']) . ", 'requests')\"><i class='fa-solid fa-file'></i> Open Receipt (PDF)</button>";
-                      }
-                    } else {
-                      $receiptMessage = (!empty($rr['receipt_uploaded_at']) || in_array($payStatusLower, ['submitted', 'pending_update'], true)) ? 'Payment submitted, but the receipt file is unavailable.' : 'No receipt uploaded.';
-                      echo "<div class='muted'>" . htmlspecialchars($receiptMessage, ENT_QUOTES, 'UTF-8') . "</div>";
-                    }
-                  }
-                }
-                if ($approval_status == 'pending') {
-                    $disabled = !isAmenityPaymentVerified($con, $rr['ref_code'] ?? '');
-                    echo "<form method='post'>";
-                    echo "<input type='hidden' name='rr_id' value='" . intval($rr['id']) . "'>";
-                    echo "<input type='hidden' name='action' value='approve_resident_reservation'>";
-                    echo "<input type='hidden' name='redirect_page' value='requests'>";
-                    echo "<button type='submit' class='btn " . ($disabled ? "btn-disabled" : "btn-approve") . "' " . ($disabled ? "disabled title='Verify payment receipt first'" : "") . ">Approve</button>";
-                    echo "</form>";
+          $rrDownpayment = ($rr['downpayment'] === null || $rr['downpayment'] === '')
+              ? '—'
+              : '₱' . number_format((float)$rr['downpayment'], 2);
 
-                } elseif ($approval_status == 'denied' || $approval_status == 'cancelled') {
-                    echo "<form method='post' onsubmit='return confirm(\"Delete this " . $approval_status . " reservation? This cannot be undone.\")'>";
-                    echo "<input type='hidden' name='rr_id' value='" . intval($rr['id']) . "'>";
-                    echo "<input type='hidden' name='action' value='delete_resident_reservation'>";
-                    echo "<input type='hidden' name='redirect_page' value='requests'>";
-                    echo "<button type='submit' class='btn btn-remove'><i class='fa-solid fa-trash'></i> Delete</button>";
-                    echo "</form>";
-                } else {
-                    $approvedBy = !empty($rr['approved_by']) ? "by Admin" : "";
-                    if ($approval_status === 'approved' && !empty($rr['ref_code'])) {
-                      echo "<a class='btn btn-qr' href='qr_view.php?code=" . urlencode($rr['ref_code']) . "' target='_blank'><i class='fa-solid fa-qrcode'></i> View QR</a>";
-                    }
-                    echo "<span class='muted'>" . ucfirst($approval_status) . " $approvedBy</span>";
-                }
-                echo "</td>";
-                echo "</tr>";
-            }
-        }
-        if (!$hasRR) {
-            echo "<tr><td colspan='6' style='text-align:center;'>No amenity requests found</td></tr>";
-        }
-        ?>
+          /* Tooltips carry the details that used to sit under the buttons. */
+          $rrPillTitle = '';
+          if ($rr['rr_key'] === 'approved' && !empty($rr['approved_by'])) {
+              $rrPillTitle = 'Approved by Admin';
+          } else if ($rr['rr_key'] === 'rejected') {
+              $rrReason = trim((string)($rr['denial_reason'] ?? ''));
+              if ($rrReason !== '') { $rrPillTitle = 'Reason: ' . $rrReason; }
+          }
+      ?>
+        <tr data-status="<?php echo $rr['rr_key']; ?>" data-id="<?php echo $rrId; ?>" data-ref="<?php echo htmlspecialchars($rr['ref_code'] ?? ''); ?>">
+          <td>
+            <span class="rr-resident-name"><?php echo htmlspecialchars($rrName); ?></span>
+            <span class="rr-resident-meta"><?php echo htmlspecialchars($rrMeta); ?></span>
+          </td>
+          <td><span class="rr-ref"><?php echo htmlspecialchars($rr['ref_code'] ?? '—'); ?></span></td>
+          <td><?php echo htmlspecialchars($rr['amenity'] ?? '—'); ?></td>
+          <td><span class="rr-amount"><?php echo htmlspecialchars($rrDownpayment); ?></span></td>
+          <td>
+            <span class="rr-pill rr-pill-<?php echo $rr['rr_key']; ?>"<?php echo ($rrPillTitle !== '' ? ' title="' . htmlspecialchars($rrPillTitle, ENT_QUOTES, 'UTF-8') . '"' : ''); ?>><?php echo htmlspecialchars($rr['rr_label']); ?></span>
+          </td>
+          <td class="actions">
+            <button type="button" class="btn btn-view" onclick='showReservationDetails(<?php echo $rrId; ?>,"visitor")'>View Details</button>
+            <?php if ($rr['rr_key'] === 'ready' && isAmenityPaymentVerified($con, $rr['ref_code'] ?? '')): ?>
+            <form method="post">
+              <input type="hidden" name="rr_id" value="<?php echo $rrId; ?>">
+              <input type="hidden" name="action" value="approve_resident_reservation">
+              <input type="hidden" name="redirect_page" value="requests">
+              <button type="submit" class="btn btn-approve">Approve</button>
+            </form>
+            <?php elseif ($rr['rr_key'] === 'approved' && !empty($rr['ref_code'])): ?>
+            <a class="btn btn-qr" href="qr_view.php?code=<?php echo urlencode($rr['ref_code']); ?>" target="_blank"><i class="fa-solid fa-qrcode"></i> View QR</a>
+            <?php endif; ?>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+        <tr class="rr-empty" id="rr-empty-row"<?php echo count($rrRows) > 0 ? ' style="display:none;"' : ''; ?>><td colspan="6">No requests in this view.</td></tr>
       </tbody>
-    </table>
+      </table>
+    </div>
+  </div>
   </div>
 </section>
+<script>
+(function(){
+  var table = document.getElementById('rr-table');
+  if (!table) { return; }
+  var tbody = document.getElementById('rr-tbody');
+  var emptyRow = document.getElementById('rr-empty-row');
+  var search = document.getElementById('search-input');
+  var buttons = Array.prototype.slice.call(table.parentNode.parentNode.querySelectorAll('[data-rr-filter]'));
+  var KEYS = ['all', 'to_verify', 'ready', 'approved', 'rejected'];
+  var STORE = 'vp_admin_rr_filter';
+  var active = 'all';
+
+  try {
+    var saved = window.sessionStorage.getItem(STORE);
+    if (KEYS.indexOf(saved) !== -1) { active = saved; }
+  } catch (err) {}
+
+  function apply() {
+    var q = ((search && search.value) || '').toLowerCase().trim();
+    var visible = 0;
+    Array.prototype.forEach.call(tbody.querySelectorAll('tr[data-status]'), function(row){
+      var matchesStatus = (active === 'all') || (row.getAttribute('data-status') === active);
+      var matchesSearch = !q || (row.textContent || '').toLowerCase().indexOf(q) >= 0;
+      if (matchesStatus && matchesSearch) { row.style.display = ''; visible++; }
+      else { row.style.display = 'none'; }
+    });
+    /* The shared header search injects its own "No results" row; drop it so this
+       table always shows a single empty state. */
+    Array.prototype.forEach.call(tbody.querySelectorAll('tr.search-empty'), function(row){ row.remove(); });
+    if (emptyRow) { emptyRow.style.display = (visible === 0) ? '' : 'none'; }
+  }
+
+  function setFilter(key, persist) {
+    if (KEYS.indexOf(key) === -1) { key = 'all'; }
+    active = key;
+    buttons.forEach(function(btn){
+      btn.setAttribute('aria-pressed', btn.getAttribute('data-rr-filter') === key ? 'true' : 'false');
+    });
+    if (persist) { try { window.sessionStorage.setItem(STORE, key); } catch (err) {} }
+    apply();
+  }
+
+  buttons.forEach(function(btn){
+    btn.addEventListener('click', function(){ setFilter(btn.getAttribute('data-rr-filter'), true); });
+  });
+  if (search) { search.addEventListener('input', apply); }
+
+  setFilter(active, false);
+})();
+</script>
 <?php endif; ?>
 
 <!-- (removed duplicate verify section to avoid confusion) -->
