@@ -4908,6 +4908,430 @@ table.table-rr tbody tr.rr-empty td {
     .rr-filters { grid-template-columns: 1fr; }
 }
 
+/* ========================= RESERVATION DETAILS DIALOG ========================= */
+#reservationModal .modal-content.rrd-dialog {
+    width: min(97vw, 1180px);
+    max-width: 1180px;
+    height: min(93vh, 860px);
+    max-height: min(93vh, 860px);
+    padding: 0;
+    gap: 0;
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+/* --- Fixed header --- */
+/* The page's own `.modal-content > div { flex: 1 }` would otherwise give the
+   header, steps and footer a share of the height each, squeezing the scroll
+   area down to a quarter of the dialog. Pin them to their content instead. */
+#reservationModal .rrd-head {
+    flex: 0 0 auto;
+    overflow: visible;
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-surface);
+}
+#reservationModal .rrd-head-main { flex: 1; min-width: 0; }
+#reservationModal .rrd-name {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text-main);
+    line-height: 1.35;
+}
+#reservationModal .rrd-sub {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 0;
+    font-size: 0.86rem;
+    color: var(--text-secondary);
+}
+#reservationModal .rrd-sub b { font-weight: 600; color: var(--text-main); }
+#reservationModal .rrd-sub span + span::before { content: '\00b7'; margin-right: 8px; color: var(--text-muted); }
+#reservationModal .rrd-head .rrd-pill { flex-shrink: 0; margin-top: 4px; }
+/* Same 32px grey circle the main and profile pages use on their modals. Kept in
+   the header's flex flow so it reserves its own space and never collides with
+   the status pill; the global .close is position:absolute, which would need
+   padding tweaks in every breakpoint here. */
+#reservationModal .rrd-head .close {
+    flex-shrink: 0;
+    position: static;
+    margin: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 0;
+    background: #e5e7eb;
+    color: #111827;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+#reservationModal .rrd-head .close:hover { filter: brightness(0.92); }
+
+/* --- Status pill --- */
+#reservationModal .rrd-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+#reservationModal .rrd-pill::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
+}
+#reservationModal .rrd-pill.k-to_verify { background: #fef3c7; color: #92400e; }
+#reservationModal .rrd-pill.k-ready     { background: var(--primary); color: #fff; }
+#reservationModal .rrd-pill.k-approved  { background: #dcfce7; color: #166534; }
+#reservationModal .rrd-pill.k-rejected  { background: #fee2e2; color: #991b1b; }
+
+/* --- Two-step progress row --- */
+#reservationModal .rrd-steps {
+    flex: 0 0 auto;
+    overflow: visible;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border-light);
+    background: var(--bg-body);
+}
+#reservationModal .rrd-step {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 0.86rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+#reservationModal .rrd-step-dot {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+#reservationModal .rrd-step-line { flex: 1; height: 1px; min-width: 20px; background: var(--border); }
+#reservationModal .rrd-step.is-done { color: var(--text-main); font-weight: 600; }
+#reservationModal .rrd-step.is-done .rrd-step-dot { background: var(--success); border-color: var(--success); color: #fff; }
+#reservationModal .rrd-step.is-current { color: var(--text-main); font-weight: 600; }
+#reservationModal .rrd-step.is-current .rrd-step-dot { background: var(--primary); border-color: var(--primary); color: #fff; }
+#reservationModal .rrd-step.is-done + .rrd-step-line { background: var(--success); }
+
+/* --- Two-column body --- */
+/* The receipt is a portrait image and does not need half the dialog, while the
+   right column carries a four-column comparison table. Split them unevenly. */
+#reservationModal #reservationDetailsContent.rrd-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+    gap: 20px;
+    padding: 20px 24px;
+    overflow: hidden;
+    overflow-y: hidden;
+    padding-right: 24px;
+}
+#reservationModal .rrd-left { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+#reservationModal .rrd-right {
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding-right: 6px;
+}
+
+/* --- Receipt column --- */
+#reservationModal .rrd-receipt {
+    position: relative;
+    flex: 1;
+    min-height: 240px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-body);
+    overflow: hidden;
+}
+#reservationModal .rrd-receipt img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; cursor: zoom-in; }
+#reservationModal .rrd-receipt-state {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 24px;
+    text-align: center;
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    background: var(--bg-body);
+}
+#reservationModal .rrd-receipt-state i { font-size: 1.7rem; color: var(--text-muted); }
+#reservationModal .rrd-receipt-state.is-error { color: var(--danger); }
+#reservationModal .rrd-receipt-state.is-error i { color: var(--danger); }
+#reservationModal .rrd-receipt-tools { flex-shrink: 0; display: flex; gap: 10px; }
+#reservationModal .rrd-receipt-tools .btn { border-radius: var(--radius); min-height: 40px; padding: 0 18px; }
+#reservationModal .rrd-receipt-caption { flex-shrink: 0; margin: 0; font-size: 0.8rem; color: var(--text-muted); }
+
+/* --- Cards --- */
+#reservationModal .rrd-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-surface); }
+#reservationModal .rrd-card-title {
+    margin: 0;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-light);
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: none;
+    letter-spacing: 0;
+}
+#reservationModal .rrd-card-body { padding: 14px 16px; }
+
+/* --- Key/value rows --- */
+#reservationModal .rrd-kv { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 8px 0; }
+#reservationModal .rrd-kv + .rrd-kv { border-top: 1px solid var(--border-light); }
+#reservationModal .rrd-k { color: var(--text-secondary); font-size: 0.85rem; font-weight: 500; }
+#reservationModal .rrd-v { color: var(--text-main); font-size: 0.92rem; font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+#reservationModal .rrd-kv.is-key { margin: 6px -16px; padding: 11px 16px; background: var(--primary-light); }
+#reservationModal .rrd-kv.is-key .rrd-k { color: var(--text-main); font-weight: 600; }
+#reservationModal .rrd-kv.is-key .rrd-v { color: var(--primary); font-size: 1.02rem; font-weight: 700; }
+
+/* --- Receipt check table --- */
+/* The page's global `table { min-width: 760px }` (and 480px on small screens)
+   forces admin data tables to scroll sideways. This one has to fit its card, so
+   min-width is cleared and the columns are fixed. `max-width` is ignored on
+   table boxes, which is why the minimum is what actually pins the width. */
+#reservationModal .rrd-check { width: 100%; max-width: 100%; min-width: 0; border-collapse: collapse; table-layout: fixed; }
+#reservationModal .rrd-check th:nth-child(1), #reservationModal .rrd-check td:nth-child(1) { width: 21%; }
+#reservationModal .rrd-check th:nth-child(2), #reservationModal .rrd-check td:nth-child(2) { width: 25%; }
+#reservationModal .rrd-check th:nth-child(3), #reservationModal .rrd-check td:nth-child(3) { width: 34%; }
+#reservationModal .rrd-check th:nth-child(4), #reservationModal .rrd-check td:nth-child(4) { width: 20%; }
+#reservationModal .rrd-check th {
+    position: static;
+    padding: 8px 10px;
+    text-align: left;
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--border-light);
+    border-bottom: 1px solid var(--border);
+}
+#reservationModal .rrd-check td { padding: 10px; border-bottom: 1px solid var(--border-light); vertical-align: middle; }
+#reservationModal .rrd-check tr:last-child td { border-bottom: none; }
+#reservationModal .rrd-check .rrd-in {
+    width: 100%;
+    min-width: 0;
+    min-height: 38px;
+    padding: 7px 10px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.86rem;
+    color: var(--text-main);
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+#reservationModal .rrd-in:focus { outline: 2px solid var(--primary); outline-offset: 0; border-color: var(--primary); }
+#reservationModal .rrd-check .rrd-flag { font-size: 0.82rem; font-weight: 600; white-space: nowrap; }
+#reservationModal .rrd-flag.ok { color: var(--success); }
+#reservationModal .rrd-flag.bad { color: var(--danger); }
+#reservationModal .rrd-flag.wait { color: var(--text-muted); font-weight: 500; }
+
+/* --- Advisory warnings --- */
+#reservationModal .rrd-warn {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 11px 14px;
+    border-left: 3px solid var(--warning);
+    border-radius: 6px;
+    background: var(--warning-bg);
+    color: var(--text-main);
+    font-size: 0.84rem;
+    font-weight: 600;
+}
+#reservationModal .rrd-warn[hidden] { display: none; }
+#reservationModal .rrd-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 11px 14px;
+    border-left: 3px solid var(--info);
+    border-radius: 6px;
+    background: var(--info-bg);
+    color: var(--text-main);
+    font-size: 0.84rem;
+}
+
+/* --- Sticky footer --- */
+#reservationModal .rrd-foot {
+    flex: 0 0 auto;
+    overflow: visible;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-surface);
+}
+#reservationModal .rrd-foot-row { display: flex; align-items: center; gap: 16px; }
+#reservationModal .rrd-foot-hint { flex: 1; min-width: 0; font-size: 0.86rem; color: var(--text-secondary); }
+#reservationModal .rrd-foot-hint.is-ok { color: var(--success); font-weight: 600; }
+#reservationModal .rrd-foot-hint.is-bad { color: var(--danger); font-weight: 600; }
+#reservationModal .rrd-foot-btns { display: flex; gap: 10px; flex-shrink: 0; }
+#reservationModal .rrd-foot-btns .btn { min-height: 42px; padding: 0 22px; border-radius: var(--radius); white-space: nowrap; }
+#reservationModal .rrd-btn-danger-ghost { background: var(--bg-surface); color: var(--danger); border: 1px solid var(--danger); }
+#reservationModal .rrd-btn-danger-ghost:hover:not(:disabled) { background: var(--danger-bg); }
+
+/* --- Inline rejection confirmation --- */
+#reservationModal .rrd-reject {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-body);
+}
+#reservationModal .rrd-reject[hidden] { display: none; }
+#reservationModal .rrd-reject-label { font-size: 0.86rem; font-weight: 600; color: var(--text-main); }
+#reservationModal .rrd-reject select {
+    width: 100%;
+    min-height: 42px;
+    padding: 9px 12px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.88rem;
+    color: var(--text-main);
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+#reservationModal .rrd-reject select:focus { outline: 2px solid var(--primary); outline-offset: 0; border-color: var(--primary); }
+#reservationModal .rrd-reject-btns { display: flex; gap: 10px; }
+#reservationModal .rrd-reject-btns .btn { min-height: 40px; padding: 0 18px; border-radius: var(--radius); }
+
+/* --- Receipt zoom overlay --- */
+#reservationModal .rrd-zoom {
+    position: fixed;
+    inset: 0;
+    z-index: 2500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 28px;
+    background: rgba(0,0,0,0.9);
+}
+#reservationModal .rrd-zoom[hidden] { display: none; }
+#reservationModal .rrd-zoom img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; border-radius: var(--radius); }
+#reservationModal .rrd-zoom-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    line-height: 1;
+    color: #fff;
+    background: rgba(255,255,255,0.14);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+/* --- Busy / disabled states --- */
+#reservationModal.rrd-busy .rrd-foot-btns .btn,
+#reservationModal.rrd-busy .rrd-reject-btns .btn,
+#reservationModal.rrd-busy .rrd-receipt-tools .btn { opacity: 0.6; pointer-events: none; }
+
+/* Many of the parts below set display, which would defeat the [hidden] attribute. */
+#reservationModal [hidden] { display: none !important; }
+
+/* Toast tones reuse the existing .toast shell, only the edge colour changes. */
+.toast.rrd-toast-ok { border-left-color: var(--success); }
+.toast.rrd-toast-error { border-left-color: var(--danger); }
+
+/* --- Mobile: full screen --- */
+@media (max-width: 980px) {
+    /* Stretch instead of centre so the dialog is exactly the viewport, with no
+       rounding gap along any edge. */
+    #reservationModal { align-items: stretch; justify-content: stretch; }
+    #reservationModal .modal-content.rrd-dialog {
+        width: 100vw;
+        max-width: 100vw;
+        height: 100vh;
+        max-height: 100vh;
+        border-radius: 0;
+        border: none;
+        /* A full-bleed dialog has nothing to slide in from, and the offset would
+           briefly expose the backdrop along the edges. */
+        animation: none;
+    }
+    #reservationModal .rrd-head { padding: 18px 20px; }
+    #reservationModal .rrd-steps { padding: 12px 20px; }
+    #reservationModal #reservationDetailsContent.rrd-scroll {
+        grid-template-columns: minmax(0, 1fr);
+        /* Rows follow their content and the whole pane scrolls. Stretched rows
+           starved the details down to a sliver on phones. */
+        grid-template-rows: max-content max-content;
+        align-content: start;
+        gap: 18px;
+        padding: 18px 20px;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+    #reservationModal .rrd-left { min-height: 240px; max-height: 42vh; }
+    #reservationModal .rrd-right { overflow: visible; padding-right: 0; }
+    #reservationModal .rrd-check th:nth-child(1), #reservationModal .rrd-check td:nth-child(1) { width: 18%; }
+    #reservationModal .rrd-check th:nth-child(2), #reservationModal .rrd-check td:nth-child(2) { width: 24%; }
+    #reservationModal .rrd-check th:nth-child(3), #reservationModal .rrd-check td:nth-child(3) { width: 38%; }
+    #reservationModal .rrd-foot { padding: 14px 20px; }
+}
+@media (max-width: 560px) {
+    #reservationModal .rrd-head { padding: 16px; gap: 12px; }
+    #reservationModal .rrd-name { font-size: 1.08rem; }
+    #reservationModal .rrd-sub { font-size: 0.8rem; gap: 6px; }
+    #reservationModal .rrd-steps { padding: 12px 16px; gap: 8px; }
+    #reservationModal .rrd-step { font-size: 0.8rem; gap: 7px; }
+    #reservationModal #reservationDetailsContent.rrd-scroll { padding: 16px; gap: 16px; }
+    #reservationModal .rrd-foot { padding: 14px 16px; }
+    #reservationModal .rrd-foot-row { flex-wrap: wrap; }
+    #reservationModal .rrd-foot-hint { flex: 1 0 100%; }
+    #reservationModal .rrd-foot-btns { width: 100%; }
+    #reservationModal .rrd-foot-btns .btn { flex: 1; min-height: 44px; }
+    #reservationModal .rrd-zoom { padding: 12px; }
+}
+
 /* Notifications */
 .notif-btn {
     background: rgba(255,255,255,0.1);
@@ -8109,11 +8533,70 @@ window.onclick = function(event) {
 </script>
 
 <!-- Reservation Details Modal -->
-<div id="reservationModal" class="modal">
-  <div class="modal-content">
-    <button type="button" class="close" onclick="closeReservationModal()" aria-label="Close">×</button>
-    <h3>Reservation Details</h3>
-    <div id="reservationDetailsContent"></div>
+<div id="reservationModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="rrdName">
+  <div class="modal-content rrd-dialog">
+    <div class="rrd-head">
+      <div class="rrd-head-main">
+        <h3 class="rrd-name" id="rrdName">Reservation Details</h3>
+        <div class="rrd-sub" id="rrdSub"></div>
+      </div>
+      <span class="rrd-pill" id="rrdPill" hidden></span>
+      <button type="button" class="close" onclick="closeReservationModal()" aria-label="Close reservation details">&times;</button>
+    </div>
+
+    <div class="rrd-steps" id="rrdSteps" aria-hidden="true"></div>
+
+    <div id="reservationDetailsContent" class="rrd-scroll">
+      <div class="rrd-left">
+        <div class="rrd-receipt" id="rrdReceipt">
+          <div class="rrd-receipt-state" id="rrdReceiptState">
+            <i class="fa-solid fa-spinner fa-spin"></i>
+            <span>Loading receipt&hellip;</span>
+          </div>
+        </div>
+        <div class="rrd-receipt-caption" id="rrdReceiptCaption"></div>
+        <div class="rrd-receipt-tools">
+          <button type="button" class="btn btn-light" id="rrdZoomBtn" onclick="rrdOpenZoom()" hidden>
+            <i class="fa-solid fa-magnifying-glass-plus"></i> Zoom
+          </button>
+          <a class="btn btn-light" id="rrdDownloadBtn" download hidden>
+            <i class="fa-solid fa-download"></i> Download
+          </a>
+        </div>
+      </div>
+      <div class="rrd-right" id="rrdRight"></div>
+    </div>
+
+    <div class="rrd-foot">
+      <div class="rrd-warn" id="rrdFootWarn" hidden></div>
+
+      <div class="rrd-reject" id="rrdReject" hidden>
+        <label class="rrd-reject-label" for="rrdRejectSelect">Reason for rejection</label>
+        <select id="rrdRejectSelect">
+          <option value="">Select a reason&hellip;</option>
+          <option value="Amount does not match">Amount does not match</option>
+          <option value="Receipt is unclear">Receipt is unclear</option>
+          <option value="Reference number already used">Reference number already used</option>
+          <option value="Other">Other</option>
+        </select>
+        <div class="rrd-reject-btns">
+          <button type="button" class="btn btn-danger" id="rrdRejectConfirm" disabled>
+            <i class="fa-solid fa-xmark"></i> Confirm rejection
+          </button>
+          <button type="button" class="btn btn-light" onclick="rrdToggleReject(false)">Cancel</button>
+        </div>
+      </div>
+
+      <div class="rrd-foot-row">
+        <div class="rrd-foot-hint" id="rrdHint"></div>
+        <div class="rrd-foot-btns" id="rrdActions"></div>
+      </div>
+    </div>
+
+    <div class="rrd-zoom" id="rrdZoom" hidden onclick="if(event.target===this)rrdOpenZoom(false)">
+      <button type="button" class="rrd-zoom-close" onclick="rrdOpenZoom(false)" aria-label="Close zoomed receipt">&times;</button>
+      <img id="rrdZoomImg" alt="Zoomed proof of payment">
+    </div>
   </div>
 </div>
 
@@ -8155,181 +8638,678 @@ function buildReservationPriceBlock(details){
     <div class="info-row"><span class="info-label">Payment Status</span><span class="info-value">${paymentLabel}</span></div>
   </div>`;
 }
-function showReservationDetails(reservationId, expectedType){
-  var c = document.getElementById('reservationDetailsContent');
-  if(c){ c.innerHTML = '<div style="padding:20px;text-align:center;">Loading...</div>'; }
+/* =============================================================
+   RESERVATION DETAILS DIALOG
+   To verify -> Ready to approve -> Approved, plus read-only Rejected.
+   Actions POST to the existing handlers and re-read the record, so the
+   resident list behind the dialog is patched in place (filters, search and
+   scroll position all survive) and the dialog never reloads the page.
+   ============================================================= */
+var RRD = { id: null, d: null, key: '', amt: null, expDate: '', busy: false, lastFocus: null, lastRowId: null, redirectPage: 'requests', zoomOpen: false };
+var RRD_LABELS = { to_verify: 'To verify', ready: 'Ready to approve', approved: 'Approved', rejected: 'Rejected' };
+
+function rrdEsc(v){
+  return String(v == null ? '' : v).replace(/[&<>"']/g, function(c){
+    return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c];
+  });
+}
+
+function rrdStatusOf(d){
+  var ps = String(d.payment_status || 'pending').toLowerCase();
+  var ap = String(d.approval_status || 'pending').toLowerCase();
+  var st = String(d.status || '').toLowerCase();
+  if (ps === 'rejected' || ap.indexOf('denied') > -1 || ap.indexOf('reject') > -1 || ap.indexOf('cancel') > -1) { return 'rejected'; }
+  if (ap.indexOf('approv') > -1 || st === 'approved') { return 'approved'; }
+  if (ps === 'verified') { return 'ready'; }
+  return 'to_verify';
+}
+
+function rrdAmounts(d){
+  var hours = durationHours(d.start_time, d.end_time);
+  var rate  = amenityHourlyRate(d.amenity, d.account_type, d.user_type) || 0;
+  var pts   = (parseInt(d.use_points, 10) === 1) ? (parseInt(d.points_used, 10) || 0) : 0;
+  var price = parseFloat(d.price);
+  var havePrice = isFinite(price) && price > 0;
+  /* d.price is what the resident was actually quoted, so it is the total and
+     wins whenever it is present. The rate table is only used to split out the
+     one-free-hour VHEcoPoint benefit, and only when the modelled result agrees
+     with the stored price. */
+  var fullyRedeemed = pts > 0 && Math.abs(hours - 1) < 0.001;
+  var finalAmt = havePrice ? price : (Math.max(0, hours - (pts > 0 ? 1 : 0)) * rate);
+  if (fullyRedeemed) { finalAmt = 0; }
+  var original = finalAmt, discount = 0, split = false;
+  if (pts > 0 && rate > 0) {
+    var modelled = Math.max(0, hours - 1) * rate;
+    if (Math.abs(modelled - finalAmt) < 0.005) { original = finalAmt + rate; discount = rate; split = true; }
+  }
+  var stored = parseFloat(d.downpayment);
+  var required = (isFinite(stored) && stored > 0) ? stored : finalAmt * 0.5;
+  return { hours: hours, rate: rate, points: pts, original: original, discount: discount,
+           final: finalAmt, required: required, remaining: Math.max(0, finalAmt - required),
+           split: split, redeemed: fullyRedeemed };
+}
+
+/* The request is the only dated record the system holds, so it is the honest
+   "expected" payment date. The resident's own date is read off the receipt. */
+function rrdExpectedDate(d){
+  var raw = String(d.created_at || '').trim();
+  if (!raw) { return ''; }
+  var dt = new Date(raw.replace(' ', 'T'));
+  if (isNaN(dt.getTime())) { return ''; }
+  return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+}
+function rrdSlashDate(iso){
+  if (!iso) { return ''; }
+  var p = String(iso).split('-');
+  return p.length === 3 ? p[1] + '/' + p[2] + '/' + p[0] : iso;
+}
+
+function rrdCard(title, body){
+  return '<div class="rrd-card"><h4 class="rrd-card-title">' + rrdEsc(title) + '</h4><div class="rrd-card-body">' + body + '</div></div>';
+}
+function rrdRow(label, value, isKey){
+  if (value === '' || value === null || value === undefined) { return ''; }
+  return '<div class="rrd-kv' + (isKey ? ' is-key' : '') + '"><span class="rrd-k">' + rrdEsc(label) + '</span><span class="rrd-v">' + rrdEsc(value) + '</span></div>';
+}
+
+/* ---------- receipt column ---------- */
+function rrdRenderReceipt(d){
+  var box = document.getElementById('rrdReceipt');
+  var state = document.getElementById('rrdReceiptState');
+  var cap = document.getElementById('rrdReceiptCaption');
+  var zbtn = document.getElementById('rrdZoomBtn');
+  var dbtn = document.getElementById('rrdDownloadBtn');
+  var url = String(d.receipt_url || d.receipt_path || '').trim();
+  var old = box.querySelector('img');
+  if (old) { old.parentNode.removeChild(old); }
+  zbtn.hidden = true;
+  dbtn.hidden = true;
+  dbtn.removeAttribute('href');
+  state.hidden = false;
+  state.className = 'rrd-receipt-state';
+  cap.textContent = '';
+
+  if (!url) {
+    var fully = (RRD.amt && RRD.amt.points > 0 && RRD.amt.required <= 0);
+    state.innerHTML = '<i class="fa-solid fa-file-circle-xmark"></i><span>' +
+      (fully ? 'No receipt required. This reservation was fully covered by the VHEcoPoint redemption.'
+             : (d.receipt_uploaded_at ? 'Payment submitted, but the receipt file is unavailable.'
+                                      : 'No receipt was uploaded for this request.')) + '</span>';
+    return;
+  }
+  if (/\.pdf$/i.test(url)) {
+    state.innerHTML = '<i class="fa-solid fa-file-pdf"></i><span>This proof of payment is a PDF.<br>Download it to review, then compare it with the receipt check.</span>';
+    dbtn.setAttribute('href', url);
+    dbtn.setAttribute('download', '');
+    dbtn.hidden = false;
+    return;
+  }
+
+  state.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Loading receipt&hellip;</span>';
+  var img = document.createElement('img');
+  img.alt = 'Proof of payment';
+  img.onload = function(){
+    state.hidden = true;
+    zbtn.hidden = false;
+    dbtn.setAttribute('href', url);
+    dbtn.setAttribute('download', '');
+    dbtn.hidden = false;
+  };
+  img.onerror = function(){
+    state.className = 'rrd-receipt-state is-error';
+    state.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i><span>The receipt image could not be loaded.</span>';
+    cap.textContent = 'Download the file to check whether it still exists on the server.';
+    dbtn.setAttribute('href', url);
+    dbtn.setAttribute('download', '');
+    dbtn.hidden = false;
+  };
+  img.onclick = function(){ rrdOpenZoom(true); };
+  img.src = url;
+  box.appendChild(img);
+}
+
+/* ---------- detail column ---------- */
+function rrdRenderRight(d, meta){
+  var a = RRD.amt;
+  var out = '';
+
+  var payment = '';
+  if (a.split) {
+    payment += rrdRow('Original amount', fmtMoney(a.original));
+    payment += rrdRow('VHEcoPoint discount', '-' + fmtMoney(a.discount) + ' (' + fmtNum(a.points) + ' pts)');
+    payment += rrdRow('Final amount', fmtMoney(a.final));
+  } else {
+    payment += rrdRow('Total price', fmtMoney(a.final));
+  }
+  payment += rrdRow('Required downpayment', fmtMoney(a.required), true);
+  payment += rrdRow('Remaining balance', fmtMoney(a.remaining));
+  if (a.redeemed) {
+    payment += '<div class="rrd-note" style="margin-top:8px;"><i class="fa-solid fa-circle-info"></i><span>Fully redeemed with VHEcoPoints, so there is no cash downpayment to compare against.</span></div>';
+  } else if (a.points > 0 && !a.split) {
+    payment += '<div class="rrd-note" style="margin-top:8px;"><i class="fa-solid fa-circle-info"></i><span>The VHEcoPoint rate for this amenity does not match the recorded price, so the total is taken from the recorded price. Check it before verifying.</span></div>';
+  }
+  out += rrdCard('Payment breakdown', payment);
+
+  var res = '';
+  res += rrdRow('Reference', d.ref_code);
+  res += rrdRow('Reserved by', meta.reservedBy);
+  res += rrdRow('Starts', [fmtDate(d.start_date), fmtTime(d.start_time)].filter(Boolean).join(' at '));
+  res += rrdRow('Ends', [fmtDate(d.end_date), fmtTime(d.end_time)].filter(Boolean).join(' at '));
+  res += rrdRow('Duration', fmtDuration(d.start_time, d.end_time));
+  res += rrdRow('Persons', d.persons);
+  out += rrdCard('Reservation details', res);
+
+  var who = '';
+  who += rrdRow('Name', meta.displayName);
+  if (!meta.isResidentGuest) { who += rrdRow('House no.', d.house_number); }
+  who += rrdRow('Email', meta.displayEmail);
+  who += rrdRow('Phone', meta.displayPhone);
+  out += rrdCard(meta.isResidentGuest ? 'Guest information' : 'Resident information', who);
+  if (meta.isResidentGuest) {
+    var res2 = rrdRow('Resident', meta.residentName) + rrdRow('House no.', d.house_number) +
+               rrdRow('Email', d.email) + rrdRow('Phone', d.phone);
+    if (res2) { out += rrdCard('Resident information', res2); }
+  }
+
+  if (a.points > 0) {
+    var eco = rrdRow('EcoPoints used', fmtNum(a.points) + ' pts');
+    if (a.split) { eco += rrdRow('Benefit', '1 free hour') + rrdRow('Discount', fmtMoney(a.discount)); }
+    eco += rrdRow('Redemption status', a.redeemed ? 'Fully redeemed' : 'Partially redeemed') +
+           '<div class="rrd-note" style="margin-top:8px;"><i class="fa-solid fa-lock"></i><span>Read-only. Confirm the points here, then record the redemption in VHEcoPoint.</span></div>';
+    out += rrdCard('VHEcoPoint redemption', eco);
+  }
+
+  if (RRD.key === 'to_verify') {
+    out += rrdCard('Receipt check',
+      '<table class="rrd-check"><thead><tr><th>Item</th><th>Expected</th><th>On receipt</th><th>Match</th></tr></thead><tbody>' +
+      '<tr><td class="rrd-k">Downpayment</td><td class="rrd-v">' + rrdEsc(fmtMoney(a.required)) + '</td>' +
+        '<td><input class="rrd-in" type="number" step="0.01" min="0" id="rrdInAmount" placeholder="0.00" aria-label="Downpayment amount on receipt"></td>' +
+        '<td><span class="rrd-flag wait" id="rrdFlagAmount">Enter</span></td></tr>' +
+      '<tr><td class="rrd-k">Payment date</td><td class="rrd-v">' + rrdEsc(rrdSlashDate(RRD.expDate) || 'Unknown') + '</td>' +
+        '<td><input class="rrd-in" type="date" id="rrdInDate" aria-label="Payment date on receipt"></td>' +
+        '<td><span class="rrd-flag wait" id="rrdFlagDate">Enter</span></td></tr>' +
+      '</tbody></table>' +
+      '<div class="rrd-note" style="margin-top:10px;"><i class="fa-solid fa-circle-info"></i><span>Read the amount and date off the receipt, then enter them here. A mismatch is a warning to check, not a block on verifying.</span></div>');
+  }
+
+  if (RRD.key === 'rejected') {
+    var reason = String(d.denial_reason || '').trim();
+    var att = parseInt(d.receipt_attempts || 0, 10);
+    out += rrdCard('Rejection',
+      rrdRow('Reason', reason || 'Not recorded') +
+      rrdRow('Attempts used', att + ' of 3') +
+      '<div class="rrd-note" style="margin-top:8px;"><i class="fa-solid fa-rotate-left"></i><span>Waiting for the resident to upload a new receipt. The status returns to To verify on their next submission.</span></div>');
+  }
+
+  document.getElementById('rrdRight').innerHTML = out;
+}
+
+/* ---------- footer ---------- */
+function rrdRenderFoot(d, att){
+  var btns = document.getElementById('rrdActions');
+  var hint = document.getElementById('rrdHint');
+  var warn = document.getElementById('rrdFootWarn');
+  var sel = document.getElementById('rrdRejectSelect');
+  var conf = document.getElementById('rrdRejectConfirm');
+  rrdToggleReject(false);
+  sel.value = '';
+  conf.disabled = true;
+  warn.hidden = true;
+  warn.innerHTML = '';
+  var html = '';
+
+  if (RRD.key === 'to_verify') {
+    hint.className = 'rrd-foot-hint';
+    hint.textContent = 'Compare the receipt with the breakdown, then verify or reject.';
+    if (att < 3) {
+      html += '<button type="button" class="btn rrd-btn-danger-ghost" onclick="rrdToggleReject()"><i class="fa-solid fa-xmark"></i> Reject payment</button>';
+    }
+    html += '<button type="button" class="btn btn-approve" onclick="rrdDoVerify()"><i class="fa-solid fa-check"></i> Verify payment</button>';
+  } else if (RRD.key === 'ready') {
+    hint.className = 'rrd-foot-hint is-ok';
+    hint.innerHTML = '<i class="fa-solid fa-circle-check"></i> Payment verified. You can now approve this request.';
+    html += '<button type="button" class="btn btn-approve" onclick="rrdDoApprove()"><i class="fa-solid fa-check"></i> Approve request</button>';
+  } else if (RRD.key === 'approved') {
+    hint.className = 'rrd-foot-hint is-ok';
+    hint.innerHTML = '<i class="fa-solid fa-circle-check"></i> Approved by Admin. The QR pass is ready.';
+    if (d.ref_code) {
+      html += '<a class="btn btn-qr" href="qr_view.php?code=' + encodeURIComponent(d.ref_code) + '" target="_blank" rel="noopener"><i class="fa-solid fa-qrcode"></i> View QR</a>';
+    }
+  } else {
+    var reason = String(d.denial_reason || '').trim();
+    hint.className = 'rrd-foot-hint is-bad';
+    hint.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> Rejected' + (reason ? ' — ' + rrdEsc(reason) : '') +
+      (att >= 3 ? ' (3 attempts reached)' : '') + '. Nothing to do until a new receipt is uploaded.';
+  }
+  btns.innerHTML = html;
+}
+
+/* ---------- master render ---------- */
+function rrdRender(d){
+  RRD.d = d;
+  RRD.id = parseInt(d.id, 10) || null;
+  RRD.key = rrdStatusOf(d);
+  RRD.amt = rrdAmounts(d);
+  RRD.expDate = rrdExpectedDate(d);
+
+  var isResidentGuest = !!d.gf_id;
+  var userType = String(d.user_type || 'resident').toLowerCase();
+  RRD.redirectPage = isResidentGuest ? 'resident_guest_forms' : (userType === 'visitor' ? 'visitor_requests' : 'requests');
+
+  var residentName = [d.first_name||'', d.middle_name||'', d.last_name||''].join(' ').replace(/\s+/g,' ').trim();
+  var guestName = [d.guest_first_name||'', d.guest_middle_name||'', d.guest_last_name||''].join(' ').replace(/\s+/g,' ').trim();
+  var displayName = isResidentGuest ? (guestName || "Resident's Guest") : (residentName || 'Resident');
+  var role = isResidentGuest ? "Resident's Guest" : (userType === 'visitor' ? 'Visitor' : 'Resident');
+  var att = parseInt(d.receipt_attempts || 0, 10);
+
+  document.getElementById('rrdName').textContent = displayName;
+  var sub = [];
+  if (d.ref_code) { sub.push('<span>Ref <b>' + rrdEsc(d.ref_code) + '</b></span>'); }
+  sub.push('<span>' + rrdEsc(d.amenity || 'Amenity') + '</span>');
+  sub.push('<span>' + rrdEsc(role) + '</span>');
+  if (d.created_at) { sub.push('<span>Submitted ' + rrdEsc(fmtSubmittedOn(d.created_at)) + '</span>'); }
+  if (att > 0 && RRD.key === 'to_verify') { sub.push('<span>Receipt attempt ' + (att + 1) + ' of 3</span>'); }
+  document.getElementById('rrdSub').innerHTML = sub.join('');
+
+  var pill = document.getElementById('rrdPill');
+  pill.className = 'rrd-pill k-' + RRD.key;
+  pill.textContent = RRD_LABELS[RRD.key];
+  pill.hidden = false;
+
+  var stepState = (RRD.key === 'approved') ? ['is-done','is-done']
+                : (RRD.key === 'ready') ? ['is-done','is-current'] : ['is-current','is-muted'];
+  function step(cls, n, label){
+    return '<div class="rrd-step ' + cls + '"><span class="rrd-step-dot">' +
+      (cls === 'is-done' ? '<i class="fa-solid fa-check"></i>' : n) + '</span>' + label + '</div>';
+  }
+  document.getElementById('rrdSteps').innerHTML =
+    step(stepState[0], '1', 'Verify downpayment') +
+    '<div class="rrd-step-line"></div>' +
+    step(stepState[1], '2', 'Approve request');
+
+  rrdRenderReceipt(d);
+  rrdRenderRight(d, {
+    isResidentGuest: isResidentGuest,
+    reservedBy: isResidentGuest ? (guestName || "Resident's Guest") : role,
+    displayName: displayName,
+    displayEmail: isResidentGuest ? (d.guest_email || '') : (d.email || ''),
+    displayPhone: isResidentGuest ? (d.guest_contact || '') : (d.phone || ''),
+    residentName: residentName
+  });
+  rrdRenderFoot(d, att);
+  rrdEval();
+  /* Re-rendering replaces whatever button had focus. Never leave it stranded on
+     <body>, and never park it on an irreversible action. */
   var m = document.getElementById('reservationModal');
-  if(m){ m.style.display = 'flex'; }
-  fetch('admin.php?action=get_reservation_details&id=' + reservationId)
-    .then(r => r.json())
-    .then(data => {
-      if(!data.success){ alert('Error loading reservation details: ' + (data.message||'Unknown error')); return; }
-      const d = data.details || {};
-      var userType = (d.user_type || '').toString().toLowerCase();
-      if (expectedType && userType !== expectedType) { /* allow viewing details regardless of type */ }
-      const residentName = [d.first_name||'', d.middle_name||'', d.last_name||''].join(' ').replace(/\s+/g,' ').trim();
-      const guestName = [d.guest_first_name||'', d.guest_middle_name||'', d.guest_last_name||''].join(' ').replace(/\s+/g,' ').trim();
-      const isResidentGuest = !!d.gf_id;
-      const whoLabel = isResidentGuest ? "Resident’s Guest" : ((String(d.user_type||'resident').toLowerCase() === 'visitor') ? 'Visitor' : 'Resident');
-      var modalTitle = document.querySelector('#reservationModal h3');
-      if (modalTitle) {
-        var titleBase = isResidentGuest ? "Resident’s Guest" : (userType === 'visitor' ? 'Visitor Reservation' : 'Resident Reservation');
-        modalTitle.textContent = titleBase + ' Details';
+  if (m && m.style.display === 'flex' && !m.contains(document.activeElement)) {
+    var safe = m.querySelector('.rrd-head .close');
+    if (safe) { safe.focus(); }
+  }
+}
+
+/* ---------- receipt check evaluation ---------- */
+function rrdEval(){
+  var amtIn = document.getElementById('rrdInAmount');
+  var dateIn = document.getElementById('rrdInDate');
+  var warn = document.getElementById('rrdFootWarn');
+  if (!amtIn || !dateIn) { return; }
+  var fA = document.getElementById('rrdFlagAmount');
+  var fD = document.getElementById('rrdFlagDate');
+  var ok = 0, bad = 0;
+
+  var typed = String(amtIn.value).trim();
+  var entered = parseFloat(typed);
+  if (typed === '' || !isFinite(entered)) {
+    fA.className = 'rrd-flag wait'; fA.textContent = 'Enter';
+  } else if (Math.abs(entered - RRD.amt.required) < 0.005) {
+    fA.className = 'rrd-flag ok'; fA.innerHTML = '<i class="fa-solid fa-circle-check"></i> Match'; ok++;
+  } else {
+    fA.className = 'rrd-flag bad'; fA.textContent = 'Mismatch'; bad++;
+  }
+
+  if (!dateIn.value) {
+    fD.className = 'rrd-flag wait'; fD.textContent = 'Enter';
+  } else if (dateIn.value === RRD.expDate) {
+    fD.className = 'rrd-flag ok'; fD.innerHTML = '<i class="fa-solid fa-circle-check"></i> Match'; ok++;
+  } else {
+    fD.className = 'rrd-flag bad'; fD.textContent = 'Mismatch'; bad++;
+  }
+
+  if (bad > 0) {
+    warn.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i><span>' +
+      (bad === 1 ? 'One receipt value does not match' : 'Both receipt values do not match') +
+      ' the expected amount or date. Check the receipt again before verifying.</span>';
+    warn.hidden = false;
+  } else {
+    warn.hidden = true;
+  }
+}
+
+/* ---------- inline rejection ---------- */
+function rrdToggleReject(show){
+  var box = document.getElementById('rrdReject');
+  if (show === undefined) { show = box.hidden; }
+  box.hidden = !show;
+  var sel = document.getElementById('rrdRejectSelect');
+  var conf = document.getElementById('rrdRejectConfirm');
+  sel.value = '';
+  conf.disabled = true;
+  if (show) { sel.focus(); }
+}
+
+/* ---------- zoom ---------- */
+function rrdOpenZoom(show){
+  var z = document.getElementById('rrdZoom');
+  var zi = document.getElementById('rrdZoomImg');
+  if (show === undefined) { show = z.hidden; }
+  if (show) {
+    var src = document.querySelector('#rrdReceipt img');
+    if (!src) { return; }
+    zi.src = src.src;
+    z.hidden = false;
+    RRD.zoomOpen = true;
+    z.querySelector('.rrd-zoom-close').focus();
+  } else {
+    z.hidden = true;
+    zi.removeAttribute('src');
+    RRD.zoomOpen = false;
+    var zbtn = document.getElementById('rrdZoomBtn');
+    if (zbtn && !zbtn.hidden) { zbtn.focus(); }
+  }
+}
+
+/* ---------- actions ---------- */
+function rrdSetBusy(on){
+  RRD.busy = !!on;
+  var m = document.getElementById('reservationModal');
+  if (m) { m.classList.toggle('rrd-busy', RRD.busy); }
+  /* Buttons are disabled as well as unclickable, so the state is announced too. */
+  var scope = m ? m.querySelectorAll('.rrd-foot-btns .btn, .rrd-reject-btns .btn, .rrd-receipt-tools .btn, #rrdRejectConfirm') : [];
+  Array.prototype.forEach.call(scope, function(b){
+    if (b.tagName === 'A') { return; }
+    if (b.id === 'rrdRejectConfirm') { b.disabled = RRD.busy || !document.getElementById('rrdRejectSelect').value; return; }
+    b.disabled = RRD.busy;
+  });
+}
+function rrdToast(title, msg, tone){
+  var c = document.getElementById('toastContainer');
+  if (!c) { return; }
+  var t = document.createElement('div');
+  t.className = 'toast' + (tone === 'ok' ? ' rrd-toast-ok' : (tone === 'error' ? ' rrd-toast-error' : ''));
+  t.setAttribute('role', 'status');
+  var h = document.createElement('h4'); h.textContent = title;
+  var p = document.createElement('p'); p.textContent = msg;
+  t.appendChild(h); t.appendChild(p);
+  c.appendChild(t);
+  setTimeout(function(){ if (t.parentNode) { t.remove(); } }, 6000);
+}
+function rrdAct(fields, onDone){
+  if (RRD.busy || !RRD.id) { return; }
+  rrdSetBusy(true);
+  fetch('admin.php', {
+    method: 'POST',
+    credentials: 'same-origin',
+    redirect: 'manual',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+    body: new URLSearchParams(fields).toString()
+  }).then(function(){
+    return rrdReload(onDone);
+  }).catch(function(err){
+    console.error(err);
+    rrdSetBusy(false);
+    rrdToast('Action failed', 'Could not reach the server. Please try again.', 'error');
+  });
+}
+function rrdReload(onDone){
+  return fetch('admin.php?action=get_reservation_details&id=' + encodeURIComponent(RRD.id), { credentials: 'same-origin' })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      rrdSetBusy(false);
+      if (!data || !data.success) {
+        rrdToast('Could not refresh', (data && data.message) || 'Unexpected server response.', 'error');
+        return;
       }
-      const reservedBy = isResidentGuest ? (guestName || "Resident’s Guest") : whoLabel;
-      const displayName = isResidentGuest ? (guestName || 'Guest') : residentName;
-      const displayEmail = isResidentGuest ? (d.guest_email||'') : (d.email||'');
-      const displayPhone = isResidentGuest ? (d.guest_contact||'') : (d.phone||'');
-      const ps = ((d.payment_status||'pending')+'').toLowerCase();
-      const att = parseInt(d.receipt_attempts||0, 10);
-      const approvalStatus = (d.approval_status || 'pending').toLowerCase();
-      let stClass = 'st-pending';
-      let stLabel = 'Pending Review';
-      if (approvalStatus.includes('approv')) { stClass = 'st-approved'; stLabel = 'Approved'; }
-      else if ((approvalStatus.includes('denied') || approvalStatus.includes('reject')) || (ps==='rejected' && att>=3)) { stClass = 'st-denied'; stLabel = (ps==='rejected' && att>=3) ? 'Denied – Max Attempts Reached' : 'Denied'; }
-      else if (approvalStatus.includes('cancel')) { stClass = 'st-denied'; stLabel = 'Cancelled'; }
-      else if (approvalStatus.includes('expire')) { stClass = 'st-expired'; stLabel = 'Expired'; }
-      const isFullyRedeemed = (parseInt(d.use_points,10) === 1 && parseInt(d.points_used,10) > 0 && Math.abs(durationHours(d.start_time, d.end_time) - 1) < 0.001);
-      const pointsUsed = (parseInt(d.use_points,10) === 1) ? (parseInt(d.points_used,10) || 0) : 0;
-      const discountValue = pointsUsed > 0 ? (amenityHourlyRate(d.amenity, d.account_type, d.user_type) || 0) : 0;
-      const payMethodBlock = (pointsUsed > 0) ? (isFullyRedeemed ? (()=>{ 
-        const pts = pointsUsed;
-        const rate = amenityHourlyRate(d.amenity, d.account_type, d.user_type) || 0;
-        return `<div class="price-section">
-          <div class="info-row"><span class="info-label">VHEcoPoint Redemption</span><span class="info-value">Fully Redeemed</span></div>
-          <div class="info-row"><span class="info-label">Original Duration</span><span class="info-value">1 hour</span></div>
-          <div class="info-row"><span class="info-label">EcoPoints Used</span><span class="info-value">${fmtNum(pts)} pts</span></div>
-          <div class="info-row"><span class="info-label">Benefit</span><span class="info-value">1 Free Hour</span></div>
-          <div class="info-row"><span class="info-label">Paid Duration</span><span class="info-value">0 hours</span></div>
-          <div class="info-row"><span class="info-label">Original Amount</span><span class="info-value">${fmtMoney(rate)}</span></div>
-          <div class="info-row price-down"><span class="info-label">VHEcoPoint Discount</span><span class="info-value">-${fmtMoney(rate)} (${fmtNum(pts)} pts)</span></div>
-          <div class="info-row total-price"><span class="info-label">Final Amount</span><span class="info-value">${fmtMoney(0)}</span></div>
-          <div class="info-row price-down"><span class="info-label">Downpayment</span><span class="info-value">${fmtMoney(0)}</span></div>
-          <div class="info-row price-balance"><span class="info-label">Remaining Balance</span><span class="info-value">${fmtMoney(0)}</span></div>
-          <div class="info-row total-price"><span class="info-label">Payment Status</span><span class="info-value">Fully Redeemed</span></div>
-        </div>`; 
-      })() : (()=>{
-        const hours = durationHours(d.start_time, d.end_time);
-        const rate = amenityHourlyRate(d.amenity, d.account_type, d.user_type) || 0;
-        const finalAmount = parseFloat(d.price) || Math.max(0, hours - 1) * rate;
-        const originalAmount = hours * rate;
-        const requiredDownpayment = finalAmount * 0.5;
-        const paidDownpayment = d.downpayment != null && parseFloat(d.downpayment) > 0 ? parseFloat(d.downpayment) : requiredDownpayment;
-        const remainingBalance = Math.max(0, finalAmount - paidDownpayment);
-        const paymentLabel = ps === 'verified' ? 'Verified' : (ps === 'rejected' ? 'Rejected' : 'Submitted - Awaiting Verification');
-        return `<div class="price-section">
-          <div class="info-row"><span class="info-label">VHEcoPoint Redemption</span><span class="info-value">Discounted Redemption</span></div>
-          <div class="info-row"><span class="info-label">Original Duration</span><span class="info-value">${hours} hours</span></div>
-          <div class="info-row"><span class="info-label">EcoPoints Used</span><span class="info-value">${fmtNum(pointsUsed)} pts</span></div>
-          <div class="info-row"><span class="info-label">Benefit</span><span class="info-value">1 Free Hour</span></div>
-          <div class="info-row"><span class="info-label">Paid Duration</span><span class="info-value">${Math.max(0, hours - 1)} hours</span></div>
-          <div class="info-row"><span class="info-label">Original Amount</span><span class="info-value">${fmtMoney(originalAmount)}</span></div>
-          <div class="info-row price-down"><span class="info-label">VHEcoPoint Discount</span><span class="info-value">-${fmtMoney(discountValue)} (${fmtNum(pointsUsed)} pts)</span></div>
-          <div class="info-row total-price"><span class="info-label">Final Amount</span><span class="info-value">${fmtMoney(finalAmount)}</span></div>
-          <div class="info-row price-down"><span class="info-label">Required Downpayment</span><span class="info-value">${fmtMoney(requiredDownpayment)}</span></div>
-          <div class="info-row price-down"><span class="info-label">Downpayment</span><span class="info-value">${fmtMoney(paidDownpayment)}</span></div>
-          <div class="info-row price-balance"><span class="info-label">Remaining Balance</span><span class="info-value">${fmtMoney(remainingBalance)}</span></div>
-          <div class="info-row total-price"><span class="info-label">Payment Status</span><span class="info-value">${paymentLabel}</span></div>
-        </div>`;
-      })()) : '';
-      const ecoBadge = (pointsUsed > 0) ? `<span class="status-badge-lg eco-badge">♻ EcoPoints Used <a class="eco-confirm-btn" href="?page=smart_waste_logs" target="_blank" rel="noopener"><?php echo vh_eco_logo('', 'eco-confirm-logo'); ?><span>Confirm in VHEcoPoint</span></a></span>` : '';
-      const redemptionSection = (pointsUsed > 0) ? (`
-        <div class="section-title">VHEcoPoint Redemption</div>
-        <div class="info-grid">
-          <div class="info-row"><span class="info-label">Resident</span><span class="info-value">${isResidentGuest ? (guestName || 'Resident’s Guest') : residentName}</span></div>
-          ${d.ref_code?`<div class="info-row"><span class="info-label">Reservation Reference</span><span class="info-value">${d.ref_code}</span></div>`:''}
-          ${d.amenity?`<div class="info-row"><span class="info-label">Amenity</span><span class="info-value">${d.amenity}</span></div>`:''}
-          ${d.start_date?`<div class="info-row"><span class="info-label">Reservation Date</span><span class="info-value">${fmtDate(d.start_date)}</span></div>`:''}
-          ${fmtDuration(d.start_time,d.end_time)?`<div class="info-row"><span class="info-label">Reserved Duration</span><span class="info-value">${fmtDuration(d.start_time,d.end_time)}</span></div>`:''}
-          <div class="info-row"><span class="info-label">EcoPoints Used</span><span class="info-value">${fmtNum(pointsUsed)} pts</span></div>
-          <div class="info-row"><span class="info-label">Benefit</span><span class="info-value">1 Free Hour</span></div>
-          <div class="info-row"><span class="info-label">Discount / Savings</span><span class="info-value">${fmtMoney(discountValue)}</span></div>
-          <div class="info-row"><span class="info-label">Redemption Status</span><span class="info-value">${isFullyRedeemed ? 'Fully Redeemed' : 'Partially Redeemed'}</span></div>
-          <div class="info-row" style="flex-wrap:wrap;"><span class="info-label">Note</span><span class="info-value" style="font-weight:500;font-size:0.85rem;">No payment proof is required for the redeemed portion.</span></div>
-        </div>
-      `) : '';
-      const priceBlock = buildReservationPriceBlock(d);
-      const pointsBlock = (parseInt(d.use_points,10) === 1 && parseInt(d.points_used,10) > 0) ? (()=>{
-        const pts = parseInt(d.points_used,10) || 0;
-        return `<div class="price-section">
-          <div class="info-row total-price"><span class="info-label">EcoPoints Used</span><span class="info-value">${pts.toLocaleString()} pts</span></div>
-          <div class="info-row"><span class="info-label">Benefit</span><span class="info-value">1 free hour</span></div>
-          <div class="info-row" style="flex-wrap:wrap;"><span class="info-label">Note</span><span class="info-value" style="font-weight:500;font-size:0.85rem;">1 free hour deducted from the duration. Remaining hours are charged at regular rate.</span></div>
-        </div>`;
-      })() : '';
-      const receiptPath = (d.receipt_url||d.receipt_path||'').toString().trim();
-      const payStatus = ps;
-      const isPdf = /\.pdf$/i.test(receiptPath);
-      const redirectPage = isResidentGuest ? 'resident_guest_forms' : (userType === 'visitor' ? 'visitor_requests' : 'requests');
-      const denialReason = (d.denial_reason||'').toString().trim();
-      const showDenial = denialReason && (payStatus === 'rejected' || payStatus === 'pending_update' || approvalStatus.includes('denied') || approvalStatus.includes('reject'));
-      const waitNote = payStatus === 'rejected' ? ((att>=3) ? 'Denied — Max Attempts Reached. Payment rejected 3 times. No further uploads allowed.' : 'Wait for the updated proof.') : '';
-      const receiptHtml = receiptPath ? (
-        `<div class="details-section" style="animation: fadeIn 0.5s ease;">
-          <h4>Proof of Payment</h4>
-          ${isPdf ? `<a href="${receiptPath}" target="_blank" style="color:#23412e;font-weight:600;">Open uploaded proof (PDF)</a>` : `<a href="${receiptPath}" target="_blank"><img src="${receiptPath}" alt="Uploaded proof of payment" style="max-width:100%; height:auto; border-radius:8px; cursor:pointer;"></a>`}
-          ${payStatus !== 'verified' && d.id ? `<div class="receipt-action-row"><form method="post"><input type="hidden" name="reservation_id" value="${d.id}"><input type="hidden" name="action" value="verify_receipt"><input type="hidden" name="redirect_page" value="${redirectPage}"><button type="submit" class="btn btn-approve"><i class="fa-solid fa-check" aria-hidden="true"></i>Verify Payment Receipt</button></form>${att < 3 && payStatus !== 'rejected' ? `<form method="post" class="action-form action-deny" onsubmit="return openDenyModal(this)"><input type="hidden" name="reservation_id" value="${d.id}"><input type="hidden" name="action" value="reject_receipt"><input type="hidden" name="redirect_page" value="${redirectPage}"><input type="hidden" name="denial_reason" class="denial-reason"><button type="submit" class="btn btn-reject"><i class="fa-solid fa-xmark" aria-hidden="true"></i>Reject Receipt</button></form>` : ''}</div>` : ''}
-        </div>`
-      ) : `<div class="details-section"><h4>Proof of Payment</h4><p>${isFullyRedeemed ? 'No receipt uploaded. No proof of payment is required because this reservation was fully covered by the VHEcoPoint redemption.' : (d.receipt_uploaded_at || ['submitted', 'pending_update'].includes(payStatus) ? 'Payment submitted, but the receipt file is unavailable.' : 'No receipt uploaded.')}</p></div>`;
-      const denialHtml = '';
-      const content = `
-        <div class="request-details">
-          <div class="request-status" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><span class="status-badge-lg ${stClass}">${stLabel}</span>${ecoBadge}</div>
-          <div class="section-title">Request Status</div>
-          <div class="info-grid">
-            <div class="info-row"><span class="info-label">Status</span><span class="info-value">${stLabel}</span></div>
-            ${d.created_at?`<div class="info-row"><span class="info-label">Request Submitted</span><span class="info-value">${fmtSubmittedOn(d.created_at)}</span></div>`:''}
-          </div>
-          <div class="section-title">${whoLabel} Information</div>
-          <div class="info-grid">
-            ${displayName?`<div class="info-row"><span class="info-label">Name</span><span class="info-value">${displayName}</span></div>`:''}
-            ${(!isResidentGuest && d.house_number)?`<div class="info-row"><span class="info-label">House No.</span><span class="info-value">${d.house_number}</span></div>`:''}
-            ${displayEmail?`<div class="info-row"><span class="info-label">Email</span><span class="info-value">${displayEmail}</span></div>`:''}
-            ${displayPhone?`<div class="info-row"><span class="info-label">Phone</span><span class="info-value">${displayPhone}</span></div>`:''}
-          </div>
-          ${isResidentGuest ? `
-          <div class="section-title">Resident Information</div>
-          <div class="info-grid">
-            ${residentName?`<div class="info-row"><span class="info-label">Name</span><span class="info-value">${residentName}</span></div>`:''}
-            ${d.house_number?`<div class="info-row"><span class="info-label">House No.</span><span class="info-value">${d.house_number}</span></div>`:''}
-            ${d.email?`<div class="info-row"><span class="info-label">Email</span><span class="info-value">${d.email}</span></div>`:''}
-            ${d.phone?`<div class="info-row"><span class="info-label">Phone</span><span class="info-value">${d.phone}</span></div>`:''}
-          </div>` : ''}
-          <div class="section-title">Reservation Details</div>
-          <div class="info-grid">
-            ${d.ref_code?`<div class="info-row"><span class="info-label">Reference Code</span><span class="info-value">${d.ref_code}</span></div>`:''}
-            ${d.amenity?`<div class="info-row"><span class="info-label">Amenity</span><span class="info-value">${d.amenity}</span></div>`:''}
-            ${reservedBy?`<div class="info-row"><span class="info-label">Reserved By</span><span class="info-value">${reservedBy}</span></div>`:''}
-            ${d.start_date?`<div class="info-row"><span class="info-label">Start Date</span><span class="info-value">${fmtDate(d.start_date)}</span></div>`:''}
-            ${d.end_date?`<div class="info-row"><span class="info-label">End Date</span><span class="info-value">${fmtDate(d.end_date)}</span></div>`:''}
-            ${d.start_time?`<div class="info-row"><span class="info-label">Start Time</span><span class="info-value">${fmtTime(d.start_time)}</span></div>`:''}
-            ${d.end_time?`<div class="info-row"><span class="info-label">End Time</span><span class="info-value">${fmtTime(d.end_time)}</span></div>`:''}
-            ${fmtDuration(d.start_time,d.end_time)?`<div class="info-row"><span class="info-label">Duration</span><span class="info-value">${fmtDuration(d.start_time,d.end_time)}</span></div>`:''}
-            ${d.persons?`<div class="info-row"><span class="info-label">Persons</span><span class="info-value">${d.persons}</span></div>`:''}
-          </div>
-          <div class="section-title">Payment Details</div>
-          <div class="info-grid">
-            ${pointsUsed > 0 ? payMethodBlock : (priceBlock + pointsBlock)}
-          </div>
-          ${receiptHtml}
-          ${denialHtml}
-        </div>`;
-      document.getElementById('reservationDetailsContent').innerHTML = content;
-      document.getElementById('reservationModal').style.display = 'flex';
+      rrdRender(data.details || {});
+      rrdSyncList();
+      if (typeof onDone === 'function') { onDone(data.details || {}); }
     })
-    .catch(err => { console.error(err); alert('Error loading reservation details'); });
+    .catch(function(err){
+      console.error(err);
+      rrdSetBusy(false);
+      rrdToast('Action failed', 'Could not refresh the reservation. Please reopen it.', 'error');
+    });
+}
+function rrdDoVerify(){
+  rrdAct({ reservation_id: RRD.id, action: 'verify_receipt', redirect_page: RRD.redirectPage }, function(){
+    rrdToast('Payment verified', 'You can now approve this request.', 'ok');
+  });
+}
+function rrdDoApprove(){
+  rrdAct({ rr_id: RRD.id, action: 'approve_resident_reservation', redirect_page: RRD.redirectPage }, function(){
+    rrdToast('Request approved', 'The QR pass has been generated and the resident was notified.', 'ok');
+  });
+}
+function rrdDoReject(){
+  var sel = document.getElementById('rrdRejectSelect');
+  var reason = sel.value;
+  if (!reason) { return; }
+  rrdToggleReject(false);
+  rrdAct({ reservation_id: RRD.id, action: 'reject_receipt', denial_reason: reason, redirect_page: RRD.redirectPage }, function(){
+    rrdToast('Receipt rejected', 'The resident was notified. Reason: ' + reason, 'error');
+  });
+}
+
+/* ---------- keep the resident list behind the dialog in step ---------- */
+function rrdRowActionsHtml(){
+  var ref = String((RRD.d && RRD.d.ref_code) || '');
+  var html = '<button type="button" class="btn btn-view" onclick=\'showReservationDetails(' + RRD.id + ',"visitor")\'>View Details</button>';
+  if (RRD.key === 'ready') {
+    html += '<form method="post">' +
+      '<input type="hidden" name="rr_id" value="' + RRD.id + '">' +
+      '<input type="hidden" name="action" value="approve_resident_reservation">' +
+      '<input type="hidden" name="redirect_page" value="requests">' +
+      '<button type="submit" class="btn btn-approve">Approve</button></form>';
+  } else if (RRD.key === 'approved' && ref) {
+    html += '<a class="btn btn-qr" href="qr_view.php?code=' + encodeURIComponent(ref) + '" target="_blank"><i class="fa-solid fa-qrcode"></i> View QR</a>';
+  }
+  return html;
+}
+function rrdSyncList(){
+  var panel = document.getElementById('requests-panel');
+  if (!panel || !RRD.id) { return; }
+  var rows = panel.querySelectorAll('#rr-tbody tr[data-status]');
+
+  var row = null;
+  Array.prototype.forEach.call(rows, function(r){
+    if (parseInt(r.getAttribute('data-id'), 10) === RRD.id) { row = r; }
+  });
+  if (row) {
+    row.setAttribute('data-status', RRD.key);
+    var pill = row.querySelector('.rr-pill');
+    if (pill) {
+      pill.className = 'rr-pill rr-pill-' + RRD.key;
+      pill.textContent = RRD_LABELS[RRD.key];
+      var reason = String((RRD.d && RRD.d.denial_reason) || '').trim();
+      if (RRD.key === 'rejected' && reason) { pill.setAttribute('title', 'Reason: ' + reason); }
+      else { pill.removeAttribute('title'); }
+    }
+    var cell = row.querySelector('td.actions');
+    if (cell) { cell.innerHTML = rrdRowActionsHtml(); }
+  }
+
+  var counts = { all: 0, to_verify: 0, ready: 0, approved: 0, rejected: 0 };
+  Array.prototype.forEach.call(rows, function(r){
+    var s = r.getAttribute('data-status');
+    counts.all++;
+    if (Object.prototype.hasOwnProperty.call(counts, s) && s !== 'all') { counts[s]++; }
+  });
+  Array.prototype.forEach.call(panel.querySelectorAll('[data-rr-filter]'), function(btn){
+    var k = btn.getAttribute('data-rr-filter');
+    var c = btn.querySelector('.rr-filter-count');
+    if (c && Object.prototype.hasOwnProperty.call(counts, k)) { c.textContent = counts[k]; }
+    var lbl = btn.querySelector('.rr-filter-label');
+    if (!lbl) { return; }
+    var wants = (k === 'to_verify' || k === 'ready') && counts[k] > 0;
+    var dot = lbl.querySelector('.rr-filter-dot');
+    if (wants && !dot) {
+      var s = document.createElement('span');
+      s.className = (k === 'ready') ? 'rr-filter-dot is-ready' : 'rr-filter-dot';
+      s.setAttribute('aria-hidden', 'true');
+      lbl.insertBefore(s, lbl.firstChild);
+    } else if (!wants && dot) {
+      dot.parentNode.removeChild(dot);
+    }
+  });
+
+  /* Re-run the list's own private filter so the row it no longer matches leaves. */
+  var si = document.getElementById('search-input');
+  if (si && si.dispatchEvent) { si.dispatchEvent(new Event('input')); }
+}
+
+/* ---------- open / close ---------- */
+/* The skeleton inside #reservationDetailsContent is permanent. Only the
+   generated right-hand column and the receipt frame are torn down, otherwise
+   the dialog would lose its own nodes the first time it is closed. */
+function rrdReset(){
+  var right = document.getElementById('rrdRight');
+  if (right) { right.innerHTML = ''; }
+  var box = document.getElementById('rrdReceipt');
+  if (box) {
+    var img = box.querySelector('img');
+    if (img) { img.parentNode.removeChild(img); }
+  }
+  var state = document.getElementById('rrdReceiptState');
+  if (state) { state.hidden = false; state.className = 'rrd-receipt-state'; }
+  var cap = document.getElementById('rrdReceiptCaption');
+  if (cap) { cap.textContent = ''; }
+  var zbtn = document.getElementById('rrdZoomBtn');
+  if (zbtn) { zbtn.hidden = true; }
+  var dbtn = document.getElementById('rrdDownloadBtn');
+  if (dbtn) { dbtn.hidden = true; dbtn.removeAttribute('href'); }
+  var steps = document.getElementById('rrdSteps');
+  if (steps) { steps.innerHTML = ''; }
+  var pill = document.getElementById('rrdPill');
+  if (pill) { pill.hidden = true; }
+  var sub = document.getElementById('rrdSub');
+  if (sub) { sub.innerHTML = ''; }
+  var name = document.getElementById('rrdName');
+  if (name) { name.textContent = 'Reservation Details'; }
+  var warn = document.getElementById('rrdFootWarn');
+  if (warn) { warn.hidden = true; warn.innerHTML = ''; }
+  var hint = document.getElementById('rrdHint');
+  if (hint) { hint.className = 'rrd-foot-hint'; hint.textContent = ''; }
+  var acts = document.getElementById('rrdActions');
+  if (acts) { acts.innerHTML = ''; }
+  rrdToggleReject(false);
+  rrdSetBusy(false);
+  RRD.id = null;
+  RRD.d = null;
+  RRD.amt = null;
+  RRD.expDate = '';
+}
+
+function showReservationDetails(reservationId, expectedType){
+  var m = document.getElementById('reservationModal');
+  if (!m) { return; }
+  if (m.style.display !== 'flex') {
+    RRD.lastFocus = document.activeElement;
+    /* The list row's action cell is rebuilt after an action, which detaches the
+       button that opened this dialog. Keep the row so focus can go back to it. */
+    var active = document.activeElement;
+    RRD.lastRowId = null;
+    if (active && active.closest) {
+      var r = active.closest('#rr-tbody tr[data-id]');
+      if (r) { RRD.lastRowId = r.getAttribute('data-id'); }
+    }
+  }
+  rrdOpenZoom(false);
+  rrdReset();
+  m.style.display = 'flex';
+  var closeBtn = m.querySelector('.rrd-head .close');
+  if (closeBtn) { closeBtn.focus(); }
+  var right = document.getElementById('rrdRight');
+  if (right) {
+    right.innerHTML = '<div style="padding:10px 0;font-size:0.82rem;color:var(--text-secondary);">Loading reservation details&hellip;</div>';
+  }
+
+  function fail(message){
+    /* The receipt frame would otherwise sit on its spinner forever. */
+    var state = document.getElementById('rrdReceiptState');
+    if (state) {
+      state.hidden = false;
+      state.className = 'rrd-receipt-state is-error';
+      state.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i><span>Receipt unavailable.</span>';
+    }
+    var el = document.getElementById('rrdRight');
+    if (el) {
+      el.innerHTML = '<div class="rrd-warn"><i class="fa-solid fa-triangle-exclamation"></i><span>' + rrdEsc(message) + '</span></div>';
+    }
+  }
+
+  fetch('admin.php?action=get_reservation_details&id=' + encodeURIComponent(reservationId))
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if (!data || !data.success) {
+        fail('Could not load this reservation: ' + ((data && data.message) || 'unknown error') + '.');
+        return;
+      }
+      rrdRender(data.details || {});
+    })
+    .catch(function(err){
+      console.error(err);
+      fail('Could not reach the server to load this reservation.');
+    });
 }
 
 function closeReservationModal(){
   var m = document.getElementById('reservationModal');
-  if(m){ m.style.display = 'none'; }
-  var c = document.getElementById('reservationDetailsContent');
-  if(c){ c.innerHTML = ''; }
+  rrdOpenZoom(false);
+  if (m) { m.style.display = 'none'; }
+  rrdReset();
+  var rf = RRD.lastFocus;
+  var rowId = RRD.lastRowId;
+  RRD.lastFocus = null;
+  RRD.lastRowId = null;
+  if (rf && typeof rf.focus === 'function' && document.body.contains(rf)) {
+    try { rf.focus(); return; } catch (e) {}
+  }
+  if (rowId) {
+    var btn = document.querySelector('#rr-tbody tr[data-id="' + rowId + '"] td.actions .btn-view');
+    if (btn) { try { btn.focus(); } catch (e) {} }
+  }
 }
 
+document.addEventListener('input', function(e){
+  if (e.target && (e.target.id === 'rrdInAmount' || e.target.id === 'rrdInDate')) { rrdEval(); }
+}, true);
+document.addEventListener('change', function(e){
+  if (e.target && e.target.id === 'rrdRejectSelect') {
+    document.getElementById('rrdRejectConfirm').disabled = !e.target.value;
+  }
+}, true);
+document.addEventListener('keydown', function(e){
+  var m = document.getElementById('reservationModal');
+  if (!m || m.style.display !== 'flex') { return; }
+  if (e.key === 'Escape' || e.key === 'Esc') {
+    if (RRD.zoomOpen) { rrdOpenZoom(false); } else { closeReservationModal(); }
+    if (e.preventDefault) { e.preventDefault(); }
+    return;
+  }
+  if (e.key !== 'Tab') { return; }
+  var f = m.querySelectorAll('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])');
+  var vis = Array.prototype.filter.call(f, function(el){
+    if (el.hidden || el.closest('[hidden]')) { return false; }
+    return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+  });
+  if (!vis.length) { return; }
+  var first = vis[0], last = vis[vis.length - 1];
+  if (e.shiftKey && document.activeElement === first) { last.focus(); e.preventDefault(); }
+  else if (!e.shiftKey && document.activeElement === last) { first.focus(); e.preventDefault(); }
+});
+
 window.addEventListener('click', function(event){
-  const rmodal = document.getElementById('reservationModal');
-  if(event.target === rmodal){ rmodal.style.display = 'none'; }
+  var rmodal = document.getElementById('reservationModal');
+  if(event.target === rmodal){ closeReservationModal(); }
 });
 </script>
 
