@@ -616,6 +616,25 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_notifications') {
     exit;
 }
 
+if (isset($_GET['action']) && $_GET['action'] === 'sidebar_counts') {
+    if (($_SESSION['role'] ?? '') !== 'admin') {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+        exit;
+    }
+    /* One round trip per poll feeds both the four sidebar badges and the visitor
+       page's own filter box counts. */
+    $counts = getVisitorRequestsCounts($con);
+    header('Content-Type: application/json');
+    echo json_encode([
+        'success' => true,
+        'badges'  => getSidebarActionCounts($con),
+        'counts'  => $counts,
+        'action'  => ($counts['to_verify'] + $counts['ready']),
+    ]);
+    exit;
+}
+
 if (isset($_GET['action']) && $_GET['action'] === 'dismiss_notification' && isset($_GET['id'])) {
     if (($_SESSION['role'] ?? '') !== 'admin') {
         http_response_code(403);
@@ -1688,6 +1707,276 @@ function getVisitorAccountReservations($con) {
               ORDER BY r.created_at DESC";
     $result = $con->query($query);
     return $result ?: false;
+}
+
+/* Visitor amenity requests, normalised once and shared by every consumer (the
+   sidebar badge, the filter boxes and the table) so the three can never disagree.
+   The result is memoised because the sidebar renders before the page body and
+   both want the same read. */
+function collectVisitorRequestRows($con) {
+    static $rows = null;
+    if ($rows !== null) { return $rows; }
+    $rows = array();
+
+    $res = getVisitorAccountReservations($con);
+    if (!$res || $res->num_rows === 0) { return $rows; }
+
+    while ($vr = $res->fetch_assoc()) {
+        $approval_status = $vr['approval_status'] ?? 'pending';
+        $approvalLower = strtolower((string)$approval_status);
+        $statusLower = strtolower((string)($vr['status'] ?? ''));
+        $payStatusLower = strtolower((string)($vr['payment_status'] ?? ''));
+        $attempts = intval($vr['receipt_attempts'] ?? 0);
+
+        if ($approvalLower === 'permission_granted' || $statusLower === 'permission_granted') {
+            continue;
+        }
+        /* Scanned at the gate: the visit already happened, so it leaves this list. */
+        if (!empty($vr['scanned_at']) && !in_array($approvalLower, array('denied','cancelled','expired','moved_to_history'), true)) {
+            $stmtGrant = $con->prepare("UPDATE reservations SET approval_status='permission_granted', status='permission_granted', updated_at = NOW() WHERE id = ?");
+            if ($stmtGrant) { $stmtGrant->bind_param('i', $vr['id']); $stmtGrant->execute(); $stmtGrant->close(); }
+            continue;
+        }
+        /* Third rejected receipt: auto-denied, so it leaves this list too. */
+        if ($payStatusLower === 'rejected' && $attempts >= 3 && $approvalLower !== 'denied') {
+            $stmtAuto = $con->prepare("UPDATE reservations SET approval_status='denied' WHERE id=?");
+            if ($stmtAuto) { $stmtAuto->bind_param('i', $vr['id']); $stmtAuto->execute(); $stmtAuto->close(); }
+            continue;
+        }
+
+        /* A visitor cannot submit without paying the downpayment, so every row
+           here already has a receipt. The only step before approval is the
+           admin's own receipt check, hence exactly four states. */
+        if ($payStatusLower === 'rejected' || $approvalLower === 'denied' || $approvalLower === 'cancelled') {
+            $key = 'rejected';
+        } elseif ($approvalLower === 'approved' || $statusLower === 'approved') {
+            $key = 'approved';
+        } elseif ($payStatusLower === 'verified') {
+            $key = 'ready';
+        } else {
+            $key = 'to_verify';
+        }
+
+        $vr['vr_key']    = $key;
+        $vr['vr_label']  = visitorRequestStatusLabel($key);
+        $vr['vr_created'] = strtotime((string)($vr['created_at'] ?? '')) ?: 0;
+        $vr['vr_visit']   = strtotime((string)($vr['start_date'] ?? '')) ?: 0;
+        $vr['vr_pay']     = ($vr['downpayment'] === null || $vr['downpayment'] === '') ? -1 : (float)$vr['downpayment'];
+        $vr['vr_approvable'] = ($key === 'ready') ? isAmenityPaymentVerified($con, $vr['ref_code'] ?? '') : false;
+        $rows[] = $vr;
+    }
+    return $rows;
+}
+
+function visitorRequestStatusLabel($key) {
+    $labels = array(
+        'to_verify' => 'To verify',
+        'ready'     => 'Ready to approve',
+        'approved'  => 'Approved',
+        'rejected'  => 'Rejected',
+    );
+    return $labels[$key] ?? $key;
+}
+
+/* Same idea as the visitor collector, for the resident list: the sidebar badge,
+   the filter boxes and the table all read this one memoised array, so the badge
+   can never disagree with the counts on screen. Memoised because the sidebar is
+   rendered before the page body and both want the same read. */
+function collectResidentRequestRows($con) {
+    static $rows = null;
+    if ($rows !== null) { return $rows; }
+    $rows = array();
+
+    $res = getResidentOnlyReservations($con);
+    if (!$res || $res->num_rows === 0) { return $rows; }
+
+    while ($rr = $res->fetch_assoc()) {
+        $approval_status = $rr['approval_status'] ?? 'pending';
+        $approvalLower = strtolower((string)$approval_status);
+        $statusLower = strtolower((string)($rr['status'] ?? ''));
+        $payStatusLower = strtolower((string)($rr['payment_status'] ?? ''));
+        $attempts = intval($rr['receipt_attempts'] ?? 0);
+
+        if ($approvalLower === 'permission_granted' || $statusLower === 'permission_granted') {
+            continue;
+        }
+        /* Scanned at the gate: the visit already happened, so it leaves this list. */
+        if (!empty($rr['scanned_at']) && !in_array($approvalLower, array('denied','cancelled','expired','moved_to_history'), true)) {
+            $stmtGrant = $con->prepare("UPDATE reservations SET approval_status='permission_granted', status='permission_granted', updated_at = NOW() WHERE id = ?");
+            if ($stmtGrant) { $stmtGrant->bind_param('i', $rr['id']); $stmtGrant->execute(); $stmtGrant->close(); }
+            continue;
+        }
+        /* Third rejected receipt: auto-denied, so it leaves this list too. */
+        if ($payStatusLower === 'rejected' && $attempts >= 3 && $approvalLower !== 'denied') {
+            $stmtAuto = $con->prepare("UPDATE reservations SET approval_status='denied' WHERE id=?");
+            if ($stmtAuto) { $stmtAuto->bind_param('i', $rr['id']); $stmtAuto->execute(); $stmtAuto->close(); }
+            continue;
+        }
+
+        /* The downpayment receipt is the only thing verified at this step, so a
+           request is either waiting on that check or already past it. */
+        if ($payStatusLower === 'rejected' || $approvalLower === 'denied' || $approvalLower === 'cancelled') {
+            $key = 'rejected';
+        } elseif ($approvalLower === 'approved' || $statusLower === 'approved') {
+            $key = 'approved';
+        } elseif ($payStatusLower === 'verified') {
+            $key = 'ready';
+        } else {
+            $key = 'to_verify';
+        }
+
+        $rr['rr_key'] = $key;
+        $rr['rr_label'] = residentRequestStatusLabel($key);
+        $rr['rr_created'] = strtotime((string)($rr['created_at'] ?? '')) ?: 0;
+        $rows[] = $rr;
+    }
+
+    /* Action first: To verify, then Ready to approve, then the rest.
+       Newest first inside each group. */
+    $order = array('to_verify' => 0, 'ready' => 1, 'approved' => 2, 'rejected' => 3);
+    usort($rows, function ($a, $b) use ($order) {
+        $sa = $order[$a['rr_key']];
+        $sb = $order[$b['rr_key']];
+        if ($sa !== $sb) { return $sa - $sb; }
+        return $b['rr_created'] - $a['rr_created'];
+    });
+    return $rows;
+}
+
+function residentRequestStatusLabel($key) {
+    $labels = array(
+        'to_verify' => 'To verify',
+        'ready'     => 'Ready to approve',
+        'approved'  => 'Approved',
+        'rejected'  => 'Rejected',
+    );
+    return $labels[$key] ?? $key;
+}
+
+/* "To verify" + "Ready to approve", the two states the admin can still act on. */
+function getResidentRequestsActionCount($con) {
+    $n = 0;
+    foreach (collectResidentRequestRows($con) as $rr) {
+        if ($rr['rr_key'] === 'to_verify' || $rr['rr_key'] === 'ready') { $n++; }
+    }
+    return $n;
+}
+
+/* Guest requests still waiting on the admin. Mirrors the row set of
+   getResidentVisitorRequests() (the Guest Request table) and then keeps only the
+   ones nobody has decided yet, so the badge and the table agree. A NULL
+   approval_status counts as pending, exactly as the page treats it. */
+function getGuestRequestsActionCount($con) {
+    $query = "SELECT gf.approval_status
+              FROM guest_forms gf
+              LEFT JOIN users u ON u.id = (
+                  SELECT id FROM users
+                  WHERE (gf.resident_user_id IS NOT NULL AND users.id = gf.resident_user_id)
+                     OR (gf.resident_user_id IS NULL AND gf.resident_email <> '' AND users.email = gf.resident_email)
+                     OR (gf.resident_user_id IS NULL AND (gf.resident_email IS NULL OR gf.resident_email = '') AND gf.resident_house <> '' AND users.house_number = gf.resident_house)
+                  ORDER BY (gf.resident_user_id IS NOT NULL) DESC,
+                           (gf.resident_email <> '' AND users.email = gf.resident_email) DESC,
+                           users.id
+                  LIMIT 1
+              )
+              WHERE u.id IS NOT NULL
+                AND (gf.approval_status IS NULL OR (gf.approval_status NOT IN ('cancelled','completed','deleted','moved_to_history','permission_granted')))
+                AND (gf.approval_status IS NULL OR gf.approval_status = 'pending')";
+    try {
+        $res = $con->query($query);
+    } catch (Throwable $e) {
+        return 0;
+    }
+    if (!$res) { return 0; }
+    $n = 0;
+    while ($row = $res->fetch_assoc()) {
+        $status = strtolower(trim((string)($row['approval_status'] ?? '')));
+        if ($status === '' || $status === 'pending') { $n++; }
+    }
+    return $n;
+}
+
+/* Escalated incidents the admin has not resolved, rejected or cancelled. That is
+   exactly the set the bell already counts, so the two never disagree. */
+function getReportedIncidentsActionCount($con) {
+    return intval(getOpenIncidentCount($con));
+}
+
+/* The four sidebar action badges. Each number is counted on its own terms so one
+   page's backlog never leaks into another's badge. */
+function getSidebarActionCounts($con) {
+    return array(
+        'requests'            => getResidentRequestsActionCount($con),
+        'visitor_requests'    => getVisitorRequestsActionCount($con),
+        'resident_guest_forms'=> getGuestRequestsActionCount($con),
+        'report'              => getReportedIncidentsActionCount($con),
+    );
+}
+
+/* One sidebar action badge. Hidden at zero, capped at 99+. The page and the
+   wording ride along on the element so the poll can repaint any of the four
+   without a branch per badge. */
+function sidebar_action_badge($page, $label, $n) {
+    $n = intval($n);
+    return '<b class="nav-badge"'
+         . ' data-page="' . htmlspecialchars($page, ENT_QUOTES, 'UTF-8') . '"'
+         . ' data-label="' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '"'
+         . ' data-count="' . $n . '"'
+         . ($n > 0 ? '' : ' hidden') . '>'
+         . ($n > 99 ? '99+' : $n)
+         . '</b>';
+}
+
+/* The badge is decorative, so the count is announced through the link's name. */
+function sidebar_action_aria($label, $n) {
+    $n = intval($n);
+    return htmlspecialchars(
+        $n > 0 ? ($label . ', ' . $n . ' need action') : $label,
+        ENT_QUOTES,
+        'UTF-8'
+    );
+}
+
+/* The two states the admin can still act on. This is the sidebar badge number
+   and, by definition, "To verify" + "Ready to approve". */
+function getVisitorRequestsActionCount($con) {
+    $n = 0;
+    foreach (collectVisitorRequestRows($con) as $vr) {
+        if ($vr['vr_key'] === 'to_verify' || $vr['vr_key'] === 'ready') { $n++; }
+    }
+    return $n;
+}
+
+function getVisitorRequestsCounts($con) {
+    $counts = array('all' => 0, 'to_verify' => 0, 'ready' => 0, 'approved' => 0, 'rejected' => 0);
+    foreach (collectVisitorRequestRows($con) as $vr) {
+        $counts['all']++;
+        if (array_key_exists($vr['vr_key'], $counts)) { $counts[$vr['vr_key']]++; }
+    }
+    return $counts;
+}
+
+function vpRelativeTime($ts) {
+    $ts = intval($ts);
+    if ($ts <= 0) { return ''; }
+    $diff = time() - $ts;
+    if ($diff < 60) { return 'just now'; }
+    if ($diff < 3600) {
+        $m = intdiv($diff, 60);
+        return $m . ' minute' . ($m === 1 ? '' : 's') . ' ago';
+    }
+    if ($diff < 86400) {
+        $h = intdiv($diff, 3600);
+        return $h . ' hour' . ($h === 1 ? '' : 's') . ' ago';
+    }
+    $d = intdiv($diff, 86400);
+    if ($d < 30) { return $d . ' day' . ($d === 1 ? '' : 's') . ' ago'; }
+    if ($d < 365) {
+        $mo = intdiv($d, 30);
+        return $mo . ' month' . ($mo === 1 ? '' : 's') . ' ago';
+    }
+    $y = intdiv($d, 365);
+    return $y . ' year' . ($y === 1 ? '' : 's') . ' ago';
 }
 
 // Guest amenity reservations (reservations with entry_pass_id and amenity)
@@ -3738,6 +4027,81 @@ h1, h2, h3, h4, h5, h6 { margin: 0; font-weight: 600; color: var(--text-main); }
     transition: var(--transition);
 }
 
+/* ---- Sidebar action badges (Resident Requests, Visitor Requests,
+   Guest Request, Reported Incidents) ----
+   Same red as the top-bar bell count (.notif-badge): var(--danger) on white
+   bold text. The sidebar is always dark (--bg-sidebar), so the white number
+   keeps its contrast on both the normal and the active item, and in light and
+   dark mode alike. Only these four items are positioned, so nothing else in
+   the sidebar can be nudged by the badge. */
+.nav-item[data-page="requests"],
+.nav-item[data-page="visitor_requests"],
+.nav-item[data-page="resident_guest_forms"],
+.nav-item[data-page="report"] { position: relative; }
+.nav-badge {
+    margin-left: auto;
+    flex-shrink: 0;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--danger);
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    font-style: normal;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-variant-numeric: tabular-nums;
+    box-shadow: 0 0 0 2px var(--bg-sidebar);
+}
+.nav-badge[hidden] { display: none; }
+
+/* Collapsed to icons: the number cannot fit, so it becomes a red dot on the
+   icon. <b> rather than <span> because the collapsed rule hides nav-item spans. */
+body.sidebar-collapsed .nav-badge {
+    position: absolute;
+    top: 3px;
+    left: 30px;
+    margin-left: 0;
+    width: 10px;
+    min-width: 10px;
+    height: 10px;
+    padding: 0;
+    font-size: 0;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px var(--bg-sidebar);
+}
+
+/* Mobile: the nav collapses into a horizontal strip of pills, so again a dot. */
+@media (max-width: 768px) {
+    .nav-badge {
+        position: absolute;
+        top: 2px;
+        left: 10px;
+        margin-left: 0;
+        width: 9px;
+        min-width: 9px;
+        height: 9px;
+        padding: 0;
+        font-size: 0;
+        border-radius: 50%;
+        box-shadow: 0 0 0 2px #2b2623;
+    }
+}
+
+/* Pulse once when a new request needs action, then stay static. */
+.nav-badge.pulse { animation: vrBadgePulse 1s ease-out; }
+@keyframes vrBadgePulse {
+    0%, 100% { transform: scale(1); }
+    45%      { transform: scale(1.35); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .nav-badge.pulse { animation: none; }
+}
+
 /* System Switcher */
 .system-switcher-header {
   --vh-eco-logo-size: 22px;
@@ -4589,13 +4953,10 @@ body.sidebar-collapsed .sidebar-toggle {
 
 /* Tables */
 table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 760px; table-layout: auto; }
-table.table-requests,
 table.table-reservations,
 table.table-resident-guest { min-width: 960px; }
-table.table-requests th,
 table.table-reservations th,
 table.table-resident-guest th { white-space: nowrap; }
-table.table-requests td,
 table.table-reservations td,
 table.table-resident-guest td { vertical-align: top; }
 th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border-light); font-size: 0.85rem; vertical-align: middle; line-height: 1.45; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
@@ -4906,6 +5267,420 @@ table.table-rr tbody tr.rr-empty td {
 }
 @media (max-width: 440px) {
     .rr-filters { grid-template-columns: 1fr; }
+}
+
+/* =========================================================
+   Visitor Requests  (admin.php?page=visitor_requests)
+   Mirrors the Resident Requests token values on purpose, so the two
+   admin request lists read as one system.
+   ========================================================= */
+
+/* Filter boxes */
+.vr-filters {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 16px;
+    margin: 0 0 16px;
+}
+.vr-filter {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
+    padding: 12px 16px;
+    min-height: 68px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    text-align: left;
+    font-family: 'Poppins', sans-serif;
+    transition: var(--transition);
+}
+.vr-filter:hover { border-color: var(--accent); background: var(--primary-light); }
+.vr-filter:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.vr-filter[aria-pressed="true"] {
+    border: 2px solid var(--accent);
+    padding: 11px 15px;
+    background: rgba(212, 175, 55, 0.12);
+}
+.vr-filter-count {
+    font-size: 1.55rem;
+    font-weight: 600;
+    line-height: 1.15;
+    color: var(--text-main);
+}
+.vr-filter[aria-pressed="true"] .vr-filter-count { color: var(--primary-dark); }
+.vr-filter-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    line-height: 1.3;
+    color: var(--text-secondary);
+}
+.vr-filter[aria-pressed="true"] .vr-filter-label { color: var(--text-main); }
+/* Only the two actionable boxes carry a dot, and only while they have work. */
+.vr-filter-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--warning);
+}
+.vr-filter-dot.is-ready { background: var(--primary); }
+
+/* Sort / filter bar */
+.vr-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin: 0 0 16px;
+}
+.vr-field { display: flex; flex-direction: column; gap: 4px; }
+.vr-field > label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text-muted);
+}
+.vr-select {
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.82rem;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-surface);
+    color: var(--text-main);
+    line-height: 1.4;
+    min-width: 148px;
+}
+.vr-select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.18); }
+.vr-select:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.vr-date-range { display: flex; align-items: center; gap: 6px; }
+.vr-date-range input[type="date"] {
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.82rem;
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-surface);
+    color: var(--text-main);
+    line-height: 1.4;
+}
+.vr-date-range input[type="date"]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.18); }
+.vr-date-range input[type="date"]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.vr-clear {
+    margin-left: auto;
+    background: none;
+    border: none;
+    padding: 6px 2px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+    border-radius: var(--radius);
+    transition: var(--transition);
+}
+.vr-clear:hover { color: var(--danger); }
+.vr-clear:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.vr-clear[hidden] { display: none; }
+
+.vr-mobile-filters { display: none; }
+
+/* One container: an inline row on desktop, a stacked panel on mobile. Keeps the
+   controls in the DOM once, so there is nothing to move on resize. */
+.vr-controls {
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+    flex-wrap: wrap;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* Result line */
+.vr-result-line {
+    margin: 0 0 12px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+/* Table */
+.vr-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+table.table-vr { min-width: 1000px; }
+table.table-vr th {
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--border-light);
+    padding: 10px 14px;
+    white-space: nowrap;
+}
+table.table-vr th.vr-sortable {
+    cursor: pointer;
+    user-select: none;
+}
+table.table-vr th.vr-sortable:hover { color: var(--text-main); }
+table.table-vr th.vr-sortable:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.vr-sort-arrow {
+    display: inline-block;
+    margin-left: 5px;
+    font-size: 0.62rem;
+    color: var(--text-muted);
+}
+th.vr-sort-active .vr-sort-arrow { color: var(--primary); }
+th.vr-sort-active { color: var(--text-main); }
+
+table.table-vr td {
+    padding: 10px 14px;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--border-light);
+}
+table.table-vr tbody tr:last-child td { border-bottom: 1px solid var(--border-light); }
+table.table-vr tbody tr:hover { background: var(--primary-light); }
+table.table-vr tbody tr.vr-empty:hover { background: transparent; }
+
+.vr-visitor-name {
+    display: block;
+    font-weight: 600;
+    color: var(--text-main);
+}
+.vr-visitor-meta {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+.vr-ref {
+    font-weight: 500;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+.vr-submitted {
+    display: block;
+    color: var(--text-main);
+    white-space: nowrap;
+}
+.vr-ago {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+.vr-amount {
+    font-weight: 600;
+    color: var(--text-main);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Status pills */
+.vr-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: nowrap;
+}
+.vr-pill-to_verify { background: #fef3c7; color: #92400e; }
+.vr-pill-ready     { background: var(--primary); color: #fff; }
+.vr-pill-approved  { background: #dcfce7; color: #166534; }
+.vr-pill-rejected  { background: #fee2e2; color: #991b1b; }
+
+/* Actions: one horizontal row, equal buttons, no shadows */
+table.table-vr td.actions {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    gap: 8px;
+    min-width: 280px;
+}
+table.table-vr td.actions form {
+    width: auto;
+    margin: 0;
+    display: inline-flex;
+    flex-shrink: 0;
+}
+table.table-vr td.actions .btn,
+table.table-vr td.actions a.btn {
+    width: 118px;
+    min-width: 118px;
+    flex-shrink: 0;
+    min-height: 32px;
+    padding: 0 10px;
+    border-radius: var(--radius);
+    font-size: 0.78rem;
+    box-shadow: none;
+    white-space: nowrap;
+    justify-content: center;
+}
+table.table-vr td.actions .btn:hover,
+table.table-vr td.actions a.btn:hover {
+    box-shadow: none;
+    transform: none;
+}
+/* The Approve button fades in when "Approve receipt" unlocks the row. */
+@keyframes vrFadeIn {
+    from { opacity: 0; transform: translateY(3px); }
+    to   { opacity: 1; transform: none; }
+}
+.vr-btn-fade { animation: vrFadeIn 0.28s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+    .vr-btn-fade { animation: none; }
+}
+
+table.table-vr tbody tr.vr-empty td {
+    text-align: center;
+    padding: 32px 14px;
+    border-bottom: none;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+table.table-vr tbody tr.vr-empty .vr-empty-clear {
+    display: inline-flex;
+    margin-top: 12px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-main);
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 500;
+    padding: 8px 16px;
+    min-height: 34px;
+    cursor: pointer;
+    box-shadow: none;
+}
+table.table-vr tbody tr.vr-empty .vr-empty-clear:hover { border-color: var(--accent); background: var(--primary-light); }
+table.table-vr tbody tr.vr-empty .vr-empty-clear:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* Pagination */
+.vr-pager {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 16px 0 0;
+}
+.vr-pager-info {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin-right: auto;
+}
+.vr-page-btn {
+    min-width: 34px;
+    min-height: 34px;
+    padding: 0 10px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-main);
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.8rem;
+    cursor: pointer;
+    box-shadow: none;
+    transition: var(--transition);
+}
+.vr-page-btn:hover:not(:disabled) { border-color: var(--accent); background: var(--primary-light); }
+.vr-page-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.vr-page-btn[aria-current="true"] {
+    border: 2px solid var(--accent);
+    background: rgba(212, 175, 55, 0.12);
+    color: var(--text-main);
+    font-weight: 600;
+}
+.vr-page-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+@media (max-width: 1100px) {
+    .vr-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+    .vr-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 440px) {
+    .vr-filters { grid-template-columns: 1fr; }
+}
+/* Tablet: the five boxes wrap onto two lines. */
+@media (min-width: 761px) and (max-width: 1100px) {
+    .vr-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+/* Mobile: dropdowns collapse behind one button, search stays visible. */
+@media (max-width: 760px) {
+    .vr-toolbar { flex-wrap: nowrap; align-items: center; }
+    .vr-mobile-filters {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+        min-height: 38px;
+        padding: 0 14px;
+        background: var(--bg-surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        color: var(--text-main);
+        font-family: 'Poppins', sans-serif;
+        font-size: 0.82rem;
+        font-weight: 500;
+        cursor: pointer;
+    }
+    .vr-mobile-filters:hover { border-color: var(--accent); background: var(--primary-light); }
+    .vr-mobile-filters:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+    .vr-mobile-filters[aria-expanded="true"] { border-color: var(--accent); background: var(--primary-light); }
+
+    /* The controls become a panel that only shows when the button is pressed. */
+    .vr-controls {
+        display: none;
+        position: absolute;
+        left: 14px;
+        right: 14px;
+        z-index: 20;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+        padding: 16px;
+        background: var(--bg-surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-md);
+    }
+    .vr-controls.is-open { display: flex; }
+    .vr-controls .vr-select,
+    .vr-controls .vr-date-range input[type="date"] { width: 100%; min-width: 0; }
+    .vr-controls .vr-clear { margin-left: 0; align-self: flex-start; }
+}
+.vr-toolbar { position: relative; }
+.vr-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
 
 /* ========================= RESERVATION DETAILS DIALOG ========================= */
@@ -6164,6 +6939,9 @@ body.modal-open { overflow: hidden; }
       </div>
     </div>
 
+    <?php /* Counted once, before the nav, so every badge and the page body behind
+             it read the same snapshot. */
+    $sidebarCounts = getSidebarActionCounts($con); ?>
     <nav class="nav-list">
        <!-- VictorianPass Navigation -->
        <?php if ($currentSystem == 'victorianpass'): ?>
@@ -6178,15 +6956,37 @@ body.modal-open { overflow: hidden; }
          <a href="?page=visitors" class="nav-item <?php echo $currentPage == 'visitors' ? 'active' : ''; ?>" data-page="visitors"><i class="fa-solid fa-user"></i><span>Visitors</span></a>
          <a href="?page=security" class="nav-item <?php echo $currentPage == 'security' ? 'active' : ''; ?>" data-page="security"><i class="fa-solid fa-shield-halved"></i><span>Security Guards</span></a>
        </div>
-       <div class="nav-section">
-         <div class="nav-section-title">Requests</div>
-         <a href="?page=requests" class="nav-item <?php echo $currentPage == 'requests' ? 'active' : ''; ?>" data-page="requests"><i class="fa-solid fa-clipboard-list"></i><span>Resident Requests</span></a>
-         <a href="?page=resident_guest_forms" class="nav-item <?php echo $currentPage == 'resident_guest_forms' ? 'active' : ''; ?>" data-page="resident_guest_forms"><i class="fa-solid fa-user-plus"></i><span>Guest Request</span></a>
-         <a href="?page=visitor_requests" class="nav-item <?php echo $currentPage == 'visitor_requests' ? 'active' : ''; ?>" data-page="visitor_requests"><i class="fa-solid fa-clipboard-list"></i><span>Visitor Requests</span></a>
-       </div>
+<div class="nav-section">
+          <div class="nav-section-title">Requests</div>
+          <?php
+          $sbResident = 'Resident requests';
+          $sbGuest    = 'Guest requests';
+          $sbVisitor  = 'Visitor requests';
+          ?>
+          <a href="?page=requests" class="nav-item <?php echo $currentPage == 'requests' ? 'active' : ''; ?>" data-page="requests"
+             aria-label="<?php echo sidebar_action_aria($sbResident, $sidebarCounts['requests']); ?>">
+            <i class="fa-solid fa-clipboard-list"></i><span>Resident Requests</span>
+            <?php echo sidebar_action_badge('requests', $sbResident, $sidebarCounts['requests']); ?>
+          </a>
+          <a href="?page=resident_guest_forms" class="nav-item <?php echo $currentPage == 'resident_guest_forms' ? 'active' : ''; ?>" data-page="resident_guest_forms"
+             aria-label="<?php echo sidebar_action_aria($sbGuest, $sidebarCounts['resident_guest_forms']); ?>">
+            <i class="fa-solid fa-user-plus"></i><span>Guest Request</span>
+            <?php echo sidebar_action_badge('resident_guest_forms', $sbGuest, $sidebarCounts['resident_guest_forms']); ?>
+          </a>
+          <a href="?page=visitor_requests" class="nav-item <?php echo $currentPage == 'visitor_requests' ? 'active' : ''; ?>" data-page="visitor_requests"
+             aria-label="<?php echo sidebar_action_aria($sbVisitor, $sidebarCounts['visitor_requests']); ?>">
+            <i class="fa-solid fa-clipboard-list" aria-hidden="true"></i><span>Visitor Requests</span>
+            <?php echo sidebar_action_badge('visitor_requests', $sbVisitor, $sidebarCounts['visitor_requests']); ?>
+          </a>
+        </div>
        <div class="nav-section">
          <div class="nav-section-title">Management</div>
-         <a href="?page=report" class="nav-item <?php echo $currentPage == 'report' ? 'active' : ''; ?>" data-page="report"><i class="fa-solid fa-triangle-exclamation"></i><span>Reported Incidents</span></a>
+         <?php $sbIncident = 'Reported incidents'; ?>
+         <a href="?page=report" class="nav-item <?php echo $currentPage == 'report' ? 'active' : ''; ?>" data-page="report"
+            aria-label="<?php echo sidebar_action_aria($sbIncident, $sidebarCounts['report']); ?>">
+           <i class="fa-solid fa-triangle-exclamation"></i><span>Reported Incidents</span>
+           <?php echo sidebar_action_badge('report', $sbIncident, $sidebarCounts['report']); ?>
+         </a>
          <a href="?page=history" class="nav-item <?php echo $currentPage == 'history' ? 'active' : ''; ?>" data-page="history"><i class="fa-solid fa-box-archive"></i><span>Archived Requests</span></a>
        </div>
        <?php endif; ?>
@@ -6273,11 +7073,13 @@ body.modal-open { overflow: hidden; }
       </div>
     </header>
 
-    <div class="page-header<?php echo ($currentPage === 'requests') ? ' page-header-stack' : ''; ?>">
+    <div class="page-header<?php echo in_array($currentPage, array('requests', 'visitor_requests'), true) ? ' page-header-stack' : ''; ?>">
       <div>
         <h2 id="page-title"><?php echo htmlspecialchars($pageTitle); ?></h2>
         <?php if ($currentPage === 'requests'): ?>
         <p class="page-subtitle">Verify each downpayment receipt, then approve the reservation.</p>
+        <?php elseif ($currentPage === 'visitor_requests'): ?>
+        <p class="page-subtitle">Approve each downpayment receipt, then approve the visit.</p>
         <?php endif; ?>
       </div>
       <script>
@@ -6288,6 +7090,8 @@ body.modal-open { overflow: hidden; }
             const main=document.querySelector('.main');
             const tables=main.querySelectorAll('table');
             tables.forEach(function(tbl){
+              /* Tables that run their own search bar opt out of this one. */
+              if(tbl.getAttribute('data-vr-own-search')) return;
               const rows=tbl.querySelectorAll('tbody tr');
               let any=false;
               rows.forEach(function(r){
@@ -6414,7 +7218,69 @@ body.modal-open { overflow: hidden; }
               }
             } catch(e){}
           }
-          function poll(){ fetch('admin.php?action=get_notifications').then(function(r){ return r.json(); }).then(handleData).catch(function(){}); }
+          function poll(){ fetch('admin.php?action=get_notifications').then(function(r){ return r.json(); }).then(handleData).catch(function(){}); pollVrCounts(); }
+
+          /* ---- Sidebar action badges + Visitor Requests filter box counts ----
+             Rides the existing notification poll, so no second timer. The four
+             badges are cheap and update on every admin page; the heavier tbody
+             swap only happens on the visitor page, and only when the server's
+             breakdown has actually drifted from what is on screen. */
+          var vrLastSig = null;
+          function hasOpenModal(){
+            var ms = document.querySelectorAll('.modal,#adminConfirmModal,#denyReasonModal');
+            for (var i = 0; i < ms.length; i++) {
+              if (!ms[i]) { continue; }
+              var d = (ms[i].style && ms[i].style.display) ? ms[i].style.display : '';
+              if (d && d !== 'none') { return true; }
+            }
+            return false;
+          }
+          /* Every status is part of the signature, not just the total. A request
+             moving from To verify to Ready keeps the total the same but still has
+             to redraw the row and both box counts. */
+          function vrSignature(d){
+            var c = (d && d.counts) ? d.counts : {};
+            var keys = ['all', 'to_verify', 'ready', 'approved', 'rejected'];
+            var out = [];
+            for (var i = 0; i < keys.length; i++) { out.push(parseInt(c[keys[i]], 10) || 0); }
+            return out.join(':');
+          }
+          function pollVrCounts(){
+            var badges = document.querySelectorAll('.nav-badge');
+            var onVrPage = !!(window.VR_LIST && document.getElementById('vr-tbody'));
+            if (!badges.length && !onVrPage) { return; }
+            fetch('admin.php?action=sidebar_counts')
+              .then(function(r){ return r.json(); })
+              .then(function(d){
+                if (!d || !d.success) { return; }
+                if (typeof rrdApplySidebarCounts === 'function') {
+                  rrdApplySidebarCounts(d.badges, true);
+                }
+                if (!onVrPage) { return; }
+
+                var sig = vrSignature(d);
+                if (vrLastSig === null) {
+                  /* Seed from what is really on screen, so a request that landed
+                     between render and first poll is still picked up. */
+                  vrLastSig = window.VR_LIST.statusCounts
+                    ? vrSignature({ counts: window.VR_LIST.statusCounts() })
+                    : sig;
+                }
+                if (sig === vrLastSig) { return; }
+                /* Never swap rows out from under the open dialog. The signature is
+                   left alone on purpose, so the very next tick retries. */
+                if (hasOpenModal()) { return; }
+                fetch('admin.php?page=visitor_requests')
+                  .then(function(r){ return r.text(); })
+                  .then(function(html){
+                    if (window.VR_LIST && window.VR_LIST.refreshFrom(html)) {
+                      vrLastSig = sig;
+                    }
+                  })
+                  .catch(function(){});
+              })
+              .catch(function(){});
+          }
           poll();
           var pollMs = 10000; var timer = setInterval(poll, pollMs);
           document.addEventListener('visibilitychange', function(){ if(document.hidden){ clearInterval(timer); timer = setInterval(poll, 5000); } else { clearInterval(timer); timer = setInterval(poll, pollMs); poll(); } });
@@ -7667,63 +8533,9 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
 <?php if ($currentPage == 'requests'): ?>
 <?php
 /* Load the visible request list once so the filter counts and the table rows
-   are always computed from the same set. */
-$rrStatusOrder = array('to_verify' => 0, 'ready' => 1, 'approved' => 2, 'rejected' => 3);
-$rrStatusLabels = array(
-    'to_verify' => 'To verify',
-    'ready'     => 'Ready to approve',
-    'approved'  => 'Approved',
-    'rejected'  => 'Rejected',
-);
-$rrRows = array();
-$rrRes = getResidentOnlyReservations($con);
-if ($rrRes && $rrRes->num_rows > 0) {
-    while ($rr = $rrRes->fetch_assoc()) {
-        $approval_status = $rr['approval_status'] ?? 'pending';
-        $approvalLower = strtolower((string)$approval_status);
-        $statusLower = strtolower((string)($rr['status'] ?? ''));
-        $payStatusLower = strtolower((string)($rr['payment_status'] ?? ''));
-        $attempts = intval($rr['receipt_attempts'] ?? 0);
-
-        if ($approvalLower === 'permission_granted' || $statusLower === 'permission_granted') {
-            continue;
-        }
-        if (!empty($rr['scanned_at']) && !in_array($approvalLower, array('denied','cancelled','expired','moved_to_history'), true)) {
-            $stmtGrant = $con->prepare("UPDATE reservations SET approval_status='permission_granted', status='permission_granted', updated_at = NOW() WHERE id = ?");
-            if ($stmtGrant) { $stmtGrant->bind_param('i', $rr['id']); $stmtGrant->execute(); $stmtGrant->close(); }
-            continue;
-        }
-        if ($payStatusLower === 'rejected' && $attempts >= 3 && $approvalLower !== 'denied') {
-            $stmtAuto = $con->prepare("UPDATE reservations SET approval_status='denied' WHERE id=?");
-            if ($stmtAuto) { $stmtAuto->bind_param('i', $rr['id']); $stmtAuto->execute(); $stmtAuto->close(); }
-            continue;
-        }
-
-        /* The downpayment receipt is the only thing verified at this step, so a
-           request is either waiting on that check or already past it. */
-        if ($payStatusLower === 'rejected' || $approvalLower === 'denied' || $approvalLower === 'cancelled') {
-            $rrKey = 'rejected';
-        } elseif ($approvalLower === 'approved' || $statusLower === 'approved') {
-            $rrKey = 'approved';
-        } elseif ($payStatusLower === 'verified') {
-            $rrKey = 'ready';
-        } else {
-            $rrKey = 'to_verify';
-        }
-
-        $rr['rr_key'] = $rrKey;
-        $rr['rr_label'] = $rrStatusLabels[$rrKey];
-        $rr['rr_created'] = strtotime((string)($rr['created_at'] ?? '')) ?: 0;
-        $rrRows[] = $rr;
-    }
-}
-/* Action first: To verify, then Ready to approve, then the rest. Newest first inside each group. */
-usort($rrRows, function ($a, $b) use ($rrStatusOrder) {
-    $sa = $rrStatusOrder[$a['rr_key']];
-    $sb = $rrStatusOrder[$b['rr_key']];
-    if ($sa !== $sb) { return $sa - $sb; }
-    return $b['rr_created'] - $a['rr_created'];
-});
+   are always computed from the same set. This is the same memoised collector
+   the sidebar badge reads, so the badge cannot drift from the boxes below. */
+$rrRows = collectResidentRequestRows($con);
 $rrCounts = array('all' => count($rrRows), 'to_verify' => 0, 'ready' => 0, 'approved' => 0, 'rejected' => 0);
 foreach ($rrRows as $rrCounted) { $rrCounts[$rrCounted['rr_key']]++; }
 ?>
@@ -7934,164 +8746,593 @@ foreach ($rrRows as $rrCounted) { $rrCounts[$rrCounted['rr_key']]++; }
 
 <!-- VISITOR REQUESTS -->
 <?php if ($currentPage == 'visitor_requests'): ?>
+<?php
+/* One shared read feeds the filter boxes, the table and the sidebar badge, so
+   the three numbers can never drift apart. */
+$vrRows = collectVisitorRequestRows($con);
+$vrCounts = getVisitorRequestsCounts($con);
+$vrAmenities = array();
+foreach ($vrRows as $vrScan) {
+    $vrAmenityLabel = trim((string)($vrScan['amenity'] ?? ''));
+    if ($vrAmenityLabel !== '') { $vrAmenities[$vrAmenityLabel] = $vrAmenityLabel; }
+}
+ksort($vrAmenities);
+?>
 <section class="panel" id="visitor-requests-panel">
   <div class="content-row">
-  
+  <div class="card-box">
 
+    <!-- The boxes ARE the status filter -->
+    <div class="vr-filters" role="group" aria-label="Filter requests by status">
+      <?php
+      $vrFilterDefs = array(
+          'all'       => array('All requests',    ''),
+          'to_verify' => array('To verify',        'vr-filter-dot'),
+          'ready'     => array('Ready to approve', 'vr-filter-dot is-ready'),
+          'approved'  => array('Approved',         ''),
+          'rejected'  => array('Rejected',         ''),
+      );
+      foreach ($vrFilterDefs as $vrFilterKey => $vrFilterDef) :
+          $vrShowDot = ($vrFilterDef[1] !== '' && $vrCounts[$vrFilterKey] > 0);
+      ?>
+      <button type="button" class="vr-filter" data-vr-filter="<?php echo $vrFilterKey; ?>" aria-pressed="<?php echo ($vrFilterKey === 'all') ? 'true' : 'false'; ?>">
+        <span class="vr-filter-count" data-vr-count="<?php echo $vrFilterKey; ?>"><?php echo intval($vrCounts[$vrFilterKey]); ?></span>
+        <span class="vr-filter-label">
+          <?php if ($vrShowDot): ?><span class="<?php echo $vrFilterDef[1]; ?>" aria-hidden="true"></span><?php endif; ?>
+          <?php echo htmlspecialchars($vrFilterDef[0]); ?>
+        </span>
+      </button>
+      <?php endforeach; ?>
+    </div>
 
-    <!-- Visitor Account Amenity Requests -->
-    <div class="card-box" style="margin-bottom: 20px;">
-      <h3>Visitor Amenity Request</h3>
-      <table class="table table-requests">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Reference Code</th>
-            <th>Type</th>
-            <th>Request Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
+    <!-- Sort and filter bar -->
+    <div class="vr-toolbar">
+      <button type="button" class="vr-mobile-filters" id="vr-mobile-filters" aria-expanded="false" aria-controls="vr-controls">
+        <i class="fa-solid fa-sliders" aria-hidden="true"></i> Filters
+      </button>
+
+      <div class="vr-controls" id="vr-controls">
+        <div class="vr-field">
+          <label for="vr-sort">Sort by</label>
+          <select class="vr-select" id="vr-sort">
+            <option value="needs_action">Needs action first</option>
+            <option value="newest">Newest submitted</option>
+            <option value="oldest">Oldest submitted</option>
+            <option value="visit_soon">Visit date: soonest first</option>
+            <option value="visit_late">Visit date: latest first</option>
+            <option value="name">Visitor name (A to Z)</option>
+            <option value="down_high">Downpayment: highest first</option>
+          </select>
+        </div>
+
+        <div class="vr-field">
+          <label for="vr-amenity">Amenity</label>
+          <select class="vr-select" id="vr-amenity">
+            <option value="">All amenities</option>
+            <?php foreach ($vrAmenities as $vrAmenityOption) : ?>
+            <option value="<?php echo htmlspecialchars($vrAmenityOption, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($vrAmenityOption); ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+
+        <div class="vr-field">
+          <label for="vr-date">Date</label>
+          <select class="vr-select" id="vr-date">
+            <option value="">Any time</option>
+            <option value="today">Today</option>
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="custom">Custom range</option>
+          </select>
+        </div>
+
+        <div class="vr-date-range" id="vr-date-range" hidden>
+          <label class="vr-sr-only" for="vr-date-from">Submitted from</label>
+          <input type="date" id="vr-date-from">
+          <span aria-hidden="true">&ndash;</span>
+          <label class="vr-sr-only" for="vr-date-to">Submitted to</label>
+          <input type="date" id="vr-date-to">
+        </div>
+
+        <button type="button" class="vr-clear" id="vr-clear" hidden>Clear filters</button>
+      </div>
+    </div>
+
+    <p class="vr-result-line" id="vr-result-line" role="status"></p>
+
+    <div class="vr-table-wrap">
+      <table class="table table-vr" id="vr-table" data-vr-own-search="1">
+      <thead>
+        <tr>
+          <th>Visitor</th>
+          <th>Reference</th>
+          <th>Amenity</th>
+          <th class="vr-sortable" data-vr-sortcol="created" tabindex="0" role="button" aria-label="Sort by submitted date">Submitted<span class="vr-sort-arrow" aria-hidden="true"></span></th>
+          <th class="vr-sortable" data-vr-sortcol="down" tabindex="0" role="button" aria-label="Sort by downpayment">Downpayment<span class="vr-sort-arrow" aria-hidden="true"></span></th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="vr-tbody">
+
           <?php
-          $visitorRes = getVisitorAccountReservations($con);
-          $hasVR = false;
-          if ($visitorRes && $visitorRes->num_rows > 0) {
-              while ($rr = $visitorRes->fetch_assoc()) {
-                  $approval_status = $rr['approval_status'] ?? 'pending';
-                  $statusValue = $rr['status'] ?? '';
-                  $statusLower = strtolower((string)$statusValue);
-                  $scannedAt = $rr['scanned_at'] ?? null;
-                  $approvalLower = strtolower((string)$approval_status);
-                  if ($approvalLower === 'permission_granted' || $statusLower === 'permission_granted') {
-                    continue;
-                  }
-                  if (!empty($scannedAt) && !in_array($approvalLower, ['denied','cancelled','expired','moved_to_history'], true)) {
-                    $stmtGrant = $con->prepare("UPDATE reservations SET approval_status='permission_granted', status='permission_granted', updated_at = NOW() WHERE id = ?");
-                    if ($stmtGrant) { $stmtGrant->bind_param('i', $rr['id']); $stmtGrant->execute(); $stmtGrant->close(); }
-                    continue;
-                  }
-                  $hasVR = true;
-                  echo "<tr data-ref='" . htmlspecialchars($rr['ref_code'] ?? '') . "' data-id='" . intval($rr['id']) . "' data-source='visitor'>";
-                  $fullName = trim(($rr['first_name'] ?? '') . ' ' . ($rr['middle_name'] ?? '') . ' ' . ($rr['last_name'] ?? ''));
-                  echo "<td><strong>" . htmlspecialchars($fullName) . "</strong></td>";
-                  echo "<td>" . htmlspecialchars($rr['ref_code'] ?? '-') . "</td>";
-                  
-                  $uType = ucfirst($rr['user_type'] ?? 'Visitor');
-                  $uTypeClass = 'badge-approved'; 
-                  echo "<td><span class='badge $uTypeClass' style='font-size:0.8rem;'>$uType</span></td>";
-                  $payStatusLower = strtolower($rr['payment_status'] ?? '');
-                  $attempts = intval($rr['receipt_attempts'] ?? 0);
-                  if ($payStatusLower === 'rejected' && $attempts >= 3 && strtolower($approval_status) !== 'denied') {
-                    $stmtAuto = $con->prepare("UPDATE reservations SET approval_status='denied' WHERE id=?");
-                    if ($stmtAuto) { $stmtAuto->bind_param('i', $rr['id']); $stmtAuto->execute(); $stmtAuto->close(); }
-                    continue;
-                  }
-                  $statusClass = $approval_status === 'approved' ? 'badge-approved' : (($approval_status === 'denied' || $approval_status === 'cancelled') ? 'badge-rejected' : 'badge-pending');
-                  $statusLabel = ($payStatusLower === 'pending_update') ? 'Pending (Resubmitted)' : ucfirst($approval_status);
-                  if ($approvalLower === 'permission_granted' || $statusLower === 'permission_granted') {
-                    $statusClass = 'badge-approved';
-                    $statusLabel = 'Access Granted';
-                  }
-                  if ($payStatusLower === 'rejected') { $statusClass = 'badge-rejected'; $statusLabel = 'Rejected (Attempt ' . max($attempts,1) . ' of 3)'; }
-                  echo "<td><span class='badge $statusClass'>" . $statusLabel . "</span></td>";
-                  echo "<td class='actions'>";
-                  echo "<button type='button' class='btn btn-view' onclick='showReservationDetails(" . intval($rr['id']) . ",\"visitor\")'>View Details</button>";
-                  $payStatusLower = strtolower($rr['payment_status'] ?? '');
-                  if ($payStatusLower === 'rejected') { 
-                    $attempts = intval($rr['receipt_attempts'] ?? 0);
-                    $denialReasonVal = trim((string)($rr['denial_reason'] ?? ''));
-                    $note = ($attempts >= 3) ? 'Denied — Max Attempts Reached. Payment rejected 3 times. No further uploads allowed.' : 'Wait for the uploaded proof.';
-                    echo "<div class='muted' style='margin-top:6px;'>$note</div>"; 
-                    if (!empty($denialReasonVal)) {
-                      echo "<div style='margin-top:6px;padding:8px 12px;border-radius:10px;background:#fee2e2;color:#991b1b;font-weight:600;width:100%;box-sizing:border-box;'>Reason: " . htmlspecialchars($denialReasonVal) . "</div>";
-                    }
-                    echo "</td>"; echo "</tr>"; continue; 
-                  }
-                  $attempts = intval($rr['receipt_attempts'] ?? 0);
-                  if ($attempts >= 3) {
-                    echo "<form method='post' class='action-form action-deny' onsubmit='return openDenyModal(this)'>";
-                    echo "<input type='hidden' name='reservation_id' value='" . intval($rr['id']) . "'>";
-                    echo "<input type='hidden' name='action' value='deny_request'>";
-                    echo "<input type='hidden' name='redirect_page' value='visitor_requests'>";
-                    $valueAttr = ($payStatusLower === 'pending_update' ? " value='" . htmlspecialchars(trim((string)($rr['denial_reason'] ?? '')), ENT_QUOTES) . "'" : "");
-                    echo "<input type='hidden' name='denial_reason' class='denial-reason'".$valueAttr.">";
-                    echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'>Deny</button>";
-                    echo "</form>";
-                  }
-                  if ($payStatusLower !== 'rejected') {
-                  $receiptPath = $rr['receipt_path'] ?? null;
-                  if ($payStatusLower !== 'verified') {
-                  if (!empty($receiptPath)) {
-                    $isPdf = (bool)preg_match('/\.pdf$/i', (string)$receiptPath);
-                    if ($isPdf) {
-                      echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars(admin_receipt_url($receiptPath), ENT_QUOTES, 'UTF-8') . "', " . intval($rr['id']) . ", 'visitor_requests')\"><i class='fa-solid fa-file'></i> Open Receipt (PDF)</button>";
-                    }
-                  } else {
-                    $receiptMessage = (!empty($rr['receipt_uploaded_at']) || in_array($payStatusLower, ['submitted', 'pending_update'], true)) ? 'Payment submitted, but the receipt file is unavailable.' : 'No receipt uploaded.';
-                    echo "<div class='muted'>" . htmlspecialchars($receiptMessage, ENT_QUOTES, 'UTF-8') . "</div>";
-                  }
-                  }
-                  if (!empty($rr['id']) && $payStatusLower !== 'verified') {
-                    $attempts = intval($rr['receipt_attempts'] ?? 0);
-                    if ($attempts >= 3) {
-                      echo "<form method='post' class='action-form action-deny' onsubmit='return openDenyModal(this)'>";
-                      echo "<input type='hidden' name='reservation_id' value='" . intval($rr['id']) . "'>";
-                      echo "<input type='hidden' name='action' value='deny_request'>";
-                      echo "<input type='hidden' name='redirect_page' value='visitor_requests'>";
-                      $valueAttr = ($payStatusLower === 'pending_update' ? " value='" . htmlspecialchars(trim((string)($rr['denial_reason'] ?? '')), ENT_QUOTES) . "'" : "");
-                      echo "<input type='hidden' name='denial_reason' class='denial-reason'".$valueAttr.">";
-                      echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'>Deny</button>";
-                      echo "</form>";
-                    } else {
-                      echo "<form method='post' onsubmit='return openDenyModal(this)'>";
-                      echo "<input type='hidden' name='reservation_id' value='" . intval($rr['id']) . "'>";
-                      echo "<input type='hidden' name='action' value='reject_receipt'>";
-                      echo "<input type='hidden' name='redirect_page' value='visitor_requests'>";
-                      $valueAttr = ($payStatusLower === 'pending_update' ? " value='" . htmlspecialchars(trim((string)($rr['denial_reason'] ?? '')), ENT_QUOTES) . "'" : "");
-                      echo "<input type='hidden' name='denial_reason' class='denial-reason'".$valueAttr.">";
-                      echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'>Reject</button>";
-                      echo "</form>";
-                    }
-                  }
-                  if ($approval_status == 'pending') {
-                      $disabled = !isAmenityPaymentVerified($con, $rr['ref_code'] ?? '');
-                      echo "<form method='post'>";
-                      echo "<input type='hidden' name='rr_id' value='" . intval($rr['id']) . "'>";
-                      echo "<input type='hidden' name='action' value='approve_resident_reservation'>";
-                      echo "<input type='hidden' name='redirect_page' value='visitor_requests'>";
-                      echo "<button type='submit' class='btn " . ($disabled ? "btn-disabled" : "btn-approve") . "' " . ($disabled ? "disabled title='Verify payment receipt first'" : "") . ">Approve</button>";
-                      echo "</form>";
+          foreach ($vrRows as $vr) :
+              $vrId   = intval($vr['id']);
+              $vrRef  = (string)($vr['ref_code'] ?? '');
+              $vrName = trim(($vr['first_name'] ?? '') . ' ' . ($vr['middle_name'] ?? '') . ' ' . ($vr['last_name'] ?? ''));
+              if ($vrName === '') { $vrName = '—'; }
 
-                  } elseif ($approval_status == 'denied' || $approval_status == 'cancelled') {
-                      echo "<form method='post' onsubmit='return confirm(\"Delete this " . $approval_status . " reservation? This cannot be undone.\")'>";
-                      echo "<input type='hidden' name='rr_id' value='" . intval($rr['id']) . "'>";
-                      echo "<input type='hidden' name='action' value='delete_resident_reservation'>";
-                      echo "<input type='hidden' name='redirect_page' value='visitor_requests'>";
-                      echo "<button type='submit' class='btn btn-remove'><i class='fa-solid fa-trash'></i> Delete</button>";
-                      echo "</form>";
-                  } else {
-                      $approvedBy = !empty($rr['approved_by']) ? "by Admin" : "";
-                      if ($approval_status === 'approved' && !empty($rr['ref_code'])) {
-                        echo "<a class='btn btn-qr' href='qr_view.php?code=" . urlencode($rr['ref_code']) . "' target='_blank'><i class='fa-solid fa-qrcode'></i> View QR</a>";
-                      }
-                      echo "<span class='muted'>" . ucfirst($approval_status) . " $approvedBy</span>";
-                  }
-                  }
-                  echo "</td>";
-                  echo "</tr>";
+              /* The resident being visited, when the booking recorded one. */
+              $vrHost = trim((string)($vr['booked_by_name'] ?? ''));
+              $vrMeta = ($vrHost !== '') ? ('Visitor · for ' . $vrHost) : 'Visitor';
+
+              /* Search covers name, reference and the resident being visited. */
+              $vrHaystack = strtolower($vrName . ' ' . $vrRef . ' ' . $vrHost);
+
+              $vrDownpayment = ($vr['downpayment'] === null || $vr['downpayment'] === '')
+                  ? '—'
+                  : '₱' . number_format((float)$vr['downpayment'], 2);
+
+              $vrSubmitted = '';
+              if ($vr['vr_created'] > 0) {
+                  $vrSubmitted = date('M j, Y · g:i A', $vr['vr_created']);
               }
-          }
-          if (!$hasVR) {
-              echo "<tr><td colspan='5' style='text-align:center;'>No visitor account amenity requests found</td></tr>";
-          }
+              $vrAgo = vpRelativeTime($vr['vr_created']);
+
+              /* Tooltips carry the detail that used to sit under the buttons. */
+              $vrPillTitle = '';
+              if ($vr['vr_key'] === 'approved' && !empty($vr['approved_by'])) {
+                  $vrPillTitle = 'Approved by Admin';
+              } else if ($vr['vr_key'] === 'rejected') {
+                  $vrReason = trim((string)($vr['denial_reason'] ?? ''));
+                  if ($vrReason !== '') { $vrPillTitle = 'Reason: ' . $vrReason; }
+              }
           ?>
+        <tr data-status="<?php echo $vr['vr_key']; ?>"
+            data-id="<?php echo $vrId; ?>"
+            data-ref="<?php echo htmlspecialchars($vrRef, ENT_QUOTES, 'UTF-8'); ?>"
+            data-search="<?php echo htmlspecialchars($vrHaystack, ENT_QUOTES, 'UTF-8'); ?>"
+            data-created="<?php echo intval($vr['vr_created']); ?>"
+            data-visit="<?php echo intval($vr['vr_visit']); ?>"
+            data-down="<?php echo htmlspecialchars((string)$vr['vr_pay'], ENT_QUOTES, 'UTF-8'); ?>"
+            data-name="<?php echo htmlspecialchars(strtolower($vrName), ENT_QUOTES, 'UTF-8'); ?>">
+          <td>
+            <span class="vr-visitor-name"><?php echo htmlspecialchars($vrName); ?></span>
+            <span class="vr-visitor-meta"><?php echo htmlspecialchars($vrMeta); ?></span>
+          </td>
+          <td><span class="vr-ref"><?php echo htmlspecialchars($vrRef !== '' ? $vrRef : '—'); ?></span></td>
+          <td><?php echo htmlspecialchars((string)($vr['amenity'] ?? '—')); ?></td>
+          <td>
+            <span class="vr-submitted"><?php echo htmlspecialchars($vrSubmitted !== '' ? $vrSubmitted : '—'); ?></span>
+            <span class="vr-ago"><?php echo htmlspecialchars($vrAgo); ?></span>
+          </td>
+          <td><span class="vr-amount"><?php echo htmlspecialchars($vrDownpayment); ?></span></td>
+          <td>
+            <span class="vr-pill vr-pill-<?php echo $vr['vr_key']; ?>"<?php echo ($vrPillTitle !== '' ? ' title="' . htmlspecialchars($vrPillTitle, ENT_QUOTES, 'UTF-8') . '"' : ''); ?>><?php echo htmlspecialchars($vr['vr_label']); ?></span>
+          </td>
+          <td class="actions">
+            <button type="button" class="btn btn-view" onclick='showReservationDetails(<?php echo $vrId; ?>,"visitor")'>View Details</button>
+            <?php /* Approve only exists once the receipt has been approved. */ if ($vr['vr_key'] === 'ready' && $vr['vr_approvable']): ?>
+            <form method="post">
+              <input type="hidden" name="rr_id" value="<?php echo $vrId; ?>">
+              <input type="hidden" name="action" value="approve_resident_reservation">
+              <input type="hidden" name="redirect_page" value="visitor_requests">
+              <button type="submit" class="btn btn-approve">Approve</button>
+            </form>
+            <?php elseif ($vr['vr_key'] === 'approved' && $vrRef !== ''): ?>
+            <a class="btn btn-qr" href="qr_view.php?code=<?php echo urlencode($vrRef); ?>" target="_blank" rel="noopener"><i class="fa-solid fa-qrcode"></i> View QR</a>
+            <?php endif; ?>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+        <tr class="vr-empty" id="vr-empty-row"<?php echo count($vrRows) > 0 ? ' style="display:none;"' : ''; ?>>
+          <td colspan="7">
+            <span id="vr-empty-text">No requests match your filters.</span>
+            <br>
+            <button type="button" class="vr-empty-clear" id="vr-empty-clear" hidden>Clear filters</button>
+          </td>
+        </tr>
         </tbody>
       </table>
     </div>
 
+    <div class="vr-pager" id="vr-pager" hidden>
+      <span class="vr-pager-info" id="vr-pager-info"></span>
+      <button type="button" class="vr-page-btn" id="vr-page-prev" aria-label="Previous page">&larr;</button>
+      <span id="vr-page-numbers" style="display:flex;gap:6px;flex-wrap:wrap;"></span>
+      <button type="button" class="vr-page-btn" id="vr-page-next" aria-label="Next page">&rarr;</button>
+    </div>
 
+  </div>
+  </div>
 </section>
+<script>
+/* =============================================================
+   Visitor Requests list: status boxes + search + amenity + date,
+   then the sort, then pagination. Everything is instant and in
+   place: no request ever reloads this page.
+   ============================================================= */
+window.VR_LIST = (function(){
+  var table = document.getElementById('vr-table');
+  if (!table) { return null; }
+
+  var tbody    = document.getElementById('vr-tbody');
+  var emptyRow = document.getElementById('vr-empty-row');
+  var emptyTxt = document.getElementById('vr-empty-text');
+  var emptyBtn = document.getElementById('vr-empty-clear');
+  var resultEl = document.getElementById('vr-result-line');
+  var pager    = document.getElementById('vr-pager');
+  var pagerInf = document.getElementById('vr-pager-info');
+  var pagePrev = document.getElementById('vr-page-prev');
+  var pageNext = document.getElementById('vr-page-next');
+  var pageNums = document.getElementById('vr-page-numbers');
+
+  var sortSel  = document.getElementById('vr-sort');
+  var amenSel  = document.getElementById('vr-amenity');
+  var dateSel  = document.getElementById('vr-date');
+  var rangeBox = document.getElementById('vr-date-range');
+  var dateFrom = document.getElementById('vr-date-from');
+  var dateTo   = document.getElementById('vr-date-to');
+  var clearBtn = document.getElementById('vr-clear');
+  var mBtn     = document.getElementById('vr-mobile-filters');
+  var mPanel   = document.getElementById('vr-controls');
+
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('[data-vr-filter]'));
+  var countEls = Array.prototype.slice.call(document.querySelectorAll('[data-vr-count]'));
+
+  var KEYS   = ['all', 'to_verify', 'ready', 'approved', 'rejected'];
+  var RANK   = { to_verify: 0, ready: 1, approved: 2, rejected: 3 };
+  var PER_PAGE = 10;
+  var STORE  = 'vp_admin_vr_state';
+
+  var state = { status: 'all', q: '', sort: 'needs_action', amenity: '', date: '', from: '', to: '', page: 1 };
+  /* The search box lives in the page header, not in the table, so it is wired up
+     here instead of from markup next to the filters. */
+  var searchInput = document.getElementById('search-input');
+  var searchTimer = null;
+
+  function rows(){ return Array.prototype.slice.call(tbody.querySelectorAll('tr[data-status]')); }
+  function attr(r, n){ return r.getAttribute(n) || ''; }
+  function num(r, n){ var v = parseFloat(attr(r, n)); return isFinite(v) ? v : 0; }
+
+  function save(){
+    try { window.sessionStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {}
+  }
+  function load(){
+    try {
+      var raw = window.sessionStorage.getItem(STORE);
+      if (!raw) { return; }
+      var saved = JSON.parse(raw);
+      if (!saved || typeof saved !== 'object') { return; }
+      if (KEYS.indexOf(saved.status) !== -1) { state.status = saved.status; }
+      if (saved.sort) { state.sort = saved.sort; }
+      if (typeof saved.q === 'string') { state.q = saved.q; }
+      if (typeof saved.amenity === 'string') { state.amenity = saved.amenity; }
+      if (typeof saved.date === 'string') { state.date = saved.date; }
+      if (typeof saved.from === 'string') { state.from = saved.from; }
+      if (typeof saved.to === 'string') { state.to = saved.to; }
+    } catch (e) {}
+  }
+
+  /* ---- filters ---- */
+  function dayStart(){ var d = new Date(); d.setHours(0,0,0,0); return d.getTime() / 1000; }
+  function passesDate(row){
+    var mode = state.date;
+    if (!mode) { return true; }
+    var ts = num(row, 'data-created');
+    if (!ts) { return false; }
+    if (mode === 'today') { return ts >= dayStart(); }
+    if (mode === '7' || mode === '30') {
+      var days = (mode === '7') ? 7 : 30;
+      return ts >= (dayStart() - ((days - 1) * 86400));
+    }
+    if (mode === 'custom') {
+      var d = new Date(ts * 1000);
+      var iso = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+      if (state.from && iso < state.from) { return false; }
+      if (state.to && iso > state.to) { return false; }
+      return true;
+    }
+    return true;
+  }
+
+  function visible(){
+    var q = state.q.toLowerCase().trim();
+    return rows().filter(function(r){
+      if (state.status !== 'all' && attr(r, 'data-status') !== state.status) { return false; }
+      if (q && attr(r, 'data-search').indexOf(q) === -1) { return false; }
+      if (state.amenity) {
+        var cells = r.querySelectorAll('td');
+        if (!cells[2] || (cells[2].textContent || '').trim() !== state.amenity) { return false; }
+      }
+      return passesDate(r);
+    });
+  }
+
+  /* ---- sort (applied to the filtered set) ---- */
+  var COMPARATORS = {
+    needs_action: function(a,b){
+      var d = RANK[attr(a,'data-status')] - RANK[attr(b,'data-status')];
+      return d !== 0 ? d : (num(b,'data-created') - num(a,'data-created'));
+    },
+    newest:      function(a,b){ return num(b,'data-created') - num(a,'data-created'); },
+    oldest:      function(a,b){ return num(a,'data-created') - num(b,'data-created'); },
+    visit_soon:  function(a,b){ return (num(a,'data-visit')||8.64e15) - (num(b,'data-visit')||8.64e15); },
+    visit_late:  function(a,b){ return (num(b,'data-visit')||8.64e15) - (num(a,'data-visit')||8.64e15); },
+    name:        function(a,b){ return attr(a,'data-name').localeCompare(attr(b,'data-name')); },
+    down_high:   function(a,b){ return num(b,'data-down') - num(a,'data-down'); }
+  };
+
+  /* ---- one pass: sort, show/hide, paginate, count ---- */
+  function apply(){
+    var list = visible();
+    var cmp  = COMPARATORS[state.sort] || COMPARATORS.needs_action;
+    list.sort(cmp);
+
+    var total = rows().length;
+    var pages = Math.max(1, Math.ceil(list.length / PER_PAGE));
+    if (state.page > pages) { state.page = pages; }
+    if (state.page < 1) { state.page = 1; }
+
+    var from = (state.page - 1) * PER_PAGE;
+    var to   = Math.min(from + PER_PAGE, list.length);
+
+    /* Sorting an array of rows does nothing you can see: table rows are painted
+       in document order, so the sorted ones have to be physically moved. Rows
+       that were filtered out are parked behind them, and the empty-state row
+       stays last. The pool is grabbed first, because moving the rows out of the
+       tbody would leave nothing for a later query to find. */
+    var pool = rows();
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < list.length; i++) { frag.appendChild(list[i]); }
+    for (var j = 0; j < pool.length; j++) {
+      if (list.indexOf(pool[j]) === -1) { frag.appendChild(pool[j]); }
+    }
+    if (emptyRow) { tbody.insertBefore(frag, emptyRow); } else { tbody.appendChild(frag); }
+
+    pool.forEach(function(r){ r.style.display = 'none'; });
+    for (var k = from; k < to; k++) { list[k].style.display = ''; }
+
+    if (resultEl) {
+      resultEl.textContent = 'Showing ' + list.length + ' of ' + total + ' request' + (total === 1 ? '' : 's');
+    }
+
+    var anyFilter = !!(state.q.trim() || state.amenity || state.date || state.from || state.to) || state.sort !== 'needs_action';
+    if (emptyRow) { emptyRow.style.display = list.length === 0 ? '' : 'none'; }
+    if (emptyTxt) {
+      emptyTxt.textContent = (total === 0)
+        ? 'No visitor requests yet.'
+        : 'No requests match your filters.';
+    }
+    if (emptyBtn) { emptyBtn.hidden = !anyFilter; }
+    if (clearBtn) { clearBtn.hidden = !anyFilter; }
+
+    renderPager(pages, from, to, list.length);
+    paintHeaders();
+    save();
+  }
+
+  function renderPager(pages, from, to, shown){
+    if (pager) { pager.hidden = pages <= 1; }
+    if (pagerInf) {
+      pagerInf.textContent = shown > 0 ? ('Page ' + state.page + ' of ' + pages + ' · ' + (from + 1) + '–' + to) : '';
+    }
+    if (pagePrev) { pagePrev.disabled = state.page <= 1; }
+    if (pageNext) { pageNext.disabled = state.page >= pages; }
+    if (!pageNums) { return; }
+    pageNums.innerHTML = '';
+    for (var p = 1; p <= pages; p++) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'vr-page-btn';
+      b.textContent = String(p);
+      b.setAttribute('aria-label', 'Page ' + p);
+      if (p === state.page) { b.setAttribute('aria-current', 'true'); }
+      b.addEventListener('click', (function(page){
+        return function(){ state.page = page; apply(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+      })(p));
+      pageNums.appendChild(b);
+    }
+  }
+
+  /* ---- status boxes ---- */
+  function setStatus(key, persist){
+    if (KEYS.indexOf(key) === -1) { key = 'all'; }
+    state.status = key;
+    boxes.forEach(function(b){
+      b.setAttribute('aria-pressed', b.getAttribute('data-vr-filter') === key ? 'true' : 'false');
+    });
+    if (persist !== false) { state.page = 1; save(); apply(); }
+  }
+
+  boxes.forEach(function(b){
+    b.addEventListener('click', function(){ setStatus(b.getAttribute('data-vr-filter')); });
+  });
+
+  /* ---- toolbar wiring ---- */
+  function syncControls(){
+    if (searchInput && searchInput.value !== state.q) { searchInput.value = state.q; }
+    if (sortSel && sortSel.value !== state.sort) { sortSel.value = state.sort; }
+    if (amenSel) {
+      amenSel.value = state.amenity;
+      /* A remembered amenity that no longer exists would otherwise filter the
+         whole list away with no way to see why. */
+      if (state.amenity && !amenSel.value) { state.amenity = ''; }
+    }
+    if (dateSel && dateSel.value !== state.date) { dateSel.value = state.date; }
+    if (rangeBox) { rangeBox.hidden = (state.date !== 'custom'); }
+    if (dateFrom && dateFrom.value !== state.from) { dateFrom.value = state.from; }
+    if (dateTo && dateTo.value !== state.to) { dateTo.value = state.to; }
+  }
+
+  /* Search waits for a pause in typing rather than firing per keystroke. */
+  if (searchInput) {
+    searchInput.addEventListener('input', function(){
+      var v = searchInput.value;
+      if (searchTimer) { window.clearTimeout(searchTimer); }
+      searchTimer = window.setTimeout(function(){
+        state.q = v;
+        state.page = 1;
+        apply();
+      }, 200);
+    });
+  }
+  if (sortSel) { sortSel.addEventListener('change', function(){ state.sort = sortSel.value; state.page = 1; apply(); }); }
+  if (amenSel) { amenSel.addEventListener('change', function(){ state.amenity = amenSel.value; state.page = 1; apply(); }); }
+  if (dateSel) { dateSel.addEventListener('change', function(){ state.date = dateSel.value; state.page = 1; syncControls(); apply(); }); }
+  if (dateFrom) { dateFrom.addEventListener('change', function(){ state.from = dateFrom.value; state.page = 1; apply(); }); }
+  if (dateTo)   { dateTo.addEventListener('change', function(){ state.to = dateTo.value; state.page = 1; apply(); }); }
+
+  /* Clears search, amenity, date and sort back to defaults. The status box is
+     deliberately left alone. */
+  function clearAll(){
+    state.q = '';
+    state.sort = 'needs_action';
+    state.amenity = '';
+    state.date = '';
+    state.from = '';
+    state.to = '';
+    state.page = 1;
+    syncControls();
+    apply();
+  }
+  if (clearBtn) { clearBtn.addEventListener('click', clearAll); }
+  /* Delegated, because the tbody's children get replaced by a live refresh. */
+  if (tbody) {
+    tbody.addEventListener('click', function(e){
+      if (e.target && e.target.closest && e.target.closest('.vr-empty-clear')) { clearAll(); }
+    });
+  }
+
+  if (pagePrev) { pagePrev.addEventListener('click', function(){ if (state.page > 1) { state.page--; apply(); } }); }
+  if (pageNext) { pageNext.addEventListener('click', function(){ state.page++; apply(); }); }
+
+  /* ---- clickable column headers ---- */
+  function headerSortTo(col){
+    if (col === 'created') { return (state.sort === 'newest') ? 'oldest' : 'newest'; }
+    return 'down_high';
+  }
+  function paintHeaders(){
+    Array.prototype.slice.call(table.querySelectorAll('.vr-sortable')).forEach(function(th){
+      var col = th.getAttribute('data-vr-sortcol');
+      var arrow = th.querySelector('.vr-sort-arrow');
+      var on = (state.sort === 'newest' || state.sort === 'oldest') ? (col === 'created')
+             : (state.sort === 'down_high') ? (col === 'down') : false;
+      th.classList.toggle('vr-sort-active', !!on);
+      th.setAttribute('aria-sort', on ? ((state.sort === 'oldest') ? 'ascending' : 'descending') : 'none');
+      if (arrow) { arrow.textContent = on ? ((state.sort === 'oldest') ? '▲' : '▼') : '↕'; }
+    });
+  }
+  Array.prototype.slice.call(table.querySelectorAll('.vr-sortable')).forEach(function(th){
+    var run = function(){ state.sort = headerSortTo(th.getAttribute('data-vr-sortcol')); state.page = 1; syncControls(); apply(); };
+    th.addEventListener('click', run);
+    th.addEventListener('keydown', function(e){
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); run(); }
+    });
+  });
+
+  /* ---- mobile filter panel ---- */
+  if (mBtn && mPanel) {
+    mBtn.addEventListener('click', function(){
+      var open = mPanel.classList.toggle('is-open');
+      mBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    document.addEventListener('keydown', function(e){
+      if (e.key === 'Escape' && mPanel.classList.contains('is-open')) {
+        mPanel.classList.remove('is-open');
+        mBtn.setAttribute('aria-expanded', 'false');
+        mBtn.focus();
+      }
+    });
+  }
+
+  /* ---- public surface: used by the dialog sync and the live poll ---- */
+  var api = {
+    state: state,
+    apply: apply,
+    syncControls: syncControls,
+    paintHeaders: paintHeaders,
+    setStatus: setStatus,
+    rows: rows,
+    count: function(){ return rows().length; },
+    /* Swaps in a freshly rendered tbody when the poll sees the server's total
+       has moved on. Only the table changes: filters, sort, page and search all
+       live in this closure and are re-applied, so nothing is lost. */
+    refreshFrom: function(html){
+      try {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var freshBody = doc.getElementById('vr-tbody');
+        if (!freshBody) { return false; }
+        tbody.innerHTML = freshBody.innerHTML;
+        /* Re-point at the new empty-state nodes. */
+        emptyRow = document.getElementById('vr-empty-row');
+        emptyTxt  = document.getElementById('vr-empty-text');
+        emptyBtn  = document.getElementById('vr-empty-clear');
+
+        var freshCounts = doc.querySelectorAll('[data-vr-count]');
+        Array.prototype.forEach.call(countEls, function(el, i){
+          if (freshCounts[i]) { el.textContent = freshCounts[i].textContent; }
+        });
+        var freshAmenity = doc.getElementById('vr-amenity');
+        if (freshAmenity && amenSel) {
+          amenSel.innerHTML = freshAmenity.innerHTML;
+          amenSel.value = state.amenity;
+        }
+        syncControls();
+        api.recount();
+        apply();
+        return true;
+      } catch (e) { return false; }
+    },
+    /* Recount the boxes and the result line from the rows on screen. */
+    recount: function(){
+      var c = statusCounts();
+      countEls.forEach(function(el){
+        var k = el.getAttribute('data-vr-count');
+        if (Object.prototype.hasOwnProperty.call(c, k)) { el.textContent = c[k]; }
+      });
+      boxes.forEach(function(b){
+        var k = b.getAttribute('data-vr-filter');
+        var lbl = b.querySelector('.vr-filter-label');
+        if (!lbl) { return; }
+        var wants = (k === 'to_verify' || k === 'ready') && c[k] > 0;
+        var dot = lbl.querySelector('.vr-filter-dot');
+        if (wants && !dot) {
+          var s = document.createElement('span');
+          s.className = (k === 'ready') ? 'vr-filter-dot is-ready' : 'vr-filter-dot';
+          s.setAttribute('aria-hidden', 'true');
+          lbl.insertBefore(s, lbl.firstChild);
+        } else if (!wants && dot) {
+          dot.parentNode.removeChild(dot);
+        }
+      });
+      return c;
+    },
+    /* The same tally, without touching the DOM. The poll uses it to work out
+       whether the server has drifted from what is on screen. */
+    statusCounts: statusCounts
+  };
+
+  /* ---- how many rows sit in each status right now ---- */
+  function statusCounts(){
+    var c = { all: 0, to_verify: 0, ready: 0, approved: 0, rejected: 0 };
+    rows().forEach(function(r){
+      var s = attr(r, 'data-status');
+      c.all++;
+      if (Object.prototype.hasOwnProperty.call(c, s) && s !== 'all') { c[s]++; }
+    });
+    return c;
+  }
+
+  load();
+  syncControls();
+  setStatus(state.status, false);
+  api.recount();
+  apply();
+
+  return api;
+})();
+</script>
 <?php endif; ?>
 
 <!-- ARCHIVED REQUESTS -->
@@ -8858,17 +10099,27 @@ function rrdRenderFoot(d, att){
   warn.innerHTML = '';
   var html = '';
 
+  /* The visitor flow talks about receipts and visits. The resident and
+     resident-guest flows keep their original payment/request wording. */
+  var isVisitor = (RRD.redirectPage === 'visitor_requests');
+
   if (RRD.key === 'to_verify') {
     hint.className = 'rrd-foot-hint';
-    hint.textContent = 'Compare the receipt with the breakdown, then verify or reject.';
+    hint.textContent = isVisitor
+      ? 'Compare the receipt with the breakdown, then approve or reject the receipt.'
+      : 'Compare the receipt with the breakdown, then verify or reject.';
+    var rejectLbl = isVisitor ? 'Reject receipt' : 'Reject payment';
+    var verifyLbl = isVisitor ? 'Approve receipt' : 'Verify payment';
     if (att < 3) {
-      html += '<button type="button" class="btn rrd-btn-danger-ghost" onclick="rrdToggleReject()"><i class="fa-solid fa-xmark"></i> Reject payment</button>';
+      html += '<button type="button" class="btn rrd-btn-danger-ghost" onclick="rrdToggleReject()"><i class="fa-solid fa-xmark"></i> ' + rejectLbl + '</button>';
     }
-    html += '<button type="button" class="btn btn-approve" onclick="rrdDoVerify()"><i class="fa-solid fa-check"></i> Verify payment</button>';
+    html += '<button type="button" class="btn btn-approve" onclick="rrdDoVerify()"><i class="fa-solid fa-check"></i> ' + verifyLbl + '</button>';
   } else if (RRD.key === 'ready') {
     hint.className = 'rrd-foot-hint is-ok';
-    hint.innerHTML = '<i class="fa-solid fa-circle-check"></i> Payment verified. You can now approve this request.';
-    html += '<button type="button" class="btn btn-approve" onclick="rrdDoApprove()"><i class="fa-solid fa-check"></i> Approve request</button>';
+    hint.innerHTML = isVisitor
+      ? '<i class="fa-solid fa-circle-check"></i> Receipt approved. You can now approve this visit.'
+      : '<i class="fa-solid fa-circle-check"></i> Payment verified. You can now approve this request.';
+    html += '<button type="button" class="btn btn-approve" onclick="rrdDoApprove()"><i class="fa-solid fa-check"></i> ' + (isVisitor ? 'Approve' : 'Approve request') + '</button>';
   } else if (RRD.key === 'approved') {
     hint.className = 'rrd-foot-hint is-ok';
     hint.innerHTML = '<i class="fa-solid fa-circle-check"></i> Approved by Admin. The QR pass is ready.';
@@ -9081,60 +10332,151 @@ function rrdReload(onDone){
 }
 function rrdDoVerify(){
   rrdAct({ reservation_id: RRD.id, action: 'verify_receipt', redirect_page: RRD.redirectPage }, function(){
-    rrdToast('Payment verified', 'You can now approve this request.', 'ok');
+    if (RRD.redirectPage === 'visitor_requests') {
+      rrdToast('Receipt approved', 'You can now approve this visit.', 'ok');
+    } else {
+      rrdToast('Payment verified', 'You can now approve this request.', 'ok');
+    }
   });
 }
 function rrdDoApprove(){
   rrdAct({ rr_id: RRD.id, action: 'approve_resident_reservation', redirect_page: RRD.redirectPage }, function(){
-    rrdToast('Request approved', 'The QR pass has been generated and the resident was notified.', 'ok');
+    if (RRD.redirectPage === 'visitor_requests') {
+      rrdToast('Visit approved', 'The QR pass has been generated and the visitor was notified.', 'ok');
+    } else {
+      rrdToast('Request approved', 'The QR pass has been generated and the resident was notified.', 'ok');
+    }
   });
 }
 function rrdDoReject(){
   var sel = document.getElementById('rrdRejectSelect');
   var reason = sel.value;
+  /* The reason is required, never optional. */
   if (!reason) { return; }
   rrdToggleReject(false);
   rrdAct({ reservation_id: RRD.id, action: 'reject_receipt', denial_reason: reason, redirect_page: RRD.redirectPage }, function(){
-    rrdToast('Receipt rejected', 'The resident was notified. Reason: ' + reason, 'error');
+    var who = (RRD.redirectPage === 'visitor_requests') ? 'The visitor was notified.' : 'The resident was notified.';
+    rrdToast('Receipt rejected', who + ' Reason: ' + reason, 'error');
   });
 }
 
-/* ---------- keep the resident list behind the dialog in step ---------- */
-function rrdRowActionsHtml(){
+/* ---------- keep the list behind the dialog in step ---------- */
+/* The dialog is shared, so the list behind it is whichever one is on screen. */
+function rrdListCtx(){
+  var vp = document.getElementById('visitor-requests-panel');
+  if (vp) {
+    return { panel: vp, tbody: document.getElementById('vr-tbody'), pill: 'vr-pill', redirect: 'visitor_requests', visitor: true };
+  }
+  var rp = document.getElementById('requests-panel');
+  if (!rp) { return null; }
+  return { panel: rp, tbody: document.getElementById('rr-tbody'), pill: 'rr-pill', redirect: 'requests', visitor: false };
+}
+
+/* Renders one sidebar action badge. Hidden entirely at zero, capped at 99+, and
+   it pulses only when the count goes UP (something just landed). The page and the
+   wording come off the element, so the same function serves all four badges and
+   keeps the owning link's accessible name in step. */
+function rrdPaintBadge(badge, n, pulse){
+  if (!badge) { return; }
+  n = parseInt(n, 10);
+  if (isNaN(n) || n < 0) { n = 0; }
+  var prev = parseInt(badge.getAttribute('data-count') || '0', 10);
+  if (isNaN(prev)) { prev = 0; }
+  badge.setAttribute('data-count', String(n));
+  badge.textContent = (n > 99) ? '99+' : String(n);
+  badge.hidden = n <= 0;
+  var page = badge.getAttribute('data-page') || '';
+  var name = badge.getAttribute('data-label') || '';
+  if (page && name && badge.closest) {
+    var link = badge.closest('a[data-page]');
+    if (link && link.getAttribute('data-page') === page) {
+      link.setAttribute('aria-label', (n > 0) ? (name + ', ' + n + ' need action') : name);
+    }
+  }
+  if (pulse && n > prev) {
+    badge.classList.remove('pulse');
+    /* Force a reflow so the animation restarts on every new item. */
+    void badge.offsetWidth;
+    badge.classList.add('pulse');
+  }
+}
+
+/* Repaints every badge the server just recounted. Each badge only ever looks at
+   its own number, so one page's backlog can never move another page's badge.
+   A page that is not in the payload is left alone rather than blanked. */
+function rrdApplySidebarCounts(counts, pulse){
+  if (!counts) { return; }
+  var badges = document.querySelectorAll('.nav-badge');
+  for (var i = 0; i < badges.length; i++) {
+    var b = badges[i];
+    var page = b.getAttribute('data-page');
+    if (!page || !Object.prototype.hasOwnProperty.call(counts, page)) { continue; }
+    rrdPaintBadge(b, counts[page], pulse);
+  }
+}
+
+function rrdRowActionsHtml(ctx, fresh){
   var ref = String((RRD.d && RRD.d.ref_code) || '');
   var html = '<button type="button" class="btn btn-view" onclick=\'showReservationDetails(' + RRD.id + ',"visitor")\'>View Details</button>';
   if (RRD.key === 'ready') {
     html += '<form method="post">' +
       '<input type="hidden" name="rr_id" value="' + RRD.id + '">' +
       '<input type="hidden" name="action" value="approve_resident_reservation">' +
-      '<input type="hidden" name="redirect_page" value="requests">' +
-      '<button type="submit" class="btn btn-approve">Approve</button></form>';
+      '<input type="hidden" name="redirect_page" value="' + ctx.redirect + '">' +
+      /* The Approve button only exists once the receipt was approved, so on the
+         visitor list it fades in rather than popping. */
+      '<button type="submit" class="btn btn-approve' + ((fresh && ctx.visitor) ? ' vr-btn-fade' : '') + '">Approve</button></form>';
   } else if (RRD.key === 'approved' && ref) {
-    html += '<a class="btn btn-qr" href="qr_view.php?code=' + encodeURIComponent(ref) + '" target="_blank"><i class="fa-solid fa-qrcode"></i> View QR</a>';
+    html += '<a class="btn btn-qr" href="qr_view.php?code=' + encodeURIComponent(ref) + '" target="_blank" rel="noopener"><i class="fa-solid fa-qrcode"></i> View QR</a>';
   }
   return html;
 }
 function rrdSyncList(){
-  var panel = document.getElementById('requests-panel');
-  if (!panel || !RRD.id) { return; }
-  var rows = panel.querySelectorAll('#rr-tbody tr[data-status]');
+  if (!RRD.id) { return; }
+  var ctx = rrdListCtx();
+  if (!ctx) { return; }
+  var rows = ctx.tbody.querySelectorAll('tr[data-status]');
 
   var row = null;
   Array.prototype.forEach.call(rows, function(r){
     if (parseInt(r.getAttribute('data-id'), 10) === RRD.id) { row = r; }
   });
+  var fresh = false;
   if (row) {
+    fresh = (row.getAttribute('data-status') === 'to_verify' && RRD.key === 'ready');
     row.setAttribute('data-status', RRD.key);
-    var pill = row.querySelector('.rr-pill');
+    var pill = row.querySelector('.' + ctx.pill);
     if (pill) {
-      pill.className = 'rr-pill rr-pill-' + RRD.key;
+      pill.className = ctx.pill + ' ' + ctx.pill + '-' + RRD.key;
       pill.textContent = RRD_LABELS[RRD.key];
       var reason = String((RRD.d && RRD.d.denial_reason) || '').trim();
       if (RRD.key === 'rejected' && reason) { pill.setAttribute('title', 'Reason: ' + reason); }
       else { pill.removeAttribute('title'); }
     }
     var cell = row.querySelector('td.actions');
-    if (cell) { cell.innerHTML = rrdRowActionsHtml(); }
+    if (cell) { cell.innerHTML = rrdRowActionsHtml(ctx, fresh); }
+  }
+
+  /* Recount the badge for the list this dialog is sitting on. The rows here are
+     exactly the rows behind the filter boxes, and the rule is the same one the
+     server uses (To verify + Ready to approve), so the badge and the boxes move
+     together the moment an admin acts. The other two badges are not touched:
+     their rows are not on this page, so the poll owns them. */
+  var badgePage = ctx.visitor ? 'visitor_requests' : 'requests';
+  var badge = document.querySelector('.nav-badge[data-page="' + badgePage + '"]');
+  if (badge) {
+    var n = 0;
+    Array.prototype.forEach.call(rows, function(r){
+      var s = r.getAttribute('data-status');
+      if (s === 'to_verify' || s === 'ready') { n++; }
+    });
+    rrdPaintBadge(badge, n);
+  }
+
+  if (ctx.visitor) {
+    /* The visitor list owns its own filtering and counting. */
+    if (window.VR_LIST) { window.VR_LIST.recount(); window.VR_LIST.apply(); }
+    return;
   }
 
   var counts = { all: 0, to_verify: 0, ready: 0, approved: 0, rejected: 0 };
@@ -9143,7 +10485,7 @@ function rrdSyncList(){
     counts.all++;
     if (Object.prototype.hasOwnProperty.call(counts, s) && s !== 'all') { counts[s]++; }
   });
-  Array.prototype.forEach.call(panel.querySelectorAll('[data-rr-filter]'), function(btn){
+  Array.prototype.forEach.call(ctx.panel.querySelectorAll('[data-rr-filter]'), function(btn){
     var k = btn.getAttribute('data-rr-filter');
     var c = btn.querySelector('.rr-filter-count');
     if (c && Object.prototype.hasOwnProperty.call(counts, k)) { c.textContent = counts[k]; }
@@ -9218,7 +10560,8 @@ function showReservationDetails(reservationId, expectedType){
     var active = document.activeElement;
     RRD.lastRowId = null;
     if (active && active.closest) {
-      var r = active.closest('#rr-tbody tr[data-id]');
+      /* Any of the admin request tables, not just the resident one. */
+      var r = active.closest('tr[data-id]');
       if (r) { RRD.lastRowId = r.getAttribute('data-id'); }
     }
   }
@@ -9274,7 +10617,7 @@ function closeReservationModal(){
     try { rf.focus(); return; } catch (e) {}
   }
   if (rowId) {
-    var btn = document.querySelector('#rr-tbody tr[data-id="' + rowId + '"] td.actions .btn-view');
+    var btn = document.querySelector('tr[data-id="' + rowId + '"] td.actions .btn-view');
     if (btn) { try { btn.focus(); } catch (e) {} }
   }
 }
@@ -9705,6 +11048,10 @@ window.addEventListener('click', function(event){
 <script>
   (function(){
     var refreshMs = 15000;
+    /* The visitor requests page keeps its own filters, sort, page and live
+       counts in place, so a full reload would throw all of that away. It does
+       its own refreshing instead. Every other admin page is unaffected. */
+    if (document.getElementById('visitor-requests-panel')) { return; }
     function hasVisibleModal(){
       var modals = document.querySelectorAll('.modal,#adminConfirmModal,#denyReasonModal');
       for(var i=0;i<modals.length;i++){
