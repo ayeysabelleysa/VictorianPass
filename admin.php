@@ -1916,22 +1916,24 @@ function getSidebarActionCounts($con) {
 /* One sidebar action badge. Hidden at zero, capped at 99+. The page and the
    wording ride along on the element so the poll can repaint any of the four
    without a branch per badge. */
-function sidebar_action_badge($page, $label, $n) {
+function sidebar_action_badge($page, $label, $n, $unit = 'need action') {
     $n = intval($n);
     return '<b class="nav-badge"'
          . ' data-page="' . htmlspecialchars($page, ENT_QUOTES, 'UTF-8') . '"'
          . ' data-label="' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '"'
+         . ' data-unit="' . htmlspecialchars($unit, ENT_QUOTES, 'UTF-8') . '"'
          . ' data-count="' . $n . '"'
          . ($n > 0 ? '' : ' hidden') . '>'
          . ($n > 99 ? '99+' : $n)
          . '</b>';
 }
 
-/* The badge is decorative, so the count is announced through the link's name. */
-function sidebar_action_aria($label, $n) {
+/* The badge is decorative, so the count is announced through the link's name.
+   $unit lets one page read as "waiting" without touching the other three. */
+function sidebar_action_aria($label, $n, $unit = 'need action') {
     $n = intval($n);
     return htmlspecialchars(
-        $n > 0 ? ($label . ', ' . $n . ' need action') : $label,
+        $n > 0 ? ($label . ', ' . $n . ' ' . $unit) : $label,
         ENT_QUOTES,
         'UTF-8'
     );
@@ -2547,14 +2549,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     exit;
                   }
                   if (preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $confirmTime)) { $confirmTime .= ':00'; }
-                    $stmtUp = $con->prepare("UPDATE guest_forms SET approval_status = ?, approved_by = ?, approval_date = NOW(), denial_reason = ?, visit_date = ?, visit_time = ? WHERE id = ?");
+                    /* Both writes are guarded on "still pending", so a stale tab or a
+                       double click cannot overturn a decision that has already
+                       been made. Nothing else about the flow changes. */
+                    $stmtUp = $con->prepare("UPDATE guest_forms SET approval_status = ?, approved_by = ?, approval_date = NOW(), denial_reason = ?, visit_date = ?, visit_time = ? WHERE id = ? AND (approval_status IS NULL OR approval_status = 'pending')");
                     $stmtUp->bind_param('sisssi', $approval_status, $staff_id, $reasonToSave, $confirmDate, $confirmTime, $reservation_id);
                 } else {
-                    $stmtUp = $con->prepare("UPDATE guest_forms SET approval_status = ?, approved_by = ?, approval_date = NOW(), denial_reason = ? WHERE id = ?");
+                    $stmtUp = $con->prepare("UPDATE guest_forms SET approval_status = ?, approved_by = ?, approval_date = NOW(), denial_reason = ? WHERE id = ? AND (approval_status IS NULL OR approval_status = 'pending')");
                     $stmtUp->bind_param('sisi', $approval_status, $staff_id, $reasonToSave, $reservation_id);
                 }
                 $stmtUp->execute();
+                $gqChanged = $stmtUp->affected_rows;
                 $stmtUp->close();
+                /* The pending guard can refuse the write. Nothing downstream may
+                   run in that case, or the resident would be told about a
+                   decision that was never saved. */
+                if (!$gqChanged) {
+                    $_SESSION['flash_notice'] = 'This guest request is no longer pending. Nothing was changed.';
+                    $redirectPage = preg_replace('/[^a-z_]/', '', $_POST['redirect_page'] ?? 'resident_guest_forms');
+                    header('Location: admin.php?page=' . ($redirectPage ?: 'resident_guest_forms'));
+                    exit;
+                }
                 if ($approval_status === 'approved') {
                     generateQrForGuestForm($con, $reservation_id);
                 }
@@ -5186,11 +5201,6 @@ table.table-rr tbody tr.rr-empty:hover { background: transparent; }
     font-size: 0.72rem;
     color: var(--text-muted);
 }
-.rr-ref {
-    font-weight: 500;
-    color: var(--text-secondary);
-    font-variant-numeric: tabular-nums;
-}
 .rr-amount {
     font-weight: 600;
     color: var(--text-main);
@@ -5267,6 +5277,279 @@ table.table-rr tbody tr.rr-empty td {
 }
 @media (max-width: 440px) {
     .rr-filters { grid-template-columns: 1fr; }
+}
+
+/* ---- Page header ---- */
+.rr-head { margin: 0 0 16px; }
+.rr-head h3 {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    position: static;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+.rr-head p {
+    margin: 4px 0 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+/* A one-time server message, e.g. "this request is no longer pending". */
+.rr-flash {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0 0 16px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--warning);
+    border-radius: var(--radius);
+    background: var(--warning-bg);
+    color: var(--text-main);
+    font-size: 0.82rem;
+}
+.rr-flash button {
+    margin-left: auto;
+    background: none;
+    border: 0;
+    padding: 0 2px;
+    color: var(--text-secondary);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: var(--radius);
+}
+.rr-flash button:hover { color: var(--text-main); }
+.rr-flash button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* ---- Search, sort and filter bar. Search stays visible on mobile, the
+        dropdowns fold into the panel behind the Filters button. ---- */
+.rr-toolbar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin: 16px 0;
+}
+.rr-field { display: flex; flex-direction: column; gap: 4px; }
+.rr-field > label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text-muted);
+}
+.rr-search {
+    width: 240px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.82rem;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-surface);
+    color: var(--text-main);
+    line-height: 1.4;
+}
+.rr-search:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.18); }
+.rr-search:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.rr-select {
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.82rem;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-surface);
+    color: var(--text-main);
+    line-height: 1.4;
+    min-width: 150px;
+}
+.rr-select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.18); }
+.rr-select:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.rr-date-range { display: flex; align-items: center; gap: 6px; }
+.rr-date-range input[type="date"] {
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.82rem;
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-surface);
+    color: var(--text-main);
+    line-height: 1.4;
+}
+.rr-date-range input[type="date"]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.18); }
+.rr-date-range input[type="date"]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.rr-clear {
+    margin-left: auto;
+    background: none;
+    border: none;
+    padding: 6px 2px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+    border-radius: var(--radius);
+    transition: var(--transition);
+}
+.rr-clear:hover { color: var(--danger); }
+.rr-clear:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.rr-clear[hidden] { display: none; }
+.rr-mobile-filters { display: none; }
+
+/* One container: an inline row on desktop, a stacked panel on mobile. The
+   controls stay in the DOM once, so nothing has to move on resize. */
+.rr-controls {
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+    flex-wrap: wrap;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* ---- Result line ---- */
+.rr-result-line {
+    margin: 0 0 12px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+/* ---- Submitted column ---- */
+.rr-submitted {
+    display: block;
+    color: var(--text-main);
+    white-space: nowrap;
+}
+.rr-ago,
+.rr-when {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+.rr-res-date {
+    display: block;
+    color: var(--text-main);
+    white-space: nowrap;
+}
+
+/* ---- Sortable column headers ---- */
+table.table-rr th.rr-sortable { cursor: pointer; user-select: none; }
+table.table-rr th.rr-sortable:hover { color: var(--text-main); }
+table.table-rr th.rr-sortable:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.rr-sort-arrow {
+    display: inline-block;
+    margin-left: 5px;
+    font-size: 0.62rem;
+    color: var(--text-muted);
+}
+table.table-rr th.rr-sort-active { color: var(--text-main); }
+table.table-rr th.rr-sort-active .rr-sort-arrow { color: var(--primary); }
+
+/* ---- Empty state ---- */
+table.table-rr tbody tr.rr-empty .rr-empty-clear {
+    display: inline-flex;
+    margin: 12px 0 0 12px;
+    padding: 7px 14px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-main);
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+table.table-rr tbody tr.rr-empty .rr-empty-clear:hover { border-color: var(--accent); background: var(--primary-light); }
+table.table-rr tbody tr.rr-empty .rr-empty-clear:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+table.table-rr tbody tr.rr-empty .rr-empty-clear[hidden] { display: none; }
+
+/* ---- Pagination ---- */
+.rr-pager {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 16px 0 0;
+}
+.rr-pager-info {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin-right: auto;
+}
+.rr-page-btn {
+    min-width: 34px;
+    min-height: 34px;
+    padding: 0 10px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-main);
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.8rem;
+    cursor: pointer;
+    box-shadow: none;
+    transition: var(--transition);
+}
+.rr-page-btn:hover:not(:disabled) { border-color: var(--accent); background: var(--primary-light); }
+.rr-page-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.rr-page-btn[aria-current="true"] {
+    border: 2px solid var(--accent);
+    background: rgba(212, 175, 55, 0.12);
+    color: var(--text-main);
+    font-weight: 600;
+}
+.rr-page-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+@media (max-width: 760px) {
+    /* Mobile: the dropdowns collapse behind one button, the search box stays put. */
+    .rr-toolbar { flex-wrap: nowrap; align-items: center; }
+    .rr-search { width: 100%; min-width: 0; }
+    .rr-mobile-filters {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+        min-height: 38px;
+        padding: 0 14px;
+        background: var(--bg-surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        color: var(--text-main);
+        font-family: 'Poppins', sans-serif;
+        font-size: 0.82rem;
+        font-weight: 500;
+        cursor: pointer;
+    }
+    .rr-mobile-filters:hover { border-color: var(--accent); background: var(--primary-light); }
+    .rr-mobile-filters:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+    .rr-mobile-filters[aria-expanded="true"] { border-color: var(--accent); background: var(--primary-light); }
+
+    .rr-controls {
+        display: none;
+        position: absolute;
+        left: 14px;
+        right: 14px;
+        z-index: 20;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+        padding: 16px;
+        background: var(--bg-surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-md);
+    }
+    .rr-controls.is-open { display: flex; }
+    .rr-controls .rr-select,
+    .rr-controls .rr-date-range input[type="date"] { width: 100%; min-width: 0; }
+    .rr-controls .rr-clear { margin-left: 0; align-self: flex-start; }
 }
 
 /* =========================================================
@@ -5681,6 +5964,680 @@ table.table-vr tbody tr.vr-empty .vr-empty-clear:focus-visible { outline: 2px so
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
+}
+
+/* =========================================================
+   Resident's Guest Requests (admin.php?page=resident_guest_forms)
+   Same tokens as the Visitor Requests block above on purpose: the two admin
+   request lists should read as one system. Prefixed gq- so nothing here can
+   reach the other request pages.
+   ========================================================= */
+
+/* Page header */
+.gq-head { margin: 0 0 16px; }
+.gq-head h3 {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    position: static;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+.gq-head p {
+    margin: 4px 0 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+.gq-flash {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0 0 16px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--warning);
+    border-radius: var(--radius);
+    background: var(--warning-bg);
+    color: var(--text-main);
+    font-size: 0.82rem;
+}
+.gq-flash button {
+    margin-left: auto;
+    background: none;
+    border: 0;
+    padding: 0 2px;
+    color: var(--text-secondary);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: var(--radius);
+}
+.gq-flash button:hover { color: var(--text-main); }
+.gq-flash button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* Filter boxes */
+.gq-filters {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin: 0 0 16px;
+}
+.gq-filter {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
+    padding: 12px 16px;
+    min-height: 68px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    text-align: left;
+    font-family: 'Poppins', sans-serif;
+    transition: var(--transition);
+}
+.gq-filter:hover { border-color: var(--accent); background: var(--primary-light); }
+.gq-filter:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.gq-filter[aria-pressed="true"] {
+    border: 2px solid var(--accent);
+    padding: 11px 15px;
+    background: rgba(212, 175, 55, 0.12);
+}
+.gq-filter-count {
+    font-size: 1.55rem;
+    font-weight: 600;
+    line-height: 1.15;
+    color: var(--text-main);
+}
+.gq-filter[aria-pressed="true"] .gq-filter-count { color: var(--primary-dark); }
+.gq-filter-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    line-height: 1.3;
+    color: var(--text-secondary);
+}
+.gq-filter[aria-pressed="true"] .gq-filter-label { color: var(--text-main); }
+/* Only the Pending box carries a dot, and only while it has work. */
+.gq-filter-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--warning);
+}
+
+/* Search / sort / filter bar */
+.gq-toolbar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin: 0 0 16px;
+}
+.gq-field { display: flex; flex-direction: column; gap: 4px; }
+.gq-field > label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text-muted);
+}
+.gq-search {
+    width: 240px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.82rem;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-surface);
+    color: var(--text-main);
+    line-height: 1.4;
+}
+.gq-search:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.18); }
+.gq-search:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.gq-select {
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.82rem;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-surface);
+    color: var(--text-main);
+    line-height: 1.4;
+    min-width: 150px;
+}
+.gq-select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.18); }
+.gq-select:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.gq-date-range { display: flex; align-items: center; gap: 6px; }
+.gq-date-range input[type="date"] {
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.82rem;
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-surface);
+    color: var(--text-main);
+    line-height: 1.4;
+}
+.gq-date-range input[type="date"]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.18); }
+.gq-date-range input[type="date"]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.gq-clear {
+    margin-left: auto;
+    background: none;
+    border: none;
+    padding: 6px 2px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+    border-radius: var(--radius);
+    transition: var(--transition);
+}
+.gq-clear:hover { color: var(--danger); }
+.gq-clear:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.gq-clear[hidden] { display: none; }
+.gq-mobile-filters { display: none; }
+
+/* One container: an inline row on desktop, a stacked panel on mobile. The
+   controls stay in the DOM once, so nothing has to move on resize. */
+.gq-controls {
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+    flex-wrap: wrap;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* Result line */
+.gq-result-line {
+    margin: 0 0 12px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+/* Table */
+.gq-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+table.table-gq { min-width: 980px; }
+table.table-gq th {
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--border-light);
+    padding: 10px 14px;
+    white-space: nowrap;
+}
+table.table-gq th.gq-sortable { cursor: pointer; user-select: none; }
+table.table-gq th.gq-sortable:hover { color: var(--text-main); }
+table.table-gq th.gq-sortable:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.gq-sort-arrow {
+    display: inline-block;
+    margin-left: 5px;
+    font-size: 0.62rem;
+    color: var(--text-muted);
+}
+th.gq-sort-active .gq-sort-arrow { color: var(--primary); }
+th.gq-sort-active { color: var(--text-main); }
+
+table.table-gq td {
+    padding: 10px 14px;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--border-light);
+}
+table.table-gq tbody tr:last-child td { border-bottom: 1px solid var(--border-light); }
+table.table-gq tbody tr:hover { background: var(--primary-light); }
+table.table-gq tbody tr.gq-empty:hover { background: transparent; }
+
+.gq-name {
+    display: block;
+    font-weight: 600;
+    color: var(--text-main);
+}
+.gq-meta {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+.gq-visit {
+    display: block;
+    font-weight: 600;
+    color: var(--text-main);
+    white-space: nowrap;
+}
+.gq-requested {
+    display: block;
+    color: var(--text-main);
+    white-space: nowrap;
+}
+.gq-ago {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+/* Status pills */
+.gq-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: nowrap;
+}
+.gq-pill-pending  { background: var(--warning-bg); color: #92400e; }
+.gq-pill-approved { background: var(--success-bg); color: #166534; }
+.gq-pill-denied   { background: var(--danger-bg);  color: #991b1b; }
+
+/* Actions: one horizontal row, equal buttons, no shadows */
+table.table-gq td.actions {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    gap: 8px;
+    min-width: 264px;
+}
+table.table-gq td.actions .btn,
+table.table-gq td.actions a.btn {
+    width: 112px;
+    min-width: 112px;
+    flex-shrink: 0;
+    min-height: 32px;
+    padding: 0 10px;
+    border-radius: var(--radius);
+    font-size: 0.78rem;
+    box-shadow: none;
+    white-space: nowrap;
+    justify-content: center;
+}
+table.table-gq td.actions .btn:hover,
+table.table-gq td.actions a.btn:hover {
+    box-shadow: none;
+    transform: none;
+}
+table.table-gq td.actions .gq-busy { opacity: 0.55; pointer-events: none; }
+
+table.table-gq tbody tr.gq-empty td {
+    text-align: center;
+    padding: 32px 14px;
+    border-bottom: none;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+table.table-gq tbody tr.gq-empty .gq-empty-clear {
+    display: inline-flex;
+    margin-top: 12px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-main);
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 500;
+    padding: 8px 16px;
+    min-height: 34px;
+    cursor: pointer;
+    box-shadow: none;
+}
+table.table-gq tbody tr.gq-empty .gq-empty-clear:hover { border-color: var(--accent); background: var(--primary-light); }
+table.table-gq tbody tr.gq-empty .gq-empty-clear:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* Pagination */
+.gq-pager {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 16px 0 0;
+}
+.gq-pager-info {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin-right: auto;
+}
+.gq-page-btn {
+    min-width: 34px;
+    min-height: 34px;
+    padding: 0 10px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-main);
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.8rem;
+    cursor: pointer;
+    box-shadow: none;
+    transition: var(--transition);
+}
+.gq-page-btn:hover:not(:disabled) { border-color: var(--accent); background: var(--primary-light); }
+.gq-page-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.gq-page-btn[aria-current="true"] {
+    border: 2px solid var(--accent);
+    background: rgba(212, 175, 55, 0.12);
+    color: var(--text-main);
+    font-weight: 600;
+}
+.gq-page-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ---- View Details dialog ---- */
+#gqModal .modal-content {
+    width: min(97vw, 760px);
+    max-width: 760px;
+    max-height: 92vh;
+    padding: 0;
+    gap: 0;
+    border-radius: var(--radius);
+}
+.gq-dlg-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 16px 12px;
+    border-bottom: 1px solid var(--border-light);
+}
+.gq-dlg-head h3 {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    position: static;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+.gq-dlg-sub {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.8rem;
+    font-weight: 400;
+    color: var(--text-secondary);
+}
+.gq-dlg-head .gq-dlg-pill { margin-left: auto; align-self: center; }
+/* The shared .close is absolutely placed for the older dialogs; this header is a
+   flex row, so the button joins the flow instead. */
+.gq-dlg-head .close { position: static; margin: 0; flex-shrink: 0; align-self: flex-start; }
+.gq-dlg-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+    padding: 16px;
+    overflow-y: auto;
+    flex: 1;
+}
+.gq-dlg-title {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text-muted);
+    margin: 0 0 8px;
+}
+.gq-info { display: flex; flex-direction: column; gap: 8px; }
+.gq-info-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 0.82rem;
+}
+.gq-info-row > span:first-child { color: var(--text-secondary); flex-shrink: 0; }
+.gq-info-row > span:last-child {
+    color: var(--text-main);
+    font-weight: 500;
+    text-align: right;
+    word-break: break-word;
+}
+.gq-id-box {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px;
+    background: var(--bg-body);
+}
+.gq-id-frame {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius);
+    min-height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: zoom-in;
+}
+.gq-id-frame.is-zoomed { cursor: zoom-out; }
+.gq-id-frame img {
+    display: block;
+    max-width: 100%;
+    transition: transform 0.2s ease-in-out;
+    transform-origin: center center;
+}
+.gq-id-frame.is-zoomed img { transform: scale(2); }
+.gq-id-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+.gq-id-actions[hidden] { display: none; }
+.gq-id-none {
+    padding: 26px 10px;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    text-align: center;
+}
+.gq-dlg-foot {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border-light);
+    background: var(--bg-surface);
+    flex-wrap: wrap;
+}
+.gq-dlg-foot .gq-foot-hint {
+    margin-right: auto;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    max-width: 46ch;
+}
+.gq-dlg-foot .gq-foot-reason {
+    margin-right: auto;
+    font-size: 0.82rem;
+    color: var(--text-main);
+    max-width: 46ch;
+}
+.gq-dlg-foot .btn {
+    box-shadow: none;
+    min-height: 34px;
+    padding: 0 14px;
+    border-radius: var(--radius);
+    font-size: 0.82rem;
+}
+.gq-dlg-foot .btn:hover { transform: none; }
+.gq-dlg-foot .btn[disabled] { opacity: 0.55; cursor: not-allowed; }
+
+/* ---- Deny dialog ---- */
+#gqDenyModal .modal-content {
+    width: min(94vw, 480px);
+    max-width: 480px;
+    padding: 16px;
+    gap: 10px;
+    border-radius: var(--radius);
+}
+#gqDenyModal h3 { padding: 0 36px 8px 0; font-size: 1.05rem; }
+.gq-deny-msg { font-size: 0.85rem; color: var(--text-secondary); margin: 0; }
+.gq-deny-field { display: flex; flex-direction: column; gap: 4px; }
+.gq-deny-field > label { font-size: 0.68rem; font-weight: 600; color: var(--text-muted); }
+.gq-deny-field select {
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.85rem;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-surface);
+    color: var(--text-main);
+}
+.gq-deny-field select:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.gq-deny-note {
+    width: 100%;
+    min-height: 62px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.82rem;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-surface);
+    color: var(--text-main);
+    resize: vertical;
+}
+.gq-deny-note:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.gq-deny-error { color: var(--danger); font-size: 0.8rem; }
+.gq-deny-error[hidden] { display: none; }
+.gq-deny-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+.gq-deny-actions .btn {
+    box-shadow: none;
+    min-height: 34px;
+    padding: 0 16px;
+    border-radius: var(--radius);
+    font-size: 0.82rem;
+}
+.gq-deny-actions .btn:hover { transform: none; }
+
+/* ---- Toast ---- */
+.gq-toasts {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 4000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+}
+.gq-toasts[hidden] { display: none; }
+.gq-toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 340px;
+    padding: 10px 14px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--success);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+    color: var(--text-main);
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.82rem;
+    animation: gqToastIn 0.22s ease-out;
+}
+.gq-toast.is-error { border-left-color: var(--danger); }
+.gq-toast button {
+    margin-left: auto;
+    background: none;
+    border: 0;
+    padding: 0 2px;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: var(--radius);
+}
+.gq-toast button:hover { color: var(--text-main); }
+.gq-toast button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+@keyframes gqToastIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .gq-toast { animation: none; }
+    .gq-id-frame img { transition: none; }
+}
+
+/* Two columns once the boxes would get too narrow to read. */
+@media (max-width: 900px) {
+    .gq-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .gq-dlg-body { grid-template-columns: minmax(0, 1fr); }
+    .gq-dlg-head { flex-wrap: wrap; }
+    .gq-dlg-head .gq-dlg-pill { margin-left: 0; }
+}
+@media (max-width: 760px) {
+    /* Mobile: the dropdowns collapse behind one button, the search box stays put. */
+    .gq-toolbar { flex-wrap: nowrap; align-items: center; }
+    .gq-search { width: 100%; min-width: 0; }
+    .gq-mobile-filters {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+        min-height: 38px;
+        padding: 0 14px;
+        background: var(--bg-surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        color: var(--text-main);
+        font-family: 'Poppins', sans-serif;
+        font-size: 0.82rem;
+        font-weight: 500;
+        cursor: pointer;
+    }
+    .gq-mobile-filters:hover { border-color: var(--accent); background: var(--primary-light); }
+    .gq-mobile-filters:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+    .gq-mobile-filters[aria-expanded="true"] { border-color: var(--accent); background: var(--primary-light); }
+
+    .gq-controls {
+        display: none;
+        position: absolute;
+        left: 14px;
+        right: 14px;
+        z-index: 20;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+        padding: 16px;
+        background: var(--bg-surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-md);
+    }
+    .gq-controls.is-open { display: flex; }
+    .gq-controls .gq-select,
+    .gq-controls .gq-date-range input[type="date"] { width: 100%; min-width: 0; }
+    .gq-controls .gq-clear { margin-left: 0; align-self: flex-start; }
+
+    #gqModal .modal-content {
+        width: 100vw;
+        max-width: 100vw;
+        height: 100vh;
+        max-height: 100vh;
+        border-radius: 0;
+    }
+    .gq-dlg-foot .gq-foot-hint,
+    .gq-dlg-foot .gq-foot-reason { max-width: none; flex: 1 1 100%; }
 }
 
 /* ========================= RESERVATION DETAILS DIALOG ========================= */
@@ -6969,9 +7926,9 @@ body.modal-open { overflow: hidden; }
             <?php echo sidebar_action_badge('requests', $sbResident, $sidebarCounts['requests']); ?>
           </a>
           <a href="?page=resident_guest_forms" class="nav-item <?php echo $currentPage == 'resident_guest_forms' ? 'active' : ''; ?>" data-page="resident_guest_forms"
-             aria-label="<?php echo sidebar_action_aria($sbGuest, $sidebarCounts['resident_guest_forms']); ?>">
+             aria-label="<?php echo sidebar_action_aria($sbGuest, $sidebarCounts['resident_guest_forms'], 'waiting'); ?>">
             <i class="fa-solid fa-user-plus"></i><span>Guest Request</span>
-            <?php echo sidebar_action_badge('resident_guest_forms', $sbGuest, $sidebarCounts['resident_guest_forms']); ?>
+            <?php echo sidebar_action_badge('resident_guest_forms', $sbGuest, $sidebarCounts['resident_guest_forms'], 'waiting'); ?>
           </a>
           <a href="?page=visitor_requests" class="nav-item <?php echo $currentPage == 'visitor_requests' ? 'active' : ''; ?>" data-page="visitor_requests"
              aria-label="<?php echo sidebar_action_aria($sbVisitor, $sidebarCounts['visitor_requests']); ?>">
@@ -7226,6 +8183,8 @@ body.modal-open { overflow: hidden; }
              swap only happens on the visitor page, and only when the server's
              breakdown has actually drifted from what is on screen. */
           var vrLastSig = null;
+          var gqLastSig = null;
+          var rrLastSig = null;
           function hasOpenModal(){
             var ms = document.querySelectorAll('.modal,#adminConfirmModal,#denyReasonModal');
             for (var i = 0; i < ms.length; i++) {
@@ -7248,7 +8207,11 @@ body.modal-open { overflow: hidden; }
           function pollVrCounts(){
             var badges = document.querySelectorAll('.nav-badge');
             var onVrPage = !!(window.VR_LIST && document.getElementById('vr-tbody'));
-            if (!badges.length && !onVrPage) { return; }
+            /* The guest page runs its own boxes, so it needs the same
+               swap-the-tbody treatment the visitor list already has. */
+            var onGqPage = !!(window.GQ_LIST && document.getElementById('gq-tbody'));
+            var onRrPage = !!(window.RR_LIST && document.getElementById('rr-tbody'));
+            if (!badges.length && !onVrPage && !onGqPage && !onRrPage) { return; }
             fetch('admin.php?action=sidebar_counts')
               .then(function(r){ return r.json(); })
               .then(function(d){
@@ -7256,6 +8219,67 @@ body.modal-open { overflow: hidden; }
                 if (typeof rrdApplySidebarCounts === 'function') {
                   rrdApplySidebarCounts(d.badges, true);
                 }
+                if (onRrPage && window.RR_LIST) {
+                    /* Same arrangement as the guest page: a decision taken in
+                       View Details moves the count now, so the signature is
+                       dropped and re-seeded from the rows on screen. */
+                    window.RR_LIST.onRowsChanged = function(){ rrLastSig = null; };
+                }
+                if (onRrPage) {
+                    /* To verify plus Ready to approve is what the badge counts and
+                       what the two dotted boxes hold, so one number is enough to
+                       notice that this page has fallen out of step. */
+                    var rrAction = parseInt(d.badges && d.badges.requests, 10);
+                    if (isNaN(rrAction)) { rrAction = 0; }
+                    if (rrLastSig === null) {
+                        var rrSeen = window.RR_LIST.statusCounts
+                          ? window.RR_LIST.statusCounts()
+                          : { to_verify: 0, ready: 0 };
+                        rrLastSig = (rrSeen.to_verify + rrSeen.ready);
+                    }
+                    if (rrAction !== rrLastSig && !hasOpenModal()) {
+                        fetch('admin.php?page=requests')
+                          .then(function(r){ return r.text(); })
+                          .then(function(html){
+                            if (window.RR_LIST && window.RR_LIST.refreshFrom(html)) {
+                              rrLastSig = rrAction;
+                            }
+                          })
+                          .catch(function(){});
+                    }
+                }
+                if (onGqPage && window.GQ_LIST) {
+                    /* A decision made on this page moves the count now, not at
+                       the next tick: drop the signature so it re-seeds from
+                       what is really on screen. */
+                    window.GQ_LIST.onRowsChanged = function(){ gqLastSig = null; };
+                }
+                if (onGqPage) {
+                    /* Pending is the only status that can still move on this page:
+                       a request either arrives or leaves the pending pile once it
+                       is approved or denied. Its size is therefore a full
+                       signature, and it is the same number the badge shows. */
+                    var gqPending = parseInt(d.badges && d.badges.resident_guest_forms, 10);
+                    if (isNaN(gqPending)) { gqPending = 0; }
+                    if (gqLastSig === null) {
+                        /* Seed from what is really on screen, so a request that
+                           landed between render and first poll is still picked up. */
+                        gqLastSig = window.GQ_LIST.statusCounts
+                          ? window.GQ_LIST.statusCounts().pending
+                          : gqPending;
+                    }
+                    if (gqPending !== gqLastSig && !hasOpenModal()) {
+                        fetch('admin.php?page=resident_guest_forms')
+                          .then(function(r){ return r.text(); })
+                          .then(function(html){
+                            if (window.GQ_LIST && window.GQ_LIST.refreshFrom(html)) {
+                              gqLastSig = gqPending;
+                            }
+                          })
+                          .catch(function(){});
+                    }
+                }
+
                 if (!onVrPage) { return; }
 
                 var sig = vrSignature(d);
@@ -7907,164 +8931,967 @@ body.modal-open { overflow: hidden; }
 
 
 <!-- RESIDENT GUEST FORMS -->
-<?php if ($currentPage == 'resident_guest_forms'): ?>
-  <section class="panel" id="resident-guest-forms-panel">
-  <div class="content-row">
-    <div class="card-box">
-      <h3>Resident’s Guest Requests</h3>
-      <div class="notice">Requests from residents to add guests</div>
-      <table class="table table-resident-guest">
-        <thead>
-          <tr>
-            <th>Resident</th>
-            <th>Guest Name</th>
-            <th>Contact</th>
-            <th>Valid ID</th>
-            <th>Visit Schedule</th>
-            <th>Requested On</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <?php
-          $residentRequests = getResidentVisitorRequests($con);
-          $hasResidentRequests = false;
-          if ($residentRequests && $residentRequests->num_rows > 0) {
-              while ($req = $residentRequests->fetch_assoc()) {
-                  $hasResidentRequests = true;
-                  $isLegacy = array_key_exists('entry_pass_id', $req);
-                  $srcAttr = $isLegacy ? 'reservation' : 'guest_form';
-                  echo "<tr data-ref='" . htmlspecialchars($req['ref_code'] ?? '') . "' data-id='" . intval($req['id']) . "' data-source='" . $srcAttr . "'>";
-                  
-                  // Resident Info
-                  $resName = trim(($req['res_first_name'] ?? '') . ' ' . ($req['res_last_name'] ?? ''));
-                  $resHouse = !empty($req['res_house_number']) ? htmlspecialchars($req['res_house_number']) : 'N/A';
-                  echo "<td>";
-                  echo "<div style='font-weight:600; color:#333;'>" . htmlspecialchars($resName) . "</div>";
-                  echo "<div style='font-size:0.85rem; color:#666;'>" . $resHouse . "</div>";
-                  echo "</td>";
+<?php if ($currentPage == 'resident_guest_forms'):
+  /* Everything the list and the dialog need is prepared once per row, then
+     handed to the browser as JSON on the row itself. No extra endpoint, and
+     nothing for the other request pages to share. */
+  /* guest_forms, via the same accessor this page always used. It returns a
+     result object or false, so it is drained into a plain array here. */
+  $gqResult = getResidentVisitorRequests($con);
+  $gqRows   = ($gqResult && $gqResult->num_rows > 0)
+      ? $gqResult->fetch_all(MYSQLI_ASSOC)
+      : array();
+  $gqCounts = array('all' => 0, 'pending' => 0, 'approved' => 0, 'denied' => 0);
+  $gqPayload = array();
+  foreach ($gqRows as $gqRow) {
+      $gqStatus = strtolower(trim((string)($gqRow['approval_status'] ?? '')));
+      if ($gqStatus === '') { $gqStatus = 'pending'; }
+      if (!isset($gqCounts[$gqStatus])) { $gqStatus = 'pending'; }
+      $gqCounts[$gqStatus]++;
+      $gqCounts['all']++;
+      $gqCreated = !empty($gqRow['created_at']) ? strtotime($gqRow['created_at']) : 0;
+      $gqVisitTs = !empty($gqRow['visit_date']) ? strtotime($gqRow['visit_date'] . ' ' . (!empty($gqRow['visit_time']) ? $gqRow['visit_time'] : '00:00:00')) : 0;
+      $gqPayload[] = array(
+          'id'         => intval($gqRow['id']),
+          'status'     => $gqStatus,
+          'ref'        => (string)($gqRow['ref_code'] ?? ''),
+          'guest'      => trim((string)($gqRow['visitor_first_name'] ?? '') . ' ' . (string)($gqRow['visitor_middle_name'] ?? '') . ' ' . (string)($gqRow['visitor_last_name'] ?? '')),
+          'contact'    => trim((string)($gqRow['visitor_contact'] ?? '')),
+          'resident'   => trim((string)($gqRow['res_first_name'] ?? '') . ' ' . (string)($gqRow['res_last_name'] ?? '')),
+          'house'      => (string)($gqRow['res_house_number'] ?? ''),
+          'visit_date' => (string)($gqRow['visit_date'] ?? ''),
+          'visit_time' => (string)($gqRow['visit_time'] ?? ''),
+          'requested'  => !empty($gqRow['created_at']) ? date('M j, Y', $gqCreated) : '',
+          'requested_iso' => !empty($gqRow['created_at']) ? date('M j, Y g:i A', $gqCreated) : '',
+          'ago'        => vpRelativeTime($gqCreated),
+          'valid_id'   => (string)($gqRow['valid_id_path'] ?? ''),
+          'reason'     => trim((string)($gqRow['denial_reason'] ?? '')),
+          'created'    => $gqCreated,
+          'visit_ts'   => $gqVisitTs,
+      );
+  }
+  /* A one-time server message, e.g. "this request was no longer pending". */
+  $gqFlash = isset($_SESSION['flash_notice']) ? trim((string)$_SESSION['flash_notice']) : '';
+  unset($_SESSION['flash_notice']);
+?>
+<section class="panel" id="gq-panel">
 
-                  $fullName = trim(($req['full_name'] ?? '') . ' ' . ($req['middle_name'] ?? '') . ' ' . ($req['last_name'] ?? ''));
-                  echo "<td><strong>" . htmlspecialchars($fullName) . "</strong></td>";
-                  $gContact = trim((string)($req['visitor_contact'] ?? ''));
-                  echo "<td>" . (($gContact !== '') ? htmlspecialchars($gContact) : '<span class="muted">&mdash;</span>') . "</td>";
-                  $idPath = trim((string)($req['valid_id_path'] ?? ''));
-                  if ($idPath !== '') {
-                    echo "<td><button type='button' class='btn btn-view' style='padding:5px 10px;font-size:0.8rem;' onclick=\"showIncidentProofModal('" . htmlspecialchars($idPath, ENT_QUOTES, 'UTF-8') . "')\" title='View uploaded valid ID'><i class='fa-solid fa-id-card'></i> View ID</button></td>";
-                  } else {
-                    echo "<td><span class='muted'>&mdash;</span></td>";
-                  }
-                  $visitDateLabel = !empty($req['visit_date']) ? date('M d, Y', strtotime($req['visit_date'])) : '-';
-                  $visitTimeLabel = !empty($req['visit_time']) ? date('h:i A', strtotime($req['visit_time'])) : '';
-                  echo "<td><div style='font-size:0.78rem;color:#777;'>Guest Entry Date</div>" . htmlspecialchars($visitDateLabel) . ($visitTimeLabel !== '' ? "<div style='font-size:0.78rem;color:#777;margin-top:3px;'>Guest Entry Time</div><div style='font-size:0.82rem;color:#666;'>" . htmlspecialchars($visitTimeLabel) . "</div>" : '') . "</td>";
-                  $reqDate = !empty($req['created_at']) ? date('M d, Y', strtotime($req['created_at'])) : '-';
-                  echo "<td>" . $reqDate . "</td>";
-                  
-                  echo "<td class='actions'>";
-                  $__ps2 = strtolower($rr['payment_status'] ?? '');
-                  if ($__ps2 !== 'rejected') {
-                  $__ps = strtolower($gar['payment_status'] ?? '');
-                  if ($__ps !== 'rejected') {
-                  $approval_status = $req['approval_status'] ?? 'pending';
-                  $statusClass = $approval_status === 'approved' ? 'badge-approved' : (($approval_status === 'denied' || $approval_status === 'cancelled') ? 'badge-rejected' : 'badge-pending');
-                  echo "<div style='margin-bottom: 8px;'><span class='badge $statusClass'>" . ucfirst($approval_status) . "</span></div>";
+  <div class="gq-head">
+    <h3>Resident's guest requests</h3>
+    <p>Review each guest's ID and visit schedule, then approve or deny.</p>
+  </div>
 
-                  $payStatus = null; $resIdMatch = null; $receiptPath = null; $isAmenity = !empty($req['amenity']);
-                  if (!empty($req['ref_code'])) {
-                    $stmtPay2 = $con->prepare("SELECT id, payment_status, receipt_path, receipt_uploaded_at, receipt_attempts, denial_reason FROM reservations WHERE ref_code = ? LIMIT 1");
-                    $stmtPay2->bind_param('s', $req['ref_code']);
-                    $stmtPay2->execute(); $rp2 = $stmtPay2->get_result();
-                    if($rp2 && ($pr2=$rp2->fetch_assoc())){ $payStatus = $pr2['payment_status'] ?? null; $resIdMatch = intval($pr2['id'] ?? 0); $receiptPath = $pr2['receipt_path'] ?? null; $receiptUploadedAt = $pr2['receipt_uploaded_at'] ?? null; $receiptAttempts = intval($pr2['receipt_attempts'] ?? 0); $denialReasonVal = trim((string)($pr2['denial_reason'] ?? '')); }
-                    $stmtPay2->close();
-                  }
-                  echo "<button type='button' class='btn btn-view' onclick=\"showVisitorDetails(" . intval($req['id']) . ", '" . htmlspecialchars($srcAttr, ENT_QUOTES) . "')\"><i class='fa-solid fa-eye'></i> View More Details</button>";
-                  if ($isAmenity) {
-                    $payStatusLower = strtolower($payStatus ?? '');
-                    if ($payStatusLower !== 'verified') {
-                      if (!empty($receiptPath)) {
-                        $isPdf = (bool)preg_match('/\.pdf$/i', (string)$receiptPath);
-                        if ($isPdf) {
-                          echo "<button type='button' class='btn btn-receipt' onclick=\"openReceiptModal('" . htmlspecialchars(admin_receipt_url($receiptPath), ENT_QUOTES, 'UTF-8') . "', " . intval($resIdMatch) . ", 'resident_guest_forms')\" style='margin:6px 0;'><i class='fa-solid fa-file'></i> Open Receipt (PDF)</button>";
-                        }
-                      } else {
-                        $receiptMessage = (!empty($receiptUploadedAt) || in_array($payStatusLower, ['submitted', 'pending_update'], true)) ? 'Payment submitted, but the receipt file is unavailable.' : 'No receipt uploaded.';
-                        echo "<div class='muted' style='margin:6px 0;'>" . htmlspecialchars($receiptMessage, ENT_QUOTES, 'UTF-8') . "</div>";
-                      }
-                    }
-                    if ($resIdMatch && $payStatusLower !== 'verified') {
-                      if (($receiptAttempts ?? 0) >= 3) {
-                        echo "<form method='post' class='action-form action-deny' onsubmit='return openDenyModal(this)'>";
-                        echo "<input type='hidden' name='reservation_id' value='" . intval($resIdMatch) . "'>";
-                        echo "<input type='hidden' name='action' value='deny_request'>";
-                        echo "<input type='hidden' name='redirect_page' value='resident_guest_forms'>";
-                        $valueAttr = ($payStatusLower === 'pending_update' ? " value='" . htmlspecialchars(trim((string)($denialReasonVal ?? '')), ENT_QUOTES) . "'" : "");
-                        echo "<input type='hidden' name='denial_reason' class='denial-reason'".$valueAttr.">";
-                        echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'>Deny</button>";
-                        echo "</form>";
-                      } else {
-                        echo "<form method='post' style='display:inline;' onsubmit='return openDenyModal(this)'>";
-                        echo "<input type='hidden' name='reservation_id' value='" . intval($resIdMatch) . "'>";
-                        echo "<input type='hidden' name='action' value='reject_receipt'>";
-                        echo "<input type='hidden' name='redirect_page' value='resident_guest_forms'>";
-                        $valueAttr = ($payStatusLower === 'pending_update' ? " value='" . htmlspecialchars(trim((string)($denialReasonVal ?? '')), ENT_QUOTES) . "'" : "");
-                        echo "<input type='hidden' name='denial_reason' class='denial-reason'".$valueAttr.">";
-                        echo "<button type='submit' class='btn btn-reject' onclick='return openDenyModal(this.closest(\"form\"))'>Reject</button>";
-                        echo "</form>";
-                      }
-                    }
-                  }
-                  if ($approval_status == 'pending') {
-                      $disabled = ($isAmenity && $payStatus !== 'verified');
-                  echo "<form method='post' class='action-form action-approve'>";
-                  echo "<input type='hidden' name='reservation_id' value='" . $req['id'] . "'>";
-                  echo "<input type='hidden' name='action' value='approve_request'>";
-                  echo "<input type='hidden' name='redirect_page' value='resident_guest_forms'>";
-                    if (!$isAmenity) {
-                      echo "<input type='hidden' name='visit_date' value='" . htmlspecialchars($req['visit_date'] ?? '', ENT_QUOTES) . "'>";
-                      echo "<input type='hidden' name='visit_time' value='" . htmlspecialchars($req['visit_time'] ?? '', ENT_QUOTES) . "'>";
-                    }
-                  echo "<button type='submit' class='btn " . ($disabled ? "btn-disabled" : "btn-approve") . "' " . ($disabled ? "disabled title='Verify payment receipt first'" : "") . ">Approve</button>";
-                  echo "</form>";
-                  echo "<form method='post' class='action-form action-deny' onsubmit='return openDenyModal(this)'>";
-                  echo "<input type='hidden' name='reservation_id' value='" . $req['id'] . "'>";
-                  echo "<input type='hidden' name='action' value='deny_request'>";
-                  echo "<input type='hidden' name='redirect_page' value='resident_guest_forms'>";
-                  echo "<input type='hidden' name='denial_reason' class='denial-reason'>";
-                  echo "<button type='submit' class='btn " . ($disabled ? "btn-disabled" : "btn-reject") . "' " . ($disabled ? "disabled title='Verify payment receipt first'" : "") . " onclick='return openDenyModal(this.closest(\"form\"))'>Deny</button>";
-                  echo "</form>";
-                  } elseif ($approval_status == 'denied' || $approval_status == 'cancelled') {
-                      echo "<form method='post' style='display:inline;' onsubmit='return confirm(\"Delete this " . $approval_status . " request? This cannot be undone.\")'>";
-                      echo "<input type='hidden' name='reservation_id' value='" . $req['id'] . "'>";
-                      echo "<input type='hidden' name='action' value='delete_reservation'>";
-                      echo "<button type='submit' class='btn btn-remove'><i class='fa-solid fa-trash'></i> Delete</button>";
-                      echo "</form>";
-                  } else {
-                      if ($approval_status === 'deleted') {
-                        echo "<span class='muted'>Deleted by Resident</span>";
-                      } else {
-                        $approvedBy = !empty($req['approved_by']) ? "by Admin" : "";
-                        if ($approval_status === 'approved' && !empty($req['ref_code'])) {
-                          echo "<a class='btn btn-qr' href='qr_view.php?code=" . urlencode($req['ref_code']) . "' target='_blank' style='margin-right:6px;'><i class='fa-solid fa-qrcode'></i> View QR</a>";
-                        }
-                        echo "<span class='muted'>" . ucfirst($approval_status) . " $approvedBy</span>";
-                      }
-                  }
-                  }
-                  }
-                  echo "</td>";
-                  echo "</tr>";
-              }
-          }
-          if (!$hasResidentRequests) {
-              echo "<tr><td colspan='7' style='text-align:center;'>No resident guest requests found</td></tr>";
-          }
-          ?>
-        </tbody>
-      </table>
+  <?php if ($gqFlash !== ''): ?>
+  <div class="gq-flash" role="status">
+    <span><?php echo htmlspecialchars($gqFlash); ?></span>
+    <button type="button" id="gq-flash-close" aria-label="Dismiss message">&times;</button>
+  </div>
+  <?php endif; ?>
+
+  <!-- The four boxes are the status filter. Default is All requests. -->
+  <div class="gq-filters" role="group" aria-label="Filter guest requests by status">
+    <button type="button" class="gq-filter" data-gq-filter="all" aria-pressed="true">
+      <span class="gq-filter-count" data-gq-count="all"><?php echo intval($gqCounts['all']); ?></span>
+      <span class="gq-filter-label">All requests</span>
+    </button>
+    <button type="button" class="gq-filter" data-gq-filter="pending" aria-pressed="false">
+      <span class="gq-filter-count" data-gq-count="pending"><?php echo intval($gqCounts['pending']); ?></span>
+      <span class="gq-filter-label"><?php echo intval($gqCounts['pending']) > 0 ? '<span class="gq-filter-dot" aria-hidden="true"></span>' : ''; ?>Pending</span>
+    </button>
+    <button type="button" class="gq-filter" data-gq-filter="approved" aria-pressed="false">
+      <span class="gq-filter-count" data-gq-count="approved"><?php echo intval($gqCounts['approved']); ?></span>
+      <span class="gq-filter-label">Approved</span>
+    </button>
+    <button type="button" class="gq-filter" data-gq-filter="denied" aria-pressed="false">
+      <span class="gq-filter-count" data-gq-count="denied"><?php echo intval($gqCounts['denied']); ?></span>
+      <span class="gq-filter-label">Denied</span>
+    </button>
+  </div>
+
+  <!-- Search, sort, date, clear. The search box stays visible on mobile. -->
+  <div class="gq-toolbar">
+    <button type="button" class="gq-mobile-filters" id="gq-mobile-filters"
+            aria-expanded="false" aria-controls="gq-controls">
+      <i class="fa-solid fa-sliders" aria-hidden="true"></i> Filters
+    </button>
+
+    <div class="gq-field">
+      <label for="gq-search">Search</label>
+      <input type="search" id="gq-search" class="gq-search"
+             placeholder="Resident, guest or contact number" autocomplete="off">
     </div>
 
+    <div class="gq-controls" id="gq-controls">
+      <div class="gq-field">
+        <label for="gq-sort">Sort by</label>
+        <select id="gq-sort" class="gq-select">
+          <option value="needs_action">Needs action</option>
+          <option value="newest">Newest requested</option>
+          <option value="oldest">Oldest requested</option>
+          <option value="visit_soon">Visit date: soonest first</option>
+          <option value="guest_name">Guest name (A to Z)</option>
+        </select>
+      </div>
+      <div class="gq-field">
+        <label for="gq-date">Date requested</label>
+        <select id="gq-date" class="gq-select">
+          <option value="">Any time</option>
+          <option value="today">Today</option>
+          <option value="7">Last 7 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="custom">Custom range</option>
+        </select>
+      </div>
+      <div class="gq-field">
+        <label class="gq-sr-only-label" for="gq-date-from">From date</label>
+        <span class="gq-date-range" id="gq-date-range" hidden>
+          <input type="date" id="gq-date-from" aria-label="Requested from">
+          <span class="muted">to</span>
+          <input type="date" id="gq-date-to" aria-label="Requested to">
+        </span>
+      </div>
+      <button type="button" class="gq-clear" id="gq-clear" hidden>Clear filters</button>
+    </div>
   </div>
+
+  <p class="gq-result-line" id="gq-result-line" aria-live="polite"></p>
+
+  <div class="gq-table-wrap">
+    <table class="table table-gq" id="gq-table" data-vr-own-search="1">
+      <thead>
+        <tr>
+          <th scope="col">Resident</th>
+          <th scope="col">Guest</th>
+          <th scope="col">Valid ID</th>
+          <th scope="col">Visit schedule</th>
+          <th scope="col" class="gq-sortable" data-gq-sortcol="created"
+              tabindex="0" aria-sort="none">Requested<span class="gq-sort-arrow" aria-hidden="true">&#8597;</span></th>
+          <th scope="col">Status</th>
+          <th scope="col">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="gq-tbody">
+        <?php if (count($gqPayload) > 0): ?>
+          <?php foreach ($gqPayload as $gqItem):
+            $gqHaystack = strtolower(implode(' ', array($gqItem['guest'], $gqItem['resident'], $gqItem['house'], $gqItem['contact'], $gqItem['ref'])));
+            $gqPill = $gqItem['status'] === 'approved' ? 'approved' : ($gqItem['status'] === 'denied' ? 'denied' : 'pending');
+          ?>
+          <tr data-status="<?php echo htmlspecialchars($gqItem['status'], ENT_QUOTES); ?>"
+              data-id="<?php echo intval($gqItem['id']); ?>"
+              data-ref="<?php echo htmlspecialchars($gqItem['ref'], ENT_QUOTES); ?>"
+              data-source="guest_form"
+              data-name="<?php echo htmlspecialchars($gqItem['guest'], ENT_QUOTES); ?>"
+              data-created="<?php echo intval($gqItem['created']); ?>"
+              data-visit="<?php echo intval($gqItem['visit_ts']); ?>"
+              data-search="<?php echo htmlspecialchars($gqHaystack, ENT_QUOTES); ?>"
+              data-row="<?php echo htmlspecialchars(json_encode($gqItem, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), ENT_QUOTES); ?>">
+
+            <td>
+              <span class="gq-name"><?php echo htmlspecialchars($gqItem['resident'] !== '' ? $gqItem['resident'] : '—'); ?></span>
+              <span class="gq-meta"><?php echo htmlspecialchars($gqItem['house'] !== '' ? $gqItem['house'] : '—'); ?></span>
+            </td>
+
+            <td>
+              <span class="gq-name"><?php echo htmlspecialchars($gqItem['guest'] !== '' ? $gqItem['guest'] : '—'); ?></span>
+              <span class="gq-meta"><?php echo htmlspecialchars($gqItem['contact'] !== '' ? $gqItem['contact'] : '—'); ?></span>
+            </td>
+
+            <td>
+              <?php if ($gqItem['valid_id'] !== ''): ?>
+                <button type="button" class="btn btn-view gq-view-id"
+                        data-gq-id="<?php echo intval($gqItem['id']); ?>">View ID</button>
+              <?php else: ?>
+                <span class="muted">&mdash;</span>
+              <?php endif; ?>
+            </td>
+
+            <td>
+              <?php
+                $gqVisitLabel = $gqItem['visit_date'] !== '' ? date('M j, Y', strtotime($gqItem['visit_date'])) : '';
+                $gqTimeLabel  = '';
+                if ($gqItem['visit_time'] !== '') {
+                    $gqTimeTs = strtotime($gqItem['visit_time']);
+                    if ($gqTimeTs) { $gqTimeLabel = date('g:i A', $gqTimeTs); }
+                }
+              ?>
+              <span class="gq-visit"><?php echo htmlspecialchars($gqVisitLabel !== '' ? $gqVisitLabel : '—'); ?></span>
+              <?php if ($gqTimeLabel !== ''): ?>
+                <span class="gq-meta"><?php echo htmlspecialchars($gqTimeLabel); ?></span>
+              <?php endif; ?>
+            </td>
+
+            <td>
+              <span class="gq-requested"><?php echo htmlspecialchars($gqItem['requested'] !== '' ? $gqItem['requested'] : '—'); ?></span>
+              <?php if ($gqItem['ago'] !== ''): ?>
+                <span class="gq-ago"><?php echo htmlspecialchars($gqItem['ago']); ?></span>
+              <?php endif; ?>
+            </td>
+
+            <td><span class="gq-pill gq-pill-<?php echo $gqPill; ?>"><?php echo ucfirst($gqItem['status']); ?></span></td>
+
+            <td class="actions">
+              <button type="button" class="btn btn-view gq-open"
+                      data-gq-id="<?php echo intval($gqItem['id']); ?>">View Details</button>
+              <?php if ($gqItem['status'] === 'pending'): ?>
+                <button type="button" class="btn btn-reject gq-deny"
+                        data-gq-id="<?php echo intval($gqItem['id']); ?>">Deny</button>
+                <button type="button" class="btn btn-approve gq-approve"
+                        data-gq-id="<?php echo intval($gqItem['id']); ?>">Approve</button>
+              <?php elseif ($gqItem['status'] === 'approved' && $gqItem['ref'] !== ''): ?>
+                <a class="btn btn-qr" href="qr_view.php?code=<?php echo urlencode($gqItem['ref']); ?>"
+                   target="_blank" rel="noopener"><i class="fa-solid fa-qrcode" aria-hidden="true"></i> View QR</a>
+              <?php endif; ?>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+        <?php endif; ?>
+        <tr class="gq-empty" id="gq-empty-row" style="display:none">
+          <td colspan="7">
+            <span id="gq-empty-text">No requests match your filters.</span>
+            <button type="button" class="gq-empty-clear" id="gq-empty-clear" hidden>Clear filters</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="gq-pager" id="gq-pager" hidden>
+    <span class="gq-pager-info" id="gq-pager-info"></span>
+    <button type="button" class="gq-page-btn" id="gq-page-prev" aria-label="Previous page">&larr;</button>
+    <span id="gq-page-numbers"></span>
+    <button type="button" class="gq-page-btn" id="gq-page-next" aria-label="Next page">&rarr;</button>
+  </div>
+
 </section>
+
+<!-- View Details: guest and visit details on the left, the valid ID on the right. -->
+<div id="gqModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="gq-dlg-title">
+  <div class="modal-content">
+    <div class="gq-dlg-head">
+      <div>
+        <h3 id="gq-dlg-title">Guest request</h3>
+        <span class="gq-dlg-sub" id="gq-dlg-sub"></span>
+      </div>
+      <span class="gq-dlg-pill gq-pill" id="gq-dlg-pill"></span>
+      <button type="button" class="close" id="gq-dlg-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="gq-dlg-body">
+      <div>
+        <p class="gq-dlg-title">Guest and visit</p>
+        <div class="gq-info" id="gq-dlg-info"></div>
+      </div>
+      <div>
+        <p class="gq-dlg-title">Valid ID</p>
+        <div class="gq-id-box">
+          <div class="gq-id-frame" id="gq-id-frame"></div>
+          <div class="gq-id-actions" id="gq-id-actions" hidden>
+            <span id="gq-id-hint">Click the image to zoom</span>
+            <button type="button" class="btn btn-view" id="gq-id-zoom">Zoom</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="gq-dlg-foot" id="gq-dlg-foot"></div>
+  </div>
+</div>
+
+<!-- Deny: the reason is required before anything is saved. -->
+<div id="gqDenyModal" class="modal modal-top" role="dialog" aria-modal="true" aria-labelledby="gq-deny-title">
+  <div class="modal-content">
+    <h3 id="gq-deny-title">Deny this guest request</h3>
+    <p class="gq-deny-msg" id="gq-deny-msg">Choose a reason. The resident will see it.</p>
+    <div class="gq-deny-field">
+      <label for="gq-deny-reason">Reason</label>
+      <select id="gq-deny-reason">
+        <option value="">Select a reason</option>
+        <option value="ID is unclear">ID is unclear</option>
+        <option value="ID does not match the guest name">ID does not match the guest name</option>
+        <option value="Visit schedule not allowed">Visit schedule not allowed</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div class="gq-deny-field" id="gq-deny-note-wrap" hidden>
+      <label for="gq-deny-note">Details</label>
+      <textarea class="gq-deny-note" id="gq-deny-note" placeholder="Add a short note (optional)"></textarea>
+    </div>
+    <div class="gq-deny-error" id="gq-deny-error" hidden>Please choose a reason to continue.</div>
+    <div class="gq-deny-actions">
+      <button type="button" class="btn btn-view" id="gq-deny-cancel">Cancel</button>
+      <button type="button" class="btn btn-reject" id="gq-deny-submit">Deny request</button>
+    </div>
+  </div>
+</div>
+
+<div class="gq-toasts" id="gq-toasts" aria-live="polite"></div>
+<script>
+window.GQ_LIST = (function(){
+  var table = document.getElementById('gq-table');
+  if (!table) { return null; }
+
+  var tbody    = document.getElementById('gq-tbody');
+  var emptyRow = document.getElementById('gq-empty-row');
+  var emptyTxt = document.getElementById('gq-empty-text');
+  var emptyBtn = document.getElementById('gq-empty-clear');
+  var resultEl = document.getElementById('gq-result-line');
+  var pager    = document.getElementById('gq-pager');
+  var pagerInf = document.getElementById('gq-pager-info');
+  var pagePrev = document.getElementById('gq-page-prev');
+  var pageNext = document.getElementById('gq-page-next');
+  var pageNums = document.getElementById('gq-page-numbers');
+
+  var searchIn  = document.getElementById('gq-search');
+  var sortSel   = document.getElementById('gq-sort');
+  var dateSel   = document.getElementById('gq-date');
+  var rangeBox  = document.getElementById('gq-date-range');
+  var dateFrom  = document.getElementById('gq-date-from');
+  var dateTo    = document.getElementById('gq-date-to');
+  var clearBtn  = document.getElementById('gq-clear');
+  var mBtn      = document.getElementById('gq-mobile-filters');
+  var mPanel    = document.getElementById('gq-controls');
+  var flashX    = document.getElementById('gq-flash-close');
+
+  var boxes     = Array.prototype.slice.call(document.querySelectorAll('[data-gq-filter]'));
+  var countEls  = Array.prototype.slice.call(document.querySelectorAll('[data-gq-count]'));
+
+  var modal    = document.getElementById('gqModal');
+  var dlgTitle = document.getElementById('gq-dlg-title');
+  var dlgSub   = document.getElementById('gq-dlg-sub');
+  var dlgPill  = document.getElementById('gq-dlg-pill');
+  var dlgInfo  = document.getElementById('gq-dlg-info');
+  var dlgFoot  = document.getElementById('gq-dlg-foot');
+  var dlgClose = document.getElementById('gq-dlg-close');
+  var idFrame  = document.getElementById('gq-id-frame');
+  var idActs   = document.getElementById('gq-id-actions');
+  var idZoom   = document.getElementById('gq-id-zoom');
+
+  var denyModal = document.getElementById('gqDenyModal');
+  var denyMsg   = document.getElementById('gq-deny-msg');
+  var denySel   = document.getElementById('gq-deny-reason');
+  var denyNoteW = document.getElementById('gq-deny-note-wrap');
+  var denyNote  = document.getElementById('gq-deny-note');
+  var denyErr   = document.getElementById('gq-deny-error');
+  var denyGo    = document.getElementById('gq-deny-submit');
+  var denyNo    = document.getElementById('gq-deny-cancel');
+
+  var KEYS   = ['all', 'pending', 'approved', 'denied'];
+  var RANK   = { pending: 0, approved: 1, denied: 2 };
+  var PER_PAGE = 10;
+  var STORE  = 'vp_admin_gq_state';
+
+  var state = { status: 'all', q: '', sort: 'needs_action', date: '', from: '', to: '', page: 1 };
+  var searchTimer = null;
+
+  /* Which row the dialog is showing, and the row the deny dialog is about. */
+  var openId = null, denyId = null, lastFocus = null, saving = false;
+
+  function rows(){ return Array.prototype.slice.call(tbody.querySelectorAll('tr[data-status]')); }
+  function attr(r, n){ return r.getAttribute(n) || ''; }
+  function num(r, n){ var v = parseFloat(attr(r, n)); return isFinite(v) ? v : 0; }
+  function rowById(id){ var found = null; rows().forEach(function(r){ if (parseInt(attr(r,'data-id'),10) === id) { found = r; } }); return found; }
+  function dataOf(r){ try { return JSON.parse(attr(r, 'data-row')); } catch (e) { return null; } }
+
+  function save(){
+    try { window.sessionStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {}
+  }
+  function load(){
+    try {
+      var raw = window.sessionStorage.getItem(STORE);
+      if (!raw) { return; }
+      var saved = JSON.parse(raw);
+      if (!saved || typeof saved !== 'object') { return; }
+      if (KEYS.indexOf(saved.status) !== -1) { state.status = saved.status; }
+      if (saved.sort) { state.sort = saved.sort; }
+      if (typeof saved.q === 'string') { state.q = saved.q; }
+      if (typeof saved.date === 'string') { state.date = saved.date; }
+      if (typeof saved.from === 'string') { state.from = saved.from; }
+      if (typeof saved.to === 'string') { state.to = saved.to; }
+    } catch (e) {}
+  }
+
+  /* ---- filters ---- */
+  function dayStart(){ var d = new Date(); d.setHours(0,0,0,0); return d.getTime() / 1000; }
+  function passesDate(row){
+    var mode = state.date;
+    if (!mode) { return true; }
+    var ts = num(row, 'data-created');
+    if (!ts) { return false; }
+    if (mode === 'today') { return ts >= dayStart(); }
+    if (mode === '7' || mode === '30') {
+      var days = (mode === '7') ? 7 : 30;
+      return ts >= (dayStart() - ((days - 1) * 86400));
+    }
+    if (mode === 'custom') {
+      var d = new Date(ts * 1000);
+      var iso = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+      if (state.from && iso < state.from) { return false; }
+      if (state.to && iso > state.to) { return false; }
+      return true;
+    }
+    return true;
+  }
+
+  function visible(){
+    var q = state.q.toLowerCase().trim();
+    return rows().filter(function(r){
+      if (state.status !== 'all' && attr(r, 'data-status') !== state.status) { return false; }
+      if (q && attr(r, 'data-search').indexOf(q) === -1) { return false; }
+      return passesDate(r);
+    });
+  }
+
+  /* ---- sort (applied to the filtered set) ---- */
+  var COMPARATORS = {
+    needs_action: function(a,b){
+      var d = (RANK[attr(a,'data-status')] !== undefined ? RANK[attr(a,'data-status')] : 9)
+            - (RANK[attr(b,'data-status')] !== undefined ? RANK[attr(b,'data-status')] : 9);
+      return d !== 0 ? d : (num(b,'data-created') - num(a,'data-created'));
+    },
+    newest:      function(a,b){ return num(b,'data-created') - num(a,'data-created'); },
+    oldest:      function(a,b){ return num(a,'data-created') - num(b,'data-created'); },
+    visit_soon:  function(a,b){ return (num(a,'data-visit') || 8.64e15) - (num(b,'data-visit') || 8.64e15); },
+    guest_name:  function(a,b){ return attr(a,'data-name').localeCompare(attr(b,'data-name')); }
+  };
+
+  /* ---- one pass: sort, show/hide, paginate, count ---- */
+  function apply(){
+    var list = visible();
+    var cmp  = COMPARATORS[state.sort] || COMPARATORS.needs_action;
+    list.sort(cmp);
+
+    var total = rows().length;
+    var pages = Math.max(1, Math.ceil(list.length / PER_PAGE));
+    if (state.page > pages) { state.page = pages; }
+    if (state.page < 1) { state.page = 1; }
+
+    var from = (state.page - 1) * PER_PAGE;
+    var to   = Math.min(from + PER_PAGE, list.length);
+
+    /* Sorting an array does nothing you can see: rows paint in document order,
+       so the sorted ones are moved physically. Filtered-out rows are parked
+       behind them and the empty-state row stays last. The pool is taken first,
+       because moving rows out of the tbody would leave nothing to query. */
+    var pool = rows();
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < list.length; i++) { frag.appendChild(list[i]); }
+    for (var j = 0; j < pool.length; j++) {
+      if (list.indexOf(pool[j]) === -1) { frag.appendChild(pool[j]); }
+    }
+    if (emptyRow) { tbody.insertBefore(frag, emptyRow); } else { tbody.appendChild(frag); }
+
+    pool.forEach(function(r){ r.style.display = 'none'; });
+    for (var k = from; k < to; k++) { list[k].style.display = ''; }
+
+    if (resultEl) {
+      resultEl.textContent = 'Showing ' + list.length + ' of ' + total + ' request' + (total === 1 ? '' : 's');
+    }
+
+    var anyFilter = !!(state.q.trim() || state.date || state.from || state.to) || state.sort !== 'needs_action';
+    if (emptyRow) { emptyRow.style.display = list.length === 0 ? '' : 'none'; }
+    if (emptyTxt) {
+      emptyTxt.textContent = (total === 0) ? 'No guest requests yet.' : 'No requests match your filters.';
+    }
+    if (emptyBtn) { emptyBtn.hidden = !anyFilter; }
+    if (clearBtn) { clearBtn.hidden = !anyFilter; }
+
+    renderPager(pages, from, to, list.length);
+    paintHeaders();
+    save();
+  }
+
+  function renderPager(pages, from, to, shown){
+    if (pager) { pager.hidden = pages <= 1; }
+    if (pagerInf) {
+      pagerInf.textContent = shown > 0 ? ('Page ' + state.page + ' of ' + pages + ' · ' + (from + 1) + '–' + to) : '';
+    }
+    if (pagePrev) { pagePrev.disabled = state.page <= 1; }
+    if (pageNext) { pageNext.disabled = state.page >= pages; }
+    if (!pageNums) { return; }
+    pageNums.innerHTML = '';
+    for (var p = 1; p <= pages; p++) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'gq-page-btn';
+      b.textContent = String(p);
+      b.setAttribute('aria-label', 'Page ' + p);
+      if (p === state.page) { b.setAttribute('aria-current', 'true'); }
+      b.addEventListener('click', (function(page){
+        return function(){ state.page = page; apply(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+      })(p));
+      pageNums.appendChild(b);
+    }
+  }
+
+  /* ---- status boxes ---- */
+  function setStatus(key, persist){
+    if (KEYS.indexOf(key) === -1) { key = 'all'; }
+    state.status = key;
+    boxes.forEach(function(b){
+      b.setAttribute('aria-pressed', b.getAttribute('data-gq-filter') === key ? 'true' : 'false');
+    });
+    if (persist !== false) { state.page = 1; save(); apply(); }
+  }
+  boxes.forEach(function(b){
+    b.addEventListener('click', function(){ setStatus(b.getAttribute('data-gq-filter')); });
+  });
+
+  /* ---- toolbar wiring ---- */
+  function syncControls(){
+    if (searchIn && searchIn.value !== state.q) { searchIn.value = state.q; }
+    if (sortSel && sortSel.value !== state.sort) { sortSel.value = state.sort; }
+    if (dateSel && dateSel.value !== state.date) { dateSel.value = state.date; }
+    if (rangeBox) { rangeBox.hidden = (state.date !== 'custom'); }
+    if (dateFrom && dateFrom.value !== state.from) { dateFrom.value = state.from; }
+    if (dateTo && dateTo.value !== state.to) { dateTo.value = state.to; }
+  }
+
+  /* Search waits for a pause in typing rather than firing per keystroke. */
+  if (searchIn) {
+    searchIn.addEventListener('input', function(){
+      var v = searchIn.value;
+      if (searchTimer) { window.clearTimeout(searchTimer); }
+      searchTimer = window.setTimeout(function(){
+        state.q = v;
+        state.page = 1;
+        apply();
+      }, 200);
+    });
+  }
+  if (sortSel) { sortSel.addEventListener('change', function(){ state.sort = sortSel.value; state.page = 1; apply(); }); }
+  if (dateSel) { dateSel.addEventListener('change', function(){ state.date = dateSel.value; state.page = 1; syncControls(); apply(); }); }
+  if (dateFrom) { dateFrom.addEventListener('change', function(){ state.from = dateFrom.value; state.page = 1; apply(); }); }
+  if (dateTo)   { dateTo.addEventListener('change', function(){ state.to = dateTo.value; state.page = 1; apply(); }); }
+
+  /* Clears search, date and sort back to defaults. The status box is left
+     alone on purpose, same as the Visitor Requests list. */
+  function clearAll(){
+    state.q = '';
+    state.sort = 'needs_action';
+    state.date = '';
+    state.from = '';
+    state.to = '';
+    state.page = 1;
+    syncControls();
+    apply();
+  }
+  if (clearBtn) { clearBtn.addEventListener('click', clearAll); }
+  /* Delegated, because a live refresh replaces the tbody's children. */
+  if (tbody) {
+    tbody.addEventListener('click', function(e){
+      if (e.target && e.target.closest && e.target.closest('.gq-empty-clear')) { clearAll(); }
+    });
+  }
+  if (flashX && flashX.closest) {
+    flashX.addEventListener('click', function(){
+      var box = flashX.closest('.gq-flash');
+      if (box && box.parentNode) { box.parentNode.removeChild(box); }
+    });
+  }
+
+  if (pagePrev) { pagePrev.addEventListener('click', function(){ if (state.page > 1) { state.page--; apply(); } }); }
+  if (pageNext) { pageNext.addEventListener('click', function(){ state.page++; apply(); }); }
+
+  /* ---- clickable Requested header ---- */
+  function paintHeaders(){
+    Array.prototype.slice.call(table.querySelectorAll('.gq-sortable')).forEach(function(th){
+      var on = (state.sort === 'newest' || state.sort === 'oldest');
+      var arrow = th.querySelector('.gq-sort-arrow');
+      th.classList.toggle('gq-sort-active', on);
+      th.setAttribute('aria-sort', on ? ((state.sort === 'oldest') ? 'ascending' : 'descending') : 'none');
+      if (arrow) { arrow.textContent = on ? ((state.sort === 'oldest') ? '▲' : '▼') : '↕'; }
+    });
+  }
+  Array.prototype.slice.call(table.querySelectorAll('.gq-sortable')).forEach(function(th){
+    var run = function(){
+      state.sort = (state.sort === 'newest') ? 'oldest' : 'newest';
+      state.page = 1;
+      syncControls();
+      apply();
+    };
+    th.addEventListener('click', run);
+    th.addEventListener('keydown', function(e){
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); run(); }
+    });
+  });
+
+  /* ---- mobile filter panel ---- */
+  if (mBtn && mPanel) {
+    mBtn.addEventListener('click', function(){
+      var open = mPanel.classList.toggle('is-open');
+      mBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    document.addEventListener('keydown', function(e){
+      if (e.key === 'Escape' && mPanel.classList.contains('is-open')) {
+        mPanel.classList.remove('is-open');
+        mBtn.setAttribute('aria-expanded', 'false');
+        mBtn.focus();
+      }
+    });
+  }
+
+  /* ---- toast ---- */
+  function toast(msg, isError){
+    var box = document.getElementById('gq-toasts');
+    if (!box) { return; }
+    var el = document.createElement('div');
+    el.className = 'gq-toast' + (isError ? ' is-error' : '');
+    var span = document.createElement('span');
+    span.textContent = msg;
+    var x = document.createElement('button');
+    x.type = 'button';
+    x.setAttribute('aria-label', 'Dismiss');
+    x.innerHTML = '&times;';
+    x.addEventListener('click', function(){ el.remove(); });
+    el.appendChild(span);
+    el.appendChild(x);
+    box.appendChild(el);
+    window.setTimeout(function(){ if (el && el.parentNode) { el.remove(); } }, 5000);
+  }
+
+  /* ---- the dialog ---- */
+  function infoRow(label, value){
+    var row = document.createElement('div');
+    row.className = 'gq-info-row';
+    var a = document.createElement('span'); a.textContent = label;
+    var b = document.createElement('span'); b.textContent = (value === '' ? '—' : value);
+    row.appendChild(a); row.appendChild(b);
+    return row;
+  }
+
+  function paintDialog(d){
+    if (dlgTitle) { dlgTitle.textContent = d.guest || 'Guest request'; }
+    if (dlgSub) {
+      dlgSub.textContent = 'Requested by ' + ((d.resident || 'a resident')) + (d.house ? (' · House ' + d.house) : '');
+    }
+    if (dlgPill) {
+      dlgPill.className = 'gq-pill gq-dlg-pill gq-pill-' + d.status;
+      dlgPill.textContent = d.status.charAt(0).toUpperCase() + d.status.slice(1);
+    }
+
+    if (dlgInfo) {
+      dlgInfo.innerHTML = '';
+      dlgInfo.appendChild(infoRow('Guest', d.guest || ''));
+      dlgInfo.appendChild(infoRow('Contact', d.contact || ''));
+      dlgInfo.appendChild(infoRow('Entry date', d.visit_date || ''));
+      dlgInfo.appendChild(infoRow('Entry time', d.visit_time || ''));
+      dlgInfo.appendChild(infoRow('Requested on', d.requested_iso || ''));
+    }
+
+    if (idFrame) {
+      idFrame.innerHTML = '';
+      idFrame.classList.remove('is-zoomed');
+      if (d.valid_id) {
+        var img = document.createElement('img');
+        img.src = d.valid_id;
+        img.alt = 'Uploaded valid ID for ' + (d.guest || 'the guest');
+        idFrame.appendChild(img);
+        if (idActs) { idActs.hidden = false; }
+      } else {
+        var none = document.createElement('div');
+        none.className = 'gq-id-none';
+        none.textContent = 'No valid ID uploaded.';
+        idFrame.appendChild(none);
+        if (idActs) { idActs.hidden = true; }
+      }
+    }
+
+    if (dlgFoot) {
+      dlgFoot.innerHTML = '';
+      if (d.status === 'pending') {
+        var hint = document.createElement('span');
+        hint.className = 'gq-foot-hint';
+        hint.textContent = 'Check the valid ID and the visit schedule before deciding.';
+        var deny = document.createElement('button');
+        deny.type = 'button'; deny.className = 'btn btn-reject'; deny.textContent = 'Deny';
+        deny.addEventListener('click', function(){ openDeny(d.id); });
+        var ok = document.createElement('button');
+        ok.type = 'button'; ok.className = 'btn btn-approve'; ok.textContent = 'Approve';
+        ok.addEventListener('click', function(){ decide(d.id, 'approve_request', ''); });
+        dlgFoot.appendChild(hint); dlgFoot.appendChild(deny); dlgFoot.appendChild(ok);
+      } else if (d.status === 'approved') {
+        var who = document.createElement('span');
+        who.className = 'gq-foot-hint';
+        who.textContent = 'Approved by Admin';
+        dlgFoot.appendChild(who);
+        if (d.ref) {
+          var qr = document.createElement('a');
+          qr.className = 'btn btn-qr';
+          qr.href = 'qr_view.php?code=' + encodeURIComponent(d.ref);
+          qr.target = '_blank'; qr.rel = 'noopener';
+          qr.innerHTML = '<i class="fa-solid fa-qrcode" aria-hidden="true"></i> View QR';
+          dlgFoot.appendChild(qr);
+        }
+      } else {
+        var why = document.createElement('span');
+        why.className = 'gq-foot-reason';
+        why.textContent = 'Denied: ' + (d.reason || 'no reason recorded');
+        dlgFoot.appendChild(why);
+      }
+    }
+  }
+
+  function open(id, opener){
+    var row = rowById(id);
+    if (!row) { return; }
+    var d = dataOf(row);
+    if (!d) { return; }
+    openId = id;
+    /* Taken before the move, so close() can hand it back. */
+    lastFocus = opener || document.activeElement;
+    paintDialog(d);
+    if (modal) { modal.style.display = 'flex'; }
+    /* Focus goes in with the dialog, not left behind on the row. */
+    var first = modal && modal.querySelector('#gq-dlg-close');
+    if (first && first.focus) { first.focus(); }
+  }
+
+  function close(){
+    if (modal) { modal.style.display = 'none'; }
+    openId = null;
+    if (idFrame) { idFrame.classList.remove('is-zoomed'); }
+    if (lastFocus && lastFocus.focus) { lastFocus.focus(); lastFocus = null; }
+  }
+
+  if (dlgClose) { dlgClose.addEventListener('click', close); }
+  if (modal) {
+    modal.addEventListener('click', function(e){ if (e.target === modal) { close(); } });
+  }
+  document.addEventListener('keydown', function(e){
+    if (e.key !== 'Escape') { return; }
+    if (denyModal && denyModal.style.display === 'flex') { closeDeny(); return; }
+    if (modal && modal.style.display === 'flex') { close(); }
+  });
+
+  function toggleZoom(){
+    if (!idFrame) { return; }
+    idFrame.classList.toggle('is-zoomed');
+    if (idZoom) { idZoom.textContent = idFrame.classList.contains('is-zoomed') ? 'Reset' : 'Zoom'; }
+  }
+  if (idFrame) { idFrame.addEventListener('click', toggleZoom); }
+  if (idZoom)  { idZoom.addEventListener('click', toggleZoom); }
+
+  /* ---- deny dialog: the reason is required ---- */
+  function openDeny(id){
+    var row = rowById(id);
+    if (!row) { return; }
+    var d = dataOf(row);
+    if (!d) { return; }
+    denyId = id;
+    if (denyMsg) { denyMsg.textContent = 'Deny the request for ' + (d.guest || 'this guest') + '. Choose a reason.'; }
+    if (denySel) { denySel.value = ''; }
+    if (denyNote) { denyNote.value = ''; }
+    if (denyNoteW) { denyNoteW.hidden = true; }
+    if (denyErr)  { denyErr.hidden = true; }
+    if (denyModal) { denyModal.style.display = 'flex'; }
+    if (denySel) { denySel.focus(); }
+  }
+  function closeDeny(){
+    if (denyModal) { denyModal.style.display = 'none'; }
+    denyId = null;
+  }
+  function denyReason(){
+    var reason = (denySel && denySel.value) ? denySel.value : '';
+    if (reason !== 'Other') { return reason; }
+    var extra = (denyNote && denyNote.value) ? denyNote.value.trim() : '';
+    return extra ? ('Other: ' + extra) : reason;
+  }
+  if (denySel) {
+    denySel.addEventListener('change', function(){
+      if (denyNoteW) { denyNoteW.hidden = (denySel.value !== 'Other'); }
+      if (denyErr) { denyErr.hidden = true; }
+    });
+  }
+  if (denyNo) { denyNo.addEventListener('click', closeDeny); }
+  if (denyModal) {
+    denyModal.addEventListener('click', function(e){ if (e.target === denyModal) { closeDeny(); } });
+  }
+  if (denyGo) {
+    denyGo.addEventListener('click', function(){
+      if (!denySel || !denySel.value) {
+        if (denyErr) { denyErr.hidden = false; }
+        if (denySel) { denySel.focus(); }
+        return;
+      }
+      var id = denyId;
+      closeDeny();
+      if (id !== null) { decide(id, 'deny_request', denyReason()); }
+    });
+  }
+
+  /* ---- approve / deny without leaving the page ---- */
+  function decide(id, action, reason){
+    if (saving) { return; }
+    var row = rowById(id);
+    if (!row) { return; }
+    var d = dataOf(row);
+    if (!d) { return; }
+    if (d.status !== 'pending') {
+      toast('This request is no longer pending.', true);
+      return;
+    }
+
+    var buttons = Array.prototype.slice.call(row.querySelectorAll('.gq-approve, .gq-deny'));
+    if (modal) {
+      Array.prototype.slice.call(dlgFoot.querySelectorAll('button, a')).forEach(function(b){
+        if (!b.classList.contains('btn-qr')) { buttons.push(b); b.setAttribute('disabled', 'disabled'); }
+      });
+    }
+    buttons.forEach(function(b){ b.classList.add('gq-busy'); b.setAttribute('disabled', 'disabled'); });
+    saving = true;
+
+    /* The existing server action is the one that decides; this page only feeds
+       it the row's own visit schedule, which it requires before approving. */
+    var body = new URLSearchParams();
+    body.set('action', action);
+    body.set('reservation_id', String(d.id));
+    body.set('redirect_page', 'resident_guest_forms');
+    if (action === 'approve_request') {
+      body.set('visit_date', d.visit_date || '');
+      body.set('visit_time', d.visit_time || '');
+    } else {
+      body.set('denial_reason', reason || '');
+    }
+
+    /* The endpoint answers with a redirect back to this page, so the response
+       body is the freshly rendered list. That doubles as the confirmation:
+       if the row did not flip, the server refused the write. */
+    fetch('admin.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: body.toString(),
+      credentials: 'same-origin'
+    })
+      .then(function(r){ return r.text(); })
+      .then(function(html){
+        saving = false;
+        var swapped = api.refreshFrom(html);
+        var now = (rowById(id) && dataOf(rowById(id))) || null;
+        var landed = now ? now.status : null;
+        if (action === 'approve_request') {
+          if (landed === 'approved') { toast('Guest request approved'); }
+          else { toast('Could not approve this request', true); }
+        } else {
+          if (landed === 'denied') { toast('Guest request denied'); }
+          else { toast('Could not deny this request', true); }
+        }
+        if (!swapped) { syncControls(); apply(); }
+      })
+      .catch(function(){
+        saving = false;
+        buttons.forEach(function(b){ b.classList.remove('gq-busy'); b.removeAttribute('disabled'); });
+        toast('Could not reach the server', true);
+      });
+  }
+
+  /* ---- row buttons (delegated: a refresh replaces the children) ---- */
+  if (tbody) {
+    tbody.addEventListener('click', function(e){
+      var t = e.target;
+      if (!t || !t.closest) { return; }
+      var openBtn = t.closest('.gq-open, .gq-view-id');
+      if (openBtn) { open(parseInt(openBtn.getAttribute('data-gq-id'), 10), openBtn); return; }
+      var okBtn = t.closest('.gq-approve');
+      if (okBtn) { decide(parseInt(okBtn.getAttribute('data-gq-id'), 10), 'approve_request', ''); return; }
+      var noBtn = t.closest('.gq-deny');
+      if (noBtn) { openDeny(parseInt(noBtn.getAttribute('data-gq-id'), 10)); return; }
+    });
+  }
+
+  /* The response to an action, and to a poll-driven refetch, is the whole page,
+     so its badges are already correct. They are handed to the same painter the
+     shared poll uses rather than repainted here. */
+  function syncBadgesFrom(doc){
+    if (typeof rrdApplySidebarCounts !== 'function') { return; }
+    var counts = {};
+    Array.prototype.forEach.call(doc.querySelectorAll('.nav-badge[data-count]'), function(b){
+      var page = b.getAttribute('data-page');
+      if (page) { counts[page] = parseInt(b.getAttribute('data-count'), 10) || 0; }
+    });
+    if (Object.keys(counts).length) { rrdApplySidebarCounts(counts, false); }
+  }
+  /* ---- how many rows sit in each status right now ---- */
+  function statusCounts(){
+    var c = { all: 0, pending: 0, approved: 0, denied: 0 };
+    rows().forEach(function(r){
+      var s = attr(r, 'data-status');
+      c.all++;
+      if (Object.prototype.hasOwnProperty.call(c, s) && s !== 'all') { c[s]++; }
+    });
+    return c;
+  }
+
+  function recount(){
+    var c = statusCounts();
+    countEls.forEach(function(el){
+      var k = el.getAttribute('data-gq-count');
+      if (Object.prototype.hasOwnProperty.call(c, k)) { el.textContent = c[k]; }
+    });
+    boxes.forEach(function(b){
+      var k = b.getAttribute('data-gq-filter');
+      var lbl = b.querySelector('.gq-filter-label');
+      if (!lbl) { return; }
+      var wants = (k === 'pending') && c[k] > 0;
+      var dot = lbl.querySelector('.gq-filter-dot');
+      if (wants && !dot) {
+        var s = document.createElement('span');
+        s.className = 'gq-filter-dot';
+        s.setAttribute('aria-hidden', 'true');
+        lbl.insertBefore(s, lbl.firstChild);
+      } else if (!wants && dot) {
+        dot.parentNode.removeChild(dot);
+      }
+    });
+    return c;
+  }
+
+  var api = {
+    state: state,
+    apply: apply,
+    syncControls: syncControls,
+    setStatus: setStatus,
+    rows: rows,
+    recount: recount,
+    statusCounts: statusCounts,
+    open: open,
+    close: close,
+    /* Swaps in a freshly rendered tbody. Only the table changes: the filters,
+       sort, page and search live in this closure and are re-applied, so the
+       admin never loses where they were. */
+    refreshFrom: function(html){
+      try {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var freshBody = doc.getElementById('gq-tbody');
+        if (!freshBody) { return false; }
+        tbody.innerHTML = freshBody.innerHTML;
+        emptyRow = document.getElementById('gq-empty-row');
+        emptyTxt  = document.getElementById('gq-empty-text');
+        emptyBtn  = document.getElementById('gq-empty-clear');
+
+        var freshCounts = doc.querySelectorAll('[data-gq-count]');
+        Array.prototype.forEach.call(countEls, function(el, i){
+          if (freshCounts[i]) { el.textContent = freshCounts[i].textContent; }
+        });
+        syncBadgesFrom(doc);
+        syncControls();
+        api.recount();
+        apply();
+        /* Let the poll forget its old signature: the next tick re-seeds it
+           from the rows on screen, so no needless refetch follows. */
+        if (typeof api.onRowsChanged === 'function') { api.onRowsChanged(); }
+        return true;
+      } catch (e) { return false; }
+    }
+  };
+
+  load();
+  syncControls();
+  setStatus(state.status, false);
+  api.recount();
+  apply();
+
+  return api;
+})();
+</script>
+
 <?php endif; ?>
 
 <!-- RESERVATIONS -->
@@ -8538,43 +10365,145 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
 $rrRows = collectResidentRequestRows($con);
 $rrCounts = array('all' => count($rrRows), 'to_verify' => 0, 'ready' => 0, 'approved' => 0, 'rejected' => 0);
 foreach ($rrRows as $rrCounted) { $rrCounts[$rrCounted['rr_key']]++; }
+
+/* The amenity dropdown lists only what is actually in the data, in the order
+   the amenities are named on the reserve page. */
+$rrAmenities = array();
+foreach ($rrRows as $rrSeen) {
+    $rrAmenity = trim((string)($rrSeen['amenity'] ?? ''));
+    if ($rrAmenity !== '' && !in_array($rrAmenity, $rrAmenities, true)) { $rrAmenities[] = $rrAmenity; }
+}
+natcasesort($rrAmenities);
+$rrAmenities = array_values($rrAmenities);
+
+/* "2 hours ago" beside the real timestamp. */
+$rrAgo = function ($ts) {
+    if (!$ts) { return ''; }
+    $diff = time() - $ts;
+    if ($diff < 60)    { return 'just now'; }
+    if ($diff < 3600)  { $n = (int)floor($diff / 60);    return $n . ' minute' . ($n === 1 ? '' : 's') . ' ago'; }
+    if ($diff < 86400) { $n = (int)floor($diff / 3600);  return $n . ' hour' . ($n === 1 ? '' : 's') . ' ago'; }
+    $days = (int)floor($diff / 86400);
+    if ($days < 7)     { return $days . ' day' . ($days === 1 ? '' : 's') . ' ago'; }
+    if ($days < 31)    { $w = (int)floor($days / 7);    return $w . ' week' . ($w === 1 ? '' : 's') . ' ago'; }
+    $mo = (int)floor($days / 30);
+    return $mo . ' month' . ($mo === 1 ? '' : 's') . ' ago';
+};
+
+/* A one-time server message, e.g. "this request is no longer pending". */
+$rrFlash = isset($_SESSION['flash_notice']) ? trim((string)$_SESSION['flash_notice']) : '';
+unset($_SESSION['flash_notice']);
 ?>
 <section class="panel" id="requests-panel">
-  <div class="content-row">
-  <div class="card-box">
 
-    <div class="rr-filters" role="group" aria-label="Filter requests by status">
-      <?php
-      $rrFilterDefs = array(
-          'all'       => array('All requests',     ''),
-          'to_verify' => array('To verify',         'rr-filter-dot'),
-          'ready'     => array('Ready to approve',  'rr-filter-dot is-ready'),
-          'approved'  => array('Approved',          ''),
-          'rejected'  => array('Rejected',          ''),
-      );
-      foreach ($rrFilterDefs as $rrFilterKey => $rrFilterDef) :
-          $rrShowDot = ($rrFilterDef[1] !== '' && $rrCounts[$rrFilterKey] > 0);
-      ?>
-      <button type="button" class="rr-filter" data-rr-filter="<?php echo $rrFilterKey; ?>" aria-pressed="<?php echo ($rrFilterKey === 'all') ? 'true' : 'false'; ?>">
-        <span class="rr-filter-count"><?php echo intval($rrCounts[$rrFilterKey]); ?></span>
+  <div class="rr-head">
+    <h3>Resident amenity requests</h3>
+    <p>Verify each downpayment receipt, then approve the reservation.</p>
+  </div>
+
+  <?php if ($rrFlash !== ''): ?>
+  <div class="rr-flash" role="status">
+    <span><?php echo htmlspecialchars($rrFlash); ?></span>
+    <button type="button" id="rr-flash-close" aria-label="Dismiss message">&times;</button>
+  </div>
+  <?php endif; ?>
+
+  <!-- The five boxes are the status filter. Default is All requests. -->
+  <div class="rr-filters" role="group" aria-label="Filter requests by status">
+    <?php
+    $rrFilterDefs = array(
+        'all'       => array('All requests',    ''),
+        'to_verify' => array('To verify',        'rr-filter-dot'),
+        'ready'     => array('Ready to approve', 'rr-filter-dot is-ready'),
+        'approved'  => array('Approved',         ''),
+        'rejected'  => array('Rejected',         ''),
+    );
+    foreach ($rrFilterDefs as $rrFilterKey => $rrFilterDef) :
+        $rrShowDot = ($rrFilterDef[1] !== '' && $rrCounts[$rrFilterKey] > 0);
+    ?>
+      <button type="button" class="rr-filter" data-rr-filter="<?php echo $rrFilterKey; ?>"
+              aria-pressed="<?php echo ($rrFilterKey === 'all') ? 'true' : 'false'; ?>">
+        <span class="rr-filter-count" data-rr-count="<?php echo $rrFilterKey; ?>"><?php echo intval($rrCounts[$rrFilterKey]); ?></span>
         <span class="rr-filter-label">
           <?php if ($rrShowDot): ?><span class="<?php echo $rrFilterDef[1]; ?>" aria-hidden="true"></span><?php endif; ?>
           <?php echo htmlspecialchars($rrFilterDef[0]); ?>
         </span>
       </button>
-      <?php endforeach; ?>
+    <?php endforeach; ?>
+  </div>
+
+  <!-- Search, sort, amenity, date, clear. The search box stays visible on mobile. -->
+  <div class="rr-toolbar">
+    <button type="button" class="rr-mobile-filters" id="rr-mobile-filters"
+            aria-expanded="false" aria-controls="rr-controls">
+      <i class="fa-solid fa-sliders" aria-hidden="true"></i> Filters
+    </button>
+
+    <div class="rr-field">
+      <label for="rr-search">Search</label>
+      <input type="search" id="rr-search" class="rr-search"
+             placeholder="Resident name, reference or house number" autocomplete="off">
     </div>
 
-    <div class="rr-table-wrap">
-      <table class="table table-rr" id="rr-table">
+    <div class="rr-controls" id="rr-controls">
+      <div class="rr-field">
+        <label for="rr-sort">Sort by</label>
+        <select id="rr-sort" class="rr-select">
+          <option value="needs_action">Needs action first</option>
+          <option value="newest">Newest submitted</option>
+          <option value="oldest">Oldest submitted</option>
+          <option value="visit_soon">Reservation date: soonest first</option>
+          <option value="visit_late">Reservation date: latest first</option>
+          <option value="resident_name">Resident name (A to Z)</option>
+          <option value="downpayment_high">Downpayment: highest first</option>
+        </select>
+      </div>
+      <div class="rr-field">
+        <label for="rr-amenity">Amenity</label>
+        <select id="rr-amenity" class="rr-select">
+          <option value="">All amenities</option>
+          <?php foreach ($rrAmenities as $rrAmenityOption): ?>
+            <option value="<?php echo htmlspecialchars($rrAmenityOption, ENT_QUOTES); ?>"><?php echo htmlspecialchars($rrAmenityOption); ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="rr-field">
+        <label for="rr-date">Date submitted</label>
+        <select id="rr-date" class="rr-select">
+          <option value="">Any time</option>
+          <option value="today">Today</option>
+          <option value="7">Last 7 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="custom">Custom range</option>
+        </select>
+      </div>
+      <div class="rr-field">
+        <label class="rr-sr-only-label" for="rr-date-from">From date</label>
+        <span class="rr-date-range" id="rr-date-range" hidden>
+          <input type="date" id="rr-date-from" aria-label="Submitted from">
+          <span class="muted">to</span>
+          <input type="date" id="rr-date-to" aria-label="Submitted to">
+        </span>
+      </div>
+      <button type="button" class="rr-clear" id="rr-clear" hidden>Clear filters</button>
+    </div>
+  </div>
+
+  <p class="rr-result-line" id="rr-result-line" aria-live="polite"></p>
+
+  <div class="rr-table-wrap">
+    <table class="table table-rr" id="rr-table" data-vr-own-search="1">
       <thead>
         <tr>
-          <th>Resident</th>
-          <th>Reference</th>
-          <th>Amenity</th>
-          <th>Downpayment</th>
-          <th>Status</th>
-          <th>Actions</th>
+          <th scope="col">Resident</th>
+          <th scope="col">Amenity</th>
+          <th scope="col">Reservation date</th>
+          <th scope="col" class="rr-sortable" data-rr-sortcol="created"
+              tabindex="0" aria-sort="none">Submitted<span class="rr-sort-arrow" aria-hidden="true">&#8597;</span></th>
+          <th scope="col" class="rr-sortable" data-rr-sortcol="amount"
+              tabindex="0" aria-sort="none">Downpayment<span class="rr-sort-arrow" aria-hidden="true">&#8597;</span></th>
+          <th scope="col">Status</th>
+          <th scope="col">Actions</th>
         </tr>
       </thead>
       <tbody id="rr-tbody">
@@ -8586,9 +10515,37 @@ foreach ($rrRows as $rrCounted) { $rrCounts[$rrCounted['rr_key']]++; }
           $rrHouse = trim((string)($rr['house_number'] ?? ''));
           $rrMeta = ($rrHouse !== '') ? ('House ' . $rrHouse . ' · Resident') : 'Resident';
 
-          $rrDownpayment = ($rr['downpayment'] === null || $rr['downpayment'] === '')
-              ? '—'
-              : '₱' . number_format((float)$rr['downpayment'], 2);
+          $rrRawDownpayment = ($rr['downpayment'] === null || $rr['downpayment'] === '')
+              ? 0.0
+              : (float)$rr['downpayment'];
+          $rrDownpayment = $rrRawDownpayment > 0
+              ? '₱' . number_format($rrRawDownpayment, 2)
+              : '—';
+
+          $rrCreated = intval($rr['rr_created'] ?? 0);
+          $rrSubmitted = $rrCreated ? date('M j, Y g:i A', $rrCreated) : '—';
+          $rrSubmittedAgo = $rrAgo($rrCreated);
+          $rrStart = trim((string)($rr['start_date'] ?? ''));
+          $rrStartTs = $rrStart !== '' ? (strtotime($rrStart) ?: 0) : 0;
+          $rrReservation = $rrStartTs ? date('M j, Y', $rrStartTs) : '—';
+          /* The booked slot, if the reservation carries one. */
+          $rrClock = function ($raw) {
+              $raw = trim((string)$raw);
+              if ($raw === '') { return ''; }
+              $ts = strtotime($raw);
+              return $ts ? date('g:i A', $ts) : '';
+          };
+          $rrFrom = $rrClock($rr['start_time'] ?? '');
+          $rrTo = $rrClock($rr['end_time'] ?? '');
+          if ($rrFrom !== '' && $rrTo !== '')      { $rrSlot = $rrFrom . ' - ' . $rrTo; }
+          elseif ($rrFrom !== '' || $rrTo !== '') { $rrSlot = $rrFrom !== '' ? $rrFrom : $rrTo; }
+          else                                     { $rrSlot = ''; }
+          $rrRef = trim((string)($rr['ref_code'] ?? ''));
+          $rrAmenityName = trim((string)($rr['amenity'] ?? ''));
+          if ($rrAmenityName === '') { $rrAmenityName = '—'; }
+
+          /* Search covers the three things the admin is given to look up. */
+          $rrHaystack = strtolower(trim($rrName . ' ' . $rrRef . ' ' . $rrHouse));
 
           /* Tooltips carry the details that used to sit under the buttons. */
           $rrPillTitle = '';
@@ -8599,87 +10556,462 @@ foreach ($rrRows as $rrCounted) { $rrCounts[$rrCounted['rr_key']]++; }
               if ($rrReason !== '') { $rrPillTitle = 'Reason: ' . $rrReason; }
           }
       ?>
-        <tr data-status="<?php echo $rr['rr_key']; ?>" data-id="<?php echo $rrId; ?>" data-ref="<?php echo htmlspecialchars($rr['ref_code'] ?? ''); ?>">
+        <tr data-status="<?php echo htmlspecialchars($rr['rr_key'], ENT_QUOTES); ?>"
+            data-id="<?php echo $rrId; ?>"
+            data-ref="<?php echo htmlspecialchars($rrRef, ENT_QUOTES); ?>"
+            data-name="<?php echo htmlspecialchars(strtolower($rrName), ENT_QUOTES); ?>"
+            data-amenity="<?php echo htmlspecialchars($rrAmenityName, ENT_QUOTES); ?>"
+            data-created="<?php echo $rrCreated; ?>"
+            data-start="<?php echo $rrStartTs; ?>"
+            data-amount="<?php echo htmlspecialchars((string)$rrRawDownpayment, ENT_QUOTES); ?>"
+            data-search="<?php echo htmlspecialchars($rrHaystack, ENT_QUOTES); ?>">
           <td>
             <span class="rr-resident-name"><?php echo htmlspecialchars($rrName); ?></span>
             <span class="rr-resident-meta"><?php echo htmlspecialchars($rrMeta); ?></span>
           </td>
-          <td><span class="rr-ref"><?php echo htmlspecialchars($rr['ref_code'] ?? '—'); ?></span></td>
-          <td><?php echo htmlspecialchars($rr['amenity'] ?? '—'); ?></td>
+          <td><?php echo htmlspecialchars($rrAmenityName); ?></td>
+          <td>
+            <span class="rr-res-date"><?php echo htmlspecialchars($rrReservation); ?></span>
+            <?php if ($rrSlot !== ''): ?>
+              <span class="rr-when"><?php echo htmlspecialchars($rrSlot); ?></span>
+            <?php endif; ?>
+          </td>
+          <td>
+            <span class="rr-submitted"><?php echo htmlspecialchars($rrSubmitted); ?></span>
+            <?php if ($rrSubmittedAgo !== ''): ?>
+              <span class="rr-ago"><?php echo htmlspecialchars($rrSubmittedAgo); ?></span>
+            <?php endif; ?>
+          </td>
           <td><span class="rr-amount"><?php echo htmlspecialchars($rrDownpayment); ?></span></td>
           <td>
             <span class="rr-pill rr-pill-<?php echo $rr['rr_key']; ?>"<?php echo ($rrPillTitle !== '' ? ' title="' . htmlspecialchars($rrPillTitle, ENT_QUOTES, 'UTF-8') . '"' : ''); ?>><?php echo htmlspecialchars($rr['rr_label']); ?></span>
           </td>
           <td class="actions">
             <button type="button" class="btn btn-view" onclick='showReservationDetails(<?php echo $rrId; ?>,"visitor")'>View Details</button>
-            <?php if ($rr['rr_key'] === 'ready' && isAmenityPaymentVerified($con, $rr['ref_code'] ?? '')): ?>
+            <?php if ($rr['rr_key'] === 'ready' && isAmenityPaymentVerified($con, $rrRef)): ?>
             <form method="post">
               <input type="hidden" name="rr_id" value="<?php echo $rrId; ?>">
               <input type="hidden" name="action" value="approve_resident_reservation">
               <input type="hidden" name="redirect_page" value="requests">
               <button type="submit" class="btn btn-approve">Approve</button>
             </form>
-            <?php elseif ($rr['rr_key'] === 'approved' && !empty($rr['ref_code'])): ?>
-            <a class="btn btn-qr" href="qr_view.php?code=<?php echo urlencode($rr['ref_code']); ?>" target="_blank"><i class="fa-solid fa-qrcode"></i> View QR</a>
+            <?php elseif ($rr['rr_key'] === 'approved' && $rrRef !== ''): ?>
+            <a class="btn btn-qr" href="qr_view.php?code=<?php echo urlencode($rrRef); ?>" target="_blank" rel="noopener"><i class="fa-solid fa-qrcode" aria-hidden="true"></i> View QR</a>
             <?php endif; ?>
           </td>
         </tr>
       <?php endforeach; ?>
-        <tr class="rr-empty" id="rr-empty-row"<?php echo count($rrRows) > 0 ? ' style="display:none;"' : ''; ?>><td colspan="6">No requests in this view.</td></tr>
+        <tr class="rr-empty" id="rr-empty-row" style="display:none">
+          <td colspan="7">
+            <span id="rr-empty-text">No requests match your filters.</span>
+            <button type="button" class="rr-empty-clear" id="rr-empty-clear" hidden>Clear filters</button>
+          </td>
+        </tr>
       </tbody>
-      </table>
-    </div>
+    </table>
   </div>
+
+  <div class="rr-pager" id="rr-pager" hidden>
+    <span class="rr-pager-info" id="rr-pager-info"></span>
+    <button type="button" class="rr-page-btn" id="rr-page-prev" aria-label="Previous page">&larr;</button>
+    <span id="rr-page-numbers"></span>
+    <button type="button" class="rr-page-btn" id="rr-page-next" aria-label="Next page">&rarr;</button>
   </div>
+
 </section>
 <script>
-(function(){
+window.RR_LIST = (function(){
   var table = document.getElementById('rr-table');
-  if (!table) { return; }
-  var tbody = document.getElementById('rr-tbody');
+  if (!table) { return null; }
+
+  var tbody    = document.getElementById('rr-tbody');
   var emptyRow = document.getElementById('rr-empty-row');
-  var search = document.getElementById('search-input');
-  var buttons = Array.prototype.slice.call(table.parentNode.parentNode.querySelectorAll('[data-rr-filter]'));
-  var KEYS = ['all', 'to_verify', 'ready', 'approved', 'rejected'];
-  var STORE = 'vp_admin_rr_filter';
-  var active = 'all';
+  var emptyBtn = document.getElementById('rr-empty-clear');
+  var resultEl = document.getElementById('rr-result-line');
+  var pager    = document.getElementById('rr-pager');
+  var pagerInf = document.getElementById('rr-pager-info');
+  var pagePrev = document.getElementById('rr-page-prev');
+  var pageNext = document.getElementById('rr-page-next');
+  var pageNums = document.getElementById('rr-page-numbers');
 
-  try {
-    var saved = window.sessionStorage.getItem(STORE);
-    if (KEYS.indexOf(saved) !== -1) { active = saved; }
-  } catch (err) {}
+  var searchIn  = document.getElementById('rr-search');
+  var sortSel   = document.getElementById('rr-sort');
+  var amenitySel = document.getElementById('rr-amenity');
+  var dateSel   = document.getElementById('rr-date');
+  var rangeBox  = document.getElementById('rr-date-range');
+  var dateFrom  = document.getElementById('rr-date-from');
+  var dateTo    = document.getElementById('rr-date-to');
+  var clearBtn  = document.getElementById('rr-clear');
+  var mBtn      = document.getElementById('rr-mobile-filters');
+  var mPanel    = document.getElementById('rr-controls');
+  var flashX    = document.getElementById('rr-flash-close');
 
-  function apply() {
-    var q = ((search && search.value) || '').toLowerCase().trim();
-    var visible = 0;
-    Array.prototype.forEach.call(tbody.querySelectorAll('tr[data-status]'), function(row){
-      var matchesStatus = (active === 'all') || (row.getAttribute('data-status') === active);
-      var matchesSearch = !q || (row.textContent || '').toLowerCase().indexOf(q) >= 0;
-      if (matchesStatus && matchesSearch) { row.style.display = ''; visible++; }
-      else { row.style.display = 'none'; }
-    });
-    /* The shared header search injects its own "No results" row; drop it so this
-       table always shows a single empty state. */
-    Array.prototype.forEach.call(tbody.querySelectorAll('tr.search-empty'), function(row){ row.remove(); });
-    if (emptyRow) { emptyRow.style.display = (visible === 0) ? '' : 'none'; }
+  var boxes     = Array.prototype.slice.call(document.querySelectorAll('[data-rr-filter]'));
+  var countEls  = Array.prototype.slice.call(document.querySelectorAll('[data-rr-count]'));
+
+  /* To verify, then Ready to approve, then Approved, then Rejected. That is the
+     order the boxes sit in and the order "needs action first" sorts by. */
+  var KEYS   = ['all', 'to_verify', 'ready', 'approved', 'rejected'];
+  var RANK   = { to_verify: 0, ready: 1, approved: 2, rejected: 3 };
+  var PER_PAGE = 10;
+  var STORE  = 'vp_admin_rr_state';
+
+  var state = { status: 'all', q: '', sort: 'needs_action', amenity: '', date: '', from: '', to: '', page: 1 };
+  var searchTimer = null;
+
+  function rows(){ return Array.prototype.slice.call(tbody.querySelectorAll('tr[data-status]')); }
+  function attr(r, n){ return r.getAttribute(n) || ''; }
+  function num(r, n){ var v = parseFloat(attr(r, n)); return isFinite(v) ? v : 0; }
+
+  function save(){
+    try { window.sessionStorage.setItem(STORE, JSON.stringify(state)); } catch (err) {}
   }
 
-  function setFilter(key, persist) {
+  function load(){
+    try {
+      var raw = window.sessionStorage.getItem(STORE);
+      if (!raw) { return; }
+      var saved = JSON.parse(raw);
+      if (!saved || typeof saved !== 'object') { return; }
+      if (KEYS.indexOf(saved.status) !== -1) { state.status = saved.status; }
+      if (typeof saved.q === 'string')      { state.q = saved.q; }
+      if (typeof saved.sort === 'string')   { state.sort = saved.sort; }
+      if (typeof saved.amenity === 'string'){ state.amenity = saved.amenity; }
+      if (typeof saved.date === 'string')   { state.date = saved.date; }
+      if (typeof saved.from === 'string')   { state.from = saved.from; }
+      if (typeof saved.to === 'string')     { state.to = saved.to; }
+      var p = parseInt(saved.page, 10);
+      if (p > 0) { state.page = p; }
+    } catch (err) {}
+  }
+
+  function dayStart(){ var d = new Date(); d.setHours(0,0,0,0); return d.getTime() / 1000; }
+
+  function passesDate(row){
+    var mode = state.date;
+    if (!mode) { return true; }
+    var ts = num(row, 'data-created');
+    if (!ts) { return false; }
+    if (mode === 'today') { return ts >= dayStart(); }
+    if (mode === '7' || mode === '30') {
+      var days = (mode === '7') ? 7 : 30;
+      return ts >= (dayStart() - ((days - 1) * 86400));
+    }
+    if (mode === 'custom') {
+      var d = new Date(ts * 1000);
+      var iso = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+      if (state.from && iso < state.from) { return false; }
+      if (state.to && iso > state.to) { return false; }
+    }
+    return true;
+  }
+
+  function visible(){
+    var q = state.q.toLowerCase().trim();
+    var out = [];
+    rows().forEach(function(r){
+      var s = attr(r, 'data-status');
+      if (state.status !== 'all' && s !== state.status) { return; }
+      if (state.amenity && attr(r, 'data-amenity') !== state.amenity) { return; }
+      if (!passesDate(r)) { return; }
+      if (q && attr(r, 'data-search').indexOf(q) === -1) { return; }
+      out.push(r);
+    });
+    return out;
+  }
+
+  function byText(a, b){
+    var x = attr(a, 'data-name'), y = attr(b, 'data-name');
+    if (x === y) { return num(b, 'data-created') - num(a, 'data-created'); }
+    return x < y ? -1 : 1;
+  }
+  function byStart(a, b){ return num(a, 'data-start') - num(b, 'data-start'); }
+
+  var COMPARATORS = {
+    needs_action: function(a, b){
+      var d = (RANK[attr(a,'data-status')] !== undefined ? RANK[attr(a,'data-status')] : 9)
+            - (RANK[attr(b,'data-status')] !== undefined ? RANK[attr(b,'data-status')] : 9);
+      if (d !== 0) { return d; }
+      return num(b, 'data-created') - num(a, 'data-created');
+    },
+    newest:       function(a, b){ return num(b, 'data-created') - num(a, 'data-created'); },
+    oldest:       function(a, b){ return num(a, 'data-created') - num(b, 'data-created'); },
+    visit_soon:   function(a, b){ return byStart(a, b); },
+    visit_late:   function(a, b){ return byStart(b, a); },
+    resident_name: byText,
+    downpayment_high: function(a, b){ return num(b, 'data-amount') - num(a, 'data-amount'); }
+  };
+
+  function apply(){
+    var list = visible();
+    var cmp  = COMPARATORS[state.sort] || COMPARATORS.needs_action;
+    list.sort(cmp);
+
+    var total = rows().length;
+    var pages = Math.max(1, Math.ceil(list.length / PER_PAGE));
+    if (state.page > pages) { state.page = pages; }
+    if (state.page < 1) { state.page = 1; }
+
+    var from = (state.page - 1) * PER_PAGE;
+    var to   = Math.min(from + PER_PAGE, list.length);
+
+    /* Hide everything first, then show the page. The rows are reordered in the
+       DOM as well, so paging and sorting read the same to a screen reader. */
+    rows().forEach(function(r){ r.style.display = 'none'; });
+    var pool = rows();
+    var frag = document.createDocumentFragment();
+    list.forEach(function(r){ frag.appendChild(r); });
+    tbody.insertBefore(frag, emptyRow);
+    for (var i = from; i < to; i++) { list[i].style.display = ''; }
+
+    /* The shared header search injects its own "No results" row; drop it so this
+       table always shows a single empty state. */
+    Array.prototype.forEach.call(tbody.querySelectorAll('tr.search-empty'), function(r){ r.remove(); });
+
+    var shown = Math.max(0, to - from);
+    if (resultEl) {
+      resultEl.textContent = 'Showing ' + list.length + ' of ' + total
+        + ' request' + (total === 1 ? '' : 's');
+    }
+    if (emptyRow) { emptyRow.style.display = (list.length === 0) ? '' : 'none'; }
+    if (emptyBtn) { emptyBtn.hidden = !(state.q.trim() || state.amenity || state.date || state.from || state.to); }
+
+    var anyFilter = !!(state.q.trim() || state.amenity || state.date || state.from || state.to)
+                 || state.sort !== 'needs_action';
+    if (clearBtn) { clearBtn.hidden = !anyFilter; }
+
+    paintHeaders();
+    renderPager(pages, from, to, shown);
+    save();
+  }
+
+  function renderPager(pages, from, to, shown){
+    if (!pager) { return; }
+    if (pages < 2) { pager.hidden = true; return; }
+    pager.hidden = false;
+    if (pagerInf) { pagerInf.textContent = 'Page ' + state.page + ' of ' + pages + ' · showing ' + shown; }
+    if (pagePrev) { pagePrev.disabled = (state.page <= 1); }
+    if (pageNext) { pageNext.disabled = (state.page >= pages); }
+    if (!pageNums) { return; }
+    pageNums.textContent = '';
+    for (var p = 1; p <= pages; p++) {
+      (function(page){
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'rr-page-btn';
+        b.textContent = String(page);
+        b.setAttribute('aria-label', 'Page ' + page);
+        if (page === state.page) { b.setAttribute('aria-current', 'true'); }
+        b.addEventListener('click', function(){ state.page = page; apply(); });
+        pageNums.appendChild(b);
+      })(p);
+    }
+  }
+
+  function setStatus(key, persist){
     if (KEYS.indexOf(key) === -1) { key = 'all'; }
-    active = key;
-    buttons.forEach(function(btn){
+    state.status = key;
+    state.page = 1;
+    boxes.forEach(function(btn){
       btn.setAttribute('aria-pressed', btn.getAttribute('data-rr-filter') === key ? 'true' : 'false');
     });
-    if (persist) { try { window.sessionStorage.setItem(STORE, key); } catch (err) {} }
+    if (persist) { save(); }
     apply();
   }
 
-  buttons.forEach(function(btn){
-    btn.addEventListener('click', function(){ setFilter(btn.getAttribute('data-rr-filter'), true); });
-  });
-  if (search) { search.addEventListener('input', apply); }
+  /* Pushes the state back into the controls after a change, a clear or a
+     restore, so what is on screen is always the truth. */
+  function syncControls(){
+    if (searchIn) { searchIn.value = state.q; }
+    if (sortSel && sortSel.value !== state.sort) { sortSel.value = state.sort; }
+    if (amenitySel && amenitySel.value !== state.amenity) { amenitySel.value = state.amenity; }
+    if (dateSel && dateSel.value !== state.date) { dateSel.value = state.date; }
+    if (rangeBox) { rangeBox.hidden = (state.date !== 'custom'); }
+    if (dateFrom) { dateFrom.value = state.from; }
+    if (dateTo) { dateTo.value = state.to; }
+  }
 
-  setFilter(active, false);
+  /* Clear keeps the status box, because that is the admin's place in the list,
+     and puts everything else back to the default. */
+  function clearAll(){
+    state.q = '';
+    state.sort = 'needs_action';
+    state.amenity = '';
+    state.date = '';
+    state.from = '';
+    state.to = '';
+    state.page = 1;
+    syncControls();
+    apply();
+  }
+
+  function paintHeaders(){
+    Array.prototype.forEach.call(table.querySelectorAll('th.rr-sortable'), function(th){
+      var col = th.getAttribute('data-rr-sortcol');
+      var on = (col === 'created' && (state.sort === 'newest' || state.sort === 'oldest'))
+            || (col === 'amount' && state.sort === 'downpayment_high');
+      th.classList.toggle('rr-sort-active', on);
+      var arrow = th.querySelector('.rr-sort-arrow');
+      if (!arrow) { return; }
+      if (!on) { th.setAttribute('aria-sort', 'none'); arrow.textContent = '↕'; return; }
+      var asc = (state.sort === 'oldest') || (state.sort === 'visit_soon') || (state.sort === 'resident_name');
+      th.setAttribute('aria-sort', asc ? 'ascending' : 'descending');
+      arrow.textContent = asc ? '↑' : '↓';
+    });
+  }
+
+  function sortBy(col){
+    if (col === 'created') {
+      state.sort = (state.sort === 'newest') ? 'oldest' : 'newest';
+    } else if (col === 'amount') {
+      state.sort = 'downpayment_high';
+    }
+    state.page = 1;
+    syncControls();
+    apply();
+  }
+
+  var run = function(){
+    var t = function(){
+      state.page = 1;
+      apply();
+    };
+    /* Typing waits a beat so a long name is not filtered letter by letter. */
+    if (searchIn) {
+      searchIn.addEventListener('input', function(){
+        state.q = searchIn.value;
+        if (searchTimer) { window.clearTimeout(searchTimer); }
+        searchTimer = window.setTimeout(function(){ searchTimer = null; t(); }, 200);
+      });
+      searchIn.addEventListener('keydown', function(e){
+        if (e.key === 'Enter') { if (searchTimer) { window.clearTimeout(searchTimer); searchTimer = null; } t(); }
+      });
+    }
+    if (sortSel) { sortSel.addEventListener('change', function(){ state.sort = sortSel.value; t(); }); }
+    if (amenitySel) { amenitySel.addEventListener('change', function(){ state.amenity = amenitySel.value; t(); }); }
+    if (dateSel) {
+      dateSel.addEventListener('change', function(){
+        state.date = dateSel.value;
+        if (state.date !== 'custom') { state.from = ''; state.to = ''; }
+        syncControls();
+        t();
+      });
+    }
+    if (dateFrom) { dateFrom.addEventListener('change', function(){ state.from = dateFrom.value; t(); }); }
+    if (dateTo) { dateTo.addEventListener('change', function(){ state.to = dateTo.value; t(); }); }
+    if (clearBtn) { clearBtn.addEventListener('click', clearAll); }
+    if (emptyBtn) { emptyBtn.addEventListener('click', clearAll); }
+    if (pagePrev) { pagePrev.addEventListener('click', function(){ if (state.page > 1) { state.page--; apply(); } }); }
+    if (pageNext) { pageNext.addEventListener('click', function(){ state.page++; apply(); }); }
+    boxes.forEach(function(btn){
+      btn.addEventListener('click', function(){ setStatus(btn.getAttribute('data-rr-filter'), true); });
+    });
+    Array.prototype.forEach.call(table.querySelectorAll('th.rr-sortable'), function(th){
+      var go = function(){ sortBy(th.getAttribute('data-rr-sortcol')); };
+      th.addEventListener('click', go);
+      th.addEventListener('keydown', function(e){
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
+      });
+    });
+    if (mBtn && mPanel) {
+      mBtn.addEventListener('click', function(){
+        var open = mPanel.classList.toggle('is-open');
+        mBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+    }
+    document.addEventListener('click', function(e){
+      if (!mPanel || !mPanel.classList.contains('is-open')) { return; }
+      if (mPanel.contains(e.target) || (mBtn && mBtn.contains(e.target))) { return; }
+      mPanel.classList.remove('is-open');
+      if (mBtn) { mBtn.setAttribute('aria-expanded', 'false'); }
+    });
+    if (flashX) {
+      flashX.addEventListener('click', function(){
+        var box = flashX.closest('.rr-flash');
+        if (box) { box.remove(); }
+      });
+    }
+  };
+
+  /* How many rows sit in each status right now. The two action boxes drive the
+     sidebar badge, so this has to agree with it exactly. */
+  function statusCounts(){
+    var c = { all: 0, to_verify: 0, ready: 0, approved: 0, rejected: 0 };
+    rows().forEach(function(r){
+      var s = attr(r, 'data-status');
+      c.all++;
+      if (Object.prototype.hasOwnProperty.call(c, s) && s !== 'all') { c[s]++; }
+    });
+    return c;
+  }
+
+  function recount(){
+    var c = statusCounts();
+    countEls.forEach(function(el){
+      var k = el.getAttribute('data-rr-count');
+      if (Object.prototype.hasOwnProperty.call(c, k)) { el.textContent = c[k]; }
+    });
+    /* The two boxes the admin acts on carry the dot only while they have work. */
+    boxes.forEach(function(b){
+      var k = b.getAttribute('data-rr-filter');
+      var lbl = b.querySelector('.rr-filter-label');
+      if (!lbl) { return; }
+      var wants = (k === 'to_verify' || k === 'ready') && c[k] > 0;
+      var dot = lbl.querySelector('.rr-filter-dot');
+      if (wants && !dot) {
+        var s = document.createElement('span');
+        s.className = (k === 'ready') ? 'rr-filter-dot is-ready' : 'rr-filter-dot';
+        s.setAttribute('aria-hidden', 'true');
+        lbl.insertBefore(s, lbl.firstChild);
+      } else if (!wants && dot) {
+        dot.parentNode.removeChild(dot);
+      }
+    });
+    return c;
+  }
+
+  var api = {
+    state: state,
+    apply: apply,
+    syncControls: syncControls,
+    setStatus: setStatus,
+    clearAll: clearAll,
+    rows: rows,
+    recount: recount,
+    statusCounts: statusCounts,
+    /* Swaps in a freshly rendered tbody. Only the table changes: the filters,
+       sort, page and search live in this closure and are re-applied, so the
+       admin never loses where they were. */
+    refreshFrom: function(html){
+      try {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var freshBody = doc.getElementById('rr-tbody');
+        if (!freshBody) { return false; }
+        tbody.innerHTML = freshBody.innerHTML;
+        emptyRow = document.getElementById('rr-empty-row');
+        emptyBtn = document.getElementById('rr-empty-clear');
+
+        var freshCounts = doc.querySelectorAll('[data-rr-count]');
+        Array.prototype.forEach.call(countEls, function(el, i){
+          if (freshCounts[i]) { el.textContent = freshCounts[i].textContent; }
+        });
+        syncControls();
+        api.recount();
+        apply();
+        if (typeof api.onRowsChanged === 'function') { api.onRowsChanged(); }
+        return true;
+      } catch (e) { return false; }
+    }
+  };
+
+  load();
+  run();
+  syncControls();
+  setStatus(state.status, false);
+  api.recount();
+  apply();
+
+  return api;
 })();
 </script>
 <?php endif; ?>
@@ -10387,10 +12719,12 @@ function rrdPaintBadge(badge, n, pulse){
   badge.hidden = n <= 0;
   var page = badge.getAttribute('data-page') || '';
   var name = badge.getAttribute('data-label') || '';
+  /* Guest requests read as "waiting"; the other three keep "need action". */
+  var unit = badge.getAttribute('data-unit') || 'need action';
   if (page && name && badge.closest) {
     var link = badge.closest('a[data-page]');
     if (link && link.getAttribute('data-page') === page) {
-      link.setAttribute('aria-label', (n > 0) ? (name + ', ' + n + ' need action') : name);
+      link.setAttribute('aria-label', (n > 0) ? (name + ', ' + n + ' ' + unit) : name);
     }
   }
   if (pulse && n > prev) {
