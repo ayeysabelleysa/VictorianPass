@@ -503,7 +503,7 @@ function renderDetail(d){
 
   document.getElementById('detailBody').innerHTML = html;
 }
-function fmtDT(s){ if(!s) return ''; var d=new Date(s.replace(' ','T')); if(isNaN(d.getTime())) return String(s); return d.toLocaleString(); }
+function fmtDT(s){ if(!s) return ''; var d=new Date(s.replace(' ','T')); if(isNaN(d.getTime())) return String(s); var mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]; var hh=d.getHours(); var mm=String(d.getMinutes()).padStart(2,'0'); var ss=String(d.getSeconds()).padStart(2,'0'); var ap=hh>=12?'PM':'AM'; hh=hh%12; if(hh===0) hh=12; return mo+' '+d.getDate()+', '+d.getFullYear()+', '+hh+':'+mm+':'+ss+' '+ap; }
 function escapeHtml(str){
   return (String(str ?? '')).replace(/[&<>"']/g, function(c){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];

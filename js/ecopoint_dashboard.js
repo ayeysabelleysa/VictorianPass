@@ -533,9 +533,18 @@
 
   function formatSessionTime(value) {
     if (!value || value === '—') return '—';
-    const date = new Date(value);
+    let date = new Date(value);
+    if (isNaN(date.getTime())) {
+      const m = String(value).match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/);
+      if (m) date = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
+    }
     if (isNaN(date.getTime())) return value;
-    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    let h = date.getHours();
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    const ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h === 0) h = 12;
+    return h + ':' + mm + ' ' + ap;
   }
 
   function getLatestWasteEventTimestamp(session) {

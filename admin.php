@@ -5115,7 +5115,7 @@ table td.actions .delete-form.show { width: 100%; }
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 16px;
-    margin: 0 0 16px;
+    margin: 0 0 10px;
 }
 .rr-filter {
     display: flex;
@@ -5171,7 +5171,7 @@ table td.actions .delete-form.show { width: 100%; }
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
 }
-table.table-rr { min-width: 920px; }
+table.table-rr { width: 100%; min-width: 1340px; table-layout: fixed; }
 table.table-rr th {
     text-transform: none;
     letter-spacing: 0;
@@ -5194,12 +5194,20 @@ table.table-rr tbody tr.rr-empty:hover { background: transparent; }
     display: block;
     font-weight: 600;
     color: var(--text-main);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: break-word;
 }
 .rr-resident-meta {
     display: block;
     margin-top: 2px;
     font-size: 0.72rem;
     color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .rr-amount {
     font-weight: 600;
@@ -5207,7 +5215,24 @@ table.table-rr tbody tr.rr-empty:hover { background: transparent; }
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
 }
-
+.rr-payment-eco {
+    display: inline-block;
+    font-weight: 600;
+    color: var(--text-main);
+    white-space: nowrap;
+}
+.rr-payment-eco:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+.rr-payment-points {
+    display: block;
+    margin-top: 2px;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
 /* Status pills */
 .rr-pill {
     display: inline-flex;
@@ -5279,24 +5304,6 @@ table.table-rr tbody tr.rr-empty td {
     .rr-filters { grid-template-columns: 1fr; }
 }
 
-/* ---- Page header ---- */
-.rr-head { margin: 0 0 16px; }
-.rr-head h3 {
-    margin: 0;
-    padding: 0;
-    border: 0;
-    background: none;
-    position: static;
-    font-size: 1.3rem;
-    font-weight: 600;
-    color: var(--text-main);
-}
-.rr-head p {
-    margin: 4px 0 0;
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-}
-
 /* A one-time server message, e.g. "this request is no longer pending". */
 .rr-flash {
     display: flex;
@@ -5325,15 +5332,13 @@ table.table-rr tbody tr.rr-empty td {
 .rr-flash button:hover { color: var(--text-main); }
 .rr-flash button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
-/* ---- Search, sort and filter bar. Search stays visible on mobile, the
-        dropdowns fold into the panel behind the Filters button. ---- */
+/* ---- Sort and filter bar. Search lives in the page header. ---- */
 .rr-toolbar {
-    position: relative;
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 10px;
     flex-wrap: wrap;
-    margin: 16px 0;
+    margin: 0 0 8px;
 }
 .rr-field { display: flex; flex-direction: column; gap: 4px; }
 .rr-field > label {
@@ -5342,19 +5347,6 @@ table.table-rr tbody tr.rr-empty td {
     letter-spacing: 0.02em;
     color: var(--text-muted);
 }
-.rr-search {
-    width: 240px;
-    font-family: 'Poppins', sans-serif;
-    font-size: 0.82rem;
-    padding: 9px 12px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--bg-surface);
-    color: var(--text-main);
-    line-height: 1.4;
-}
-.rr-search:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.18); }
-.rr-search:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .rr-select {
     font-family: 'Poppins', sans-serif;
     font-size: 0.82rem;
@@ -5369,6 +5361,8 @@ table.table-rr tbody tr.rr-empty td {
 .rr-select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.18); }
 .rr-select:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .rr-date-range { display: flex; align-items: center; gap: 6px; }
+.rr-date-control { display: flex; align-items: flex-end; gap: 8px; }
+.rr-date-range[hidden] { display: none; }
 .rr-date-range input[type="date"] {
     font-family: 'Poppins', sans-serif;
     font-size: 0.82rem;
@@ -5399,16 +5393,13 @@ table.table-rr tbody tr.rr-empty td {
 .rr-clear:hover { color: var(--danger); }
 .rr-clear:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .rr-clear[hidden] { display: none; }
-.rr-mobile-filters { display: none; }
-
-/* One container: an inline row on desktop, a stacked panel on mobile. The
-   controls stay in the DOM once, so nothing has to move on resize. */
+/* One control block wraps only when the available width requires it. */
 .rr-controls {
     display: flex;
     align-items: flex-end;
-    gap: 16px;
+    gap: 10px;
     flex-wrap: wrap;
-    flex: 1 1 auto;
+    flex: 1 1 100%;
     min-width: 0;
 }
 
@@ -5437,6 +5428,20 @@ table.table-rr tbody tr.rr-empty td {
     display: block;
     color: var(--text-main);
     white-space: nowrap;
+}
+.rr-submitted-date,
+.rr-submitted-time,
+.rr-when { display: block; white-space: nowrap; }
+.rr-resident-name:focus-visible,
+.rr-resident-meta:focus-visible,
+.vr-visitor-name:focus-visible,
+.vr-visitor-meta:focus-visible,
+.vr-amenity:focus-visible,
+.gq-name:focus-visible,
+.gq-meta:focus-visible,
+.gq-request-contact:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
 }
 
 /* ---- Sortable column headers ---- */
@@ -5508,48 +5513,11 @@ table.table-rr tbody tr.rr-empty .rr-empty-clear[hidden] { display: none; }
 .rr-page-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 @media (max-width: 760px) {
-    /* Mobile: the dropdowns collapse behind one button, the search box stays put. */
-    .rr-toolbar { flex-wrap: nowrap; align-items: center; }
-    .rr-search { width: 100%; min-width: 0; }
-    .rr-mobile-filters {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        flex-shrink: 0;
-        min-height: 38px;
-        padding: 0 14px;
-        background: var(--bg-surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        color: var(--text-main);
-        font-family: 'Poppins', sans-serif;
-        font-size: 0.82rem;
-        font-weight: 500;
-        cursor: pointer;
-    }
-    .rr-mobile-filters:hover { border-color: var(--accent); background: var(--primary-light); }
-    .rr-mobile-filters:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-    .rr-mobile-filters[aria-expanded="true"] { border-color: var(--accent); background: var(--primary-light); }
-
-    .rr-controls {
-        display: none;
-        position: absolute;
-        left: 14px;
-        right: 14px;
-        z-index: 20;
-        flex-direction: column;
-        align-items: stretch;
-        gap: 16px;
-        padding: 16px;
-        background: var(--bg-surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow-md);
-    }
-    .rr-controls.is-open { display: flex; }
-    .rr-controls .rr-select,
-    .rr-controls .rr-date-range input[type="date"] { width: 100%; min-width: 0; }
-    .rr-controls .rr-clear { margin-left: 0; align-self: flex-start; }
+    .rr-controls { gap: 8px; }
+    .rr-controls > .rr-field { flex: 1 1 155px; }
+    .rr-controls > .rr-date-field { flex: 1 1 310px; }
+    .rr-controls .rr-select { width: 100%; min-width: 0; }
+    .rr-date-control { flex-wrap: wrap; }
 }
 
 /* =========================================================
@@ -5702,7 +5670,7 @@ table.table-rr tbody tr.rr-empty .rr-empty-clear[hidden] { display: none; }
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
 }
-table.table-vr { min-width: 1000px; }
+table.table-vr { width: 100%; min-width: 1270px; table-layout: fixed; }
 table.table-vr th {
     text-transform: none;
     letter-spacing: 0;
@@ -5741,23 +5709,42 @@ table.table-vr tbody tr.vr-empty:hover { background: transparent; }
     display: block;
     font-weight: 600;
     color: var(--text-main);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: break-word;
 }
 .vr-visitor-meta {
     display: block;
     margin-top: 2px;
     font-size: 0.72rem;
     color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .vr-ref {
     font-weight: 500;
     color: var(--text-secondary);
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    word-break: keep-all;
+}
+.vr-amenity {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: break-word;
 }
 .vr-submitted {
     display: block;
     color: var(--text-main);
     white-space: nowrap;
 }
+.vr-submitted-date,
+.vr-submitted-time { display: block; white-space: nowrap; }
 .vr-ago {
     display: block;
     margin-top: 2px;
@@ -5973,23 +5960,6 @@ table.table-vr tbody tr.vr-empty .vr-empty-clear:focus-visible { outline: 2px so
    reach the other request pages.
    ========================================================= */
 
-/* Page header */
-.gq-head { margin: 0 0 16px; }
-.gq-head h3 {
-    margin: 0;
-    padding: 0;
-    border: 0;
-    background: none;
-    position: static;
-    font-size: 1.3rem;
-    font-weight: 600;
-    color: var(--text-main);
-}
-.gq-head p {
-    margin: 4px 0 0;
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-}
 .gq-flash {
     display: flex;
     align-items: flex-start;
@@ -6022,7 +5992,7 @@ table.table-vr tbody tr.vr-empty .vr-empty-clear:focus-visible { outline: 2px so
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 16px;
-    margin: 0 0 16px;
+    margin: 0 0 10px;
 }
 .gq-filter {
     display: flex;
@@ -6073,14 +6043,13 @@ table.table-vr tbody tr.vr-empty .vr-empty-clear:focus-visible { outline: 2px so
     background: var(--warning);
 }
 
-/* Search / sort / filter bar */
+/* Sort and date controls; search lives in the page header. */
 .gq-toolbar {
-    position: relative;
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 10px;
     flex-wrap: wrap;
-    margin: 0 0 16px;
+    margin: 0 0 8px;
 }
 .gq-field { display: flex; flex-direction: column; gap: 4px; }
 .gq-field > label {
@@ -6089,19 +6058,6 @@ table.table-vr tbody tr.vr-empty .vr-empty-clear:focus-visible { outline: 2px so
     letter-spacing: 0.02em;
     color: var(--text-muted);
 }
-.gq-search {
-    width: 240px;
-    font-family: 'Poppins', sans-serif;
-    font-size: 0.82rem;
-    padding: 9px 12px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--bg-surface);
-    color: var(--text-main);
-    line-height: 1.4;
-}
-.gq-search:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.18); }
-.gq-search:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .gq-select {
     font-family: 'Poppins', sans-serif;
     font-size: 0.82rem;
@@ -6116,6 +6072,8 @@ table.table-vr tbody tr.vr-empty .vr-empty-clear:focus-visible { outline: 2px so
 .gq-select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.18); }
 .gq-select:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .gq-date-range { display: flex; align-items: center; gap: 6px; }
+.gq-date-control { display: flex; align-items: flex-end; gap: 8px; }
+.gq-date-range[hidden] { display: none; }
 .gq-date-range input[type="date"] {
     font-family: 'Poppins', sans-serif;
     font-size: 0.82rem;
@@ -6146,16 +6104,13 @@ table.table-vr tbody tr.vr-empty .vr-empty-clear:focus-visible { outline: 2px so
 .gq-clear:hover { color: var(--danger); }
 .gq-clear:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .gq-clear[hidden] { display: none; }
-.gq-mobile-filters { display: none; }
-
-/* One container: an inline row on desktop, a stacked panel on mobile. The
-   controls stay in the DOM once, so nothing has to move on resize. */
+/* One control block wraps only when the available width requires it. */
 .gq-controls {
     display: flex;
     align-items: flex-end;
-    gap: 16px;
+    gap: 10px;
     flex-wrap: wrap;
-    flex: 1 1 auto;
+    flex: 1 1 100%;
     min-width: 0;
 }
 
@@ -6171,7 +6126,7 @@ table.table-vr tbody tr.vr-empty .vr-empty-clear:focus-visible { outline: 2px so
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
 }
-table.table-gq { min-width: 980px; }
+table.table-gq { width: 100%; min-width: 1380px; table-layout: fixed; }
 table.table-gq th {
     text-transform: none;
     letter-spacing: 0;
@@ -6207,12 +6162,29 @@ table.table-gq tbody tr.gq-empty:hover { background: transparent; }
     display: block;
     font-weight: 600;
     color: var(--text-main);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: anywhere;
 }
 .gq-meta {
     display: block;
     margin-top: 2px;
     font-size: 0.72rem;
     color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.gq-request-contact {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .gq-visit {
     display: block;
@@ -6305,6 +6277,90 @@ table.table-gq tbody tr.gq-empty .gq-empty-clear {
 table.table-gq tbody tr.gq-empty .gq-empty-clear:hover { border-color: var(--accent); background: var(--primary-light); }
 table.table-gq tbody tr.gq-empty .gq-empty-clear:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
+/* Keep the three request tables readable at fixed widths, scrolling inside
+   their existing wrappers instead of compressing columns. */
+table.table-rr th:nth-child(1), table.table-rr td:nth-child(1) { width: 220px; }
+table.table-rr th:nth-child(2), table.table-rr td:nth-child(2) { width: 175px; }
+table.table-rr th:nth-child(3), table.table-rr td:nth-child(3) { width: 165px; }
+table.table-rr th:nth-child(4), table.table-rr td:nth-child(4) { width: 170px; }
+table.table-rr th:nth-child(5), table.table-rr td:nth-child(5) { width: 175px; }
+table.table-rr th:nth-child(6), table.table-rr td:nth-child(6) { width: 155px; }
+table.table-rr th:nth-child(7), table.table-rr td:nth-child(7) { width: 280px; }
+table.table-vr th:nth-child(1), table.table-vr td:nth-child(1) { width: 220px; }
+table.table-vr th:nth-child(2), table.table-vr td:nth-child(2) { width: 125px; }
+table.table-vr th:nth-child(3), table.table-vr td:nth-child(3) { width: 180px; }
+table.table-vr th:nth-child(4), table.table-vr td:nth-child(4) { width: 165px; }
+table.table-vr th:nth-child(5), table.table-vr td:nth-child(5) { width: 145px; }
+table.table-vr th:nth-child(6), table.table-vr td:nth-child(6) { width: 155px; }
+table.table-vr th:nth-child(7), table.table-vr td:nth-child(7) { width: 280px; }
+table.table-gq th:nth-child(1), table.table-gq td:nth-child(1) { width: 220px; }
+table.table-gq th:nth-child(2), table.table-gq td:nth-child(2) { width: 230px; }
+table.table-gq th:nth-child(3), table.table-gq td:nth-child(3) { width: 100px; }
+table.table-gq th:nth-child(4), table.table-gq td:nth-child(4) { width: 160px; }
+table.table-gq th:nth-child(5), table.table-gq td:nth-child(5) { width: 160px; }
+table.table-gq th:nth-child(6), table.table-gq td:nth-child(6) { width: 130px; }
+table.table-gq th:nth-child(7), table.table-gq td:nth-child(7) { width: 380px; }
+
+table.table-rr tbody tr:not(.rr-empty),
+table.table-vr tbody tr:not(.vr-empty),
+table.table-gq tbody tr:not(.gq-empty) { height: 84px; }
+
+table.table-rr th, table.table-rr td,
+table.table-vr th, table.table-vr td,
+table.table-gq th, table.table-gq td {
+    vertical-align: middle;
+    overflow-wrap: normal;
+    word-break: normal;
+}
+table.table-rr .rr-pill,
+table.table-vr .vr-pill,
+table.table-gq .gq-pill {
+    flex-shrink: 0;
+    white-space: nowrap;
+    line-height: 1.3;
+}
+table.table-rr td.actions,
+table.table-vr td.actions,
+table.table-gq td.actions {
+    flex-wrap: nowrap;
+    white-space: nowrap;
+}
+table.table-rr td.actions form,
+table.table-vr td.actions form,
+table.table-gq td.actions form {
+    flex: 0 0 auto;
+}
+table.table-rr td.actions .btn,
+table.table-rr td.actions a.btn,
+table.table-vr td.actions .btn,
+table.table-vr td.actions a.btn,
+table.table-gq td.actions .btn,
+table.table-gq td.actions a.btn {
+    flex-shrink: 0;
+    height: 34px;
+    min-height: 34px;
+    white-space: nowrap;
+}
+table.table-gq td.actions { min-width: 368px; }
+table.table-gq td.actions .btn,
+table.table-gq td.actions a.btn { height: 34px; min-height: 34px; }
+
+@media (max-width: 760px) {
+    table.table-rr tbody tr:not(.rr-empty) td:first-child,
+    table.table-vr tbody tr:not(.vr-empty) td:first-child,
+    table.table-gq tbody tr:not(.gq-empty) td:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 1;
+        background: var(--bg-surface);
+    }
+    table.table-rr tbody tr:not(.rr-empty):hover td:first-child,
+    table.table-vr tbody tr:not(.vr-empty):hover td:first-child,
+    table.table-gq tbody tr:not(.gq-empty):hover td:first-child {
+        background: var(--primary-light);
+    }
+}
+
 /* Pagination */
 .gq-pager {
     display: flex;
@@ -6344,20 +6400,27 @@ table.table-gq tbody tr.gq-empty .gq-empty-clear:focus-visible { outline: 2px so
 
 /* ---- View Details dialog ---- */
 #gqModal .modal-content {
+    box-sizing: border-box;
     width: min(97vw, 760px);
     max-width: 760px;
-    max-height: 92vh;
+    height: min(90vh, 820px);
+    max-height: 90vh;
+    min-height: 0;
     padding: 0;
     gap: 0;
     border-radius: var(--radius);
+    overflow: hidden;
 }
 .gq-dlg-head {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 12px;
-    padding: 16px 16px 12px;
+    flex: 0 0 auto;
+    min-width: 0;
+    padding: 16px 20px;
     border-bottom: 1px solid var(--border-light);
 }
+.gq-dlg-head > div:first-child { min-width: 0; }
 .gq-dlg-head h3 {
     margin: 0;
     padding: 0;
@@ -6367,6 +6430,7 @@ table.table-gq tbody tr.gq-empty .gq-empty-clear:focus-visible { outline: 2px so
     font-size: 1.1rem;
     font-weight: 600;
     color: var(--text-main);
+    overflow-wrap: anywhere;
 }
 .gq-dlg-sub {
     display: block;
@@ -6378,14 +6442,39 @@ table.table-gq tbody tr.gq-empty .gq-empty-clear:focus-visible { outline: 2px so
 .gq-dlg-head .gq-dlg-pill { margin-left: auto; align-self: center; }
 /* The shared .close is absolutely placed for the older dialogs; this header is a
    flex row, so the button joins the flow instead. */
-.gq-dlg-head .close { position: static; margin: 0; flex-shrink: 0; align-self: flex-start; }
+.gq-dlg-head .close { position: static; margin: 0; flex-shrink: 0; align-self: center; }
 .gq-dlg-body {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 16px;
-    padding: 16px;
+    align-items: start;
+    gap: 20px;
+    padding: 18px 20px;
     overflow-y: auto;
-    flex: 1;
+    overflow-x: hidden;
+    flex: 1 1 auto;
+    min-height: 0;
+    overscroll-behavior: contain;
+}
+.gq-dlg-body > div { min-width: 0; }
+.gq-dlg-section + .gq-dlg-section { margin-top: 18px; }
+#gqModal .modal-content > .gq-dlg-head,
+#gqModal .modal-content > .gq-dlg-foot {
+    flex: 0 0 auto;
+    overflow: visible;
+    padding-right: 20px;
+}
+#gqModal .modal-content > .gq-dlg-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-right: 20px;
+}
+#gqModal .modal-content > .gq-dlg-body > div {
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: visible;
+    padding-right: 0;
 }
 .gq-dlg-title {
     font-size: 0.72rem;
@@ -6407,19 +6496,22 @@ table.table-gq tbody tr.gq-empty .gq-empty-clear:focus-visible { outline: 2px so
     color: var(--text-main);
     font-weight: 500;
     text-align: right;
-    word-break: break-word;
+    overflow-wrap: anywhere;
+    word-break: normal;
+    hyphens: none;
 }
 .gq-id-box {
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 8px;
+    padding: 12px;
     background: var(--bg-body);
 }
 .gq-id-frame {
     position: relative;
     overflow: hidden;
     border-radius: var(--radius);
-    min-height: 120px;
+    min-height: min(180px, 25vh);
+    max-height: 45vh;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -6428,31 +6520,47 @@ table.table-gq tbody tr.gq-empty .gq-empty-clear:focus-visible { outline: 2px so
 .gq-id-frame.is-zoomed { cursor: zoom-out; }
 .gq-id-frame img {
     display: block;
+    width: auto;
     max-width: 100%;
+    max-height: 45vh;
+    height: auto;
+    object-fit: contain;
     transition: transform 0.2s ease-in-out;
     transform-origin: center center;
 }
-.gq-id-frame.is-zoomed img { transform: scale(2); }
 .gq-id-actions {
     display: flex;
     align-items: center;
-    gap: 10px;
+    justify-content: space-between;
+    gap: 12px;
     margin-top: 8px;
     font-size: 0.75rem;
     color: var(--text-muted);
 }
 .gq-id-actions[hidden] { display: none; }
+.gq-id-actions .btn { box-shadow: none; flex: 0 0 auto; }
 .gq-id-none {
     padding: 26px 10px;
     font-size: 0.82rem;
     color: var(--text-muted);
     text-align: center;
 }
+.gq-id-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 20px 12px;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    text-align: center;
+}
 .gq-dlg-foot {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 12px 16px;
+    flex: 0 0 auto;
+    padding: 12px 20px;
     border-top: 1px solid var(--border-light);
     background: var(--bg-surface);
     flex-wrap: wrap;
@@ -6461,23 +6569,59 @@ table.table-gq tbody tr.gq-empty .gq-empty-clear:focus-visible { outline: 2px so
     margin-right: auto;
     font-size: 0.78rem;
     color: var(--text-muted);
-    max-width: 46ch;
+    max-width: 60ch;
 }
 .gq-dlg-foot .gq-foot-reason {
     margin-right: auto;
     font-size: 0.82rem;
     color: var(--text-main);
-    max-width: 46ch;
+    max-width: 60ch;
+    overflow-wrap: anywhere;
 }
 .gq-dlg-foot .btn {
     box-shadow: none;
-    min-height: 34px;
+    height: 38px;
+    min-height: 38px;
     padding: 0 14px;
     border-radius: var(--radius);
     font-size: 0.82rem;
 }
 .gq-dlg-foot .btn:hover { transform: none; }
 .gq-dlg-foot .btn[disabled] { opacity: 0.55; cursor: not-allowed; }
+.gq-id-lightbox[hidden] { display: none; }
+.gq-id-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: var(--bg-body);
+}
+.gq-id-lightbox img {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+}
+.gq-id-lightbox-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-surface);
+    color: var(--text-main);
+    font-size: 1.4rem;
+    cursor: pointer;
+}
+.gq-id-lightbox-close:focus-visible,
+.gq-id-error .btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* ---- Deny dialog ---- */
 #gqDenyModal .modal-content {
@@ -6581,63 +6725,37 @@ table.table-gq tbody tr.gq-empty .gq-empty-clear:focus-visible { outline: 2px so
 /* Two columns once the boxes would get too narrow to read. */
 @media (max-width: 900px) {
     .gq-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .gq-dlg-body { grid-template-columns: minmax(0, 1fr); }
-    .gq-dlg-head { flex-wrap: wrap; }
+    .gq-dlg-head > div:first-child { flex: 1 1 0; }
+    .gq-dlg-head .gq-dlg-pill { flex-shrink: 0; }
     .gq-dlg-head .gq-dlg-pill { margin-left: 0; }
 }
 @media (max-width: 760px) {
-    /* Mobile: the dropdowns collapse behind one button, the search box stays put. */
-    .gq-toolbar { flex-wrap: nowrap; align-items: center; }
-    .gq-search { width: 100%; min-width: 0; }
-    .gq-mobile-filters {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        flex-shrink: 0;
-        min-height: 38px;
-        padding: 0 14px;
-        background: var(--bg-surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        color: var(--text-main);
-        font-family: 'Poppins', sans-serif;
-        font-size: 0.82rem;
-        font-weight: 500;
-        cursor: pointer;
-    }
-    .gq-mobile-filters:hover { border-color: var(--accent); background: var(--primary-light); }
-    .gq-mobile-filters:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-    .gq-mobile-filters[aria-expanded="true"] { border-color: var(--accent); background: var(--primary-light); }
-
-    .gq-controls {
-        display: none;
-        position: absolute;
-        left: 14px;
-        right: 14px;
-        z-index: 20;
-        flex-direction: column;
-        align-items: stretch;
-        gap: 16px;
-        padding: 16px;
-        background: var(--bg-surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow-md);
-    }
-    .gq-controls.is-open { display: flex; }
-    .gq-controls .gq-select,
-    .gq-controls .gq-date-range input[type="date"] { width: 100%; min-width: 0; }
-    .gq-controls .gq-clear { margin-left: 0; align-self: flex-start; }
+    .gq-controls { gap: 8px; }
+    .gq-controls > .gq-field { flex: 1 1 155px; }
+    .gq-controls > .gq-date-field { flex: 1 1 310px; }
+    .gq-controls .gq-select { width: 100%; min-width: 0; }
+    .gq-date-control { flex-wrap: wrap; }
 
     #gqModal .modal-content {
+        box-sizing: border-box;
         width: 100vw;
         max-width: 100vw;
         height: 100vh;
         max-height: 100vh;
         border-radius: 0;
     }
+    #gqModal .modal-content > .gq-dlg-head { padding: 14px 16px; }
+    #gqModal .modal-content > .gq-dlg-body {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 16px;
+        padding: 16px;
+    }
+    #gqModal .modal-content > .gq-dlg-foot { padding: 12px 16px; }
     .gq-dlg-foot .gq-foot-hint,
     .gq-dlg-foot .gq-foot-reason { max-width: none; flex: 1 1 100%; }
+    .gq-dlg-foot .btn { flex: 1 1 0; }
+    .gq-id-frame,
+    .gq-id-frame img { max-height: 40vh; }
 }
 
 /* ========================= RESERVATION DETAILS DIALOG ========================= */
@@ -6856,6 +6974,61 @@ table.table-gq tbody tr.gq-empty .gq-empty-clear:focus-visible { outline: 2px so
 #reservationModal .rrd-kv.is-key { margin: 6px -16px; padding: 11px 16px; background: var(--primary-light); }
 #reservationModal .rrd-kv.is-key .rrd-k { color: var(--text-main); font-weight: 600; }
 #reservationModal .rrd-kv.is-key .rrd-v { color: var(--primary); font-size: 1.02rem; font-weight: 700; }
+#reservationModal .rrd-kv.is-balance .rrd-k,
+#reservationModal .rrd-kv.is-balance .rrd-v { color: var(--text-muted); font-weight: 500; }
+#reservationModal .rrd-balance-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 0 16px;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    line-height: 1.3;
+    white-space: nowrap;
+}
+#reservationModal .rrd-balance-info {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: help;
+}
+#reservationModal .rrd-balance-info:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+#reservationModal .rrd-balance-tooltip {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 6px);
+    z-index: 2;
+    width: max-content;
+    max-width: min(260px, calc(100vw - 40px));
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+    font-weight: 400;
+    line-height: 1.4;
+    text-align: left;
+    white-space: normal;
+    visibility: hidden;
+    opacity: 0;
+}
+#reservationModal .rrd-balance-info:hover .rrd-balance-tooltip,
+#reservationModal .rrd-balance-info:focus .rrd-balance-tooltip {
+    visibility: visible;
+    opacity: 1;
+}
 
 /* --- Receipt check table --- */
 /* The page's global `table { min-width: 760px }` (and 480px on small screens)
@@ -7865,6 +8038,109 @@ body.modal-open { overflow: hidden; }
     font-size: 0.92rem;
     line-height: 1.35;
 }
+
+/* Shared search control for the three admin request lists. */
+.request-search-header { gap: 16px; }
+.request-search-header .header-brand {
+    flex: 0 0 0;
+    width: 0;
+    padding: 0;
+    overflow: hidden;
+}
+.request-search-container {
+    flex: 1 1 600px;
+    justify-content: flex-start;
+    min-width: 280px;
+    max-width: 680px;
+    padding: 0;
+    margin-right: auto;
+}
+.request-search-field {
+    box-sizing: border-box;
+    width: 100%;
+    height: 40px;
+    min-width: 0;
+    padding: 0 10px 0 14px;
+    gap: 10px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+}
+.request-search-field:focus-within {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px var(--primary-light);
+}
+.request-search-field .search-icon { color: var(--text-muted); }
+.request-search-field input {
+    min-width: 0;
+    color: var(--text-main);
+    font-size: 0.84rem;
+}
+.request-search-field input::placeholder { color: var(--text-muted); }
+.request-search-field input::-webkit-search-cancel-button { display: none; }
+.request-search-clear,
+.request-search-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 28px;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+.request-search-clear { visibility: hidden; pointer-events: none; }
+.request-search-field input:not(:placeholder-shown) ~ .request-search-clear {
+    visibility: visible;
+    pointer-events: auto;
+}
+.request-search-clear:hover,
+.request-search-toggle:hover { background: var(--primary-light); color: var(--text-main); }
+.request-search-clear:focus-visible,
+.request-search-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.request-search-toggle { display: none; }
+
+@media (max-width: 900px) {
+    .request-search-field input { font-size: 0.8rem; }
+}
+@media (max-width: 768px) {
+    .top-header.request-search-header {
+        box-sizing: border-box;
+        height: var(--header-height);
+        min-height: var(--header-height);
+        padding: 0 14px;
+        flex-wrap: nowrap;
+        gap: 8px;
+    }
+    .request-search-header .header-brand { display: none; }
+    .request-search-header .header-actions { order: 2; margin-left: 0; flex: 0 0 auto; }
+    .request-search-container {
+        order: 1;
+        flex: 1 1 auto;
+        width: auto;
+        min-width: 0;
+        max-width: none;
+        margin: 0;
+    }
+    .request-search-toggle { display: inline-flex; }
+    .request-search-field { display: none; }
+    .request-search-container.is-expanded .request-search-toggle { display: none; }
+    .request-search-container.is-expanded .request-search-field {
+        display: flex;
+        position: absolute;
+        left: 14px;
+        right: 14px;
+        top: 50%;
+        z-index: 2;
+        width: auto;
+        max-width: none;
+        transform: translateY(-50%);
+    }
+}
 .notif-badge { font-family: 'Poppins', sans-serif; }
 </style>
 </head>
@@ -7984,13 +8260,41 @@ body.modal-open { overflow: hidden; }
       'dashboard' => 'Dashboard'
     ];
     $pageTitle = $pageTitles[$currentPage] ?? ucfirst($currentPage); ?>
-    <header class="top-header">
+    <?php
+      $isRequestSearchPage = in_array($currentPage, array('requests', 'resident_guest_forms', 'visitor_requests'), true);
+      $requestSearchPlaceholder = '';
+      if ($currentPage === 'requests') {
+        $requestSearchPlaceholder = 'Search by name, reference code or house number';
+      } elseif ($currentPage === 'resident_guest_forms') {
+        $requestSearchPlaceholder = 'Search by resident, guest name or contact';
+      } elseif ($currentPage === 'visitor_requests') {
+        $requestSearchPlaceholder = 'Search by visitor name or reference code';
+      }
+    ?>
+    <header class="top-header<?php echo $isRequestSearchPage ? ' request-search-header' : ''; ?>">
       <div class="header-brand" aria-hidden="true"></div>
-      <div class="header-search">
+      <div class="header-search<?php echo $isRequestSearchPage ? ' request-search-container' : ''; ?>"<?php echo $isRequestSearchPage ? ' id="request-search-container"' : ''; ?>>
+        <?php if ($isRequestSearchPage): ?>
+        <button type="button" class="request-search-toggle" id="request-search-toggle"
+                aria-label="Open search" aria-expanded="false" aria-controls="search-input">
+          <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+        </button>
+        <div class="search request-search-field">
+          <i class="fa-solid fa-magnifying-glass search-icon" aria-hidden="true"></i>
+          <input id="search-input" type="search" aria-label="Search requests"
+                 placeholder="<?php echo htmlspecialchars($requestSearchPlaceholder, ENT_QUOTES, 'UTF-8'); ?>"
+                 data-desktop-placeholder="<?php echo htmlspecialchars($requestSearchPlaceholder, ENT_QUOTES, 'UTF-8'); ?>"
+                 data-list-search="1" autocomplete="off">
+          <button type="button" class="request-search-clear" id="request-search-clear" aria-label="Clear search">
+            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+          </button>
+        </div>
+        <?php else: ?>
         <div class="search">
           <i class="fa-solid fa-magnifying-glass search-icon"></i>
           <input id="search-input" placeholder="Search <?php echo htmlspecialchars($pageTitle); ?>...">
         </div>
+        <?php endif; ?>
       </div>
       <?php 
         $notifPayments = getPendingPaymentCount($con); 
@@ -8030,18 +8334,76 @@ body.modal-open { overflow: hidden; }
       </div>
     </header>
 
-    <div class="page-header<?php echo in_array($currentPage, array('requests', 'visitor_requests'), true) ? ' page-header-stack' : ''; ?>">
+    <div class="page-header<?php echo in_array($currentPage, array('requests', 'visitor_requests', 'resident_guest_forms'), true) ? ' page-header-stack' : ''; ?>">
       <div>
         <h2 id="page-title"><?php echo htmlspecialchars($pageTitle); ?></h2>
         <?php if ($currentPage === 'requests'): ?>
         <p class="page-subtitle">Verify each downpayment receipt, then approve the reservation.</p>
         <?php elseif ($currentPage === 'visitor_requests'): ?>
         <p class="page-subtitle">Approve each downpayment receipt, then approve the visit.</p>
+        <?php elseif ($currentPage === 'resident_guest_forms'): ?>
+        <p class="page-subtitle">Review each guest's ID and visit schedule, then approve or deny.</p>
         <?php endif; ?>
       </div>
       <script>
         (function(){
           const input=document.getElementById('search-input');
+          const requestSearchContainer=document.getElementById('request-search-container');
+          const requestSearchToggle=document.getElementById('request-search-toggle');
+          const requestSearchClear=document.getElementById('request-search-clear');
+          const requestSearchPage=input && input.getAttribute('data-list-search') === '1';
+          function requestSearchIsNarrow(){ return window.matchMedia('(max-width: 768px)').matches; }
+          function setRequestSearchExpanded(expanded){
+            if(!requestSearchContainer || !requestSearchToggle) return;
+            requestSearchContainer.classList.toggle('is-expanded', expanded);
+            requestSearchToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            requestSearchToggle.setAttribute('aria-label', expanded ? 'Search requests' : 'Open search');
+          }
+          function syncRequestSearchLayout(){
+            if(!requestSearchPage) return;
+            input.placeholder = window.matchMedia('(max-width: 900px)').matches
+              ? 'Search requests'
+              : input.getAttribute('data-desktop-placeholder');
+            if(!requestSearchIsNarrow()) setRequestSearchExpanded(false);
+          }
+          if(requestSearchPage){
+            syncRequestSearchLayout();
+            window.addEventListener('resize', syncRequestSearchLayout);
+            if(requestSearchToggle){
+              requestSearchToggle.addEventListener('click', function(){
+                setRequestSearchExpanded(true);
+                input.focus();
+              });
+            }
+            if(requestSearchClear){
+              requestSearchClear.addEventListener('click', function(){
+                input.value = '';
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.focus();
+              });
+            }
+            input.addEventListener('keydown', function(e){
+              if(e.key === 'Escape'){
+                e.preventDefault();
+                e.stopPropagation();
+                input.value = '';
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+              }
+            });
+            if(requestSearchContainer){
+              requestSearchContainer.addEventListener('focusout', function(){
+                window.setTimeout(function(){
+                  if(requestSearchIsNarrow() && !input.value && !requestSearchContainer.contains(document.activeElement)){
+                    setRequestSearchExpanded(false);
+                  }
+                }, 0);
+              });
+            }
+            document.addEventListener('DOMContentLoaded', function(){
+              if(requestSearchIsNarrow() && input.value) setRequestSearchExpanded(true);
+              syncRequestSearchLayout();
+            });
+          }
           function filter(){
             const q=(input.value||'').toLowerCase().trim();
             const main=document.querySelector('.main');
@@ -8072,7 +8434,7 @@ body.modal-open { overflow: hidden; }
               } else { if(emptyRow) emptyRow.remove(); }
             });
           }
-          if(input){ input.addEventListener('input',filter); }
+          if(input && input.getAttribute('data-list-search') !== '1'){ input.addEventListener('input',filter); }
           const t=document.getElementById('notifToggle');
           const p=document.getElementById('notifPanel');
           const m=document.getElementById('notifModal');
@@ -8976,11 +9338,6 @@ body.modal-open { overflow: hidden; }
 ?>
 <section class="panel" id="gq-panel">
 
-  <div class="gq-head">
-    <h3>Resident's guest requests</h3>
-    <p>Review each guest's ID and visit schedule, then approve or deny.</p>
-  </div>
-
   <?php if ($gqFlash !== ''): ?>
   <div class="gq-flash" role="status">
     <span><?php echo htmlspecialchars($gqFlash); ?></span>
@@ -9008,19 +9365,8 @@ body.modal-open { overflow: hidden; }
     </button>
   </div>
 
-  <!-- Search, sort, date, clear. The search box stays visible on mobile. -->
+  <!-- Sort and date controls; search is in the top bar. -->
   <div class="gq-toolbar">
-    <button type="button" class="gq-mobile-filters" id="gq-mobile-filters"
-            aria-expanded="false" aria-controls="gq-controls">
-      <i class="fa-solid fa-sliders" aria-hidden="true"></i> Filters
-    </button>
-
-    <div class="gq-field">
-      <label for="gq-search">Search</label>
-      <input type="search" id="gq-search" class="gq-search"
-             placeholder="Resident, guest or contact number" autocomplete="off">
-    </div>
-
     <div class="gq-controls" id="gq-controls">
       <div class="gq-field">
         <label for="gq-sort">Sort by</label>
@@ -9032,23 +9378,22 @@ body.modal-open { overflow: hidden; }
           <option value="guest_name">Guest name (A to Z)</option>
         </select>
       </div>
-      <div class="gq-field">
+      <div class="gq-field gq-date-field">
         <label for="gq-date">Date requested</label>
-        <select id="gq-date" class="gq-select">
-          <option value="">Any time</option>
-          <option value="today">Today</option>
-          <option value="7">Last 7 days</option>
-          <option value="30">Last 30 days</option>
-          <option value="custom">Custom range</option>
-        </select>
-      </div>
-      <div class="gq-field">
-        <label class="gq-sr-only-label" for="gq-date-from">From date</label>
-        <span class="gq-date-range" id="gq-date-range" hidden>
-          <input type="date" id="gq-date-from" aria-label="Requested from">
-          <span class="muted">to</span>
-          <input type="date" id="gq-date-to" aria-label="Requested to">
-        </span>
+        <div class="gq-date-control">
+          <select id="gq-date" class="gq-select">
+            <option value="">Any time</option>
+            <option value="today">Today</option>
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="custom">Custom range</option>
+          </select>
+          <span class="gq-date-range" id="gq-date-range" hidden>
+            <input type="date" id="gq-date-from" aria-label="Requested from">
+            <span class="muted">to</span>
+            <input type="date" id="gq-date-to" aria-label="Requested to">
+          </span>
+        </div>
       </div>
       <button type="button" class="gq-clear" id="gq-clear" hidden>Clear filters</button>
     </div>
@@ -9087,13 +9432,15 @@ body.modal-open { overflow: hidden; }
               data-row="<?php echo htmlspecialchars(json_encode($gqItem, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), ENT_QUOTES); ?>">
 
             <td>
-              <span class="gq-name"><?php echo htmlspecialchars($gqItem['resident'] !== '' ? $gqItem['resident'] : '—'); ?></span>
-              <span class="gq-meta"><?php echo htmlspecialchars($gqItem['house'] !== '' ? $gqItem['house'] : '—'); ?></span>
+              <?php $gqResidentName = $gqItem['resident'] !== '' ? $gqItem['resident'] : '—'; ?>
+              <span class="gq-name" tabindex="0" title="<?php echo htmlspecialchars($gqResidentName, ENT_QUOTES, 'UTF-8'); ?>" aria-label="<?php echo htmlspecialchars($gqResidentName, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($gqResidentName); ?></span>
+              <span class="gq-meta" tabindex="0" title="<?php echo htmlspecialchars($gqItem['house'] !== '' ? $gqItem['house'] : '—', ENT_QUOTES, 'UTF-8'); ?>" aria-label="<?php echo htmlspecialchars($gqItem['house'] !== '' ? $gqItem['house'] : '—', ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($gqItem['house'] !== '' ? $gqItem['house'] : '—'); ?></span>
             </td>
 
             <td>
-              <span class="gq-name"><?php echo htmlspecialchars($gqItem['guest'] !== '' ? $gqItem['guest'] : '—'); ?></span>
-              <span class="gq-meta"><?php echo htmlspecialchars($gqItem['contact'] !== '' ? $gqItem['contact'] : '—'); ?></span>
+              <?php $gqGuestName = $gqItem['guest'] !== '' ? $gqItem['guest'] : '—'; ?>
+              <span class="gq-name" tabindex="0" title="<?php echo htmlspecialchars($gqGuestName, ENT_QUOTES, 'UTF-8'); ?>" aria-label="<?php echo htmlspecialchars($gqGuestName, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($gqGuestName); ?></span>
+              <span class="gq-request-contact" tabindex="0" title="<?php echo htmlspecialchars($gqItem['contact'] !== '' ? $gqItem['contact'] : '—', ENT_QUOTES, 'UTF-8'); ?>" aria-label="<?php echo htmlspecialchars($gqItem['contact'] !== '' ? $gqItem['contact'] : '—', ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($gqItem['contact'] !== '' ? $gqItem['contact'] : '—'); ?></span>
             </td>
 
             <td>
@@ -9122,6 +9469,9 @@ body.modal-open { overflow: hidden; }
 
             <td>
               <span class="gq-requested"><?php echo htmlspecialchars($gqItem['requested'] !== '' ? $gqItem['requested'] : '—'); ?></span>
+              <?php if (!empty($gqItem['created'])): ?>
+                <span class="gq-meta"><?php echo htmlspecialchars(date('g:i A', intval($gqItem['created']))); ?></span>
+              <?php endif; ?>
               <?php if ($gqItem['ago'] !== ''): ?>
                 <span class="gq-ago"><?php echo htmlspecialchars($gqItem['ago']); ?></span>
               <?php endif; ?>
@@ -9177,8 +9527,22 @@ body.modal-open { overflow: hidden; }
     </div>
     <div class="gq-dlg-body">
       <div>
-        <p class="gq-dlg-title">Guest and visit</p>
-        <div class="gq-info" id="gq-dlg-info"></div>
+        <section class="gq-dlg-section">
+          <p class="gq-dlg-title">Guest</p>
+          <div class="gq-info" id="gq-dlg-info"></div>
+        </section>
+        <section class="gq-dlg-section">
+          <p class="gq-dlg-title">Visit</p>
+          <div class="gq-info" id="gq-dlg-visit"></div>
+        </section>
+        <section class="gq-dlg-section">
+          <p class="gq-dlg-title">Requested by</p>
+          <div class="gq-info" id="gq-dlg-requester"></div>
+        </section>
+        <section class="gq-dlg-section" id="gq-dlg-denial-section" hidden>
+          <p class="gq-dlg-title">Denial reason</p>
+          <div class="gq-info" id="gq-dlg-denial"></div>
+        </section>
       </div>
       <div>
         <p class="gq-dlg-title">Valid ID</p>
@@ -9192,6 +9556,11 @@ body.modal-open { overflow: hidden; }
       </div>
     </div>
     <div class="gq-dlg-foot" id="gq-dlg-foot"></div>
+  </div>
+  <div class="gq-id-lightbox" id="gq-id-lightbox" role="dialog" aria-modal="true"
+       aria-label="Enlarged valid ID image" hidden>
+    <button type="button" class="gq-id-lightbox-close" id="gq-id-lightbox-close" aria-label="Close enlarged image">&times;</button>
+    <img id="gq-id-lightbox-image" alt="">
   </div>
 </div>
 
@@ -9239,15 +9608,13 @@ window.GQ_LIST = (function(){
   var pageNext = document.getElementById('gq-page-next');
   var pageNums = document.getElementById('gq-page-numbers');
 
-  var searchIn  = document.getElementById('gq-search');
+  var searchIn  = document.getElementById('search-input');
   var sortSel   = document.getElementById('gq-sort');
   var dateSel   = document.getElementById('gq-date');
   var rangeBox  = document.getElementById('gq-date-range');
   var dateFrom  = document.getElementById('gq-date-from');
   var dateTo    = document.getElementById('gq-date-to');
   var clearBtn  = document.getElementById('gq-clear');
-  var mBtn      = document.getElementById('gq-mobile-filters');
-  var mPanel    = document.getElementById('gq-controls');
   var flashX    = document.getElementById('gq-flash-close');
 
   var boxes     = Array.prototype.slice.call(document.querySelectorAll('[data-gq-filter]'));
@@ -9258,11 +9625,18 @@ window.GQ_LIST = (function(){
   var dlgSub   = document.getElementById('gq-dlg-sub');
   var dlgPill  = document.getElementById('gq-dlg-pill');
   var dlgInfo  = document.getElementById('gq-dlg-info');
+  var dlgVisit = document.getElementById('gq-dlg-visit');
+  var dlgRequester = document.getElementById('gq-dlg-requester');
+  var dlgDenialSection = document.getElementById('gq-dlg-denial-section');
+  var dlgDenial = document.getElementById('gq-dlg-denial');
   var dlgFoot  = document.getElementById('gq-dlg-foot');
   var dlgClose = document.getElementById('gq-dlg-close');
   var idFrame  = document.getElementById('gq-id-frame');
   var idActs   = document.getElementById('gq-id-actions');
   var idZoom   = document.getElementById('gq-id-zoom');
+  var idLightbox = document.getElementById('gq-id-lightbox');
+  var idLightboxImage = document.getElementById('gq-id-lightbox-image');
+  var idLightboxClose = document.getElementById('gq-id-lightbox-close');
 
   var denyModal = document.getElementById('gqDenyModal');
   var denyMsg   = document.getElementById('gq-deny-msg');
@@ -9453,7 +9827,7 @@ window.GQ_LIST = (function(){
         state.q = v;
         state.page = 1;
         apply();
-      }, 200);
+      }, 250);
     });
   }
   if (sortSel) { sortSel.addEventListener('change', function(){ state.sort = sortSel.value; state.page = 1; apply(); }); }
@@ -9513,21 +9887,6 @@ window.GQ_LIST = (function(){
     });
   });
 
-  /* ---- mobile filter panel ---- */
-  if (mBtn && mPanel) {
-    mBtn.addEventListener('click', function(){
-      var open = mPanel.classList.toggle('is-open');
-      mBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-    });
-    document.addEventListener('keydown', function(e){
-      if (e.key === 'Escape' && mPanel.classList.contains('is-open')) {
-        mPanel.classList.remove('is-open');
-        mBtn.setAttribute('aria-expanded', 'false');
-        mBtn.focus();
-      }
-    });
-  }
-
   /* ---- toast ---- */
   function toast(msg, isError){
     var box = document.getElementById('gq-toasts');
@@ -9557,6 +9916,34 @@ window.GQ_LIST = (function(){
     return row;
   }
 
+  function formatVisitDate(value){
+    var match = String(value || '').match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (!match) { return value || ''; }
+    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var month = parseInt(match[2], 10);
+    if (month < 1 || month > 12) { return value; }
+    return months[month - 1] + ' ' + parseInt(match[3], 10) + ', ' + match[1];
+  }
+
+  function formatVisitTime(value){
+    var match = String(value || '').match(/(?:^|T|\s)(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/i);
+    if (!match) { return value || ''; }
+    var hour = parseInt(match[1], 10);
+    var suffix = match[3] ? match[3].toUpperCase() : (hour >= 12 ? 'PM' : 'AM');
+    hour = hour % 12 || 12;
+    return hour + ':' + match[2] + ' ' + suffix;
+  }
+
+  function formatRequestedOn(value){
+    var text = String(value || '');
+    var isoMatch = text.match(/^(\d{4}-\d{1,2}-\d{1,2})[ T](\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AP]M)?)$/i);
+    if (isoMatch) {
+      return formatVisitDate(isoMatch[1]) + ' at ' + formatVisitTime(isoMatch[2]);
+    }
+    var match = text.match(/^(.*?)\s+(\d{1,2}:\d{2}(?::\d{2})?\s*[AP]M)$/i);
+    return match ? match[1] + ' at ' + formatVisitTime(match[2]) : text;
+  }
+
   function paintDialog(d){
     if (dlgTitle) { dlgTitle.textContent = d.guest || 'Guest request'; }
     if (dlgSub) {
@@ -9569,11 +9956,24 @@ window.GQ_LIST = (function(){
 
     if (dlgInfo) {
       dlgInfo.innerHTML = '';
-      dlgInfo.appendChild(infoRow('Guest', d.guest || ''));
+      dlgInfo.appendChild(infoRow('Name', d.guest || ''));
       dlgInfo.appendChild(infoRow('Contact', d.contact || ''));
-      dlgInfo.appendChild(infoRow('Entry date', d.visit_date || ''));
-      dlgInfo.appendChild(infoRow('Entry time', d.visit_time || ''));
-      dlgInfo.appendChild(infoRow('Requested on', d.requested_iso || ''));
+    }
+    if (dlgVisit) {
+      dlgVisit.innerHTML = '';
+      dlgVisit.appendChild(infoRow('Entry date', formatVisitDate(d.visit_date)));
+      dlgVisit.appendChild(infoRow('Entry time', formatVisitTime(d.visit_time)));
+      dlgVisit.appendChild(infoRow('Requested on', formatRequestedOn(d.requested_iso)));
+    }
+    if (dlgRequester) {
+      dlgRequester.innerHTML = '';
+      dlgRequester.appendChild(infoRow('Resident', d.resident || ''));
+      dlgRequester.appendChild(infoRow('House number', d.house ? ('House ' + d.house) : ''));
+    }
+    if (dlgDenialSection && dlgDenial) {
+      dlgDenialSection.hidden = d.status !== 'denied';
+      dlgDenial.innerHTML = '';
+      if (d.status === 'denied') { dlgDenial.appendChild(infoRow('Reason', d.reason || 'No reason recorded')); }
     }
 
     if (idFrame) {
@@ -9583,6 +9983,25 @@ window.GQ_LIST = (function(){
         var img = document.createElement('img');
         img.src = d.valid_id;
         img.alt = 'Uploaded valid ID for ' + (d.guest || 'the guest');
+        img.addEventListener('error', function(){
+          var failedSrc = img.src;
+          var errorBox = document.createElement('div');
+          errorBox.className = 'gq-id-error';
+          var message = document.createElement('span');
+          message.textContent = 'Could not load the ID image';
+          var retry = document.createElement('button');
+          retry.type = 'button';
+          retry.className = 'btn btn-view';
+          retry.textContent = 'Try again';
+          retry.addEventListener('click', function(){
+            errorBox.remove();
+            idFrame.appendChild(img);
+            img.src = failedSrc.split('#')[0] + '#gq-retry-' + Date.now();
+          });
+          errorBox.appendChild(message);
+          errorBox.appendChild(retry);
+          if (img.parentNode === idFrame) { idFrame.replaceChild(errorBox, img); }
+        });
         idFrame.appendChild(img);
         if (idActs) { idActs.hidden = false; }
       } else {
@@ -9648,6 +10067,7 @@ window.GQ_LIST = (function(){
     if (modal) { modal.style.display = 'none'; }
     openId = null;
     if (idFrame) { idFrame.classList.remove('is-zoomed'); }
+    closeLightbox(false);
     if (lastFocus && lastFocus.focus) { lastFocus.focus(); lastFocus = null; }
   }
 
@@ -9657,17 +10077,35 @@ window.GQ_LIST = (function(){
   }
   document.addEventListener('keydown', function(e){
     if (e.key !== 'Escape') { return; }
+    if (idLightbox && !idLightbox.hidden) { closeLightbox(true); return; }
     if (denyModal && denyModal.style.display === 'flex') { closeDeny(); return; }
     if (modal && modal.style.display === 'flex') { close(); }
   });
 
-  function toggleZoom(){
-    if (!idFrame) { return; }
-    idFrame.classList.toggle('is-zoomed');
-    if (idZoom) { idZoom.textContent = idFrame.classList.contains('is-zoomed') ? 'Reset' : 'Zoom'; }
+  function openLightbox(){
+    var img = idFrame && idFrame.querySelector('img');
+    if (!img || !idLightbox || !idLightboxImage) { return; }
+    idLightboxImage.src = img.src;
+    idLightboxImage.alt = img.alt;
+    idLightbox.hidden = false;
+    if (idLightboxClose) { idLightboxClose.focus(); }
   }
-  if (idFrame) { idFrame.addEventListener('click', toggleZoom); }
-  if (idZoom)  { idZoom.addEventListener('click', toggleZoom); }
+  function closeLightbox(restoreFocus){
+    if (!idLightbox || idLightbox.hidden) { return; }
+    idLightbox.hidden = true;
+    if (idLightboxImage) { idLightboxImage.removeAttribute('src'); }
+    if (restoreFocus && idZoom) { idZoom.focus(); }
+  }
+  if (idFrame) {
+    idFrame.addEventListener('click', function(e){
+      if (e.target && e.target.tagName === 'IMG') { openLightbox(); }
+    });
+  }
+  if (idZoom) { idZoom.addEventListener('click', openLightbox); }
+  if (idLightboxClose) { idLightboxClose.addEventListener('click', function(){ closeLightbox(true); }); }
+  if (idLightbox) {
+    idLightbox.addEventListener('click', function(e){ if (e.target === idLightbox) { closeLightbox(true); } });
+  }
 
   /* ---- deny dialog: the reason is required ---- */
   function openDeny(id){
@@ -10396,11 +10834,6 @@ unset($_SESSION['flash_notice']);
 ?>
 <section class="panel" id="requests-panel">
 
-  <div class="rr-head">
-    <h3>Resident amenity requests</h3>
-    <p>Verify each downpayment receipt, then approve the reservation.</p>
-  </div>
-
   <?php if ($rrFlash !== ''): ?>
   <div class="rr-flash" role="status">
     <span><?php echo htmlspecialchars($rrFlash); ?></span>
@@ -10432,19 +10865,8 @@ unset($_SESSION['flash_notice']);
     <?php endforeach; ?>
   </div>
 
-  <!-- Search, sort, amenity, date, clear. The search box stays visible on mobile. -->
+  <!-- Sort and filter controls; search is in the top bar. -->
   <div class="rr-toolbar">
-    <button type="button" class="rr-mobile-filters" id="rr-mobile-filters"
-            aria-expanded="false" aria-controls="rr-controls">
-      <i class="fa-solid fa-sliders" aria-hidden="true"></i> Filters
-    </button>
-
-    <div class="rr-field">
-      <label for="rr-search">Search</label>
-      <input type="search" id="rr-search" class="rr-search"
-             placeholder="Resident name, reference or house number" autocomplete="off">
-    </div>
-
     <div class="rr-controls" id="rr-controls">
       <div class="rr-field">
         <label for="rr-sort">Sort by</label>
@@ -10455,7 +10877,7 @@ unset($_SESSION['flash_notice']);
           <option value="visit_soon">Reservation date: soonest first</option>
           <option value="visit_late">Reservation date: latest first</option>
           <option value="resident_name">Resident name (A to Z)</option>
-          <option value="downpayment_high">Downpayment: highest first</option>
+          <option value="downpayment_high">Payment: highest first</option>
         </select>
       </div>
       <div class="rr-field">
@@ -10468,22 +10890,29 @@ unset($_SESSION['flash_notice']);
         </select>
       </div>
       <div class="rr-field">
-        <label for="rr-date">Date submitted</label>
-        <select id="rr-date" class="rr-select">
-          <option value="">Any time</option>
-          <option value="today">Today</option>
-          <option value="7">Last 7 days</option>
-          <option value="30">Last 30 days</option>
-          <option value="custom">Custom range</option>
+        <label for="rr-payment">Payment</label>
+        <select id="rr-payment" class="rr-select">
+          <option value="">All payments</option>
+          <option value="cash">Cash downpayment</option>
+          <option value="ecopoints">Paid with EcoPoints</option>
         </select>
       </div>
-      <div class="rr-field">
-        <label class="rr-sr-only-label" for="rr-date-from">From date</label>
-        <span class="rr-date-range" id="rr-date-range" hidden>
-          <input type="date" id="rr-date-from" aria-label="Submitted from">
-          <span class="muted">to</span>
-          <input type="date" id="rr-date-to" aria-label="Submitted to">
-        </span>
+      <div class="rr-field rr-date-field">
+        <label for="rr-date">Date</label>
+        <div class="rr-date-control">
+          <select id="rr-date" class="rr-select">
+            <option value="">Any time</option>
+            <option value="today">Today</option>
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="custom">Custom range</option>
+          </select>
+          <span class="rr-date-range" id="rr-date-range" hidden>
+            <input type="date" id="rr-date-from" aria-label="Submitted from">
+            <span class="muted">to</span>
+            <input type="date" id="rr-date-to" aria-label="Submitted to">
+          </span>
+        </div>
       </div>
       <button type="button" class="rr-clear" id="rr-clear" hidden>Clear filters</button>
     </div>
@@ -10501,7 +10930,7 @@ unset($_SESSION['flash_notice']);
           <th scope="col" class="rr-sortable" data-rr-sortcol="created"
               tabindex="0" aria-sort="none">Submitted<span class="rr-sort-arrow" aria-hidden="true">&#8597;</span></th>
           <th scope="col" class="rr-sortable" data-rr-sortcol="amount"
-              tabindex="0" aria-sort="none">Downpayment<span class="rr-sort-arrow" aria-hidden="true">&#8597;</span></th>
+              tabindex="0" aria-sort="none">Payment<span class="rr-sort-arrow" aria-hidden="true">&#8597;</span></th>
           <th scope="col">Status</th>
           <th scope="col">Actions</th>
         </tr>
@@ -10515,15 +10944,27 @@ unset($_SESSION['flash_notice']);
           $rrHouse = trim((string)($rr['house_number'] ?? ''));
           $rrMeta = ($rrHouse !== '') ? ('House ' . $rrHouse . ' · Resident') : 'Resident';
 
-          $rrRawDownpayment = ($rr['downpayment'] === null || $rr['downpayment'] === '')
-              ? 0.0
-              : (float)$rr['downpayment'];
-          $rrDownpayment = $rrRawDownpayment > 0
+          $rrDownpaymentRaw = $rr['downpayment'] ?? null;
+          $rrHasDownpayment = $rrDownpaymentRaw !== null && $rrDownpaymentRaw !== '' && is_numeric($rrDownpaymentRaw);
+          $rrRawDownpayment = $rrHasDownpayment ? (float)$rrDownpaymentRaw : 0.0;
+          $rrPointsUsed = max(0, intval($rr['points_used'] ?? 0));
+          $rrHours = 0.0;
+          if (!empty($rr['start_time']) && !empty($rr['end_time'])) {
+              $rrHours = max(0, (strtotime((string)$rr['end_time']) - strtotime((string)$rr['start_time'])) / 3600);
+          }
+          $rrFinalAmount = isset($rr['price']) && $rr['price'] !== '' && is_numeric($rr['price'])
+              ? max(0, (float)$rr['price'])
+              : null;
+          $rrFullyRedeemed = !empty($rr['use_points']) && $rrPointsUsed > 0
+              && (($rrFinalAmount !== null && $rrFinalAmount <= 0) || abs($rrHours - 1) < 0.001);
+          $rrPaymentType = $rrFullyRedeemed ? 'ecopoints' : ($rrHasDownpayment ? 'cash' : 'unavailable');
+          $rrPaymentAmount = $rrFullyRedeemed ? 0 : $rrRawDownpayment;
+          $rrDownpayment = $rrPaymentType === 'cash'
               ? '₱' . number_format($rrRawDownpayment, 2)
-              : '—';
-
+              : 'Payment info unavailable';
           $rrCreated = intval($rr['rr_created'] ?? 0);
-          $rrSubmitted = $rrCreated ? date('M j, Y g:i A', $rrCreated) : '—';
+          $rrSubmittedDate = $rrCreated ? date('M j, Y', $rrCreated) : '—';
+          $rrSubmittedTime = $rrCreated ? date('g:i A', $rrCreated) : '';
           $rrSubmittedAgo = $rrAgo($rrCreated);
           $rrStart = trim((string)($rr['start_date'] ?? ''));
           $rrStartTs = $rrStart !== '' ? (strtotime($rrStart) ?: 0) : 0;
@@ -10563,26 +11004,41 @@ unset($_SESSION['flash_notice']);
             data-amenity="<?php echo htmlspecialchars($rrAmenityName, ENT_QUOTES); ?>"
             data-created="<?php echo $rrCreated; ?>"
             data-start="<?php echo $rrStartTs; ?>"
-            data-amount="<?php echo htmlspecialchars((string)$rrRawDownpayment, ENT_QUOTES); ?>"
+            data-amount="<?php echo htmlspecialchars((string)$rrPaymentAmount, ENT_QUOTES); ?>"
+            data-payment="<?php echo htmlspecialchars($rrPaymentType, ENT_QUOTES); ?>"
             data-search="<?php echo htmlspecialchars($rrHaystack, ENT_QUOTES); ?>">
           <td>
-            <span class="rr-resident-name"><?php echo htmlspecialchars($rrName); ?></span>
-            <span class="rr-resident-meta"><?php echo htmlspecialchars($rrMeta); ?></span>
+            <span class="rr-resident-name" tabindex="0" title="<?php echo htmlspecialchars($rrName, ENT_QUOTES, 'UTF-8'); ?>" aria-label="<?php echo htmlspecialchars($rrName, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($rrName); ?></span>
+            <span class="rr-resident-meta" tabindex="0" title="<?php echo htmlspecialchars($rrMeta, ENT_QUOTES, 'UTF-8'); ?>" aria-label="<?php echo htmlspecialchars($rrMeta, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($rrMeta); ?></span>
           </td>
-          <td><?php echo htmlspecialchars($rrAmenityName); ?></td>
+          <td><span class="vr-amenity" tabindex="0" title="<?php echo htmlspecialchars($rrAmenityName, ENT_QUOTES, 'UTF-8'); ?>" aria-label="<?php echo htmlspecialchars($rrAmenityName, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($rrAmenityName); ?></span></td>
           <td>
-            <span class="rr-res-date"><?php echo htmlspecialchars($rrReservation); ?></span>
+            <span class="rr-res-date" title="<?php echo htmlspecialchars(trim($rrReservation . ($rrSlot !== '' ? ' ' . $rrSlot : '')), ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($rrReservation); ?></span>
             <?php if ($rrSlot !== ''): ?>
               <span class="rr-when"><?php echo htmlspecialchars($rrSlot); ?></span>
             <?php endif; ?>
           </td>
           <td>
-            <span class="rr-submitted"><?php echo htmlspecialchars($rrSubmitted); ?></span>
+            <span class="rr-submitted-date"><?php echo htmlspecialchars($rrSubmittedDate); ?></span>
+            <?php if ($rrSubmittedTime !== ''): ?><span class="rr-submitted-time"><?php echo htmlspecialchars($rrSubmittedTime); ?></span><?php endif; ?>
             <?php if ($rrSubmittedAgo !== ''): ?>
               <span class="rr-ago"><?php echo htmlspecialchars($rrSubmittedAgo); ?></span>
             <?php endif; ?>
           </td>
-          <td><span class="rr-amount"><?php echo htmlspecialchars($rrDownpayment); ?></span></td>
+          <td>
+            <?php if ($rrPaymentType === 'ecopoints'): ?>
+              <span class="rr-payment-eco" tabindex="0"
+                    title="Fully paid with VHEcoPoints. No cash downpayment or receipt needed."
+                    aria-label="Paid with EcoPoints, <?php echo $rrPointsUsed; ?> points">
+                <i class="fa-solid fa-leaf" aria-hidden="true"></i> Paid with EcoPoints
+              </span>
+              <span class="rr-payment-points"><?php echo number_format($rrPointsUsed); ?> pts</span>
+            <?php elseif ($rrPaymentType === 'cash'): ?>
+              <span class="rr-amount"><?php echo htmlspecialchars($rrDownpayment); ?></span>
+            <?php else: ?>
+              <span class="rr-resident-meta">Payment info unavailable</span>
+            <?php endif; ?>
+          </td>
           <td>
             <span class="rr-pill rr-pill-<?php echo $rr['rr_key']; ?>"<?php echo ($rrPillTitle !== '' ? ' title="' . htmlspecialchars($rrPillTitle, ENT_QUOTES, 'UTF-8') . '"' : ''); ?>><?php echo htmlspecialchars($rr['rr_label']); ?></span>
           </td>
@@ -10634,16 +11090,15 @@ window.RR_LIST = (function(){
   var pageNext = document.getElementById('rr-page-next');
   var pageNums = document.getElementById('rr-page-numbers');
 
-  var searchIn  = document.getElementById('rr-search');
+  var searchIn  = document.getElementById('search-input');
   var sortSel   = document.getElementById('rr-sort');
   var amenitySel = document.getElementById('rr-amenity');
+  var paymentSel = document.getElementById('rr-payment');
   var dateSel   = document.getElementById('rr-date');
   var rangeBox  = document.getElementById('rr-date-range');
   var dateFrom  = document.getElementById('rr-date-from');
   var dateTo    = document.getElementById('rr-date-to');
   var clearBtn  = document.getElementById('rr-clear');
-  var mBtn      = document.getElementById('rr-mobile-filters');
-  var mPanel    = document.getElementById('rr-controls');
   var flashX    = document.getElementById('rr-flash-close');
 
   var boxes     = Array.prototype.slice.call(document.querySelectorAll('[data-rr-filter]'));
@@ -10656,7 +11111,7 @@ window.RR_LIST = (function(){
   var PER_PAGE = 10;
   var STORE  = 'vp_admin_rr_state';
 
-  var state = { status: 'all', q: '', sort: 'needs_action', amenity: '', date: '', from: '', to: '', page: 1 };
+  var state = { status: 'all', q: '', sort: 'needs_action', amenity: '', payment: '', date: '', from: '', to: '', page: 1 };
   var searchTimer = null;
 
   function rows(){ return Array.prototype.slice.call(tbody.querySelectorAll('tr[data-status]')); }
@@ -10677,6 +11132,7 @@ window.RR_LIST = (function(){
       if (typeof saved.q === 'string')      { state.q = saved.q; }
       if (typeof saved.sort === 'string')   { state.sort = saved.sort; }
       if (typeof saved.amenity === 'string'){ state.amenity = saved.amenity; }
+      if (['', 'cash', 'ecopoints'].indexOf(saved.payment) !== -1) { state.payment = saved.payment; }
       if (typeof saved.date === 'string')   { state.date = saved.date; }
       if (typeof saved.from === 'string')   { state.from = saved.from; }
       if (typeof saved.to === 'string')     { state.to = saved.to; }
@@ -10713,6 +11169,7 @@ window.RR_LIST = (function(){
       var s = attr(r, 'data-status');
       if (state.status !== 'all' && s !== state.status) { return; }
       if (state.amenity && attr(r, 'data-amenity') !== state.amenity) { return; }
+      if (state.payment && attr(r, 'data-payment') !== state.payment) { return; }
       if (!passesDate(r)) { return; }
       if (q && attr(r, 'data-search').indexOf(q) === -1) { return; }
       out.push(r);
@@ -10774,9 +11231,9 @@ window.RR_LIST = (function(){
         + ' request' + (total === 1 ? '' : 's');
     }
     if (emptyRow) { emptyRow.style.display = (list.length === 0) ? '' : 'none'; }
-    if (emptyBtn) { emptyBtn.hidden = !(state.q.trim() || state.amenity || state.date || state.from || state.to); }
+    if (emptyBtn) { emptyBtn.hidden = !(state.q.trim() || state.amenity || state.payment || state.date || state.from || state.to); }
 
-    var anyFilter = !!(state.q.trim() || state.amenity || state.date || state.from || state.to)
+    var anyFilter = !!(state.q.trim() || state.amenity || state.payment || state.date || state.from || state.to)
                  || state.sort !== 'needs_action';
     if (clearBtn) { clearBtn.hidden = !anyFilter; }
 
@@ -10825,6 +11282,7 @@ window.RR_LIST = (function(){
     if (searchIn) { searchIn.value = state.q; }
     if (sortSel && sortSel.value !== state.sort) { sortSel.value = state.sort; }
     if (amenitySel && amenitySel.value !== state.amenity) { amenitySel.value = state.amenity; }
+    if (paymentSel && paymentSel.value !== state.payment) { paymentSel.value = state.payment; }
     if (dateSel && dateSel.value !== state.date) { dateSel.value = state.date; }
     if (rangeBox) { rangeBox.hidden = (state.date !== 'custom'); }
     if (dateFrom) { dateFrom.value = state.from; }
@@ -10837,6 +11295,7 @@ window.RR_LIST = (function(){
     state.q = '';
     state.sort = 'needs_action';
     state.amenity = '';
+    state.payment = '';
     state.date = '';
     state.from = '';
     state.to = '';
@@ -10881,7 +11340,7 @@ window.RR_LIST = (function(){
       searchIn.addEventListener('input', function(){
         state.q = searchIn.value;
         if (searchTimer) { window.clearTimeout(searchTimer); }
-        searchTimer = window.setTimeout(function(){ searchTimer = null; t(); }, 200);
+        searchTimer = window.setTimeout(function(){ searchTimer = null; t(); }, 250);
       });
       searchIn.addEventListener('keydown', function(e){
         if (e.key === 'Enter') { if (searchTimer) { window.clearTimeout(searchTimer); searchTimer = null; } t(); }
@@ -10889,6 +11348,7 @@ window.RR_LIST = (function(){
     }
     if (sortSel) { sortSel.addEventListener('change', function(){ state.sort = sortSel.value; t(); }); }
     if (amenitySel) { amenitySel.addEventListener('change', function(){ state.amenity = amenitySel.value; t(); }); }
+    if (paymentSel) { paymentSel.addEventListener('change', function(){ state.payment = paymentSel.value; t(); }); }
     if (dateSel) {
       dateSel.addEventListener('change', function(){
         state.date = dateSel.value;
@@ -10912,18 +11372,6 @@ window.RR_LIST = (function(){
       th.addEventListener('keydown', function(e){
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
       });
-    });
-    if (mBtn && mPanel) {
-      mBtn.addEventListener('click', function(){
-        var open = mPanel.classList.toggle('is-open');
-        mBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-      });
-    }
-    document.addEventListener('click', function(e){
-      if (!mPanel || !mPanel.classList.contains('is-open')) { return; }
-      if (mPanel.contains(e.target) || (mBtn && mBtn.contains(e.target))) { return; }
-      mPanel.classList.remove('is-open');
-      if (mBtn) { mBtn.setAttribute('aria-expanded', 'false'); }
     });
     if (flashX) {
       flashX.addEventListener('click', function(){
@@ -11205,9 +11653,12 @@ ksort($vrAmenities);
                   ? '—'
                   : '₱' . number_format((float)$vr['downpayment'], 2);
 
-              $vrSubmitted = '';
               if ($vr['vr_created'] > 0) {
-                  $vrSubmitted = date('M j, Y · g:i A', $vr['vr_created']);
+                  $vrSubmittedDate = date('M j, Y', $vr['vr_created']);
+                  $vrSubmittedTime = date('g:i A', $vr['vr_created']);
+          } else {
+                  $vrSubmittedDate = '—';
+                  $vrSubmittedTime = '';
               }
               $vrAgo = vpRelativeTime($vr['vr_created']);
 
@@ -11229,13 +11680,15 @@ ksort($vrAmenities);
             data-down="<?php echo htmlspecialchars((string)$vr['vr_pay'], ENT_QUOTES, 'UTF-8'); ?>"
             data-name="<?php echo htmlspecialchars(strtolower($vrName), ENT_QUOTES, 'UTF-8'); ?>">
           <td>
-            <span class="vr-visitor-name"><?php echo htmlspecialchars($vrName); ?></span>
-            <span class="vr-visitor-meta"><?php echo htmlspecialchars($vrMeta); ?></span>
+            <span class="vr-visitor-name" tabindex="0" title="<?php echo htmlspecialchars($vrName, ENT_QUOTES, 'UTF-8'); ?>" aria-label="<?php echo htmlspecialchars($vrName, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($vrName); ?></span>
+            <span class="vr-visitor-meta" tabindex="0" title="<?php echo htmlspecialchars($vrMeta, ENT_QUOTES, 'UTF-8'); ?>" aria-label="<?php echo htmlspecialchars($vrMeta, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($vrMeta); ?></span>
           </td>
           <td><span class="vr-ref"><?php echo htmlspecialchars($vrRef !== '' ? $vrRef : '—'); ?></span></td>
-          <td><?php echo htmlspecialchars((string)($vr['amenity'] ?? '—')); ?></td>
+          <?php $vrAmenity = (string)($vr['amenity'] ?? '—'); ?>
+          <td><span class="vr-amenity" tabindex="0" title="<?php echo htmlspecialchars($vrAmenity, ENT_QUOTES, 'UTF-8'); ?>" aria-label="<?php echo htmlspecialchars($vrAmenity, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($vrAmenity); ?></span></td>
           <td>
-            <span class="vr-submitted"><?php echo htmlspecialchars($vrSubmitted !== '' ? $vrSubmitted : '—'); ?></span>
+            <span class="vr-submitted-date"><?php echo htmlspecialchars($vrSubmittedDate); ?></span>
+            <?php if ($vrSubmittedTime !== ''): ?><span class="vr-submitted-time"><?php echo htmlspecialchars($vrSubmittedTime); ?></span><?php endif; ?>
             <span class="vr-ago"><?php echo htmlspecialchars($vrAgo); ?></span>
           </td>
           <td><span class="vr-amount"><?php echo htmlspecialchars($vrDownpayment); ?></span></td>
@@ -11506,7 +11959,7 @@ window.VR_LIST = (function(){
         state.q = v;
         state.page = 1;
         apply();
-      }, 200);
+      }, 250);
     });
   }
   if (sortSel) { sortSel.addEventListener('change', function(){ state.sort = sortSel.value; state.page = 1; apply(); }); }
@@ -11851,8 +12304,11 @@ document.querySelectorAll('.nav-item').forEach(item => {
     const pageTitle = this.querySelector('span').textContent;
     document.getElementById('page-title').textContent = pageTitle;
     
-    // Update search placeholder
-    document.getElementById('search-input').placeholder = `Search ${pageTitle}...`;
+    // Request lists keep their page-specific shared search placeholder.
+    const searchInput = document.getElementById('search-input');
+    if(searchInput && searchInput.getAttribute('data-list-search') !== '1'){
+      searchInput.placeholder = `Search ${pageTitle}...`;
+    }
   });
 });
 
@@ -12248,6 +12704,7 @@ function rrdAmounts(d){
      one-free-hour VHEcoPoint benefit, and only when the modelled result agrees
      with the stored price. */
   var fullyRedeemed = pts > 0 && Math.abs(hours - 1) < 0.001;
+  var amountKnown = havePrice || fullyRedeemed || (rate > 0 && hours > 0);
   var finalAmt = havePrice ? price : (Math.max(0, hours - (pts > 0 ? 1 : 0)) * rate);
   if (fullyRedeemed) { finalAmt = 0; }
   var original = finalAmt, discount = 0, split = false;
@@ -12257,8 +12714,9 @@ function rrdAmounts(d){
   }
   var stored = parseFloat(d.downpayment);
   var required = (isFinite(stored) && stored > 0) ? stored : finalAmt * 0.5;
+  var remaining = Math.round(Math.max(0, finalAmt - required) * 100) / 100;
   return { hours: hours, rate: rate, points: pts, original: original, discount: discount,
-           final: finalAmt, required: required, remaining: Math.max(0, finalAmt - required),
+           final: finalAmt, required: required, remaining: remaining, known: amountKnown,
            split: split, redeemed: fullyRedeemed };
 }
 
@@ -12280,9 +12738,9 @@ function rrdSlashDate(iso){
 function rrdCard(title, body){
   return '<div class="rrd-card"><h4 class="rrd-card-title">' + rrdEsc(title) + '</h4><div class="rrd-card-body">' + body + '</div></div>';
 }
-function rrdRow(label, value, isKey){
+function rrdRow(label, value, isKey, extraClass){
   if (value === '' || value === null || value === undefined) { return ''; }
-  return '<div class="rrd-kv' + (isKey ? ' is-key' : '') + '"><span class="rrd-k">' + rrdEsc(label) + '</span><span class="rrd-v">' + rrdEsc(value) + '</span></div>';
+  return '<div class="rrd-kv' + (isKey ? ' is-key' : '') + (extraClass ? ' ' + extraClass : '') + '"><span class="rrd-k">' + rrdEsc(label) + '</span><span class="rrd-v">' + rrdEsc(value) + '</span></div>';
 }
 
 /* ---------- receipt column ---------- */
@@ -12355,7 +12813,13 @@ function rrdRenderRight(d, meta){
     payment += rrdRow('Total price', fmtMoney(a.final));
   }
   payment += rrdRow('Required downpayment', fmtMoney(a.required), true);
-  payment += rrdRow('Remaining balance', fmtMoney(a.remaining));
+  var balanceValue = !a.known ? 'Balance information unavailable' : (a.remaining > 0 ? fmtMoney(a.remaining) : '₱0.00');
+  payment += rrdRow('Remaining balance', balanceValue, false, 'is-balance');
+  if (a.known && a.remaining <= 0) {
+    payment += '<p class="rrd-balance-note">No balance due</p>';
+  } else if (a.known && RRD.key !== 'rejected') {
+    payment += '<p class="rrd-balance-note"><span>To be paid on site</span><button type="button" class="rrd-balance-info" aria-label="How the remaining balance is paid" aria-describedby="rrdBalanceTooltip"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><span class="rrd-balance-tooltip" role="tooltip" id="rrdBalanceTooltip">The resident pays this amount at the venue on the day of the reservation. It is not part of the receipt check.</span></button></p>';
+  }
   if (a.redeemed) {
     payment += '<div class="rrd-note" style="margin-top:8px;"><i class="fa-solid fa-circle-info"></i><span>Fully redeemed with VHEcoPoints, so there is no cash downpayment to compare against.</span></div>';
   } else if (a.points > 0 && !a.split) {
