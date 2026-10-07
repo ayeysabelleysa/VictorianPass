@@ -5,7 +5,7 @@ from evdev import InputDevice, ecodes
 # SETTINGS
 # =========================================================
 
-QR_DEVICE = "/dev/input/event4"
+QR_DEVICE = "/dev/input/by-id/usb-Megahunt_HID_Keyboard_D-1S15R17C-event-kbd"
 
 # VictorianPass resident house-number prefix
 VH_PREFIX = "VH-"
@@ -125,11 +125,120 @@ SHIFT_KEY_MAP = {
 def start_scanner():
     scanner = InputDevice(QR_DEVICE)
 
-    print("GM65 QR scanner started.")
+    print("QR scanner started.")
     print("Device:", scanner.name)
     print("Device:", QR_DEVICE)
 
     return scanner
+
+
+# =========================================================
+# RECONNECT
+# =========================================================
+
+def reconnect_scanner(scanner):
+    """
+    Wait until the QR scanner device reappears after a
+    disconnect.
+
+    Loops for as long as it takes (the device is expected to
+    come back after a USB re-plug), but reports progress every
+    few seconds so a long outage is never waited out in
+    silence.
+    """
+    try:
+        scanner.close()
+
+    except Exception:
+        pass
+
+    attempt = 0
+
+    while True:
+
+        try:
+            scanner = InputDevice(QR_DEVICE)
+            print("QR scanner reconnected.")
+            return scanner
+
+        except OSError:
+
+            attempt += 1
+
+            if attempt == 1 or attempt % 5 == 0:
+                print(
+                    f"QR scanner still disconnected "
+                    f"(attempt {attempt}). Waiting..."
+                )
+
+            time.sleep(1)
+
+
+# =========================================================
+# DISCARD STALE KEY EVENTS
+# =========================================================
+
+def drop_buffered_input(scanner, window_start):
+    """
+    Discard key events that were generated BEFORE this
+    QR-reading window opened.
+
+    The kernel keeps a queue of every keystroke typed while
+    nobody is reading the scanner device. That happens whenever
+    Main.py is busy with a resident session: nobody calls
+    read_qr(), so a scan performed during the session stays
+    buffered. Without this step the next read_qr() call would
+    instantly replay that old scan and could silently start a
+    NEW resident session ("ghost scan"), or splice a partial
+    old scan onto the front of a fresh one.
+
+    Rules:
+      - events older than window_start are dropped, and
+      - events typed AT/AFTER window_start belong to this
+        reading window and are returned (the first of them is
+        carried out so it is not lost).
+
+    Input-event timestamps are CLOCK_REALTIME on this machine,
+    so window_start (time.time()) compares directly. If a
+    device ever reports a timestamp base that does not match
+    (age > 1 hour), nothing is dropped: degrading to keeping
+    everything is safer than discarding a live scan.
+
+    Returns
+    -------
+    (scanner, first_in_window_event_or_None)
+    """
+    dropped = 0
+
+    while True:
+
+        try:
+            event = scanner.read_one()
+
+        except BlockingIOError:
+            break
+
+        if event is None:
+            break
+
+        age = window_start - event.timestamp()
+
+        # Stale event typed before this window opened.
+        if 0 <= age <= 3600:
+            dropped += 1
+            continue
+
+        # In-window event (or a mismatched timestamp base):
+        # stop here and hand it to the caller.
+        return scanner, event
+
+    if dropped:
+        print(
+            f"Discarded {dropped} key event(s) buffered "
+            "from before the QR window."
+        )
+
+    return scanner, None
 
 
 # =========================================================
@@ -141,33 +250,52 @@ def read_qr(scanner):
 
     shift_pressed = False
 
+    # A scan may only belong to THE reading window that is
+    # actively waiting for a QR. Anything typed before this
+    # call (for example while Main.py was busy with the
+    # previous resident session) is still sitting in the
+    # kernel buffer and must be discarded, not replayed.
+    window_start = time.time()
+
+    pending = None
+
+    try:
+        scanner, pending = drop_buffered_input(
+            scanner,
+            window_start
+        )
+
+    except OSError:
+        print("QR scanner disconnected. Reconnecting...")
+        scanner = reconnect_scanner(scanner)
+
     while True:
-        try:
-            event = scanner.read_one()
 
-        except BlockingIOError:
-            time.sleep(0.01)
-            continue
+        if pending is not None:
+            event = pending
+            pending = None
 
-        except OSError:
-            print("QR scanner disconnected. Reconnecting...")
+        else:
 
             try:
-                scanner.close()
-            except:
-                pass
+                event = scanner.read_one()
 
-            while True:
-                try:
-                    scanner = InputDevice(QR_DEVICE)
-                    print("GM65 QR scanner reconnected.")
-                    qr_buffer = ""
-                    shift_pressed = False
-                    break
-                except OSError:
-                    time.sleep(1)
+            except BlockingIOError:
+                time.sleep(0.01)
+                continue
 
-            continue
+            except OSError:
+                print(
+                    "QR scanner disconnected. "
+                    "Reconnecting..."
+                )
+
+                scanner = reconnect_scanner(scanner)
+
+                qr_buffer = ""
+                shift_pressed = False
+
+                continue
 
 
         if event is None:
@@ -348,4 +476,4 @@ def close_scanner(scanner):
         except Exception:
             pass
 
-        print("GM65 scanner closed.")
+        print("QR scanner closed.")

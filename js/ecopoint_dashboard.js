@@ -954,6 +954,46 @@
     if (modal) modal.style.display = 'none';
   }
 
+  // Read an End Session response without assuming it is JSON. The endpoint
+  // answers application/json, but a gateway/proxy failure answers with an
+  // HTML error page (or nothing at all), so the Content-Type is checked
+  // BEFORE calling response.json() — otherwise the parse error hides the
+  // real server problem behind a fake "network" message.
+  function parseEndSessionResponse(resp) {
+    const rawType = resp && resp.headers ? resp.headers.get('content-type') : '';
+    const isJson = String(rawType || '').toLowerCase().indexOf('application/json') !== -1;
+    const body = isJson ? resp.json() : resp.text();
+    return body
+      .then(parsed => {
+        let data = null;
+        if (isJson) {
+          data = parsed;
+        } else if (typeof parsed === 'string' && parsed.trim() !== '') {
+          // Non-JSON body that still happens to contain JSON (rare proxy rewrites)
+          try { data = JSON.parse(parsed); } catch (e) { data = null; }
+        }
+        return { resp, data };
+      })
+      .catch(() => ({ resp, data: null }));
+  }
+
+  // Truthful user-facing message for a failed End Session request:
+  //  - a valid JSON error from the API  -> show the API's own message
+  //  - HTML / gateway / empty response   -> say the SERVER is unavailable
+  //  - never blames the resident's internet for a server-side failure
+  function endSessionErrorMessage(resp, data) {
+    if (data && typeof data.message === 'string' && data.message.trim() !== '') {
+      return data.message.trim();
+    }
+    const status = resp ? resp.status : 0;
+    if (!status) return 'The server is not responding right now. Please try again in a moment.';
+    if (status === 401) return 'Your session has expired. Please sign in again, then retry.';
+    if (status === 403) return 'The server rejected this request (403). Refresh the page and try again.';
+    if (status === 405) return 'Ending a session is not available right now (405).';
+    if (status >= 500) return 'The server is temporarily unavailable (HTTP ' + status + '). Please try again in a moment.';
+    return 'The server could not complete the request (HTTP ' + status + '). Please try again.';
+  }
+
   function confirmEndSessionEarly() {
     const confirmBtn = getElement('endSessionEarlyConfirm');
     const cancelBtn = getElement('endSessionEarlyCancel');
@@ -969,9 +1009,11 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ csrf_token: getCsrfToken() }),
     })
-      .then(resp => resp.json())
-      .then(data => {
-        if (data && data.success) {
+      .then(parseEndSessionResponse)
+      .then(result => {
+        const resp = result.resp;
+        const data = result.data;
+        if (resp && resp.ok && data && data.success) {
           closeEndSessionModal();
           showNotification(
             'success',
@@ -991,12 +1033,16 @@
           if (data.cap_state_after) {
             updateCapState(data.cap_state_after);
           }
-        } else {
-          showNotification('error', 'Unable to End Session', (data && data.message) || 'Please try again.', 'fa-solid fa-circle-xmark', '#dc2626');
+          return;
         }
+        log('End Session not completed', { status: resp ? resp.status : 0, body: data });
+        showNotification('error', 'Unable to End Session', endSessionErrorMessage(resp, data), 'fa-solid fa-circle-xmark', '#dc2626');
       })
-      .catch(() => {
-        showNotification('error', 'Unable to End Session', 'Network error. Please try again.', 'fa-solid fa-circle-xmark', '#dc2626');
+      .catch(e => {
+        // fetch() only rejects for genuine connectivity problems — this is the
+        // one case where mentioning the connection is accurate.
+        log('End Session request failed', e);
+        showNotification('error', 'Unable to End Session', 'Could not reach the server. Please check your connection and try again.', 'fa-solid fa-circle-xmark', '#dc2626');
       })
       .finally(() => {
         if (confirmBtn) {

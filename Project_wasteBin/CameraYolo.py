@@ -4,7 +4,7 @@ import threading
 import time
 from flask import Flask, Response, jsonify
 
-RTSP_URL = "rtsp://192.168.0.150:554/live"
+CAMERA_DEVICE = "/dev/video0"
 
 MODEL = "yolo11n.pt"
 CONFIDENCE = 0.20
@@ -30,6 +30,14 @@ stable_start = None
 mixed_material = False
 material_percent = {}
 unrecognized_item = False
+
+# Wall-clock time when unrecognized_item was last raised.
+# Used so the popup can never stay latched forever if Main.py
+# crashes or never calls /reset.
+unrecognized_at = None
+
+# Automatic safety reset for the unrecognized popup.
+UNRECOGNIZED_AUTO_RESET_SEC = 60.0
 
 # Latest boxes from detect(), in 256x192 detection space.
 # (material, confidence, x1, y1, x2, y2)
@@ -66,7 +74,7 @@ def camera():
                 frame = None
                 camera_available = False
 
-            cap = cv2.VideoCapture(RTSP_URL)
+            cap = cv2.VideoCapture(CAMERA_DEVICE)
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
             if not cap.isOpened():
@@ -107,6 +115,7 @@ def detect():
     global mixed_material
     global material_percent
     global unrecognized_item
+    global unrecognized_at
     global detected_boxes
 
     while True:
@@ -180,6 +189,7 @@ def detect():
                 mixed_material = False
                 material_percent = {}
                 unrecognized_item = False
+                unrecognized_at = None
                 detected_boxes = []
 
             time.sleep(DETECTION_INTERVAL)
@@ -212,6 +222,7 @@ def detect():
             mixed_material = is_mixed
             material_percent = percentages
             unrecognized_item = False
+            unrecognized_at = None
 
             # Publish the boxes we just computed so the video
             # stream can draw them without inferring again.
@@ -429,7 +440,26 @@ def stream():
 @app.route("/status")
 def status():
 
+    global unrecognized_item
+    global unrecognized_at
+
     with lock:
+
+        # Safety net: never leave the "Item Not Recognized"
+        # popup latched for more than ~60 seconds, even if
+        # Main.py crashed or never called /reset.
+        #
+        # Only the popup flag is cleared here, so an active
+        # classification (material/confirmed/stable/mixed)
+        # is never interrupted.
+        if (
+            unrecognized_item
+            and unrecognized_at is not None
+            and (time.time() - unrecognized_at)
+                >= UNRECOGNIZED_AUTO_RESET_SEC
+        ):
+            unrecognized_item = False
+            unrecognized_at = None
 
         stable = 0
 
@@ -461,6 +491,7 @@ def reset():
     global mixed_material
     global material_percent
     global unrecognized_item
+    global unrecognized_at
 
     with lock:
 
@@ -470,6 +501,7 @@ def reset():
         mixed_material = False
         material_percent = {}
         unrecognized_item = False
+        unrecognized_at = None
 
     return jsonify({"reset": True})
 
@@ -478,9 +510,11 @@ def reset():
 def unrecognized():
 
     global unrecognized_item
+    global unrecognized_at
 
     with lock:
         unrecognized_item = True
+        unrecognized_at = time.time()
 
     return jsonify({"unrecognized": True})
 

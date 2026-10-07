@@ -2,6 +2,7 @@ import time
 import requests
 import os
 import subprocess
+import sys
 
 from offline_queue import init_db, save_transaction
 
@@ -35,12 +36,69 @@ import Servo
 # =========================================================
 
 CAMERA_URL = "http://127.0.0.1:5000/status"
+CAMERA_RESET_URL = "http://127.0.0.1:5000/reset"
+CAMERA_UNRECOGNIZED_URL = "http://127.0.0.1:5000/unrecognized"
 
-camera_process = subprocess.Popen(
-    ["python3", "CameraYolo.py"],
-    stdout=subprocess.DEVNULL,
-    stderr=subprocess.DEVNULL
-)
+# CameraYolo.py and its relative resources (yolo11n.pt) must
+# resolve no matter which directory Main.py was started from.
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+CAMERA_SCRIPT = os.path.join(SCRIPT_DIR, "CameraYolo.py")
+
+camera_process = None
+
+
+def start_camera_process():
+    """
+    Launch CameraYolo.py with the SAME interpreter that is
+    running Main.py (sys.executable), so the project .venv is
+    always used instead of whatever "python3" happens to be
+    first on PATH.
+    """
+    global camera_process
+
+    camera_process = subprocess.Popen(
+        [sys.executable, CAMERA_SCRIPT],
+        cwd=SCRIPT_DIR
+    )
+
+    print(
+        f"Camera service started "
+        f"(pid {camera_process.pid})."
+    )
+
+    return camera_process
+
+
+def stop_camera_process():
+    """
+    Terminate the CameraYolo child and make sure it cannot
+    survive as an orphan holding port 5000.
+    """
+    global camera_process
+
+    if camera_process is None:
+        return
+
+    try:
+        camera_process.terminate()
+
+        try:
+            camera_process.wait(timeout=5)
+
+        except subprocess.TimeoutExpired:
+            print(
+                "Camera service did not stop in time. "
+                "Killing it."
+            )
+
+            camera_process.kill()
+            camera_process.wait(timeout=5)
+
+    except Exception as e:
+        print(f"Camera service cleanup error: {e}")
+
+    finally:
+        camera_process = None
 
 API_BASE_URL = "https://deeppink-wren-292489.hostingersite.com/api"
 
@@ -94,6 +152,21 @@ IDLE_TIMEOUT = 90
 
 REMOVAL_CHECK_INTERVAL = 0.15
 
+# Maximum time to wait for the user to take an item off the
+# platform. The station must NEVER block forever here.
+REMOVAL_TIMEOUT = 45.0
+
+# A platform is only considered clear after this many
+# consecutive clear samples (3 x 0.15 s ~= 0.45 s) so a
+# single noisy/failed reading cannot fake a removal.
+REMOVAL_CLEAR_SAMPLES = 3
+
+# Live REMOVE status is printed at most once per second.
+REMOVAL_STATUS_INTERVAL = 1.0
+
+# Maximum time to wait for a stable weight before giving up.
+WEIGHT_STABLE_TIMEOUT = 10.0
+
 
 # =========================================================
 # CAMERA
@@ -118,7 +191,24 @@ def camera_status():
 def notify_unrecognized_item():
     try:
         requests.post(
-            "http://127.0.0.1:5000/unrecognized",
+            CAMERA_UNRECOGNIZED_URL,
+            timeout=CAMERA_TIMEOUT
+        )
+    except Exception:
+        pass
+
+
+def reset_camera():
+    """
+    Clear the camera's per-item state (confirmation, mixed
+    flag, latched "Item Not Recognized" popup).
+
+    Called at item boundaries only, never while a
+    classification is in progress.
+    """
+    try:
+        requests.post(
+            CAMERA_RESET_URL,
             timeout=CAMERA_TIMEOUT
         )
     except Exception:
@@ -454,20 +544,28 @@ def wait_for_item():
         weight = get_weight(10)
         metal = metal_detected()
 
-        status = (
-            "METAL DETECTED"
-            if metal
-            else "Waiting for item..."
-        )
+        # get_weight() returns None when the reading FAILED.
+        # A broken/disconnected load cell must never look
+        # like a placed item (and never like an empty one).
+        if weight is None:
+            weight_text = "SENSOR ERROR"
+            status = "Waiting for weight sensor..."
+        else:
+            weight_text = f"{weight:.1f} g"
+            status = (
+                "METAL DETECTED"
+                if metal
+                else "Waiting for item..."
+            )
 
         print(
-            f"\r[ WEIGHT ] {weight:.1f} g | {status}",
+            f"\r[ WEIGHT ] {weight_text} | {status}",
             end="",
             flush=True
         )
 
         # Weight must be present before an item can start
-        if weight >= MIN_WEIGHT:
+        if weight is not None and weight >= MIN_WEIGHT:
             print()
             return weight
 
@@ -488,15 +586,40 @@ def wait_for_item():
 # =========================================================
 
 def wait_for_weight_stable():
+    """
+    Wait until the weight stays in the valid range for
+    WEIGHT_STABLE_TIME seconds.
+
+    Returns the stable weight in grams, or None when:
+      - the weight never stabilized within
+        WEIGHT_STABLE_TIMEOUT, or
+      - every reading failed (HX711 missing/unusable).
+
+    A failed reading is NEVER treated as a stable 0 g.
+    """
     stable_start = None
     last_weight = 0
+    start_time = time.monotonic()
 
     while True:
         weight = get_weight(1)
 
-        if weight < MIN_WEIGHT:
+        # None = failed/unknown reading -> stability clock
+        # restarts, we keep waiting (bounded by the timeout).
+        if weight is None or weight < MIN_WEIGHT:
             stable_start = None
             time.sleep(0.1)
+
+            if (
+                time.monotonic() - start_time
+                >= WEIGHT_STABLE_TIMEOUT
+            ):
+                print(
+                    "Weight reading did not become "
+                    "stable in time."
+                )
+                return None
+
             continue
 
         if stable_start is None:
@@ -511,6 +634,16 @@ def wait_for_weight_stable():
         ):
             return last_weight
 
+        if (
+            time.monotonic() - start_time
+            >= WEIGHT_STABLE_TIMEOUT
+        ):
+            print(
+                "Weight reading did not become "
+                "stable in time."
+            )
+            return None
+
         time.sleep(0.1)
 
 
@@ -519,7 +652,20 @@ def wait_for_weight_stable():
 # =========================================================
 
 def get_camera_material():
+    """
+    Poll the camera service until it confirms a material or
+    until CAMERA_CLASSIFICATION_TIMEOUT expires.
+
+    A single empty/failed status poll, or a short camera
+    reconnect, is TEMPORARY: it means "try again", not
+    "camera unavailable". Polling stops as soon as a real
+    classification is available, so the 8 s window is a
+    deadline and never a mandatory delay.
+    """
     start_time = time.monotonic()
+
+    saw_status = False
+    saw_available = False
 
     while (
         time.monotonic() - start_time
@@ -527,35 +673,50 @@ def get_camera_material():
     ):
         data = camera_status()
 
-        if not data:
-            print("Camera service unavailable.")
-            return "UNAVAILABLE"
+        if data:
+            saw_status = True
 
-        if not data.get("camera_available", False):
-            print("V380 camera unavailable.")
-            return "UNAVAILABLE"
+            if data.get("camera_available", False):
+                saw_available = True
 
-        # -------------------------------------------------
-        # MIXED MATERIAL
-        # -------------------------------------------------
+                # -------------------------------------------------
+                # MIXED MATERIAL
+                # -------------------------------------------------
 
-        if data.get("mixed"):
-            return "Mixed"
+                if data.get("mixed"):
+                    return "Mixed"
 
-        # -------------------------------------------------
-        # CAMERA CONFIRMED PLASTIC / PAPER
-        # -------------------------------------------------
+                # -------------------------------------------------
+                # CAMERA CONFIRMED PLASTIC / PAPER
+                # -------------------------------------------------
 
-        if data.get("confirmed"):
-            material = data.get("material")
+                if data.get("confirmed"):
+                    material = data.get("material")
 
-            if material in (
-                "Plastic",
-                "Paper"
-            ):
-                return material
+                    if material in (
+                        "Plastic",
+                        "Paper"
+                    ):
+                        return material
+
+            # Camera answered but has not confirmed yet:
+            # keep polling until the deadline.
+
+        # Empty/failed status: retry.
 
         time.sleep(0.1)
+
+    # -----------------------------------------------------
+    # DEADLINE REACHED
+    # -----------------------------------------------------
+
+    if not saw_status:
+        print("Camera service unavailable.")
+        return "UNAVAILABLE"
+
+    if not saw_available:
+        print("V380 camera unavailable.")
+        return "UNAVAILABLE"
 
     # -----------------------------------------------------
     # CAMERA COULD NOT CLASSIFY
@@ -574,23 +735,173 @@ def get_camera_material():
 # =========================================================
 
 def wait_for_removal():
+    """
+    Wait for the user to take the item off the platform.
+
+    Returns
+    -------
+    True  -> the platform was CONFIRMED clear:
+             REMOVAL_CLEAR_SAMPLES consecutive samples with
+             weight < MIN_WEIGHT and no metal detected.
+    False -> REMOVAL_TIMEOUT expired while the item was
+             still (or still apparently) on the platform.
+
+    This function can NEVER block forever. On timeout the
+    caller decides the safe next state; no points are
+    awarded or duplicated here.
+
+    A FAILED weight reading (None) does NOT count as
+    "weight < MIN_WEIGHT": an unknown reading is not proof
+    that the platform is empty.
+    """
     print("Remove the item.")
+
+    start_time = time.monotonic()
+
+    clear_samples = 0
+    last_status = 0.0
+    confirmed = False
 
     while True:
         weight = get_weight(1)
         metal = metal_detected()
 
-        # Both sensors clear
-        if (
-            weight < MIN_WEIGHT
-            and not metal
-        ):
-            print("Item removed.")
-            return
+        weight_clear = (
+            weight is not None
+            and weight < MIN_WEIGHT
+        )
+
+        if weight_clear and not metal:
+            clear_samples += 1
+        else:
+            clear_samples = 0
+
+        now = time.monotonic()
+
+        # ---------------------------------------------
+        # CONFIRMED REMOVAL
+        # ---------------------------------------------
+
+        if clear_samples >= REMOVAL_CLEAR_SAMPLES:
+            confirmed = True
+            break
+
+        # ---------------------------------------------
+        # TIMEOUT: recover instead of freezing
+        # ---------------------------------------------
+
+        if now - start_time >= REMOVAL_TIMEOUT:
+            break
+
+        # ---------------------------------------------
+        # LIVE STATUS (at most once per second)
+        # ---------------------------------------------
+
+        if now - last_status >= REMOVAL_STATUS_INTERVAL:
+            last_status = now
+
+            weight_text = (
+                "unknown"
+                if weight is None
+                else f"{weight:.1f} g"
+            )
+
+            metal_text = (
+                "METAL"
+                if metal
+                else "no metal"
+            )
+
+            print(
+                f"\r[ REMOVE ] weight {weight_text} "
+                f"| {metal_text}",
+                end="",
+                flush=True
+            )
 
         time.sleep(
             REMOVAL_CHECK_INTERVAL
         )
+
+    if confirmed:
+        print()
+        print("Item removed.")
+
+    else:
+        print()
+        print(
+            f"Item still detected after "
+            f"{REMOVAL_TIMEOUT:.0f} seconds."
+        )
+        print(
+            "Continuing so the station does not freeze. "
+            "Please remove the item."
+        )
+
+    # Item boundary: clear any latched camera state/popup.
+    reset_camera()
+
+    return confirmed
+
+
+# =========================================================
+# END RESIDENT SESSION AFTER A REMOVAL TIMEOUT
+# =========================================================
+
+def end_session_on_removal_timeout(session_token, items):
+    """
+    Safe recovery when an item could not be removed within
+    REMOVAL_TIMEOUT: end the resident session instead of
+    letting the station loop or freeze.
+
+    Points are NEVER awarded or duplicated here:
+      - items == 0 -> nothing was submitted, so the session
+        is cancelled (same rule as the IDLE path).
+      - items >  0 -> waste was already submitted, so the
+        session is left to the shared post-loop
+        complete_api_session() path, which awards the
+        already-recorded WASTE_DATA events exactly once.
+    """
+    print()
+    print("================================")
+    print("       RESIDENT SESSION ENDED")
+    print("================================")
+
+    print(
+        f"Item was not removed within "
+        f"{REMOVAL_TIMEOUT:.0f} seconds."
+    )
+
+    print(
+        "Please remove the item before "
+        "scanning again."
+    )
+
+    if items > 0:
+
+        print(
+            f"{items} item(s) already "
+            "submitted. Finalizing session "
+            "to award points."
+        )
+
+    else:
+
+        cancel_api_session(
+            session_token,
+            f"Item not removed within "
+            f"{REMOVAL_TIMEOUT:.0f} seconds"
+        )
+
+    print()
+
+    print(
+        "Please use your QR to access."
+    )
+
+    print("================================")
+
+    print()
 
 
 # =========================================================
@@ -603,6 +914,10 @@ def process_item():
     print(
         "Place item on the weight platform..."
     )
+
+    # Item boundary: start every item with a clean camera
+    # state so a previous confirmation/popup cannot leak in.
+    reset_camera()
 
     # =====================================================
     # 1. WAIT FOR ITEM
@@ -634,7 +949,8 @@ def process_item():
             "Mixed material. Item rejected."
         )
 
-        wait_for_removal()
+        if not wait_for_removal():
+            return "REMOVAL_TIMEOUT"
 
         return "REJECTED"
 
@@ -686,7 +1002,8 @@ def process_item():
                         "Metal verification failed."
                     )
 
-                    wait_for_removal()
+                    if not wait_for_removal():
+                        return "REMOVAL_TIMEOUT"
 
                     return "REJECTED"
 
@@ -705,7 +1022,8 @@ def process_item():
 
             notify_unrecognized_item()
 
-            wait_for_removal()
+            if not wait_for_removal():
+                return "REMOVAL_TIMEOUT"
 
             return "REJECTED"
 
@@ -731,6 +1049,12 @@ def process_item():
             "Please remove the item and try again."
         )
 
+        # Never bounce straight back into wait_for_item with
+        # the same item still on the platform: that would
+        # reprocess (and potentially resubmit) it forever.
+        if not wait_for_removal():
+            return "REMOVAL_TIMEOUT"
+
         return "REJECTED"
 
     print(
@@ -748,7 +1072,8 @@ def process_item():
                 "Metal verification lost."
             )
 
-            wait_for_removal()
+            if not wait_for_removal():
+                return "REMOVAL_TIMEOUT"
 
             return "REJECTED"
 
@@ -759,7 +1084,8 @@ def process_item():
                 "Metal detected. Item rejected."
             )
 
-            wait_for_removal()
+            if not wait_for_removal():
+                return "REMOVAL_TIMEOUT"
 
             return "REJECTED"
 
@@ -802,467 +1128,528 @@ def process_item():
 # MAIN
 # =========================================================
 
-scanner = None
 
-init_db()
+def main():
+    scanner = None
 
-try:
-
-    # =====================================================
-    # START HARDWARE
-    # =====================================================
-
-    start_weight()
-    start_inductive()
+    init_db()
 
     try:
-        Servo.start()
 
-    except Exception as e:
-        print(
-            f"[SERVO] Unavailable: {e}"
-        )
+        # =====================================================
+        # START CAMERA SERVICE
+        # =====================================================
 
-    scanner = start_scanner()
+        start_camera_process()
 
-    print()
-    print("================================")
-    print("          VHEcoPoint")
-    print("================================")
+        # =====================================================
+        # START HARDWARE
+        # =====================================================
 
-    print("System ready.")
+        start_weight()
+        start_inductive()
 
-    print(
-        "Please use your QR to access."
-    )
+        try:
+            Servo.start()
 
-    print()
-
-    # =====================================================
-    # MAIN STATION LOOP
-    #
-    # THIS LOOP NEVER ENDS BECAUSE
-    # OF A RESIDENT'S IDLE_TIMEOUT.
-    # =====================================================
-
-    while True:
-
-        # =================================================
-        # WAIT FOR QR
-        # =================================================
-
-        qr, scanner = read_qr(scanner)
-
-        if not is_victorianpass(qr):
-
+        except Exception as e:
             print(
-                "Invalid QR. Please try again."
+                f"[SERVO] Unavailable: {e}"
             )
 
-            continue
-
-        # =================================================
-        # QR ACCEPTED
-        # =================================================
+        scanner = start_scanner()
 
         print()
         print("================================")
-        print("       VICTORIANPASS VERIFIED")
+        print("          VHEcoPoint")
         print("================================")
 
-        # =================================================
-        # CREATE HOSTINGER SESSION
-        # =================================================
-
-        session = create_api_session(qr)
-
-        if session is None:
-
-            print()
-
-            print(
-                "Unable to create resident "
-                "session."
-            )
-
-            print(
-                "Please use your QR to access."
-            )
-
-            print()
-
-            continue
-
-        session_token = session[
-            "session_token"
-        ]
-
-        resident = session[
-            "resident"
-        ]
-
-        # =================================================
-        # LOCAL SESSION COUNTERS
-        # =================================================
-
-        items = 0
-        total_points = float(session.get("cap_state", {}).get("daily_points_used", 0))
-
-        # =================================================
-        # USER SESSION STARTED
-        # =================================================
-
-        print()
-        print("================================")
-        print("       USER SESSION STARTED")
-        print("================================")
-
-        print(
-            "Resident :",
-            resident.get(
-                "full_name",
-                "Unknown"
-            )
-        )
-
-        print(
-            "Balance  :",
-            resident.get(
-                "balance",
-                0
-            )
-        )
-
-        print(
-            "================================"
-        )
-
-        # =================================================
-        # RESIDENT ITEM LOOP
-        # =================================================
-
-        while True:
-
-            # -------------------------------------------------
-            # LOCAL DAILY POINT CAP
-            # -------------------------------------------------
-
-            if total_points >= DAILY_POINT_CAP:
-
-                print()
-
-                print(
-                    "Daily point limit reached."
-                )
-
-                break
-
-            # -------------------------------------------------
-            # PROCESS ITEM
-            # -------------------------------------------------
-
-            result = process_item()
-
-            # =================================================
-            # IDLE (no item placed before IDLE_TIMEOUT)
-            # =================================================
-
-            if result == "IDLE":
-
-                print()
-                print("================================")
-                print("       RESIDENT SESSION ENDED")
-                print("================================")
-
-                print(
-                    f"No item detected for "
-                    f"{IDLE_TIMEOUT} seconds."
-                )
-
-                print(
-                    "Your session has expired."
-                )
-
-                # -------------------------------------------------
-                # DECIDE: CANCEL OR COMPLETE
-                #
-                # items counts the items that were ALREADY
-                # physically sorted AND already accepted by
-                # submit_waste_data.php.
-                #
-                # - 0 items  -> nothing was recorded, so the
-                #   session is cancelled (no points are lost,
-                #   because nothing was ever submitted).
-                #
-                # - 1+ items -> waste WAS recorded. Cancelling
-                #   here would leave those WASTE_DATA events
-                #   unawarded forever, so we must NOT cancel.
-                #   complete_api_session() is called by the
-                #   existing post-loop code below, which is
-                #   the same path the daily-cap break already
-                #   uses, so points are still awarded exactly
-                #   once.
-                # -------------------------------------------------
-
-                if items > 0:
-
-                    print(
-                        f"{items} item(s) already "
-                        "submitted. Finalizing session "
-                        "to award points."
-                    )
-
-                else:
-
-                    cancel_api_session(
-                        session_token,
-                        f"No item detected for "
-                        f"{IDLE_TIMEOUT} seconds"
-                    )
-
-                print()
-
-                print(
-                    "Please use your QR to access."
-                )
-
-                print(
-                    "================================"
-                )
-
-                print()
-
-                # -------------------------------------------------
-                # IMPORTANT
-                #
-                # This BREAK only exits the
-                # resident item loop.
-                #
-                # The outer while True
-                # continues.
-                #
-                # Completion of the session is handled by the
-                # shared post-loop code below, so the daily-cap
-                # path and this path cannot double award.
-                # -------------------------------------------------
-
-                break
-
-            # =================================================
-            # REJECTED ITEM
-            # =================================================
-
-            if result == "REJECTED":
-                continue
-
-            # =================================================
-            # VALID ITEM
-            # =================================================
-
-            weight, points, material = result
-
-            # =================================================
-            # SUBMIT WASTE DATA TO HOSTINGER
-            # =================================================
-
-            submitted = submit_waste_data(
-                session_token,
-                material,
-                weight
-            )
-
-            if submitted is None:
-
-                print(
-                    "Failed to submit waste data."
-                )
-
-                print(
-                    "Item will not be counted."
-                )
-
-                wait_for_removal()
-
-                continue
-
-            # =================================================
-            # LOCAL DAILY POINT CAP
-            # =================================================
-
-            remaining = (
-                DAILY_POINT_CAP
-                - total_points
-            )
-
-            points = min(
-                points,
-                max(0, remaining)
-            )
-
-            total_points += points
-
-            transaction_id = (
-                f"{session_token}-{items + 1}"
-            )
-
-            items += 1
-
-            # =================================================
-            # DISPLAY ACCEPTED ITEM
-            # =================================================
-
-            print()
-
-            print("--------------------------------")
-
-            print(
-                f"Material : "
-                f"{material.capitalize()}"
-            )
-
-            print(
-                f"Weight   : "
-                f"{weight:.2f} g"
-            )
-
-            print(
-                f"Points   : "
-                f"{points:.2f}"
-            )
-
-            print("--------------------------------")
-
-            print(
-                f"Items    : "
-                f"{items}"
-            )
-
-            print(
-                f"Total    : "
-                f"{total_points:.2f}/"
-                f"{DAILY_POINT_CAP}"
-            )
-
-            # =================================================
-            # WAIT FOR ITEM REMOVAL
-            # =================================================
-
-            wait_for_removal()
-
-        # =================================================
-        # COMPLETE HOSTINGER SESSION
-        # =================================================
-
-        completed = None
-        if items > 0:
-
-            completed = complete_api_session(
-                session_token
-            )
-
-        if completed:
-
-            print(
-                "Points awarded:",
-                completed.get(
-                    "points_awarded",
-                    0
-                )
-            )
-
-            print(
-                "New balance:",
-                completed.get(
-                    "new_balance",
-                    0
-                )
-            )
-
-        # =================================================
-        # RESIDENT SESSION FINISHED
-        # =================================================
-
-        print()
-        print("================================")
-        print("       RESIDENT SESSION FINISHED")
-        print("================================")
-
-        print(
-            f"Items  : {items}"
-        )
-
-        # Display the actual points awarded by Hostinger
-        final_points = (
-            completed.get("points_awarded", 0)
-            if completed
-            else total_points
-        )
-
-        print(
-            f"Points : {float(final_points):.2f}"
-        )
-
-        print()
+        print("System ready.")
 
         print(
             "Please use your QR to access."
         )
 
-        print(
-            "================================"
-        )
-
         print()
 
-        # =================================================
-        # IMPORTANT:
+        # =====================================================
+        # MAIN STATION LOOP
         #
-        # We DO NOT close the scanner.
-        # We DO NOT stop the program.
-        #
-        # The outer while True goes back
-        # to read_qr(scanner).
-        # =================================================
+        # THIS LOOP NEVER ENDS BECAUSE
+        # OF A RESIDENT'S IDLE_TIMEOUT.
+        # =====================================================
+
+        while True:
+
+            # =================================================
+            # WAIT FOR QR
+            # =================================================
+
+            qr, scanner = read_qr(scanner)
+
+            if not is_victorianpass(qr):
+
+                print(
+                    "Invalid QR. Please try again."
+                )
+
+                continue
+
+            # =================================================
+            # QR ACCEPTED
+            # =================================================
+
+            print()
+            print("================================")
+            print("       VICTORIANPASS VERIFIED")
+            print("================================")
+
+            # =================================================
+            # CREATE HOSTINGER SESSION
+            # =================================================
+
+            session = create_api_session(qr)
+
+            if session is None:
+
+                print()
+
+                print(
+                    "Unable to create resident "
+                    "session."
+                )
+
+                print(
+                    "Please use your QR to access."
+                )
+
+                print()
+
+                continue
+
+            session_token = session[
+                "session_token"
+            ]
+
+            resident = session[
+                "resident"
+            ]
+
+            # =================================================
+            # LOCAL SESSION COUNTERS
+            # =================================================
+
+            items = 0
+            total_points = float(session.get("cap_state", {}).get("daily_points_used", 0))
+
+            # =================================================
+            # USER SESSION STARTED
+            # =================================================
+
+            print()
+            print("================================")
+            print("       USER SESSION STARTED")
+            print("================================")
+
+            print(
+                "Resident :",
+                resident.get(
+                    "full_name",
+                    "Unknown"
+                )
+            )
+
+            print(
+                "Balance  :",
+                resident.get(
+                    "balance",
+                    0
+                )
+            )
+
+            print(
+                "================================"
+            )
+
+            # =================================================
+            # RESIDENT ITEM LOOP
+            # =================================================
+
+            while True:
+
+                # -------------------------------------------------
+                # LOCAL DAILY POINT CAP
+                # -------------------------------------------------
+
+                if total_points >= DAILY_POINT_CAP:
+
+                    print()
+
+                    print(
+                        "Daily point limit reached."
+                    )
+
+                    break
+
+                # -------------------------------------------------
+                # PROCESS ITEM
+                # -------------------------------------------------
+
+                result = process_item()
+
+                # =================================================
+                # IDLE (no item placed before IDLE_TIMEOUT)
+                # =================================================
+
+                if result == "IDLE":
+
+                    print()
+                    print("================================")
+                    print("       RESIDENT SESSION ENDED")
+                    print("================================")
+
+                    print(
+                        f"No item detected for "
+                        f"{IDLE_TIMEOUT} seconds."
+                    )
+
+                    print(
+                        "Your session has expired."
+                    )
+
+                    # -------------------------------------------------
+                    # DECIDE: CANCEL OR COMPLETE
+                    #
+                    # items counts the items that were ALREADY
+                    # physically sorted AND already accepted by
+                    # submit_waste_data.php.
+                    #
+                    # - 0 items  -> nothing was recorded, so the
+                    #   session is cancelled (no points are lost,
+                    #   because nothing was ever submitted).
+                    #
+                    # - 1+ items -> waste WAS recorded. Cancelling
+                    #   here would leave those WASTE_DATA events
+                    #   unawarded forever, so we must NOT cancel.
+                    #   complete_api_session() is called by the
+                    #   existing post-loop code below, which is
+                    #   the same path the daily-cap break already
+                    #   uses, so points are still awarded exactly
+                    #   once.
+                    # -------------------------------------------------
+
+                    if items > 0:
+
+                        print(
+                            f"{items} item(s) already "
+                            "submitted. Finalizing session "
+                            "to award points."
+                        )
+
+                    else:
+
+                        cancel_api_session(
+                            session_token,
+                            f"No item detected for "
+                            f"{IDLE_TIMEOUT} seconds"
+                        )
+
+                    print()
+
+                    print(
+                        "Please use your QR to access."
+                    )
+
+                    print(
+                        "================================"
+                    )
+
+                    print()
+
+                    # -------------------------------------------------
+                    # IMPORTANT
+                    #
+                    # This BREAK only exits the
+                    # resident item loop.
+                    #
+                    # The outer while True
+                    # continues.
+                    #
+                    # Completion of the session is handled by the
+                    # shared post-loop code below, so the daily-cap
+                    # path and this path cannot double award.
+                    # -------------------------------------------------
+
+                    break
+
+                # =================================================
+                # REMOVAL TIMEOUT
+                #
+                # An item could not be taken off the platform in
+                # time. End the resident session (see
+                # end_session_on_removal_timeout) so the station
+                # returns to the QR prompt instead of reprocessing
+                # the same item and duplicating points.
+                # =================================================
+
+                if result == "REMOVAL_TIMEOUT":
+
+                    end_session_on_removal_timeout(
+                        session_token,
+                        items
+                    )
+
+                    break
+
+                # =================================================
+                # REJECTED ITEM
+                # =================================================
+
+                if result == "REJECTED":
+                    continue
+
+                # =================================================
+                # VALID ITEM
+                # =================================================
+
+                weight, points, material = result
+
+                # =================================================
+                # SUBMIT WASTE DATA TO HOSTINGER
+                # =================================================
+
+                submitted = submit_waste_data(
+                    session_token,
+                    material,
+                    weight
+                )
+
+                if submitted is None:
+
+                    print(
+                        "Failed to submit waste data."
+                    )
+
+                    print(
+                        "Item will not be counted."
+                    )
+
+                    if not wait_for_removal():
+
+                        end_session_on_removal_timeout(
+                            session_token,
+                            items
+                        )
+
+                        break
+
+                    continue
+
+                # =================================================
+                # LOCAL DAILY POINT CAP
+                # =================================================
+
+                remaining = (
+                    DAILY_POINT_CAP
+                    - total_points
+                )
+
+                points = min(
+                    points,
+                    max(0, remaining)
+                )
+
+                total_points += points
+
+                transaction_id = (
+                    f"{session_token}-{items + 1}"
+                )
+
+                items += 1
+
+                # =================================================
+                # DISPLAY ACCEPTED ITEM
+                # =================================================
+
+                print()
+
+                print("--------------------------------")
+
+                print(
+                    f"Material : "
+                    f"{material.capitalize()}"
+                )
+
+                print(
+                    f"Weight   : "
+                    f"{weight:.2f} g"
+                )
+
+                print(
+                    f"Points   : "
+                    f"{points:.2f}"
+                )
+
+                print("--------------------------------")
+
+                print(
+                    f"Items    : "
+                    f"{items}"
+                )
+
+                print(
+                    f"Total    : "
+                    f"{total_points:.2f}/"
+                    f"{DAILY_POINT_CAP}"
+                )
+
+                # =================================================
+                # WAIT FOR ITEM REMOVAL
+                #
+                # The item was already submitted, so a timeout
+                # must NOT restart detection with the same item
+                # still on the platform (that would submit it a
+                # second time). End the session instead.
+                # =================================================
+
+                if not wait_for_removal():
+
+                    end_session_on_removal_timeout(
+                        session_token,
+                        items
+                    )
+
+                    break
+
+            # =================================================
+            # COMPLETE HOSTINGER SESSION
+            # =================================================
+
+            completed = None
+            if items > 0:
+
+                completed = complete_api_session(
+                    session_token
+                )
+
+            if completed:
+
+                print(
+                    "Points awarded:",
+                    completed.get(
+                        "points_awarded",
+                        0
+                    )
+                )
+
+                print(
+                    "New balance:",
+                    completed.get(
+                        "new_balance",
+                        0
+                    )
+                )
+
+            # =================================================
+            # RESIDENT SESSION FINISHED
+            # =================================================
+
+            print()
+            print("================================")
+            print("       RESIDENT SESSION FINISHED")
+            print("================================")
+
+            print(
+                f"Items  : {items}"
+            )
+
+            # Display the actual points awarded by Hostinger
+            final_points = (
+                completed.get("points_awarded", 0)
+                if completed
+                else total_points
+            )
+
+            print(
+                f"Points : {float(final_points):.2f}"
+            )
+
+            print()
+
+            print(
+                "Please use your QR to access."
+            )
+
+            print(
+                "================================"
+            )
+
+            print()
+
+            # =================================================
+            # IMPORTANT:
+            #
+            # We DO NOT close the scanner.
+            # We DO NOT stop the program.
+            #
+            # The outer while True goes back
+            # to read_qr(scanner).
+            # =================================================
 
 
-# =========================================================
-# STOP
-# =========================================================
+    # =========================================================
+    # STOP
+    # =========================================================
 
-except KeyboardInterrupt:
+    except KeyboardInterrupt:
 
-    print()
-    print("System stopped.")
+        print()
+        print("System stopped.")
 
 
-# =========================================================
-# CLEANUP
-# =========================================================
+    # =========================================================
+    # CLEANUP
+    # =========================================================
 
-finally:
+    finally:
 
-    try:
-        close_scanner(scanner)
+        # -------------------------------------------------
+        # Stop the CameraYolo child FIRST so it can never
+        # survive as an orphan holding port 5000.
+        # -------------------------------------------------
 
-    except Exception:
-        pass
+        try:
+            stop_camera_process()
 
-    try:
-        close_weight()
+        except Exception:
+            pass
 
-    except Exception:
-        pass
+        try:
+            close_scanner(scanner)
 
-    try:
-        close_inductive()
+        except Exception:
+            pass
 
-    except Exception:
-        pass
+        try:
+            close_weight()
 
-    try:
-        Servo.close()
+        except Exception:
+            pass
 
-    except Exception:
-        pass
+        try:
+            close_inductive()
 
-    print("System released.")
+        except Exception:
+            pass
+
+        try:
+            Servo.close()
+
+        except Exception:
+            pass
+
+        print("System released.")
+
+
+if __name__ == "__main__":
+    main()

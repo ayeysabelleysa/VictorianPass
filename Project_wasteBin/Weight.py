@@ -90,21 +90,43 @@ def average_reading(samples=10):
 
 
 def get_weight(samples=5):
+    """Read the platform weight in grams.
+
+    Return values:
+
+        0.0 or more  -> a genuine, valid reading.
+                        0.0 means the platform really is
+                        empty / near zero.
+
+        None         -> the reading FAILED and must NOT be
+                        trusted: HX711 not responding,
+                        timeout, invalid raw data, noise
+                        spread too wide, or overload.
+
+    Callers must never treat None as "0 g". A missing or
+    broken load cell has to be distinguishable from an
+    empty platform, otherwise the station can detect
+    phantom items or declare phantom removals.
+    """
     raw = average_reading(samples)
 
     if raw is None:
-        return 0
+        return None
 
     if not is_valid_raw(raw):
-        return 0
+        return None
 
     weight = (raw - ZERO_OFFSET) / CALIBRATION_FACTOR
 
     if weight < 0:
+        # Valid reading, platform simply not loaded (or
+        # light tare drift). Genuine near-zero.
         weight = 0
 
     if weight > MAX_WEIGHT_G:
-        return 0
+        # Valid raw value but out of the calibrated range:
+        # treat as an unusable/overloaded reading, NOT as 0 g.
+        return None
 
     return weight
 
@@ -127,6 +149,11 @@ def calculate_incentive(material, weight_grams):
 
 def measure_incentive(material):
     weight = get_weight(10)
+
+    # Weight sensor failed: no incentive can be calculated.
+    if weight is None:
+        return None, 0
+
     points = calculate_incentive(material, weight)
     return weight, points
 

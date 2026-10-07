@@ -29,7 +29,10 @@ function eco_material_display_label(string $raw): string {
     return ($raw !== '' && $raw !== '-') ? $raw : '-';
 }
 
-// SSE headers (required for browser to keep connection alive)
+// SSE headers (required for browser to keep connection alive).
+// NOTE: header() only QUEUES a header — nothing is sent to the client yet,
+// so the PHP session can still be started below. The actual send happens
+// after authentication (see the flush() after session_write_close()).
 header('Content-Type: text/event-stream; charset=UTF-8');
 header('Cache-Control: no-cache, no-store, must-revalidate, max-age=0');
 header('Pragma: no-cache');
@@ -37,8 +40,11 @@ header('X-Accel-Buffering: no'); // disable Nginx buffering if ever moved there
 @ini_set('output_buffering', 0);
 @ini_set('zlib.output_compression', 0);
 if (function_exists('apache_setenv')) @apache_setenv('no-gzip', '1');
-while (ob_get_level() > 0) @ob_end_flush();
-flush();
+
+// This stream is read-only: it never writes to $_SESSION. Start the session
+// read-only (same pattern as api/notifications_sse.php) so no session file
+// lock is kept while we stream for minutes.
+define('VP_SESSION_READONLY', true);
 
 require_once __DIR__ . '/../session_bootstrap.php';
 
@@ -55,6 +61,20 @@ if ($userId === null) {
     flush();
     exit;
 }
+
+// Release the session file lock BEFORE any output and BEFORE the long-lived
+// loop. Otherwise this open connection would block every other request that
+// needs $_SESSION (e.g. the resident's "End Session" POST to
+// api/ecopoint_end_session.php) and can trigger 502/504 gateway timeouts.
+// Same safe pattern as api/notifications_sse.php.
+if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+}
+
+// Authentication + lock release are done — now commit the SSE headers and
+// start streaming.
+while (ob_get_level() > 0) @ob_end_flush();
+flush();
 
 // -------------------------------------------------------------------------
 // Build a full snapshot — returns a hash we can compare to avoid pushing
