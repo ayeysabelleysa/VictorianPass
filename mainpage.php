@@ -353,7 +353,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
       <p class="tagline">Every home has a story — start yours in a place worth remembering.</p>
       <?php if (($isResident || !$isLoggedIn) && !$isVisitor): ?>
-      <p class="hero-eco-subtitle" data-ecopoint-modal-open="true" role="button" tabindex="0" aria-haspopup="dialog"><span class="hero-eco-subtitle-top"><span class="hero-eco-subtitle-main">Now with VHEcoPoint!</span></span><span class="hero-eco-subtitle-sub"><span class="hero-eco-subtitle-icon" aria-hidden="true"><i class="fa-solid fa-recycle"></i></span>Recycle Smart. Earn Eco Points. Enjoy Victorian Heights.</span><span class="hero-eco-subtitle-hint">See description &#9662;</span></p>
+      <p class="hero-eco-subtitle" data-ecopoint-modal-open="true" role="button" tabindex="0" aria-haspopup="dialog"><span class="hero-eco-subtitle-top"><span class="hero-eco-subtitle-main">Now with VHEcoPoint!</span></span><span class="hero-eco-subtitle-sub"><span class="hero-eco-subtitle-icon" aria-hidden="true"><i class="fa-solid fa-recycle"></i></span>Recycle Smart. Earn Eco Points. Enjoy Victorian Heights.</span><span class="hero-eco-subtitle-hint">See description</span></p>
       <?php endif; ?>
 
       <div class="action-buttons" style="margin-top: 30px; gap:15px; flex-wrap:wrap;">

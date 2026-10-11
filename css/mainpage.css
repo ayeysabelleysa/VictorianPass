@@ -2728,11 +2728,13 @@ html { max-width:100%; overflow-x:hidden; }
 #how-it-works .section-divider{ background:var(--vp-forest); }
 .steps-list{
   list-style:none;
-  margin:28px 0 0;
+  margin:28px auto 0;
   padding:0;
   display:grid;
   grid-template-columns:repeat(4,minmax(0,1fr));
   gap:20px;
+  width:100%;
+  max-width:1120px;
 }
 .step{
   border-top:3px solid var(--vp-forest);
@@ -2880,16 +2882,18 @@ html { max-width:100%; overflow-x:hidden; }
   text-align:center;
 }
 #about-system .section-body > p{
-  max-width:64ch;
-  margin:0 auto 26px;
+  max-width:1120px;
+  margin:0 0 26px;
   color:rgba(255,255,255,.92);
   font-size:1.03rem;
   line-height:1.8;
   text-align:left;
 }
-#about-system .about-intro{ margin:4px 0 22px; }
+#about-system .about-intro{ width:100%; margin:4px 0 22px; text-align:center; }
 #about-system .about-intro h3{
   margin:0;
+  width:100%;
+  text-align:center;
   color:#fff;
   font-family:var(--vp-head);
   font-size:clamp(1.3rem,2.4vw,1.75rem);
@@ -2902,7 +2906,7 @@ html { max-width:100%; overflow-x:hidden; }
   gap:24px;
   align-items:stretch;
   width:100%;
-  max-width:1100px;
+  max-width:1120px;
   margin:6px auto 0;
 }
 #about-system .about-card{
@@ -2914,6 +2918,7 @@ html { max-width:100%; overflow-x:hidden; }
   border:none;
   border-radius:var(--vp-radius);
   box-shadow:0 14px 30px rgba(42,35,33,.22);
+  text-align:left;
 }
 #about-system .about-card img{
   width:100%;
@@ -3406,4 +3411,444 @@ html { max-width:100%; overflow-x:hidden; }
   .eco-modal-footer{ flex-direction:column; align-items:stretch; gap:10px; }
   .eco-modal-footer-text{ text-align:center; }
   .eco-dash-cta-btn{ justify-content:center; }
+}
+
+/* =========================================================
+   FIRST SCREEN REDESIGN — Navbar + Hero (consolidated override)
+   Touches ONLY the header .navbar and .hero/.hero-content.
+   Sections below the hero are untouched. Palette limited to:
+   #1b3a2b forest, #12281d deep, #e2a93b gold, #f6e3b4 soft gold,
+   #2a2321 dark brown, white.
+   ========================================================= */
+
+/* ---------- Navbar (desktop >= 901px) ---------- */
+.navbar{
+  height:72px;
+  min-height:72px;
+  padding:0 clamp(20px,4vw,48px);
+  background:#2a2321;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:20px;
+  position:sticky;
+  top:0;
+  z-index:1000;
+  box-shadow:0 4px 18px rgba(0,0,0,.35);
+  box-sizing:border-box;
+  flex-wrap:nowrap;
+}
+.logo{
+  flex:0 1 auto;
+  max-width:none;
+  min-width:0;
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+.logo img{ width:42px; height:auto; }
+.brand-text h1{
+  margin:0;
+  font-size:1.2rem;
+  font-weight:600;
+  color:#fff;
+  white-space:nowrap;
+  text-shadow:none;
+}
+.brand-text p{
+  margin:0;
+  font-size:.78rem;
+  font-weight:400;
+  color:#cfc9bf;
+  white-space:nowrap;
+}
+.hamburger{ display:none; }
+.nav-ecopoint-badge{ animation:none; box-shadow:none; border:0; transform:none; }
+.nav-actions > div[style]{ color:#fff !important; }
+
+@media (min-width:901px){
+  .nav-collapse{
+    flex:0 1 auto;
+    max-width:none;
+    min-width:0;
+    display:flex !important;
+    flex-direction:row;
+    align-items:center;
+    justify-content:flex-end;
+    gap:clamp(14px,1.6vw,20px);
+    width:auto;
+    background:transparent;
+    padding:0;
+    border:0;
+  }
+  .page-nav{
+    display:flex;
+    flex-direction:row;
+    align-items:center;
+    gap:clamp(22px,1.8vw,24px);
+    width:auto;
+    margin:0;
+  }
+  .page-nav a{
+    padding:0;
+    width:auto;
+    max-width:none;
+    background:transparent;
+    border-radius:0;
+    color:rgba(255,255,255,.9);
+    font-size:.95rem;
+    font-weight:500;
+    text-decoration:none;
+    white-space:nowrap;
+    text-align:left;
+    line-height:1;
+    transition:color .2s ease;
+  }
+  .page-nav a:hover{ color:#fff; }
+  .page-nav a[href="#home"]{
+    color:#fff;
+    position:relative;
+  }
+  .page-nav a[href="#home"]::after{
+    content:"";
+    position:absolute;
+    left:0;
+    right:0;
+    bottom:-6px;
+    height:2px;
+    background:#e2a93b;
+  }
+  .page-nav .nav-ecopoint{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:8px 16px;
+    border-radius:999px;
+    background:transparent;
+    border:1px solid rgba(226,169,59,.6);
+    color:#e2a93b;
+    font-weight:600;
+    box-shadow:none;
+    opacity:1;
+  }
+  .page-nav .nav-ecopoint:hover{
+    background:rgba(226,169,59,.1);
+    border-color:rgba(226,169,59,.9);
+    color:#f6e3b4;
+  }
+  .nav-ecopoint-badge{
+    padding:2px 8px;
+    border-radius:999px;
+    font-size:.7rem;
+    font-weight:800;
+    background:#e2a93b;
+    color:#2a2321;
+    border:0;
+    box-shadow:none;
+    transform:none;
+    animation:none;
+  }
+  .nav-actions{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    flex-shrink:0;
+  }
+  .profile-icon{ width:40px; height:40px; border-radius:50%; }
+}
+
+/* Tighten the navbar between 901-1120px so nothing wraps/overflows */
+@media (min-width:901px) and (max-width:1120px){
+  .navbar{ padding-left:clamp(14px,3vw,26px); padding-right:clamp(14px,3vw,26px); gap:10px; }
+  .logo{ gap:8px; }
+  .brand-text h1{ font-size:.95rem; }
+  .brand-text p{ font-size:.62rem; }
+  .page-nav{ gap:12px; }
+  .page-nav a{ font-size:.78rem; }
+  .page-nav .nav-ecopoint{ gap:6px; padding:6px 10px; }
+  .nav-collapse{ gap:8px; }
+  .nav-actions{ gap:6px; }
+}
+
+/* Restore the profile dropdown while nav is expanded on tablets */
+@media (min-width:901px) and (max-width:1080px){
+  .profile-dropdown{ display:block !important; opacity:0; transform:translateY(-10px); }
+  .profile-dropdown.show{ opacity:1; transform:translateY(0); }
+}
+
+/* ---------- Hero ---------- */
+.hero{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  min-height:calc(100vh - 72px);
+  padding:clamp(28px,6vh,56px) 5%;
+  background:url("../images/mainpage/new mainpage bg.png") center/cover no-repeat;
+  background-attachment:scroll;
+  z-index:1;
+  box-sizing:border-box;
+}
+.hero::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:
+    linear-gradient(to bottom, rgba(14,31,22,0) 0%, rgba(14,31,22,.65) 100%),
+    radial-gradient(ellipse at center, rgba(14,31,22,.30) 0%, rgba(14,31,22,.55) 100%);
+  z-index:0;
+  backdrop-filter:none;
+}
+.hero-content{
+  position:relative;
+  z-index:1;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  max-width:900px;
+  width:100%;
+  margin:0 auto;
+  padding:0;
+  background:transparent;
+  gap:28px;
+  animation:heroFadeUp .8s ease-out both;
+}
+.hero-content h2{
+  margin:0 0 -22px;
+  font-size:clamp(.95rem,1.4vw,1.1rem);
+  font-weight:600;
+  letter-spacing:.28em;
+  text-indent:.28em;
+  color:#f6e3b4;
+  line-height:1.4;
+  text-shadow:none;
+}
+.hero-content h1{
+  margin:0;
+  font-size:clamp(2.8rem,8vw,5.5rem);
+  font-weight:700;
+  letter-spacing:-.02em;
+  line-height:1.02;
+  color:#fff;
+  text-shadow:0 2px 18px rgba(0,0,0,.45);
+}
+.hero-brand{ display:block; margin:0 0 -14px; }
+.hero-emblem{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:20px;
+  max-width:440px;
+  width:min(440px,92%);
+  margin:0 0 -10px;
+}
+.hero-emblem .line{
+  flex:1 1 auto;
+  min-width:0;
+  height:3px;
+  background:#e2a93b;
+  border-radius:3px;
+  box-shadow:none;
+}
+.hero-emblem img{
+  width:auto;
+  height:44px;
+  flex:0 0 auto;
+  filter:drop-shadow(0 2px 6px rgba(0,0,0,.35));
+}
+.tagline{
+  margin:0;
+  font-size:clamp(1rem,1.5vw,1.15rem);
+  font-weight:500;
+  line-height:1.6;
+  max-width:34ch;
+  text-wrap:balance;
+  color:#fff;
+  text-shadow:0 2px 14px rgba(0,0,0,.45);
+}
+
+/* ---------- Hero CTAs ---------- */
+.action-buttons{
+  display:flex !important;
+  flex-direction:row;
+  align-items:center;
+  justify-content:center;
+  flex-wrap:wrap;
+  gap:14px !important;
+  margin:0 !important;
+  width:100%;
+}
+.action-buttons .btn-change{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:auto;
+  max-width:none;
+  height:52px !important;
+  min-height:52px;
+  padding:0 28px !important;
+  border-radius:999px;
+  font-size:1rem !important;
+  font-weight:600 !important;
+  line-height:1;
+  border:none;
+  box-sizing:border-box;
+  box-shadow:0 8px 20px rgba(0,0,0,.28);
+}
+.action-buttons .btn-reserve{ background:#e2a93b; color:#2a2321; }
+.action-buttons .btn-reserve:hover{ background:#f0b84f; }
+.action-buttons .btn-dashboard{
+  background:rgba(255,255,255,.12);
+  color:#fff;
+  border:1.5px solid rgba(255,255,255,.6);
+  gap:8px;
+}
+.action-buttons .btn-dashboard:hover{ background:rgba(255,255,255,.2); }
+
+/* ---------- VHEcoPoint banner ---------- */
+.hero-eco-subtitle{
+  display:inline-flex;
+  flex-direction:row;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  margin:0;
+  padding:10px 22px;
+  border-radius:999px;
+  width:fit-content;
+  max-width:min(860px,100%);
+  background:rgba(31,90,58,.9);
+  border:1px solid rgba(226,169,59,.6);
+  color:#fff;
+  font-size:.95rem;
+  font-weight:500;
+  line-height:1.4;
+  box-shadow:0 6px 18px rgba(0,0,0,.28);
+  opacity:1;
+  animation:none;
+}
+.hero-eco-subtitle-top,
+.hero-eco-subtitle-sub,
+.hero-eco-subtitle-hint{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+.hero-eco-subtitle-main{ font-weight:700; color:#e2a93b; }
+.hero-eco-subtitle-sub{ gap:7px; font-size:inherit; font-weight:500; color:#fff; opacity:1; text-align:center; }
+.hero-eco-subtitle-icon{ color:#f6e3b4; }
+.hero-eco-subtitle-hint{
+  gap:2px;
+  margin:0;
+  padding:0;
+  border:0;
+  font-size:.8rem;
+  font-weight:600;
+  color:#f6e3b4;
+  text-decoration:underline;
+}
+
+/* ---------- Motion: one-time fade-up only ---------- */
+@keyframes heroFadeUp{
+  from{ opacity:0; transform:translateY(16px); }
+  to{ opacity:1; transform:translateY(0); }
+}
+@media (prefers-reduced-motion:reduce){
+  .hero-content{ animation:none !important; }
+}
+
+/* ---------- Navbar mobile collapse (<= 900px) ---------- */
+@media (max-width:900px){
+  .navbar{
+    height:auto;
+    min-height:72px;
+    flex-wrap:wrap;
+    gap:10px;
+    padding:12px clamp(16px,4vw,24px);
+  }
+  .logo{ flex:1 1 auto; max-width:none; }
+  .hamburger{
+    display:inline-flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    gap:4px;
+    width:42px;
+    height:42px;
+    border-radius:999px;
+    background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.18);
+    color:#fff;
+  }
+  .hamburger span{ width:20px; height:2px; background:#fff; margin:0; }
+  .hamburger.active{ background:rgba(226,169,59,.18); box-shadow:none; }
+  .nav-collapse{
+    display:none;
+    width:100%;
+    box-sizing:border-box;
+    flex-direction:column;
+    align-items:center;
+    gap:12px;
+    background:#2a2321;
+    padding:16px 0 8px;
+    border-top:1px solid rgba(255,255,255,.1);
+  }
+  .nav-collapse.open{ display:flex; }
+  .page-nav{
+    flex-direction:column;
+    align-items:center;
+    gap:10px;
+    width:100%;
+    margin:0;
+  }
+  .page-nav a{
+    width:100%;
+    max-width:480px;
+    box-sizing:border-box;
+    text-align:center;
+    padding:12px 16px;
+    border-radius:999px;
+    background:rgba(255,255,255,.06);
+    color:#fff;
+    font-size:.95rem;
+  }
+  .page-nav a[href="#home"]{ border-bottom:2px solid #e2a93b; padding-bottom:12px; }
+  .page-nav .nav-ecopoint{
+    display:flex;
+    justify-content:center;
+    border:1px solid rgba(226,169,59,.6);
+    color:#e2a93b;
+  }
+  .nav-actions{
+    flex-direction:row;
+    justify-content:center;
+    flex-wrap:wrap;
+    gap:10px;
+    width:100%;
+    margin:0;
+  }
+}
+
+/* ---------- Hero mobile (buttons stack <= 600px) ---------- */
+@media (max-width:700px){
+  .hero-eco-subtitle{ border-radius:24px; }
+}
+@media (max-width:600px){
+  .action-buttons{
+    flex-direction:column;
+    align-items:stretch;
+    gap:12px !important;
+    width:100%;
+  }
+  .action-buttons .btn-change{ width:100%; padding:0 20px; }
+}
+
+@media (max-width:480px){
+  .hero{ min-height:calc(100vh - 72px); padding:32px 4% 36px; }
+  .hero-emblem img{ height:40px; }
+  .hero-eco-subtitle{ gap:6px; }
 }
