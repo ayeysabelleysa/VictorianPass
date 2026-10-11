@@ -361,40 +361,52 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         <button type="button" class="btn-change btn-dashboard" data-goto="<?php echo $isVisitor ? 'dashboardvisitor.php' : 'profileresident.php'; ?>" data-login-msg="Please log in first to view your profile." style="display:inline-flex;align-items:center;justify-content:center;gap:8px;"><i class="fa-solid fa-user" aria-hidden="true"></i> My Profile</button>
       </div>
 
-      <!-- Login Required Modal -->
-      <div id="loginModal" class="flash-overlay" style="display:none;">
-        <div class="flash-modal" style="text-align:center; padding:30px;">
-          <div class="title" style="font-size:1.5rem; margin-bottom:10px;">Login Required</div>
-          <div class="text" id="loginModalMessage" style="margin-bottom:20px;">Please log in first to continue.</div>
-          <div style="display:flex; gap:10px; justify-content:center;">
-             <button onclick="window.location.href='login.php'" style="padding:10px 20px; background:#e2a93b; color:#23412e; border:none; border-radius:5px; cursor:pointer; font-weight:600;">Login</button>
-             <button onclick="document.getElementById('loginModal').style.display='none'" style="padding:10px 20px; background:#ccc; color:#333; border:none; border-radius:5px; cursor:pointer;">Cancel</button>
-          </div>
-        </div>
-      </div>
+      <!-- Login Required popup now lives at root level (below) so its overlay stacks above the sticky navbar. -->
 
       <script>
         (function(){
-          var loggedIn = <?php echo $isLoggedIn ? 'true' : 'false'; ?>;
-          var modal = document.getElementById('loginModal');
-          var msgEl = document.getElementById('loginModalMessage');
-          var defaultMsg = msgEl ? msgEl.textContent : '';
-          window.openLoginRequired = function(message){
-            if (msgEl) { msgEl.textContent = message || defaultMsg; }
-            if (modal) { modal.style.display = 'flex'; }
+          window.vpUpdateScrollLock = function(){
+            var eco = document.getElementById('ecopointModal');
+            var login = document.getElementById('loginModal');
+            var anyOpen = (eco && eco.style.display === 'flex') || (login && login.style.display === 'flex');
+            document.documentElement.classList.toggle('vp-modal-open', !!anyOpen);
           };
-          if (modal) {
-            modal.addEventListener('click', function(e){ if (e.target === modal) modal.style.display = 'none'; });
+          function initLoginModal(){
+            var loggedIn = <?php echo $isLoggedIn ? 'true' : 'false'; ?>;
+            var modal = document.getElementById('loginModal');
+            var msgEl = document.getElementById('loginModalMessage');
+            var defaultMsg = msgEl ? msgEl.textContent : '';
+            window.openLoginRequired = function(message){
+              if (msgEl) { msgEl.textContent = message || defaultMsg; }
+              if (modal) { modal.style.display = 'flex'; }
+              if (window.vpUpdateScrollLock) { window.vpUpdateScrollLock(); }
+            };
+            if (modal) {
+              modal.addEventListener('click', function(e){ if (e.target === modal) closeLoginModal(); });
+            }
+            var confirmBtn = document.getElementById('loginModalConfirm');
+            var cancelBtn = document.getElementById('loginModalCancel');
+            var closeBtn = document.getElementById('loginModalClose');
+            function closeLoginModal(){ if (modal) { modal.style.display = 'none'; } if (window.vpUpdateScrollLock) { window.vpUpdateScrollLock(); } }
+            if (confirmBtn) confirmBtn.addEventListener('click', function(){ window.location.href = 'login.php'; });
+            if (cancelBtn) cancelBtn.addEventListener('click', closeLoginModal);
+            if (closeBtn) closeBtn.addEventListener('click', closeLoginModal);
+            document.addEventListener('keydown', function(e){ if (modal && modal.style.display === 'flex' && e.key === 'Escape') closeLoginModal(); });
+            var triggers = document.querySelectorAll('.action-buttons [data-goto]');
+            for (var i = 0; i < triggers.length; i++) {
+              triggers[i].addEventListener('click', function(){
+                if (loggedIn) {
+                  window.location.href = this.getAttribute('data-goto');
+                } else {
+                  window.openLoginRequired(this.getAttribute('data-login-msg'));
+                }
+              });
+            }
           }
-          var triggers = document.querySelectorAll('.action-buttons [data-goto]');
-          for (var i = 0; i < triggers.length; i++) {
-            triggers[i].addEventListener('click', function(){
-              if (loggedIn) {
-                window.location.href = this.getAttribute('data-goto');
-              } else {
-                window.openLoginRequired(this.getAttribute('data-login-msg'));
-              }
-            });
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initLoginModal);
+          } else {
+            initLoginModal();
           }
         })();
       </script>
@@ -545,6 +557,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     </div>
   </div>
   <?php endif; ?>
+
+  <!-- Login Required popup: root-level so its overlay stacks above the sticky navbar, matching the VHEcoPoint popup -->
+  <div id="loginModal" class="flash-overlay" style="display:none;">
+    <div class="vp-login-card" role="dialog" aria-modal="true" aria-labelledby="loginModalTitle">
+      <button type="button" class="login-modal-close" id="loginModalClose" aria-label="Close">&times;</button>
+      <div class="vp-login-icon" aria-hidden="true"><i class="fa-solid fa-user-lock"></i></div>
+      <div class="title" id="loginModalTitle">Login Required</div>
+      <div class="text" id="loginModalMessage">Please log in first to continue.</div>
+      <div class="vp-login-actions">
+        <button type="button" class="btn btn-confirm" id="loginModalConfirm">Login</button>
+        <button type="button" class="btn btn-cancel" id="loginModalCancel">Cancel</button>
+      </div>
+    </div>
+  </div>
 
   <section id="about-us" class="section reveal-on-scroll">
     <h2 class="section-title">About Us</h2>
@@ -816,6 +842,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         if(!modal) return;
         lastFocus = document.activeElement;
         modal.style.display = 'flex';
+        if(window.vpUpdateScrollLock) window.vpUpdateScrollLock();
         if(ecoAppTile && window.matchMedia('(max-width: 900px)').matches){
           window.clearTimeout(hintTimer);
           ecoAppTile.classList.add('is-hint-visible');
@@ -833,6 +860,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       function closeModal(){
         if(!modal) return;
         modal.style.display = 'none';
+        if(window.vpUpdateScrollLock) window.vpUpdateScrollLock();
         window.clearTimeout(hintTimer);
         if(ecoAppTile) ecoAppTile.classList.remove('is-hint-visible');
         var ecoBtn = document.getElementById('navEcoPointBtn');

@@ -2656,7 +2656,7 @@ html { max-width:100%; overflow-x:hidden; }
 }
 #facilities .amenity-details{
   display:grid;
-  grid-template-columns:1.15fr .8fr 1.05fr;
+  grid-template-columns:1.22fr .8fr 1.03fr;
   gap:16px;
   margin-top:auto;
   border-top:1px solid var(--vp-border);
@@ -3955,3 +3955,372 @@ html { max-width:100%; overflow-x:hidden; }
   #facilities .amenity-details{ padding-left:14px; padding-right:14px; }
   .pass-card{ width:min(100%,280px); }
 }
+
+/* =========================================================
+   VHECO POINT NAV TOOLTIP — ALIGNMENT FIX
+   The tooltip is a child of the a.nav-ecopoint pill, which
+   inherits white-space:nowrap from .page-nav a, so its long
+   sentence never wrapped and the bubble ballooned and drifted
+   off-centre (overlapping the other nav links). This restores
+   normal wrapping, stable centring under the pill, and keeps
+   the bubble inside the viewport on every breakpoint.
+   ========================================================= */
+.nav-ecopoint-tooltip{
+  white-space:normal;
+  left:50%;
+  right:auto;
+  top:calc(100% + 12px);
+  transform:translate(-50%,-4px);
+  min-width:min(260px, calc(100vw - 24px));
+  max-width:min(320px, calc(100vw - 24px));
+  width:max-content;
+  box-sizing:border-box;
+  overflow:visible;
+  z-index:1300;
+}
+.nav-ecopoint-tooltip::before{
+  left:50%;
+  right:auto;
+  transform:translateX(-50%) rotate(45deg);
+}
+.page-nav .nav-ecopoint:hover .nav-ecopoint-tooltip,
+.page-nav .nav-ecopoint:focus .nav-ecopoint-tooltip,
+.page-nav .nav-ecopoint:focus-visible .nav-ecopoint-tooltip{
+  opacity:1;
+  transform:translate(-50%,0);
+}
+
+/* =========================================================
+   FULL RESPONSIVE PASS — consolidated final overrides
+   Additive only. Provides one fluid container, fluid type,
+   a viewport-height hero, a tightened 901–1100px navbar band
+   (fixes the nav overlapping the logo), and 44px mobile tap
+   targets. Colors, text, content, IDs and class names are
+   untouched.
+   ========================================================= */
+
+/* One fluid container: navbar, hero, every section and the footer */
+.navbar,
+.hero,
+#about-us,
+#facilities,
+#how-it-works,
+#about-system,
+.site-footer{
+  padding-left:clamp(16px,4vw,48px);
+  padding-right:clamp(16px,4vw,48px);
+}
+
+/* Hero fills the viewport beneath the 72px navbar (small-viewport units) */
+.hero{ min-height:calc(100svh - 72px); }
+
+/* Fluid section headings and body copy */
+.section-title{ font-size:clamp(1.45rem,2.6vw,2rem); }
+.section-subtitle{ font-size:clamp(.9rem,1.1vw,1rem); }
+.section-body{ font-size:clamp(.92rem,1.05vw,1rem); }
+
+/* Images never exceed their column and keep their aspect ratio */
+#about-us img,
+#facilities img,
+#how-it-works img,
+#about-system img,
+.site-footer img{
+  max-width:100%;
+}
+
+/* ---- Navbar tightened band: 901–1100px (subtitle removed so
+        the links, VHEcoPoint pill and user info stay on one line
+        without ever overlapping the logo) ---- */
+@media (min-width:901px) and (max-width:1100px){
+  .navbar{ gap:12px; }
+  .brand-text p{ display:none; }
+  .logo{ gap:8px; }
+  .logo img{ width:34px; }
+  .brand-text h1{ font-size:.95rem; }
+  .page-nav{ gap:clamp(8px,1.2vw,14px); }
+  .page-nav a{ font-size:.8rem; }
+  .nav-collapse{ gap:clamp(8px,1.2vw,14px); width:auto; min-width:0; }
+  .page-nav .nav-ecopoint{ padding:5px 9px; gap:5px; }
+  .nav-ecopoint-badge{ font-size:.64rem; padding:2px 6px; }
+  .nav-actions{ gap:8px; width:auto; min-width:0; }
+  /* Auth buttons must stay content-sized (defeat the 1080px 50/50 rule) */
+  .nav-links{ width:auto; flex-direction:row; gap:8px; margin:0; }
+  .nav-links .btn-nav{ flex:0 0 auto; width:auto; max-width:none; height:auto; padding:6px 14px; font-size:.82rem; border-radius:999px; }
+  /* Logged-in greeting: keep one line, truncate instead of overflowing */
+  .nav-actions > div[style]{ gap:8px !important; font-size:.82rem; min-width:0; }
+  .nav-actions > div[style] > span:not(:first-child){ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:18ch; }
+  .nav-actions .profile-icon{ width:34px; height:34px; }
+}
+
+/* ---- Navbar mobile collapse (<900px): 44px tap targets ---- */
+@media (max-width:900px){
+  .navbar{ gap:8px; }
+  .logo{ min-width:0; }
+  .logo img{ width:34px; }
+  .brand-text p{ font-size:.72rem; }
+  .hamburger{
+    position:relative;
+    width:44px;
+    height:44px;
+    padding:0;
+  }
+  /* Three bars absolutely centred so the open state morphs into a clean X */
+  .hamburger span{
+    position:absolute;
+    left:50%;
+    top:50%;
+    width:20px;
+    height:2px;
+    margin:0;
+    border-radius:2px;
+    background:#fff;
+    transform:translate(-50%,-50%);
+    transition:transform .3s cubic-bezier(.4,0,.2,1), opacity .2s ease, background-color .25s ease;
+  }
+  .hamburger span:nth-child(1){ transform:translate(-50%,-50%) translateY(-6px); }
+  .hamburger span:nth-child(3){ transform:translate(-50%,-50%) translateY(6px); }
+  .hamburger.active span:nth-child(1){ transform:translate(-50%,-50%) rotate(45deg); }
+  .hamburger.active span:nth-child(2){ opacity:0; transform:translate(-50%,-50%) scaleX(.35); }
+  .hamburger.active span:nth-child(3){ transform:translate(-50%,-50%) rotate(-45deg); }
+  .page-nav a{
+    min-height:44px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .nav-actions .profile-account-btn{
+    width:44px;
+    height:44px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .nav-actions .profile-icon{ width:44px; height:44px; object-fit:cover; }
+  /* Auth buttons: fill the dropdown row evenly instead of the tablet 50/50 rule */
+  .nav-links{ width:100%; flex-direction:row; gap:12px; margin:0; }
+  .nav-links .btn-nav{ flex:1 1 0; width:auto; max-width:none; height:auto; padding:12px 20px; font-size:.95rem; }
+  /* Dropdown panel slides/fades in when the hamburger opens it */
+  .nav-collapse.open{ animation:navPanelDrop .28s cubic-bezier(.4,0,.2,1) both; }
+}
+
+@keyframes navPanelDrop{
+  from{ opacity:0; transform:translateY(-10px); }
+  to{ opacity:1; transform:translateY(0); }
+}
+
+/* =========================================================
+   AMENITY CARD DETAIL CELLS — overflow guard
+   The availability/capacity/price cells switch to a 3-column
+   grid that is too narrow between ~641-1200px (single words
+   like "Capacity" and the nowrap time string spilled out of
+   their cells). Use 2 columns up to 1200px so every label and
+   value has room, then 1 column on phones.
+   ========================================================= */
+@media (max-width:1200px){
+  #facilities .amenity-details{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+  #facilities .amenity-detail:nth-child(3){ grid-column:1 / -1; }
+  #facilities .amenity-detail-sub{ white-space:normal; }
+  #facilities .amenity-detail-label,
+  #facilities .amenity-detail-value{ overflow-wrap:anywhere; }
+}
+
+/* =========================================================
+   LOGIN REQUIRED POPUP — aligned with the other system popups.
+   White card, forest-green title, green primary / gray secondary
+   buttons and a top-right close — the same pattern used by the
+   logout dialog (js/logout-modal.js) and the VHEcoPoint popup.
+   ========================================================= */
+#loginModal{ z-index:2000; }
+#loginModal .vp-login-card{
+  position:relative;
+  width:92%;
+  max-width:440px;
+  padding:28px 24px 24px;
+  background:#fff;
+  color:#1f2937;
+  border:1px solid #e5e7eb;
+  border-radius:16px;
+  text-align:center;
+  box-shadow:0 20px 45px rgba(15,23,42,.25);
+  animation:modalPop .3s cubic-bezier(.22,1,.36,1) both;
+}
+#loginModal .vp-login-icon{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:56px;
+  height:56px;
+  margin:0 auto 14px;
+  border-radius:16px;
+  font-size:1.4rem;
+  color:#fde886;
+  background:linear-gradient(145deg,#00391f,#00512d 56%,#003a22);
+  border:1px solid rgba(212,175,55,.55);
+  box-shadow:0 8px 18px rgba(0,0,0,.18);
+}
+#loginModal .title{
+  margin:0 0 8px;
+  font-size:1.2rem;
+  font-weight:800;
+  color:#23412e;
+}
+#loginModal .text{
+  margin:0 0 20px;
+  font-size:.98rem;
+  line-height:1.6;
+  color:#475569;
+}
+#loginModal .vp-login-actions{
+  display:flex;
+  gap:10px;
+  justify-content:center;
+  flex-wrap:wrap;
+}
+#loginModal .btn{
+  min-width:122px;
+  padding:11px 22px;
+  border:0;
+  border-radius:10px;
+  font-family:inherit;
+  font-size:.95rem;
+  font-weight:700;
+  cursor:pointer;
+  transition:transform .2s ease, box-shadow .2s ease, background-color .2s ease, color .2s ease;
+}
+#loginModal .btn-confirm{ background:#23412e; color:#fff; }
+#loginModal .btn-confirm:hover{ background:#1a2f22; transform:translateY(-2px); box-shadow:0 8px 16px rgba(15,23,42,.12); }
+#loginModal .btn-cancel{ background:#e5e7eb; color:#1f2937; }
+#loginModal .btn-cancel:hover{ background:#dbe2e8; transform:translateY(-2px); box-shadow:0 8px 16px rgba(15,23,42,.12); }
+#loginModal .login-modal-close{
+  position:absolute;
+  top:10px;
+  right:12px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:32px;
+  height:32px;
+  padding:0;
+  border:0;
+  border-radius:8px;
+  background:transparent;
+  color:#23412e;
+  font-size:22px;
+  line-height:1;
+  cursor:pointer;
+  transition:color .2s ease, background-color .2s ease;
+}
+#loginModal .login-modal-close:hover{ color:#0f2f27; background:#f1f5f9; }
+#loginModal .btn:focus-visible,
+#loginModal .login-modal-close:focus-visible{ outline:2px solid #23412e; outline-offset:2px; }
+
+/* =========================================================
+   MOBILE POPUP UI — on phones both mainpage popups render as
+   bottom sheets: full width, rounded top, drag handle, safe-area
+   aware, with larger touch targets and thumb-friendly actions.
+   Desktop (>640px) is left exactly as it is.
+   ========================================================= */
+@keyframes vpSheetUp{
+  from{ opacity:0; transform:translateY(100%); }
+  to{ opacity:1; transform:translateY(0); }
+}
+
+@media (max-width: 640px){
+  /* Anchor both overlays to the bottom so the cards read as sheets */
+  #ecopointModal.flash-overlay,
+  #loginModal.flash-overlay{
+    align-items:flex-end;
+    padding:0;
+  }
+
+  /* ---------------- EcoPoint sheet ---------------- */
+  #ecopointModal .flash-modal{
+    width:100%;
+    max-width:100%;
+    max-height:92vh;
+    box-sizing:border-box;
+    border-radius:22px 22px 0 0;
+    animation:vpSheetUp .34s cubic-bezier(.22,1,.36,1) both;
+  }
+  #ecopointModal .flash-modal::before{           /* drag handle over the dark header */
+    content:"";
+    position:absolute;
+    top:10px;
+    left:50%;
+    transform:translateX(-50%);
+    width:44px;
+    height:5px;
+    border-radius:999px;
+    background:rgba(255,255,255,.55);
+    z-index:3;
+    pointer-events:none;
+  }
+  #ecopointModal .eco-modal-header{
+    padding:26px 18px 14px;
+  }
+  #ecopointModal .eco-modal-title{ font-size:1.05rem; }
+  #ecopointModal .eco-modal-subtitle{ font-size:.6rem; }
+  #ecopointModal .close-profile-modal{
+    width:44px;
+    height:44px;
+    font-size:22px;
+    border-radius:12px;
+  }
+  #ecopointModal .eco-modal-body{
+    padding:18px 16px 22px;
+  }
+  #ecopointModal .eco-modal-intro{ font-size:.95rem; }
+  #ecopointModal .eco-modal-footer{
+    padding:14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+  #ecopointModal .eco-modal-footer-text{ font-size:.85rem; }
+  #ecopointModal .eco-dash-cta-btn{
+    width:100%;
+    padding:14px 18px;
+    font-size:.95rem;
+    border-radius:14px;
+  }
+
+  /* ---------------- Login Required sheet ---------------- */
+  #loginModal .vp-login-card{
+    width:100%;
+    max-width:100%;
+    box-sizing:border-box;
+    padding:30px 20px calc(22px + env(safe-area-inset-bottom, 0px));
+    border-radius:22px 22px 0 0;
+    animation:vpSheetUp .34s cubic-bezier(.22,1,.36,1) both;
+  }
+  #loginModal .vp-login-card::before{            /* drag handle on the white card */
+    content:"";
+    position:absolute;
+    top:10px;
+    left:50%;
+    transform:translateX(-50%);
+    width:44px;
+    height:5px;
+    border-radius:999px;
+    background:#cbd5e1;
+    pointer-events:none;
+  }
+  #loginModal .login-modal-close{
+    top:12px;
+    right:14px;
+    width:44px;
+    height:44px;
+    font-size:24px;
+    border-radius:12px;
+  }
+  #loginModal .vp-login-icon{ margin-top:6px; }
+  #loginModal .vp-login-actions{ flex-direction:column; gap:12px; }
+  #loginModal .btn{
+    width:100%;
+    min-width:0;
+    padding:14px 20px;
+    font-size:1rem;
+    border-radius:12px;
+  }
+}
+
+/* Lock the page behind an open popup (class toggled on <html> by JS) */
+html.vp-modal-open,
+html.vp-modal-open body{ overflow:hidden; }
