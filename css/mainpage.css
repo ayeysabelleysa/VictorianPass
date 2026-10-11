@@ -510,7 +510,7 @@ html { scroll-behavior: smooth; }
   gap: 1px;
   margin: 18px auto 26px;
   padding: 9px 22px;
-  border-radius: 999px;
+  border-radius: 10px;
   background: #1d6b3f;
   color: #fff;
   font-size: clamp(0.85rem, 1.3vw, 0.98rem);
@@ -790,7 +790,7 @@ html { scroll-behavior: smooth; }
   outline-offset: 3px;
 }
 
-/* The app icon well — same green gradient as .ecopoint-title-icon above, with
+/* The app icon well 窶・same green gradient as .ecopoint-title-icon above, with
    a gold hairline to carry the second brand colour. */
 .eco-app-tile-icon {
   display: flex;
@@ -952,7 +952,7 @@ html { scroll-behavior: smooth; }
   flex-direction: column;
 }
 
-/* EcoPoint Live Station Session — matches LED screen color scheme */
+/* EcoPoint Live Station Session 窶・matches LED screen color scheme */
 .ecopoint-live-panel{
   background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
   border: 2px solid #c8e6c9;
@@ -1605,7 +1605,7 @@ html { scroll-behavior: smooth; }
 .ecopoint-modal .flash-modal{position:relative;max-width:980px;text-align:left;background:#fff;color:#222;border:1px solid #e9ecef;max-height:86vh;overflow-y:auto;overflow-x:hidden}
 .ecopoint-modal .flash-modal .title{color:#23412e;font-size:1.25rem}
 .ecopoint-modal .flash-modal .text{color:#555;line-height:1.7;margin:0}
-/* "Learn About VHEcoPoint" modal — compact text sizing */
+/* "Learn About VHEcoPoint" modal 窶・compact text sizing */
 .ecopoint-modal .flash-modal{padding:22px 18px}
 .ecopoint-modal .ecopoint-title{font-size:24px}
 .ecopoint-modal .ecopoint-title .ecopoint-title-icon{width:40px;height:40px;font-size:1.15rem}
@@ -1666,7 +1666,7 @@ html { scroll-behavior: smooth; }
 .btn-start {
   padding: 16px 40px;
   font-size: 1.2rem;
-  border-radius: 40px;
+  border-radius: 10px;
   background: #f2c24f;
   color: #23412e;
   box-shadow: 0 4px 15px rgba(242, 194, 79, 0.4);
@@ -1678,7 +1678,7 @@ html { scroll-behavior: smooth; }
 .btn-reserve {
   padding: 16px 32px;
   font-size: 1.1rem;
-  border-radius: 40px;
+  border-radius: 10px;
   background: #f2c24f;
   color: #23412e;
   box-shadow: 0 4px 15px rgba(242, 194, 79, 0.4);
@@ -1690,7 +1690,7 @@ html { scroll-behavior: smooth; }
 .btn-dashboard {
   padding: 16px 32px;
   font-size: 1.1rem;
-  border-radius: 40px;
+  border-radius: 10px;
   background: #23412e;
   color: #fff;
   box-shadow: 0 4px 15px rgba(35, 65, 46, 0.4);
@@ -1823,7 +1823,7 @@ html { scroll-behavior: smooth; }
 .user-type-center .dropdown-btn { background: linear-gradient(135deg, #f2c24f 0%, #e5b84a 100%); color:#23412e; box-shadow:0 4px 12px rgba(0,0,0,0.25); border:1px solid rgba(229,184,74,0.5); }
 .user-type-center .dropdown-btn:hover { transform: scale(1.03); box-shadow:0 6px 16px rgba(229,184,74,0.45); }
 .user-type-center{display:flex;justify-content:center;align-items:center;margin:16px 0 20px}
-.btn-change{background:linear-gradient(135deg,#23412e 0%,#345c40 100%);color:#fff;border:none;border-radius:28px;padding:12px 22px;font-weight:700;font-size:1rem;box-shadow:0 4px 12px rgba(35,65,46,.4);cursor:pointer;transition:transform .2s ease, box-shadow .2s ease}
+.btn-change{background:linear-gradient(135deg,#23412e 0%,#345c40 100%);color:#fff;border:none;border-radius:10px;padding:12px 22px;font-weight:700;font-size:1rem;box-shadow:0 4px 12px rgba(35,65,46,.4);cursor:pointer;transition:transform .2s ease, box-shadow .2s ease}
 .btn-change:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(35,65,46,.5)}
 .btn-change:focus{outline:2px solid #e5b84a;outline-offset:2px}
 .btn-change.btn-start{background:#f2c24f;color:#23412e;box-shadow:0 4px 15px rgba(242, 194, 79, 0.4)}
@@ -1935,7 +1935,7 @@ html { max-width:100%; overflow-x:hidden; }
     overflow-x:hidden;
   }
 
-  /* Navbar — tighter spacing so header fits one row */
+  /* Navbar 窶・tighter spacing so header fits one row */
   .navbar{
     padding:10px 4%;
     gap:8px;
@@ -1956,7 +1956,7 @@ html { max-width:100%; overflow-x:hidden; }
     font-size:0.9rem;
   }
 
-  /* Profile dropdown — anchored below button, viewport-safe */
+  /* Profile dropdown 窶・anchored below button, viewport-safe */
   .profile-dropdown{
     left:50%;
     right:auto;
@@ -1974,7 +1974,7 @@ html { max-width:100%; overflow-x:hidden; }
   }
   .profile-dropdown.show{ transform:translate(-50%,0); }
 
-  /* Hero — center and scale down */
+  /* Hero 窶・center and scale down */
   .hero{
     padding:60px 4% 48px;
     min-height:auto;
@@ -1993,7 +1993,7 @@ html { max-width:100%; overflow-x:hidden; }
   }
   .hero-brand img{ width:44px; height:44px; }
 
-  /* Emblem — scale lines */
+  /* Emblem 窶・scale lines */
   .hero-emblem{ gap:10px; margin:10px 0 6px; }
   .hero-emblem .line{ width:clamp(44px, 14vw, 90px); height:4px; }
   .hero-emblem img{ width:46px; height:46px; }
@@ -2016,7 +2016,7 @@ html { max-width:100%; overflow-x:hidden; }
     font-size:0.8rem;
   }
 
-  /* CTA buttons — centered, full-width within safe area */
+  /* CTA buttons 窶・centered, full-width within safe area */
   .action-buttons{
     display:flex;
     flex-direction:column;
@@ -2036,7 +2036,7 @@ html { max-width:100%; overflow-x:hidden; }
     font-size:1rem;
   }
 
-  /* Hero icons — smaller, wrap */
+  /* Hero icons 窶・smaller, wrap */
   .hero-icons{ gap:16px; margin-top:16px; }
   .hero-icons a img{ width:64px; }
   .hero-icons a{ font-size:0.85rem; }
@@ -2078,15 +2078,15 @@ html { max-width:100%; overflow-x:hidden; }
 }
 
 /* =========================
-   LANDING PAGE MOBILE POLISH (320–480px)
+   LANDING PAGE MOBILE POLISH (320窶・80px)
    Applies to phone viewports only; desktop is untouched.
 ========================= */
 @media (max-width:480px){
 
-  /* Header — single balanced row */
+  /* Header 窶・single balanced row */
   .navbar{ padding:10px 4%; }
 
-  /* Hero — tighter vertical rhythm, no wasted space */
+  /* Hero 窶・tighter vertical rhythm, no wasted space */
   .hero{
     padding:44px 4% 40px;
     min-height:auto;
@@ -2115,7 +2115,7 @@ html { max-width:100%; overflow-x:hidden; }
   .hero-eco-subtitle{ margin-bottom:14px; }
   .mobile-ecopoint-btn{ font-size:0.9rem; padding:8px 12px; }
 
-  /* CTA buttons — slightly smaller, consistent spacing, not cramped */
+  /* CTA buttons 窶・slightly smaller, consistent spacing, not cramped */
   .action-buttons{
     flex-direction:column;
     align-items:center;
@@ -2135,7 +2135,7 @@ html { max-width:100%; overflow-x:hidden; }
     box-sizing:border-box;
   }
 
-  /* Sections — even rhythm */
+  /* Sections 窶・even rhythm */
   .section{ padding:34px 4%; }
   .section-title{ font-size:1.4rem; margin-bottom:10px; line-height:1.3; }
   .section-divider{ margin-bottom:18px; }
@@ -2156,7 +2156,7 @@ html { max-width:100%; overflow-x:hidden; }
   }
   .section-body{ line-height:1.75; }
 
-  /* About Us — clean start after hero + safe horizontal padding */
+  /* About Us 窶・clean start after hero + safe horizontal padding */
   #about-us{ padding-top:36px; }
   #about-us .section-body,
   #about-system .section-body{ padding:0 6px; }
@@ -2176,7 +2176,7 @@ html { max-width:100%; overflow-x:hidden; }
 ========================= */
 @media (max-width: 480px) {
 
-  /* Nav menu items — compact, full-width, 6px radius */
+  /* Nav menu items 窶・compact, full-width, 6px radius */
   .page-nav{ gap:7px; }
   .page-nav a{
     height:34px;
@@ -2201,7 +2201,7 @@ html { max-width:100%; overflow-x:hidden; }
     font-size:9.5px;
   }
 
-  /* Login / Register — side by side 50/50 */
+  /* Login / Register 窶・side by side 50/50 */
   .nav-links{
     flex-direction:row;
     width:100%;
@@ -2222,7 +2222,7 @@ html { max-width:100%; overflow-x:hidden; }
     box-sizing:border-box;
   }
 
-  /* Hero — compact vertical rhythm, centered */
+  /* Hero 窶・compact vertical rhythm, centered */
   .hero{ padding:32px 4% 24px; }
   .hero-content h2{ font-size:0.9rem; margin-bottom:4px; }
   .hero-content h1{ font-size:21px; margin-bottom:4px; }
@@ -2238,7 +2238,7 @@ html { max-width:100%; overflow-x:hidden; }
     margin:0 auto 6px;
   }
 
-  /* See VHEcoPoint description — ghost/outline pill, auto-width */
+  /* See VHEcoPoint description 窶・ghost/outline pill, auto-width */
   .mobile-ecopoint-btn{
     height:28px;
     font-size:10px;
@@ -2250,7 +2250,7 @@ html { max-width:100%; overflow-x:hidden; }
     box-shadow:none;
   }
 
-  /* CTA buttons — solid pill, auto-width, centered, 12px above */
+  /* CTA buttons 窶・solid pill, auto-width, centered, 12px above */
   .action-buttons{
     margin-top:12px !important;
     gap:8px !important;
@@ -2299,7 +2299,7 @@ html { max-width:100%; overflow-x:hidden; }
 
 @media (max-width:480px){
 
-  /* Hamburger — 40x40 tap target */
+  /* Hamburger 窶・40x40 tap target */
   .hamburger{
     width:40px;
     height:40px;
@@ -2307,7 +2307,7 @@ html { max-width:100%; overflow-x:hidden; }
     flex-shrink:0;
   }
 
-  /* Hero — 70-75vh stage, cover photo, vertically centered */
+  /* Hero 窶・70-75vh stage, cover photo, vertically centered */
   .hero{
     min-height:70vh;
     padding:24px 4%;
@@ -2316,26 +2316,26 @@ html { max-width:100%; overflow-x:hidden; }
   }
 
   /* Type scale: 26 / 18 / 14 / 11 */
-  /* Eyebrow "WELCOME TO" — 11px, 1px tracking */
+  /* Eyebrow "WELCOME TO" 窶・11px, 1px tracking */
   .hero-content h2{
     font-size:11px;
     letter-spacing:1px;
     font-weight:700;
     margin-bottom:4px;
   }
-  /* Title "VictorianPass" — 26px */
+  /* Title "VictorianPass" 窶・26px */
   .hero-content h1{
     font-size:26px;
     margin-bottom:4px;
   }
-  /* Tagline — 14px, 1.6 line-height */
+  /* Tagline 窶・14px, 1.6 line-height */
   .tagline{
     font-size:14px;
     line-height:1.6;
     margin:10px auto 8px;
   }
 
-  /* VHEcoPoint Rewards — green pill badge */
+  /* VHEcoPoint Rewards 窶・green pill badge */
   .hero-eco-subtitle{
     display:inline-flex;
     flex-direction:column;
@@ -2382,12 +2382,12 @@ html { max-width:100%; overflow-x:hidden; }
     transform:scale(0.97);
   }
 
-  /* See VHEcoPoint description — hidden on mobile; badge itself is the click target */
+  /* See VHEcoPoint description 窶・hidden on mobile; badge itself is the click target */
   .mobile-ecopoint-btn{
     display:none !important;
   }
 
-  /* CTA buttons — compact auto-width pills, 8-10px gap */
+  /* CTA buttons 窶・compact auto-width pills, 8-10px gap */
   .action-buttons{
     margin-top:10px !important;
     gap:9px !important;
@@ -2403,7 +2403,7 @@ html { max-width:100%; overflow-x:hidden; }
     line-height:1;
   }
 
-  /* Sections — consistent 24px padding, left-aligned, 14px body */
+  /* Sections 窶・consistent 24px padding, left-aligned, 14px body */
   #about-us,
   #facilities,
   #about-system{
@@ -2431,7 +2431,7 @@ html { max-width:100%; overflow-x:hidden; }
     margin:0 0 10px;
   }
 
-  /* Amenity cards — fixed-height photos, 12px gaps */
+  /* Amenity cards 窶・fixed-height photos, 12px gaps */
   .amenities-grid{
     gap:12px;
     margin-top:14px;
@@ -2465,14 +2465,945 @@ html { max-width:100%; overflow-x:hidden; }
     border-top:1px solid rgba(255,255,255,0.16);
   }
 
-  /* About the System cards — balanced hierarchy */
+  /* About the System cards 窶・balanced hierarchy */
   .about-intro h3{ font-size:18px; }
   .about-card h3{ font-size:16px; margin:0 0 6px; }
   .about-card p{ font-size:14px; line-height:1.6; }
   .about-card img{ height:140px; }
 }
 
+/* ============================================================
+   VICTORIANPASS — LANDING REDESIGN
+   Covers everything from #about-us down to the footer credits.
+   Nav, hero and PHP logic are untouched.
+   ============================================================ */
+:root{
+  --vp-forest:#1b3a2b;
+  --vp-deep:#12281d;
+  --vp-gold:#e2a93b;
+  --vp-gold-soft:#f6e3b4;
+  --vp-paper:#f7f5ee;
+  --vp-ink:#1d2a22;
+  --vp-brown:#2a2321;
+  --vp-radius:18px;
+  --vp-border:#e3e0d2;
+  --vp-muted:#46544b;
+  --vp-shadow-sm:0 6px 16px rgba(18,40,29,.08);
+  --vp-shadow-md:0 16px 34px rgba(18,40,29,.16);
+  --vp-head:'Poppins',sans-serif;
+  --vp-body:'Poppins',sans-serif;
+}
 
+/* ---------- Shared rhythm + headings ---------- */
+#about-us,
+#facilities,
+#how-it-works,
+#about-system,
+.site-footer{
+  font-family:var(--vp-body);
+  padding:clamp(48px,6vw,84px) 5%;
+}
+#about-us .section-title,
+#facilities .section-title,
+#how-it-works .section-title,
+#about-system .section-title,
+.site-footer .footer-title{
+  font-family:var(--vp-head);
+  font-weight:700;
+  font-size:clamp(1.55rem,3vw,2.35rem);
+  letter-spacing:-.01em;
+  line-height:1.2;
+  margin:0 0 10px;
+  text-transform:none;
+}
+#about-us .section-divider,
+#facilities .section-divider,
+#how-it-works .section-divider,
+#about-system .section-divider{
+  width:64px;
+  height:3px;
+  border-radius:999px;
+  margin:6px 0 28px;
+  opacity:1;
+}
+#about-us .section-body,
+#facilities .section-body,
+#how-it-works .section-body,
+#about-system .section-body{
+  max-width:1120px;
+  margin-left:auto;
+  margin-right:auto;
+}
 
+/* ---------- 1. About Us — paper ---------- */
+#about-us{
+  background:var(--vp-paper);
+  color:var(--vp-ink);
+}
+#about-us .section-title{ color:var(--vp-forest); }
+#about-us .section-divider{ background:var(--vp-forest); }
+#about-us .section-body{
+  display:grid;
+  grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);
+  align-items:center;
+  gap:clamp(26px,4vw,56px);
+  text-align:left;
+}
+#about-us .section-body p{
+  max-width:62ch;
+  margin:0;
+  color:var(--vp-ink);
+  font-size:1.03rem;
+  line-height:1.8;
+  text-align:left;
+}
+#about-us .about-subdivision-photo{
+  width:100%;
+  max-width:520px;
+  justify-self:end;
+  margin:0;
+  border-radius:var(--vp-radius);
+  border:none;
+  box-shadow:var(--vp-shadow-md);
+}
+.about-facts{
+  grid-column:1 / -1;
+  list-style:none;
+  margin:4px 0 0;
+  padding:0;
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  column-gap:clamp(24px,4vw,56px);
+  row-gap:18px;
+}
+.about-facts li{
+  border-top:1px solid var(--vp-border);
+  padding-top:12px;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+.about-facts .fact-value{
+  font-family:var(--vp-head);
+  font-size:1.15rem;
+  font-weight:700;
+  color:var(--vp-forest);
+}
+.about-facts .fact-label{
+  font-size:.92rem;
+  color:var(--vp-muted);
+}
 
+/* ---------- 2. Amenities you can book — forest green ---------- */
+#facilities{
+  background:linear-gradient(165deg,var(--vp-forest) 0%,var(--vp-deep) 100%);
+  color:#fff;
+}
+#facilities .section-title{ color:#fff; }
+#facilities .section-divider{ background:var(--vp-gold); }
+#facilities .amenities-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:24px;
+  align-items:stretch;
+  max-width:1120px;
+  margin:24px auto 0;
+}
+#facilities .amenity-card{
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  padding:0;
+  background:#fff;
+  color:var(--vp-ink);
+  border:none;
+  border-radius:var(--vp-radius);
+  box-shadow:0 12px 26px rgba(0,0,0,.28);
+  overflow:hidden;
+  transition:none;
+}
+#facilities .amenity-card:hover{
+  transform:none;
+  box-shadow:0 12px 26px rgba(0,0,0,.28);
+}
+#facilities .amenity-card img{
+  width:100%;
+  height:auto;
+  aspect-ratio:16 / 10;
+  margin:0;
+  object-fit:cover;
+  object-position:center;
+  display:block;
+  border-radius:0;
+  background:linear-gradient(160deg,var(--vp-forest) 0%,var(--vp-deep) 100%);
+}
+#facilities .amenity-card .title{
+  margin:0;
+  padding:26px 28px 0;
+  text-align:left;
+  font-family:var(--vp-head);
+  font-size:1.5rem;
+  font-weight:700;
+  color:var(--vp-forest);
+}
+#facilities .amenity-card .desc{
+  margin:0 0 22px;
+  padding:8px 28px 0;
+  text-align:left;
+  color:var(--vp-muted);
+  font-size:1rem;
+  line-height:1.6;
+}
+#facilities .amenity-details{
+  display:grid;
+  grid-template-columns:1.15fr .8fr 1.05fr;
+  gap:16px;
+  margin-top:auto;
+  border-top:1px solid var(--vp-border);
+  padding:20px 28px 28px;
+}
+#facilities .amenity-detail{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  min-width:0;
+}
+#facilities .amenity-detail-icon{
+  flex:none;
+  width:40px;
+  height:40px;
+  border-radius:50%;
+  background:var(--vp-gold-soft);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+#facilities .amenity-detail-icon svg{
+  width:22px;
+  height:22px;
+  fill:none;
+  stroke:var(--vp-forest);
+  stroke-width:1.75;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+#facilities .amenity-detail-text{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  min-width:0;
+}
+#facilities .amenity-detail-label{
+  font-size:.8rem;
+  color:var(--vp-muted);
+}
+#facilities .amenity-detail-value{
+  font-size:.95rem;
+  font-weight:600;
+  color:var(--vp-ink);
+  overflow-wrap:anywhere;
+}
+#facilities .amenity-detail-sub{
+  font-size:.88rem;
+  font-weight:500;
+  color:var(--vp-muted);
+  white-space:nowrap;
+}
+@media (max-width:1000px){
+  #facilities .amenity-details{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+  #facilities .amenity-detail:nth-child(3){ grid-column:1 / -1; }
+}
+@media (max-width:560px){
+  #facilities .amenity-details{ grid-template-columns:1fr; }
+  #facilities .amenity-detail:nth-child(3){ grid-column:auto; }
+}
 
+/* ---------- 3. How it works — cream ---------- */
+#how-it-works{
+  background:var(--vp-paper);
+  color:var(--vp-ink);
+}
+#how-it-works .section-title{ color:var(--vp-forest); }
+#how-it-works .section-subtitle{ color:var(--vp-muted); max-width:60ch; margin-bottom:18px; }
+#how-it-works .section-divider{ background:var(--vp-forest); }
+.steps-list{
+  list-style:none;
+  margin:28px 0 0;
+  padding:0;
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:20px;
+}
+.step{
+  border-top:3px solid var(--vp-forest);
+  padding:18px 4px 0;
+}
+.step-number{
+  display:block;
+  margin:0 0 10px;
+  font-family:var(--vp-head);
+  font-size:2.6rem;
+  font-weight:700;
+  line-height:1;
+  color:var(--vp-forest);
+}
+.step h3{
+  margin:0 0 6px;
+  font-family:var(--vp-head);
+  font-size:1.15rem;
+  font-weight:700;
+  color:var(--vp-forest);
+}
+.step p{
+  margin:0;
+  max-width:32ch;
+  color:var(--vp-muted);
+  font-size:.95rem;
+  line-height:1.6;
+}
+/* ---------- Sample QR pass — same design as the system entry pass (qr_view.php), scaled down ---------- */
+.pass-card{
+  width:min(100%,320px);
+  margin:36px auto 0;
+  background:#1e1e1e;
+  color:#fff;
+  border-radius:16px;
+  overflow:hidden;
+  box-shadow:0 12px 28px rgba(0,0,0,.45);
+  text-align:center;
+}
+.pass-top-bar{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  padding:12px;
+  background:#000;
+}
+.pass-top-bar img{ height:20px; width:auto; }
+.pass-top-bar span{
+  color:#e5ddc6;
+  font-size:.9rem;
+  font-weight:600;
+}
+.pass-type-title{
+  margin:10px 0 10px;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  font-size:.7rem;
+  font-weight:600;
+  color:#9ca3af;
+}
+.pass-status-header{
+  padding:18px 16px;
+  background:#15803d;
+  color:#fff;
+}
+.pass-status-header h1{
+  margin:0 0 4px;
+  font-size:1.05rem;
+  font-weight:800;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+}
+.pass-status-header p{
+  margin:0;
+  font-size:.8rem;
+  font-weight:500;
+  opacity:.95;
+}
+.pass-qr-wrap{ padding:16px; }
+.pass-qr-box{
+  width:130px;
+  height:130px;
+  margin:0 auto;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:#fff;
+  border-radius:10px;
+  color:#1e1e1e;
+  font-size:72px;
+}
+.pass-qr-instruction{
+  margin-top:12px;
+  font-size:.78rem;
+  color:#aaa;
+}
+.pass-details{
+  padding:16px 20px 20px;
+  text-align:left;
+}
+.pass-details-title{
+  margin-bottom:12px;
+  color:#9bd08f;
+  font-size:.72rem;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+.pass-row{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:10px;
+  font-size:.85rem;
+}
+.pass-row:last-child{ margin-bottom:0; }
+.pass-row-label{ color:#888; }
+.pass-row-value{
+  color:#fff;
+  font-weight:600;
+  text-align:right;
+}
+.pass-preview-note{
+  padding:10px 20px 14px;
+  text-align:center;
+  color:#7a7a7a;
+  font-size:.7rem;
+  letter-spacing:.04em;
+  border-top:1px solid rgba(255,255,255,.08);
+}
+
+/* ---------- 4. About system VictorianPass — gold ---------- */
+#about-system{
+  background:linear-gradient(165deg,var(--vp-forest) 0%,var(--vp-deep) 100%);
+  color:#fff;
+  border:0;
+}
+#about-system .section-title{ color:#fff; }
+#about-system .section-divider{ background:var(--vp-gold); }
+#about-system .section-body{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  text-align:center;
+}
+#about-system .section-body > p{
+  max-width:64ch;
+  margin:0 auto 26px;
+  color:rgba(255,255,255,.92);
+  font-size:1.03rem;
+  line-height:1.8;
+  text-align:left;
+}
+#about-system .about-intro{ margin:4px 0 22px; }
+#about-system .about-intro h3{
+  margin:0;
+  color:#fff;
+  font-family:var(--vp-head);
+  font-size:clamp(1.3rem,2.4vw,1.75rem);
+  font-weight:700;
+  letter-spacing:-.01em;
+}
+#about-system .about-system-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:24px;
+  align-items:stretch;
+  width:100%;
+  max-width:1100px;
+  margin:6px auto 0;
+}
+#about-system .about-card{
+  display:flex;
+  flex-direction:column;
+  padding:22px;
+  background:#fff;
+  color:var(--vp-ink);
+  border:none;
+  border-radius:var(--vp-radius);
+  box-shadow:0 14px 30px rgba(42,35,33,.22);
+}
+#about-system .about-card img{
+  width:100%;
+  height:200px;
+  margin:0 0 12px;
+  object-fit:cover;
+  border-radius:12px;
+}
+#about-system .about-card h3{
+  margin:0 0 8px;
+  color:var(--vp-forest);
+  font-family:var(--vp-head);
+  font-weight:700;
+}
+#about-system .about-card p{
+  margin:0;
+  color:var(--vp-muted);
+  line-height:1.6;
+}
+
+/* ---------- 6. Credits and footer — dark brown ---------- */
+.site-footer{
+  background:var(--vp-brown);
+  color:#fff;
+  text-align:center;
+  padding:26px 5% 18px;
+}
+.site-footer .footer-lines p{
+  margin:0 0 4px;
+  color:rgba(255,255,255,.85);
+  font-size:.78rem;
+  line-height:1.5;
+}
+.site-footer .footer-divider{
+  width:48px;
+  height:1px;
+  border:0;
+  margin:14px auto 10px;
+  background:rgba(255,255,255,.22);
+}
+.site-footer .footer-copy{
+  margin:0;
+  color:rgba(255,255,255,.7);
+  font-size:.72rem;
+}
+
+/* ---------- Keyboard focus ---------- */
+#about-us a:focus-visible,
+#facilities a:focus-visible,
+#how-it-works a:focus-visible,
+.site-footer a:focus-visible,
+#facilities .amenity-btn:focus-visible{
+  outline:3px solid var(--vp-gold);
+  outline-offset:3px;
+  border-radius:6px;
+}
+#about-system a:focus-visible{
+  outline:3px solid var(--vp-deep);
+  outline-offset:3px;
+  border-radius:6px;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width:1024px){
+  #about-system .about-system-grid{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .steps-list{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media (max-width:900px){
+  #about-us .section-body{
+    grid-template-columns:1fr;
+    gap:26px;
+  }
+  #about-us .about-subdivision-photo{
+    justify-self:start;
+    max-width:100%;
+  }
+}
+@media (max-width:760px){
+  #facilities .amenities-grid{ grid-template-columns:1fr; }
+  #about-system .about-system-grid{ grid-template-columns:1fr; }
+  .about-facts{ grid-template-columns:1fr; }
+}
+@media (max-width:640px){
+  .steps-list{ grid-template-columns:1fr; }
+  #facilities .amenity-details{ padding:18px 20px 22px; }
+  #facilities .amenity-card .title{ padding:22px 20px 0; }
+  #facilities .amenity-card .desc{ padding:8px 20px 0; }
+  #about-system .about-card img{ height:180px; }
+}
+
+/* ==========================================================================
+   "Learn About VHEcoPoint" modal — dashboard-matched redesign
+   --------------------------------------------------------------------------
+   Scoped to .ecopoint-modal on mainpage.php. Reuses the VHEcoPoint dashboard
+   theme tokens (html/profileresident.php panel-points-history):
+     header gradient   #0f2f27 -> #174a3c   (with gold hairline rgba(212,175,55,.35))
+     light green       #ecfdf5 -> #d1fae5 / border #86efac / text #14532d
+     gold accent       #fde886 / #d4a017
+     green accent      #16a34a / #14532d / #166534
+     white card        #fff / border #e5e7eb
+   The close button (.close-profile-modal #ecopointModalClose) keeps its exact
+   size/shape/colors/hover/focus — only re-flowed into the new fixed header.
+   ========================================================================== */
+
+.ecopoint-modal .flash-modal{
+  display:flex;
+  flex-direction:column;
+  max-width:980px;
+  width:92%;
+  padding:0;
+  max-height:88vh;
+  overflow:hidden;
+  background:#f4f7f5;
+  color:#14532d;
+  border:1px solid #dce8e2;
+  border-radius:18px;
+  text-align:left;
+}
+
+/* Fixed hero header (does not scroll) */
+.eco-modal-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:16px 20px;
+  flex:0 0 auto;
+  background:linear-gradient(135deg,#0f2f27,#174a3c);
+  border-bottom:1px solid rgba(212,175,55,.35);
+  color:#f0ebe2;
+}
+.eco-modal-brand{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  min-width:0;
+}
+.eco-modal-brand-icon{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:48px;
+  height:48px;
+  flex:0 0 auto;
+  border-radius:14px;
+  background:linear-gradient(145deg,#00391f,#00512d 56%,#003a22);
+  border:1px solid rgba(212,175,55,.55);
+  box-shadow:0 8px 18px rgba(0,0,0,.28);
+}
+.eco-modal-brand-icon .vh-eco-logo{
+  --vh-eco-logo-size:32px;
+  --vh-eco-logo-radius:8px;
+}
+.eco-modal-brand-text{ min-width:0; }
+.eco-modal-title{
+  margin:0;
+  font-size:1.3rem;
+  font-weight:800;
+  line-height:1.2;
+  color:#fff;
+}
+.eco-modal-subtitle{
+  margin:3px 0 0;
+  font-size:.68rem;
+  font-weight:600;
+  letter-spacing:.13em;
+  text-transform:uppercase;
+  color:#fde886;
+}
+
+/* Close button: same component, only re-flowed into the header (position only). */
+.ecopoint-modal .close-profile-modal{
+  position:static;
+  float:none;
+  margin:0;
+  flex:0 0 auto;
+  align-self:flex-start;
+}
+
+/* Scrollable body */
+.eco-modal-body{
+  padding:20px 22px 24px;
+  overflow-y:auto;
+  overflow-x:hidden;
+  flex:1 1 auto;
+}
+
+/* Intro + availability chips */
+.eco-modal-intro{
+  margin:0 0 14px;
+  color:#374151;
+  font-size:.95rem;
+  line-height:1.7;
+}
+.eco-chip-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-bottom:22px;
+}
+.eco-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  padding:7px 13px;
+  border-radius:999px;
+  background:#ecfdf5;
+  border:1px solid #86efac;
+  color:#166534;
+  font-size:.82rem;
+  font-weight:600;
+}
+.eco-chip i{ color:#16a34a; font-size:.85rem; }
+
+/* Residents-only notice */
+.eco-notice{
+  padding:12px 14px;
+  border-radius:10px;
+  margin-bottom:16px;
+}
+.eco-notice-warn{
+  background:#fef3c7;
+  border:1px solid #fcd34d;
+  color:#92400e;
+}
+.eco-notice-warn strong{ display:block; margin-bottom:4px; }
+.eco-notice-warn small{ font-size:.85rem; }
+
+/* Section heading */
+.eco-section-title{
+  margin:0 0 14px;
+  font-size:1.05rem;
+  font-weight:800;
+  color:#14532d;
+}
+
+/* How It Works — 3 cards in one row */
+.eco-how-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+  margin-bottom:22px;
+}
+.eco-how-card{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  padding:18px 16px 16px;
+  background:#fff;
+  border:1px solid #e5e7eb;
+  border-radius:16px;
+  box-shadow:0 2px 10px rgba(15,23,42,.04);
+}
+.eco-how-tile{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:46px;
+  height:46px;
+  border-radius:14px;
+  background:linear-gradient(135deg,#f2c24f,#e5b84a);
+  color:#23412e;
+  font-size:1.2rem;
+  box-shadow:0 8px 18px rgba(229,184,74,.28);
+}
+.eco-how-badge{
+  position:absolute;
+  top:12px;
+  right:12px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:26px;
+  height:26px;
+  border-radius:50%;
+  background:#0f2f27;
+  border:1px solid rgba(212,175,55,.6);
+  color:#fde886;
+  font-size:.8rem;
+  font-weight:800;
+}
+.eco-how-card h4{
+  margin:2px 0 0;
+  font-size:1rem;
+  font-weight:800;
+  color:#14532d;
+}
+.eco-how-card p{
+  margin:0;
+  font-size:.86rem;
+  line-height:1.55;
+  color:#4b5563;
+}
+
+/* Two columns */
+.eco-cols{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:16px;
+  align-items:stretch;
+}
+.eco-panel{
+  display:flex;
+  flex-direction:column;
+  padding:18px;
+  background:#fff;
+  border:1px solid #e5e7eb;
+  border-radius:16px;
+  box-shadow:0 2px 10px rgba(15,23,42,.04);
+}
+.eco-panel-full{ margin-top:16px; }
+.eco-panel-title{
+  margin:0 0 14px;
+  font-size:1rem;
+  font-weight:800;
+  color:#14532d;
+}
+.eco-panel-sub{
+  margin:-8px 0 12px;
+  font-size:.85rem;
+  color:#6b7280;
+}
+
+/* Points Guide — single rate panel */
+.eco-rate-panel{
+  padding:16px;
+  border-radius:14px;
+  background:linear-gradient(135deg,#0f2f27,#174a3c);
+  border:1px solid rgba(212,175,55,.35);
+  text-align:center;
+}
+.eco-rate-pts{
+  font-size:2rem;
+  font-weight:800;
+  line-height:1;
+  letter-spacing:-.02em;
+  color:#fde886;
+}
+.eco-rate-pts small{
+  display:block;
+  margin-top:5px;
+  font-size:.72rem;
+  font-weight:700;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:rgba(253,232,134,.8);
+}
+.eco-rate-materials{
+  margin-top:10px;
+  font-size:.82rem;
+  line-height:1.5;
+  color:#f0ebe2;
+}
+
+/* Value bar */
+.eco-value-bar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-top:10px;
+  padding:12px 14px;
+  border-radius:12px;
+  background:#ecfdf5;
+  border:1px solid #86efac;
+}
+.eco-value-bar-label{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  font-size:.85rem;
+  font-weight:700;
+  color:#166534;
+}
+.eco-value-bar-label i{ color:#d4a017; }
+.eco-value-bar-value{
+  font-size:1rem;
+  font-weight:800;
+  color:#14532d;
+  white-space:nowrap;
+}
+
+/* 4 equal stat tiles */
+.eco-stat-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  margin-top:10px;
+}
+.eco-stat{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  padding:12px 14px;
+  border-radius:12px;
+  background:#f8fafc;
+  border:1px solid #e5e7eb;
+}
+.eco-stat-label{
+  font-size:.72rem;
+  font-weight:700;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  color:#6b7280;
+}
+.eco-stat-value{
+  font-size:1.05rem;
+  font-weight:800;
+  color:#14532d;
+}
+
+/* Floating footer CTA — pinned to the bottom of the modal (body scrolls above) */
+.eco-modal-footer{
+  flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:12px 20px;
+  background:#fff;
+  border-top:1px solid #e5e7eb;
+  box-shadow:0 -6px 16px rgba(15,23,42,.06);
+}
+.eco-modal-footer-text{
+  margin:0;
+  min-width:0;
+  font-size:.82rem;
+  line-height:1.45;
+  color:#6b7280;
+}
+.eco-dash-cta-btn{
+  display:inline-flex;
+  align-items:center;
+  gap:9px;
+  flex:0 0 auto;
+  padding:10px 16px;
+  border-radius:12px;
+  background:linear-gradient(135deg,#0f2f27,#174a3c);
+  border:1px solid rgba(212,175,55,.4);
+  color:#fff;
+  text-decoration:none;
+  font-size:.88rem;
+  font-weight:700;
+  white-space:nowrap;
+  transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.eco-dash-cta-btn:hover{
+  transform:translateY(-1px);
+  border-color:rgba(212,175,55,.7);
+  box-shadow:0 8px 20px rgba(8,22,18,.18);
+}
+.eco-dash-cta-btn:focus-visible{
+  outline:2px solid #fde886;
+  outline-offset:2px;
+}
+.eco-dash-cta-logo{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:24px;
+  height:24px;
+  flex:0 0 auto;
+  border-radius:7px;
+  background:linear-gradient(145deg,#00391f,#00512d 56%,#003a22);
+  border:1px solid rgba(212,175,55,.55);
+}
+.eco-dash-cta-logo .vh-eco-logo{
+  --vh-eco-logo-size:16px;
+  --vh-eco-logo-radius:4px;
+}
+.eco-dash-cta-btn > i{
+  color:#fde886;
+  font-size:.85rem;
+}
+
+/* Responsive */
+@media (max-width:720px){
+  .ecopoint-modal .flash-modal{ width:94%; max-height:90vh; }
+  .eco-modal-title{ font-size:1.1rem; }
+  .eco-modal-subtitle{ font-size:.6rem; letter-spacing:.1em; }
+  .eco-how-grid{ grid-template-columns:1fr; }
+  .eco-cols{ grid-template-columns:1fr; }
+  .eco-modal-body{ padding:18px 16px 20px; }
+}
+@media (max-width:480px){
+  .eco-stat-grid{ grid-template-columns:1fr; }
+}
+@media (max-width:560px){
+  .eco-modal-footer{ flex-direction:column; align-items:stretch; gap:10px; }
+  .eco-modal-footer-text{ text-align:center; }
+  .eco-dash-cta-btn{ justify-content:center; }
+}
