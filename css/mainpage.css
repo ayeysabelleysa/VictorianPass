@@ -3852,3 +3852,106 @@ html { max-width:100%; overflow-x:hidden; }
   .hero-emblem img{ height:40px; }
   .hero-eco-subtitle{ gap:6px; }
 }
+
+/* =========================================================
+   WHOLE-PAGE MOBILE RESPONSIVE POLISH
+   Refines every section below the hero (About Us, Amenities,
+   How It Works, About the System, pass preview, eco modal,
+   footer) for phones and small tablets.
+   Desktop (>900px) and the nav/hero are NOT retouched here.
+   ========================================================= */
+
+@media (max-width:768px){
+  /* Tighter vertical rhythm for the four content sections */
+  #about-us,
+  #facilities,
+  #how-it-works,
+  #about-system{
+    padding-top:clamp(40px,10vw,56px);
+    padding-bottom:clamp(40px,10vw,56px);
+  }
+
+  /* Section headings stay left-aligned but scale down on small screens */
+  #about-us .section-title,
+  #facilities .section-title,
+  #how-it-works .section-title,
+  #about-system .section-title{
+    font-size:clamp(1.4rem,5.5vw,1.8rem);
+  }
+
+  /* Long words never force the layout past the viewport */
+  #about-us .section-body p,
+  #about-system .section-body > p,
+  .amenity-card .desc,
+  .section-subtitle{
+    overflow-wrap:break-word;
+    word-wrap:break-word;
+  }
+
+  /* Let every grid/flex child shrink instead of overflowing */
+  #about-us .section-body > *,
+  #facilities .amenity-card > *,
+  #how-it-works .steps-list > *,
+  #about-system .about-system-grid > *,
+  #about-system .about-system-grid .about-card *{
+    min-width:0;
+  }
+}
+
+@media (max-width:640px){
+  /* About Us photo + facts spacing */
+  #about-us .section-body{ gap:20px; }
+  .about-facts{ row-gap:14px; }
+
+  /* Amenity cards: smaller gutters so text breathes on phones */
+  #facilities .amenity-card .title{ padding:20px 18px 0; }
+  #facilities .amenity-card .desc{ padding:8px 18px 0; }
+  #facilities .amenity-details{ padding:16px 18px 20px; }
+
+  /* Steps: tighter spacing, number stays prominent but not huge */
+  .steps-list{ gap:16px; }
+  .step-number{ font-size:2.15rem; }
+
+  /* About the System cards: shorter photos */
+  #about-system .about-card img{ height:150px; }
+}
+
+@media (max-width:480px){
+  /* Amenity card internals - compact for small phones */
+  #facilities .amenity-card .title{ padding:18px 16px 0; font-size:1.25rem; }
+  #facilities .amenity-card .desc{ padding:8px 16px 0; }
+  #facilities .amenity-details{ padding:14px 16px 18px; }
+  #facilities .amenity-detail{ gap:8px; }
+  #facilities .amenity-detail-sub{ white-space:normal; }
+  #facilities .amenity-detail-value{ font-size:.9rem; }
+
+  /* Facts list rows */
+  .about-facts .fact-value{ font-size:1.05rem; }
+
+  /* Steps - single column, tighten titles */
+  .step h3{ font-size:1.05rem; }
+
+  /* Sample pass */
+  .pass-card{ width:min(100%,300px); }
+
+  /* EcoPoint modal - compact header + body */
+  .ecopoint-modal .flash-modal{ max-height:94vh; }
+  .eco-modal-header{ padding:12px 14px; gap:10px; }
+  .eco-modal-brand{ gap:10px; }
+  .eco-modal-brand-icon{ width:40px; height:40px; border-radius:12px; }
+  .eco-modal-title{ font-size:1rem; }
+  .eco-modal-subtitle{ font-size:.56rem; letter-spacing:.08em; }
+  .eco-modal-body{ padding:16px 14px 20px; }
+  .eco-modal-footer{ padding:12px 14px; }
+}
+
+@media (max-width:360px){
+  /* Last-resort guard rails for very narrow devices */
+  #facilities .amenity-card .title,
+  #facilities .amenity-card .desc{
+    padding-left:14px;
+    padding-right:14px;
+  }
+  #facilities .amenity-details{ padding-left:14px; padding-right:14px; }
+  .pass-card{ width:min(100%,280px); }
+}
