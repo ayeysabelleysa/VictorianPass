@@ -4271,15 +4271,30 @@ html { max-width:100%; overflow-x:hidden; }
   }
   #ecopointModal .eco-modal-intro{ font-size:.95rem; }
   #ecopointModal .eco-modal-footer{
+    flex-direction:column;
+    align-items:stretch;
+    gap:12px;
     padding:14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
   }
-  #ecopointModal .eco-modal-footer-text{ font-size:.85rem; }
+  #ecopointModal .eco-modal-footer-text{
+    font-size:.85rem;
+    text-align:center;
+  }
   #ecopointModal .eco-dash-cta-btn{
     width:100%;
+    box-sizing:border-box;
+    justify-content:center;
     padding:14px 18px;
     font-size:.95rem;
     border-radius:14px;
   }
+
+  /* Keep single-column grids from expanding past the sheet (min-content) */
+  #ecopointModal .eco-how-grid,
+  #ecopointModal .eco-cols{ grid-template-columns:minmax(0,1fr); }
+  #ecopointModal .eco-panel{ min-width:0; }
+  #ecopointModal .eco-value-bar{ flex-wrap:wrap; gap:6px 10px; }
+  #ecopointModal .eco-value-bar-value{ white-space:normal; }
 
   /* ---------------- Login Required sheet ---------------- */
   #loginModal .vp-login-card{
@@ -4324,3 +4339,164 @@ html { max-width:100%; overflow-x:hidden; }
 /* Lock the page behind an open popup (class toggled on <html> by JS) */
 html.vp-modal-open,
 html.vp-modal-open body{ overflow:hidden; }
+
+/* =========================================================
+   VHECO POINT — navbar pill (green, restored) + hero button UI
+   ========================================================= */
+
+/* 1) Nav pill: back to the green gradient pill (desktop AND the
+   collapsed mobile menu), overriding the gold-outline redesign. */
+.page-nav .nav-ecopoint{
+  background:linear-gradient(135deg, rgba(35,65,46,.96) 0%, rgba(27,48,34,.98) 100%);
+  border:1px solid rgba(242,194,79,.68);
+  color:#f2c24f;
+  box-shadow:0 8px 18px rgba(0,0,0,.28);
+  opacity:1;
+}
+.page-nav .nav-ecopoint:hover{
+  background:linear-gradient(135deg, rgba(50,35,20,.98) 0%, rgba(35,65,46,1) 100%);
+  border-color:rgba(242,194,79,.9);
+  color:#f8e7b0;
+}
+
+/* =========================================================
+   HERO "Now with VHEcoPoint!" BANNER
+   Two-row clickable banner: title + "See description ›" pill on
+   the first row, recycle icon + copy on the second. Sizing,
+   spacing, alignment and responsiveness only (design kept).
+   ========================================================= */
+.hero-eco-subtitle{
+  display:flex;
+  flex-direction:row;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:flex-start;
+  gap:10px;
+  width:100%;
+  max-width:100%;
+  margin:18px auto 0;
+  padding:12px 10px;
+  box-sizing:border-box;
+  border-radius:14px;
+  background:linear-gradient(135deg,#1f6040 0%,#17472e 100%);
+  border:1px solid #2f8a4f;
+  box-shadow:0 10px 24px rgba(6,22,14,.30);
+  color:#fff;
+  text-align:left;
+  cursor:pointer;
+  transition:box-shadow .2s ease, border-color .2s ease;
+  animation:none;
+}
+.hero-eco-subtitle:hover{
+  border-color:#3faa63;
+  box-shadow:0 14px 30px rgba(6,22,14,.42);
+}
+.hero-eco-subtitle:active{ transform:scale(.97); }
+.hero-eco-subtitle:focus-visible{ outline:2px solid #fde68a; outline-offset:2px; }
+
+/* First row — title (left) */
+.hero-eco-subtitle-top{
+  order:1;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  margin:0;
+  padding:0;
+  background:none;
+  border:0;
+}
+.hero-eco-subtitle-main{
+  font-size:14px;
+  font-weight:700;
+  letter-spacing:.01em;
+  line-height:1.2;
+  color:#fde8a0;
+  text-decoration:none;
+}
+
+/* First row — "See description ›" pill (right). Visual label for the
+   banner, which is itself the keyboard-focusable button. */
+.hero-eco-subtitle-hint{
+  order:2;
+  position:relative;
+  margin:0 0 0 auto;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex:none;
+  gap:4px;
+  height:32px;
+  padding:6px 12px;
+  box-sizing:border-box;
+  border-radius:999px;
+  background:rgba(255,255,255,.12);
+  border:1px solid rgba(255,255,255,.4);
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:.02em;
+  line-height:1;
+  color:#fff;
+  text-decoration:none;
+  white-space:nowrap;
+  opacity:1;
+}
+.hero-eco-subtitle-hint::after{
+  content:"\203A";
+  font-size:1.05rem;
+  line-height:1;
+  margin-top:-1px;
+}
+/* Larger invisible tap target (>=44px); does not enlarge the pill */
+.hero-eco-subtitle-hint::before{
+  content:"";
+  position:absolute;
+  inset:-6px -4px;
+}
+.hero-eco-subtitle:hover .hero-eco-subtitle-hint{ background:rgba(255,255,255,.2); }
+
+/* Second row — recycle icon + copy */
+.hero-eco-subtitle-sub{
+  order:3;
+  flex-basis:100%;
+  width:100%;
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  margin:0;
+  font-size:13px;
+  font-weight:600;
+  line-height:1.5;
+  color:#fff;
+  text-align:left;
+  text-wrap:balance;
+}
+.hero-eco-subtitle-icon{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex:none;
+  margin-top:1px;
+  font-size:1rem;
+  line-height:1;
+  color:#bef264;
+}
+
+/* Desktop (768px+): wider centred banner, bigger title/pill, centred copy */
+@media (min-width:768px){
+  .hero-eco-subtitle{
+    max-width:800px;
+    padding:16px 22px;
+    border-radius:16px;
+  }
+  .hero-eco-subtitle-main{ font-size:18px; }
+  .hero-eco-subtitle-hint{
+    height:38px;
+    padding:8px 16px;
+    font-size:14px;
+  }
+  .hero-eco-subtitle-sub{
+    justify-content:center;
+    font-size:17px;
+    text-align:center;
+  }
+}

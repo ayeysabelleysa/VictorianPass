@@ -876,6 +876,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             e.preventDefault();
             openModal();
           });
+          openBtns[i].addEventListener('keydown', function(e){
+            if(e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar'){
+              e.preventDefault();
+              openModal();
+            }
+          });
         }
       }
 
