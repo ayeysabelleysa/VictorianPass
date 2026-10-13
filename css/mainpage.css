@@ -77,6 +77,10 @@ html { scroll-behavior: smooth; }
 .page-nav { display: flex; align-items: center; gap: 18px; }
 .page-nav a { color: #f4f4f4; text-decoration: none; font-weight: 500; opacity: 0.85; transition: transform 0.2s ease, opacity 0.2s ease; }
 .page-nav a:hover { opacity: 1; transform: translateY(-1px); }
+#home,
+#about-us,
+#facilities,
+#about-system { scroll-margin-top: 88px; }
 .page-nav .nav-ecopoint{
   display: inline-flex;
   align-items: center;
@@ -3505,11 +3509,11 @@ html { max-width:100%; overflow-x:hidden; }
     transition:color .2s ease;
   }
   .page-nav a:hover{ color:#fff; }
-  .page-nav a[href="#home"]{
+  .page-nav a.nav-active{
     color:#fff;
     position:relative;
   }
-  .page-nav a[href="#home"]::after{
+  .page-nav a.nav-active::after{
     content:"";
     position:absolute;
     left:0;
@@ -3763,6 +3767,10 @@ html { max-width:100%; overflow-x:hidden; }
 
 /* ---------- Navbar mobile collapse (<= 900px) ---------- */
 @media (max-width:900px){
+  #home,
+  #about-us,
+  #facilities,
+  #about-system { scroll-margin-top: 96px; }
   .navbar{
     height:auto;
     min-height:72px;
@@ -3816,7 +3824,7 @@ html { max-width:100%; overflow-x:hidden; }
     color:#fff;
     font-size:.95rem;
   }
-  .page-nav a[href="#home"]{ border-bottom:2px solid #e2a93b; padding-bottom:12px; }
+  .page-nav a.nav-active{ border-bottom:2px solid #e2a93b; padding-bottom:12px; }
   .page-nav .nav-ecopoint{
     display:flex;
     justify-content:center;

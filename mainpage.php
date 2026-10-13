@@ -285,7 +285,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <button class="hamburger" id="navToggle" aria-label="Menu" aria-expanded="false" aria-controls="navCollapse"><span></span><span></span><span></span></button>
     <div class="nav-collapse" id="navCollapse">
       <nav class="page-nav" id="primaryNav">
-        <a href="#home">Home</a>
+        <a href="#home" class="nav-active" aria-current="location">Home</a>
         <?php if (!$isVisitor): ?>
         <a href="#" class="nav-ecopoint" id="navEcoPointBtn" data-ecopoint-modal-open="true">
           <span class="nav-ecopoint-icon"><?php echo vh_eco_logo('', 'nav-eco-logo'); ?></span>
@@ -803,7 +803,56 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
   <script src="js/logout-modal.js"></script>
   <script>
-    (function(){var t=document.getElementById('navToggle');var c=document.getElementById('navCollapse');if(!t||!c)return;t.addEventListener('click',function(){var o=c.classList.toggle('open');t.classList.toggle('active',o);t.setAttribute('aria-expanded',o?'true':'false');});window.addEventListener('click',function(e){if(!c.contains(e.target)&&!t.contains(e.target)){c.classList.remove('open');t.classList.remove('active');t.setAttribute('aria-expanded','false');}});window.addEventListener('resize',function(){if(window.innerWidth>1080){c.classList.remove('open');t.classList.remove('active');t.setAttribute('aria-expanded','false');}});})();
+    (function(){
+      var toggle = document.getElementById('navToggle');
+      var collapse = document.getElementById('navCollapse');
+      var nav = document.getElementById('primaryNav');
+      if(!toggle || !collapse) return;
+      function setActiveLink(link){
+        if(!nav || !link || link.classList.contains('nav-ecopoint')) return;
+        nav.querySelectorAll('a[href^="#"]:not(.nav-ecopoint)').forEach(function(item){
+          item.classList.remove('nav-active');
+          item.removeAttribute('aria-current');
+        });
+        link.classList.add('nav-active');
+        link.setAttribute('aria-current', 'location');
+      }
+      if(nav){
+        var initialTarget = window.location.hash;
+        var initialLink = initialTarget ? nav.querySelector('a[href="' + initialTarget + '"]') : nav.querySelector('a[href="#home"]');
+        if(initialLink) setActiveLink(initialLink);
+      }
+      function closeMenu(){
+        collapse.classList.remove('open');
+        toggle.classList.remove('active');
+        toggle.setAttribute('aria-expanded', 'false');
+      }
+      toggle.addEventListener('click', function(){
+        var isOpen = collapse.classList.toggle('open');
+        toggle.classList.toggle('active', isOpen);
+        toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      });
+      if(nav){
+        nav.addEventListener('click', function(e){
+          var link = e.target.closest ? e.target.closest('a[href^="#"]') : null;
+          if(!link || link.getAttribute('href') === '#' || link.hasAttribute('data-ecopoint-modal-open')) return;
+          setActiveLink(link);
+          if(document.getElementById(decodeURIComponent(link.hash.slice(1))) && window.innerWidth <= 1080){
+            closeMenu();
+          }
+        });
+        window.addEventListener('hashchange', function(){
+          var targetLink = window.location.hash ? nav.querySelector('a[href="' + window.location.hash + '"]') : nav.querySelector('a[href="#home"]');
+          if(targetLink) setActiveLink(targetLink);
+        });
+      }
+      window.addEventListener('click', function(e){
+        if(!collapse.contains(e.target) && !toggle.contains(e.target)) closeMenu();
+      });
+      window.addEventListener('resize', function(){
+        if(window.innerWidth > 1080) closeMenu();
+      });
+    })();
   </script>
   <script>
     document.addEventListener('DOMContentLoaded', function(){

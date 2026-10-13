@@ -244,6 +244,7 @@ $qrRelPath = '';
 $qrAbsPath = '';
 $qrImg = '';
 $qrImgSrc = '';
+$qrPassImgSrc = '';
 
 if (!$isAccountBlocked) {
     $houseCode = strtoupper(trim((string)($user['house_number'] ?? '')));
@@ -255,12 +256,31 @@ if (!$isAccountBlocked) {
         $qrRelPath = 'uploads/qr_resident_' . intval($user['id'] ?? $userId) . '.png';
     }
     $qrAbsPath = __DIR__ . '/' . $qrRelPath;
-  $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' . urlencode($qrLink);
-  $ctx = @stream_context_create(['http' => ['timeout' => 5]]);
-  $img = @file_get_contents($qrUrl, false, $ctx);
-  if ($img !== false) { @file_put_contents($qrAbsPath, $img); } elseif (!vp_is_local_host() || !file_exists($qrAbsPath) || filesize($qrAbsPath) <= 100) { $qrRelPath = $qrUrl; }
+  $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=520x520&data=' . urlencode($qrLink);
+  $qrImageBytes = '';
+  if (is_file($qrAbsPath) && @filesize($qrAbsPath) > 100) {
+    $cachedQrImageBytes = @file_get_contents($qrAbsPath);
+    if (is_string($cachedQrImageBytes) && strncmp($cachedQrImageBytes, "\x89PNG\r\n\x1a\n", 8) === 0) {
+      $qrImageBytes = $cachedQrImageBytes;
+    }
+  }
+  if ($qrImageBytes === '') {
+    $ctx = @stream_context_create(['http' => ['timeout' => 3]]);
+    $generatedQrImageBytes = @file_get_contents($qrUrl, false, $ctx);
+    if (is_string($generatedQrImageBytes) && strncmp($generatedQrImageBytes, "\x89PNG\r\n\x1a\n", 8) === 0) {
+      $qrImageBytes = $generatedQrImageBytes;
+      @file_put_contents($qrAbsPath, $qrImageBytes);
+    } else {
+      $qrRelPath = $qrUrl;
+    }
+  }
   $qrImgVer = $qrLink !== '' ? substr(sha1($qrLink), 0, 12) . '-' . ((string)(@filemtime($qrAbsPath) ?: '0')) : '';
   $qrImgSrc = $qrImgVer !== '' ? $qrRelPath . (strpos($qrRelPath, '?') !== false ? '&' : '?') . 'v=' . $qrImgVer : $qrRelPath;
+  if (strncmp($qrImageBytes, "\x89PNG\r\n\x1a\n", 8) === 0) {
+    $qrPassImgSrc = 'data:image/png;base64,' . base64_encode($qrImageBytes);
+  } else {
+    $qrPassImgSrc = $qrImgSrc;
+  }
 }
 __pm('qr_setup');
 
@@ -1400,6 +1420,105 @@ body.account-blocked { overflow: hidden; }
 .resident-id-card .badge.disabled { background:#a83b3b; color:#fff; }
 .resident-id-card .foot { padding:10px 16px; color:#aaa; font-size:0.82rem; }
 
+/* Fixed-size export artwork; kept separate from the responsive on-screen preview. */
+#residentPassExport {
+  position:fixed; left:-10000px; top:0; z-index:-1;
+  display:flex; flex-direction:column;
+  width:640px; height:1000px; overflow:hidden;
+  background:#fff; color:#2c3e50;
+  border-radius:16px;
+  box-shadow:0 10px 28px rgba(0,0,0,.12);
+  font-family:'Poppins',system-ui,sans-serif;
+  box-sizing:border-box;
+}
+#residentPassExport * { box-sizing:border-box; }
+#residentPassExport .pass-header {
+  flex:0 0 132px; padding:0 30px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  background:#2a2623; border-bottom:3px solid #c9a227; text-align:center;
+}
+#residentPassExport .pass-brand {
+  display:flex; align-items:center; justify-content:center; gap:14px;
+  color:#fff; font-size:17px; line-height:1.3; font-weight:700; letter-spacing:1.2px;
+  text-transform:uppercase; white-space:nowrap;
+}
+#residentPassExport .pass-brand-divider { width:1px; height:21px; background:#b9afa4; }
+#residentPassExport .pass-location {
+  margin-top:10px; color:#b9afa4; font-size:13px; line-height:1.3;
+  font-weight:500; letter-spacing:2px; text-transform:uppercase;
+}
+#residentPassExport .pass-main {
+  flex:0 0 620px; display:flex; flex-direction:column; align-items:center;
+  padding:20px 40px 0; text-align:center;
+}
+#residentPassExport .pass-label {
+  min-height:28px; padding:5px 14px;
+  border:1px solid #d9dde2; border-radius:16px;
+  color:#4b5663; font-size:11px; line-height:16px;
+  font-weight:600; letter-spacing:1.1px;
+}
+#residentPassExport .pass-qr-frame {
+  width:480px; height:480px; flex:0 0 480px;
+  display:flex; align-items:center; justify-content:center;
+  margin-top:12px; padding:18px;
+  border:1.5px solid #2a2623; border-radius:12px; background:#fff;
+}
+#residentPassExport .pass-qr-frame img {
+  display:block; width:440px; height:440px; object-fit:contain;
+  image-rendering:pixelated; background:#fff;
+}
+#residentPassExport .pass-name {
+  max-width:100%; margin-top:8px; overflow-wrap:anywhere;
+  color:#2c3e50; font-size:20px; line-height:30px; font-weight:700;
+}
+#residentPassExport .pass-house {
+  margin-top:4px; padding:5px 12px;
+  border:1px solid #e3e6ea; border-radius:6px; background:#f4f5f7;
+  color:#4b5663; font-size:13px; line-height:18px; font-weight:600;
+}
+#residentPassExport .pass-divider {
+  position:relative; flex:0 0 24px; margin:0 40px;
+  border-top:1.5px dashed #dde1e6;
+}
+#residentPassExport .pass-divider:before,
+#residentPassExport .pass-divider:after {
+  position:absolute; top:-9px; width:18px; height:18px;
+  border-radius:50%; background:#fff; content:"";
+}
+#residentPassExport .pass-divider:before { left:-49px; }
+#residentPassExport .pass-divider:after { right:-49px; }
+#residentPassExport .pass-uses {
+  flex:0 0 184px; padding:8px 42px;
+  display:flex; flex-direction:column; justify-content:center; gap:10px;
+}
+#residentPassExport .pass-use {
+  min-height:72px; display:flex; align-items:center; gap:14px;
+  padding:10px 12px; border:1px solid transparent; border-radius:10px;
+  text-align:left;
+}
+#residentPassExport .pass-use.ecopoint {
+  min-height:82px; border-color:#cfe5d6; background:#f1f8f3;
+}
+#residentPassExport .pass-icon {
+  width:34px; height:34px; flex:0 0 34px;
+  display:flex; align-items:center; justify-content:center;
+  border-radius:9px; background:#eef0f2; color:#4b5663;
+}
+#residentPassExport .pass-icon svg { width:19px; height:19px; display:block; }
+#residentPassExport .pass-use.ecopoint .pass-icon { background:#dceee1; color:#2f7040; }
+#residentPassExport .pass-use-copy { min-width:0; }
+#residentPassExport .pass-use-title {
+  color:#2c3e50; font-size:13px; line-height:19px; font-weight:700;
+}
+#residentPassExport .pass-use.ecopoint .pass-use-title { color:#1f4d2b; }
+#residentPassExport .pass-use-description {
+  color:#7c8792; font-size:11px; line-height:16px; font-weight:400; white-space:nowrap;
+}
+#residentPassExport .pass-footer {
+  flex:0 0 40px; display:flex; align-items:center; justify-content:center;
+  color:#8b95a1; font-size:12px; line-height:18px; text-align:center;
+}
+
     .report-card {
         background: #fff;
         padding: 30px;
@@ -1654,6 +1773,16 @@ body.qr-modal-open{ overflow:hidden }
 .qr-modal-body{ color:#475569; line-height:1.55; font-size:.93rem; margin:0 0 14px; }
 .qr-modal-body.qr-modal-qr{ display:flex; justify-content:center; margin-bottom:16px; }
 .qr-modal-body.qr-modal-qr img{ width:168px; height:168px; border-radius:12px; background:#ffffff; padding:12px; box-sizing:border-box; object-fit:contain; }
+.qr-download-guidance{
+  margin:14px 0 18px;
+  padding:16px;
+  border:1px solid #e3e6ea;
+  border-radius:10px;
+  background:#f8f9fa;
+  color:#4b5663;
+  font-size:.93rem;
+  line-height:1.55;
+}
 .qr-modal-actions{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
 .qr-modal-note{ margin-top:8px; color:#6b7280; font-size:.9rem; }
 #qrViewCardContainer{
@@ -2421,6 +2550,163 @@ body.qr-modal-open{ overflow:hidden }
     min-height: 38px !important;
     padding: 0 20px !important;
     margin: 0 auto !important;
+  }
+}
+
+/* Resident download-only QR dialogs */
+#qrChoiceModal.qr-modal,
+#qrViewModal.qr-modal {
+  box-sizing: border-box;
+  padding: 16px;
+  background: rgba(10,16,12,.6);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+#qrChoiceModal .qr-modal-content,
+#qrViewModal .qr-modal-content {
+  box-sizing: border-box;
+  width: min(100%, 380px) !important;
+  max-width: 380px !important;
+  max-height: calc(100dvh - 32px) !important;
+  padding: 36px 28px 26px !important;
+  overflow-y: auto;
+  border-radius: 16px;
+  background: #fff;
+  color: #14202b;
+  text-align: center;
+  font-family: 'Poppins', sans-serif;
+  box-shadow: 0 18px 48px rgba(10,16,12,.24);
+  animation: residentQrModalIn .2s ease-out both;
+}
+@keyframes residentQrModalIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+#qrChoiceModal .qr-modal-content .close,
+#qrViewModal .qr-modal-content .close {
+  position: absolute !important;
+  top: 14px !important;
+  right: 14px !important;
+  width: 34px !important;
+  height: 34px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 1px solid #e1e5e9;
+  border-radius: 50%;
+  background: #f1f3f5;
+  color: #354150;
+  cursor: pointer;
+  transform: none !important;
+  transition: background-color .16s ease, color .16s ease;
+}
+#qrChoiceModal .qr-modal-content .close:hover,
+#qrViewModal .qr-modal-content .close:hover {
+  background: #e4e8eb;
+  color: #14202b;
+}
+#qrChoiceModal .qr-modal-content .close svg,
+#qrViewModal .qr-modal-content .close svg {
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+#qrChoiceModal .qr-modal-content .close:focus-visible,
+#qrViewModal .qr-modal-content .close:focus-visible,
+#qrChoiceModal .qr-modal-content .btn-confirm:focus-visible,
+#qrViewModal .qr-modal-content .btn-confirm:focus-visible {
+  outline: 3px solid #74a982;
+  outline-offset: 3px;
+}
+#qrChoiceModal .qr-modal-icon,
+#qrViewModal .qr-modal-icon {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: #e8f5ec;
+  color: #1f4d2b;
+}
+#qrChoiceModal .qr-modal-icon svg,
+#qrViewModal .qr-modal-icon svg { width: 30px; height: 30px; pointer-events: none; }
+#qrChoiceModal .qr-modal-content h3,
+#qrViewModal .qr-modal-content h3 {
+  margin: 0 0 8px !important;
+  color: #14202b;
+  font-family: 'Poppins', sans-serif;
+  font-size: 22px !important;
+  font-weight: 600;
+  line-height: 1.35;
+}
+#qrChoiceModal .qr-modal-description,
+#qrViewModal .qr-modal-description {
+  margin: 0 0 22px;
+  color: #596675;
+  font-family: 'Poppins', sans-serif;
+  font-size: 13px;
+  line-height: 1.6;
+}
+#qrChoiceModal .qr-modal-actions,
+#qrViewModal .qr-modal-actions {
+  display: block;
+  margin: 0;
+}
+#qrChoiceModal .qr-modal-actions .btn-confirm,
+#qrViewModal .qr-modal-actions .btn-confirm {
+  width: 100%;
+  min-height: 48px;
+  margin: 0;
+  padding: 13px 18px !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 0;
+  border-radius: 10px;
+  background: #1f4d2b;
+  color: #fff;
+  font-family: 'Poppins', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background-color .16s ease, transform .16s ease, box-shadow .16s ease;
+}
+#qrChoiceModal .qr-modal-actions .btn-confirm:hover,
+#qrViewModal .qr-modal-actions .btn-confirm:hover {
+  background: #2f6b3d;
+  transform: translateY(-2px);
+  box-shadow: 0 7px 16px rgba(31,77,43,.22);
+}
+#qrChoiceModal .qr-modal-actions .btn-confirm svg,
+#qrViewModal .qr-modal-actions .btn-confirm svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  pointer-events: none;
+}
+#qrChoiceModal .qr-modal-note,
+#qrViewModal .qr-modal-note {
+  margin: 12px 0 0;
+  color: #737f8b;
+  font-family: 'Poppins', sans-serif;
+  font-size: 12px;
+  line-height: 1.45;
+}
+@media (max-width: 480px) {
+  #qrChoiceModal.qr-modal,
+  #qrViewModal.qr-modal { padding: 16px !important; }
+  #qrChoiceModal .qr-modal-content,
+  #qrViewModal .qr-modal-content {
+    width: 100% !important;
+    max-width: 380px !important;
+    max-height: calc(100dvh - 32px) !important;
+    padding: 32px 20px 22px !important;
   }
 }
 </style>
@@ -3571,25 +3857,58 @@ body.modal-open{overflow:hidden}
   <!-- QR Choice Modal -->
   <div id="qrChoiceModal" class="modal qr-modal" style="display:none;">
     <div class="modal-content qr-modal-content" id="qrChoiceModalContent">
-      <button type="button" class="close" aria-label="Close" id="qrChoiceClose">&times;</button>
-      <h3>My QR Code</h3>
-      <div class="qr-modal-body qr-modal-qr"><img src="<?php echo htmlspecialchars($qrImgSrc); ?>" alt="My QR Code"></div>
-      <div class="qr-modal-actions qr-modal-actions-single">
-        <button type="button" class="btn-confirm" id="qrDownloadBtn">Download</button>
+      <button type="button" class="close" aria-label="Close" id="qrChoiceClose">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m7 7 10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+      <div class="qr-modal-icon" aria-hidden="true">
+        <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="4" width="9" height="9" rx="1"/>
+          <rect x="7" y="7" width="3" height="3" rx=".5"/>
+          <rect x="19" y="4" width="9" height="9" rx="1"/>
+          <rect x="22" y="7" width="3" height="3" rx=".5"/>
+          <rect x="4" y="19" width="9" height="9" rx="1"/>
+          <rect x="7" y="22" width="3" height="3" rx=".5"/>
+          <path d="M19 19h3v3h-3zM25 19h3M19 25v3h3M25 24v4h3"/>
+        </svg>
       </div>
+      <h3>My QR Code</h3>
+      <p class="qr-modal-description">Your personal QR for the gate and the VHEcoPoint station. Download it and keep it private.</p>
+      <div class="qr-modal-actions qr-modal-actions-single">
+        <button type="button" class="btn-confirm" id="qrDownloadBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v3h14v-3"/></svg>
+          <span>Download QR</span>
+        </button>
+      </div>
+      <p class="qr-modal-note">Saves as VictorianPass-QR-{HOUSE_NUMBER}.png</p>
     </div>
   </div>
 
   <!-- QR View Modal (full ID card preview) -->
   <div id="qrViewModal" class="modal qr-modal" style="display:none;">
     <div class="modal-content qr-modal-content" id="qrViewModalContent">
-      <button type="button" class="close" aria-label="Close" id="qrViewClose">&times;</button>
-      <h3>My Personal QR ID</h3>
-      <div id="qrViewCardContainer"></div>
-      <div class="qr-modal-note">This is your resident QR ID card, including your personal details and scan-ready code.</div>
-      <div class="qr-modal-actions">
-        <button type="button" class="btn-confirm" id="qrViewDownloadBtn">Download</button>
+      <button type="button" class="close" aria-label="Close" id="qrViewClose">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m7 7 10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+      <div class="qr-modal-icon" aria-hidden="true">
+        <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="4" width="9" height="9" rx="1"/>
+          <rect x="7" y="7" width="3" height="3" rx=".5"/>
+          <rect x="19" y="4" width="9" height="9" rx="1"/>
+          <rect x="22" y="7" width="3" height="3" rx=".5"/>
+          <rect x="4" y="19" width="9" height="9" rx="1"/>
+          <rect x="7" y="22" width="3" height="3" rx=".5"/>
+          <path d="M19 19h3v3h-3zM25 19h3M19 25v3h3M25 24v4h3"/>
+        </svg>
       </div>
+      <h3>My QR Code</h3>
+      <p class="qr-modal-description">Your personal QR for the gate and the VHEcoPoint station. Download it and keep it private.</p>
+      <div class="qr-modal-actions">
+        <button type="button" class="btn-confirm" id="qrViewDownloadBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v3h14v-3"/></svg>
+          <span>Download QR</span>
+        </button>
+      </div>
+      <p class="qr-modal-note">Saves as VictorianPass-QR-{HOUSE_NUMBER}.png</p>
     </div>
   </div>
 
@@ -3627,42 +3946,127 @@ body.modal-open{overflow:hidden}
     </div>
     <?php endif; ?>
 
+    <?php if (!$isAccountBlocked): ?>
+    <div id="residentPassExport" aria-hidden="true">
+      <header class="pass-header">
+        <div class="pass-brand">
+          <span>VICTORIAN PASS</span>
+          <span class="pass-brand-divider"></span>
+          <span>VHEcoPoint</span>
+        </div>
+        <div class="pass-location">Victorian Heights</div>
+      </header>
+      <main class="pass-main">
+        <div class="pass-label">RESIDENT PASS</div>
+        <div class="pass-qr-frame">
+          <img src="<?php echo htmlspecialchars($qrPassImgSrc); ?>" alt="Resident QR code" crossorigin="anonymous">
+        </div>
+        <div class="pass-name"><?php echo htmlspecialchars($fullName); ?></div>
+        <div class="pass-house"><?php echo htmlspecialchars($houseNumber ?: '-'); ?></div>
+      </main>
+      <div class="pass-divider"></div>
+      <section class="pass-uses">
+        <div class="pass-use">
+          <span class="pass-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M13 4h6a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-6"/>
+              <path d="M3 12h11m-4-4 4 4-4 4"/>
+            </svg>
+          </span>
+          <div class="pass-use-copy">
+            <div class="pass-use-title">Gate Entry:</div>
+            <div class="pass-use-description">show to the security guard</div>
+          </div>
+        </div>
+        <div class="pass-use ecopoint">
+          <span class="pass-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 4c-8 0-14 3.5-14 10a6 6 0 0 0 6 6c6.5 0 8-8 8-16Z"/>
+              <path d="M4 21c2.5-5 6-8 11-11"/>
+            </svg>
+          </span>
+          <div class="pass-use-copy">
+            <div class="pass-use-title">VHEcoPoint Station:</div>
+            <div class="pass-use-description">scan after segregating waste to earn points</div>
+          </div>
+        </div>
+      </section>
+      <footer class="pass-footer">Personal pass. Do not share.</footer>
+    </div>
+    <?php endif; ?>
+
     <script>
     var personalQRSrc = <?php echo json_encode($qrImgSrc); ?>;
-    var personalQRDownloadName = 'My_Personal_QR_ID.png';
 
     function downloadPersonalQR(){
       var src = personalQRSrc || '';
       if(!src) return;
 
-      function doDownload(downloadUrl){
-        var link = document.createElement('a');
-        link.href = downloadUrl;
-        link.download = personalQRDownloadName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
-
-      function downloadFromBlob(url){
-        fetch(url)
-          .then(function(response){ return response.blob(); })
-          .then(function(blob){
-            var blobUrl = URL.createObjectURL(blob);
-            doDownload(blobUrl);
-            setTimeout(function(){ URL.revokeObjectURL(blobUrl); }, 1000);
-          })
-          .catch(function(){
-            doDownload(src);
-          });
-      }
-
       function startDownload(){
-        if(src.indexOf('http://') === 0 || src.indexOf('https://') === 0){
-          downloadFromBlob(src);
-        } else {
-          doDownload(src);
+        var card = document.getElementById('residentPassExport');
+        var qrImage = card ? card.querySelector('.pass-qr-frame img') : null;
+        if(!card || !qrImage || typeof window.html2canvas !== 'function'){
+          alert('Could not generate the resident pass image.');
+          return;
         }
+
+        var imageReady;
+        if(qrImage.complete){
+          imageReady = qrImage.naturalWidth > 0
+            ? Promise.resolve()
+            : Promise.reject(new Error('Resident QR image failed to load.'));
+        } else {
+          imageReady = new Promise(function(resolve, reject){
+            qrImage.onload = resolve;
+            qrImage.onerror = function(){ reject(new Error('Resident QR image failed to load.')); };
+          });
+        }
+        var fontsReady = document.fonts && document.fonts.ready
+          ? document.fonts.ready
+          : Promise.resolve();
+
+        Promise.all([imageReady, fontsReady])
+          .then(function(){
+            return window.html2canvas(card, {
+              scale:2,
+              width:640,
+              height:1000,
+              backgroundColor:'#fff',
+              useCORS:true,
+              logging:false,
+              onclone:function(clonedDocument){
+                var clonedCard = clonedDocument.getElementById('residentPassExport');
+                if(clonedCard){
+                  clonedCard.style.position = 'fixed';
+                  clonedCard.style.left = '0';
+                  clonedCard.style.top = '0';
+                  clonedCard.style.zIndex = '999999';
+                }
+              }
+            });
+          })
+          .then(function(canvas){
+            canvas.toBlob(function(blob){
+              if(!blob){
+                alert('Could not generate the resident pass image.');
+                return;
+              }
+              var houseNumber = <?php echo json_encode((string)$houseNumber); ?> || 'ID';
+              houseNumber = houseNumber.replace(/[\\/:*?"<>|]/g, '_');
+              var blobUrl = URL.createObjectURL(blob);
+              var link = document.createElement('a');
+              link.href = blobUrl;
+              link.download = 'VictorianPass-QR-' + houseNumber + '.png';
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              setTimeout(function(){ URL.revokeObjectURL(blobUrl); }, 1000);
+            }, 'image/png');
+          })
+          .catch(function(error){
+            console.error('Could not generate the resident pass image.', error);
+            alert('Could not generate the resident pass image. Please reload the page and try again.');
+          });
       }
 
       if(typeof window.openQRWarning === 'function'){
@@ -4506,34 +4910,9 @@ body.modal-open{overflow:hidden}
     }
   }
   function openQRView(){
-    closeQRChoice();
     var view = document.getElementById('qrViewModal');
-    var container = document.getElementById('qrViewCardContainer');
-    if(!view || !container) return;
-    container.innerHTML = '';
-    var card = document.getElementById('residentCard');
-    if(card){
-      var clone = card.cloneNode(true);
-      clone.removeAttribute('id');
-      var rows = clone.querySelectorAll('.id-body .row');
-      if(rows.length >= 2){
-        var houseNumber = rows[0].querySelector('.value');
-        var addressValue = rows[1].querySelector('.value');
-        var combinedAddress = [
-          houseNumber ? houseNumber.textContent.trim() : '',
-          addressValue ? addressValue.textContent.trim() : ''
-        ].filter(function(value){ return value && value !== '-'; }).join(' ');
-        rows[0].remove();
-        var addressLabel = rows[1].querySelector('.label');
-        if(addressLabel){ addressLabel.textContent = 'Address'; }
-        if(addressValue){ addressValue.textContent = combinedAddress || '-'; }
-      }
-      clone.style.width = '100%';
-      clone.style.maxWidth = '360px';
-      clone.style.display = 'block';
-      clone.style.margin = '0 auto';
-      container.appendChild(clone);
-    }
+    if(!view) return;
+    closeQRChoice();
     view.style.display = 'flex';
     document.body.classList.add('qr-modal-open');
     setQrActive(true);
@@ -4560,6 +4939,13 @@ body.modal-open{overflow:hidden}
   window.addEventListener('click', function(e){
     var qc = document.getElementById('qrChoiceModal'); if(qc && e.target === qc) closeQRChoice();
     var qv = document.getElementById('qrViewModal'); if(qv && e.target === qv) closeQRView();
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key !== 'Escape') return;
+    var qc = document.getElementById('qrChoiceModal');
+    var qv = document.getElementById('qrViewModal');
+    if(qv && qv.style.display !== 'none') closeQRView();
+    else if(qc && qc.style.display !== 'none') closeQRChoice();
   });
   var searchInput=document.getElementById('requestSearch');
     function filterList(){

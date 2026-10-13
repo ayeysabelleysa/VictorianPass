@@ -113,8 +113,8 @@ if ($stmt->execute() && $stmt->affected_rows === 1) {
                 INDEX idx_user_id (user_id),
                 INDEX idx_is_read (is_read)
             ) ENGINE=InnoDB");
-            $title = 'Payment proof updated';
-            $message = "User updated payment proof for reservation {$ref_code}.";
+            $title = 'Payment proof resubmitted';
+            $message = "Resident resubmitted an updated proof of payment for reservation {$ref_code}. Verify it again.";
             $type = 'warning';
             $stmtN = $con->prepare("INSERT INTO notifications (user_id, title, message, type, created_at) VALUES (NULL, ?, ?, ?, NOW())");
             if ($stmtN) {

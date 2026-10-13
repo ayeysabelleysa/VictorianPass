@@ -611,7 +611,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_notifications') {
         'total' => ($payments + $awaiting + $ready + $incidents + $newreqs + $system),
         'requests' => $requests,
         'receipts' => $receipts,
-        'items' => array_slice($items,0,12)
+        'items' => $items
     ]);
     exit;
 }
@@ -863,6 +863,77 @@ function getPendingResidentAccountsCount($con) {
         }
     }
     return 0;
+}
+
+/* Most recent visitor accounts, for the dashboard "Recent Visitors" table.
+   Real rows only - the newest registrations, newest first. */
+function getRecentVisitorAccounts($con, $limit = 6) {
+    $limit = max(1, intval($limit));
+    $rows = array();
+    $q = "SELECT first_name, middle_name, last_name, email, status, created_at
+          FROM users
+          WHERE user_type = 'visitor'
+          ORDER BY created_at DESC
+          LIMIT $limit";
+    if ($r = $con->query($q)) {
+        while ($row = $r->fetch_assoc()) { $rows[] = $row; }
+    }
+    return $rows;
+}
+
+/* A short, live queue for the dashboard "Pending Requests" card. It reuses the
+   same memoised collectors that drive the request tables and the sidebar badges,
+   so the dashboard can never disagree with them. Guest requests are read with
+   their own small query (same pending rule the Guest Request badge uses). */
+function getDashboardPendingItems($con, $limit = 5) {
+    $limit = max(1, intval($limit));
+    $items = array();
+
+    /* Resident amenity requests still needing the admin. */
+    foreach (collectResidentRequestRows($con) as $rr) {
+        if (!in_array($rr['rr_key'], array('to_verify', 'ready', 'payment_rejected'), true)) { continue; }
+        $name = trim((string)($rr['first_name'] ?? '') . ' ' . (string)($rr['last_name'] ?? ''));
+        $amenity = trim((string)($rr['amenity'] ?? ''));
+        $items[] = array(
+            'title' => $amenity !== '' ? $amenity : 'Resident amenity request',
+            'desc'  => ($name !== '' ? $name : 'Resident') . ' · ' . $rr['rr_label'],
+            'url'   => '?page=requests',
+        );
+    }
+
+    /* Visitor amenity requests still needing the admin. */
+    foreach (collectVisitorRequestRows($con) as $vr) {
+        if (!in_array($vr['vr_key'], array('to_verify', 'ready'), true)) { continue; }
+        $name = trim((string)($vr['first_name'] ?? '') . ' ' . (string)($vr['last_name'] ?? ''));
+        $amenity = trim((string)($vr['amenity'] ?? ''));
+        $items[] = array(
+            'title' => $amenity !== '' ? $amenity : 'Visitor amenity request',
+            'desc'  => ($name !== '' ? $name : 'Visitor') . ' · ' . $vr['vr_label'],
+            'url'   => '?page=visitor_requests',
+        );
+    }
+
+    /* Resident guest requests still waiting on the admin. */
+    try {
+        $gq = "SELECT gf.visitor_first_name, gf.visitor_last_name, gf.amenity
+               FROM guest_forms gf
+               WHERE (gf.approval_status IS NULL OR TRIM(LOWER(gf.approval_status)) IN ('', 'pending'))
+               ORDER BY gf.created_at DESC
+               LIMIT $limit";
+        if ($gr = $con->query($gq)) {
+            while ($gf = $gr->fetch_assoc()) {
+                $guestName = trim((string)($gf['visitor_first_name'] ?? '') . ' ' . (string)($gf['visitor_last_name'] ?? ''));
+                $amenity = trim((string)($gf['amenity'] ?? ''));
+                $items[] = array(
+                    'title' => $amenity !== '' ? $amenity : 'Guest visit request',
+                    'desc'  => ($guestName !== '' ? $guestName : 'Guest') . ' · Guest request',
+                    'url'   => '?page=resident_guest_forms',
+                );
+            }
+        }
+    } catch (Throwable $e) { /* leave guest requests out rather than fatal */ }
+
+    return array_slice($items, 0, $limit);
 }
 
 function getPaymentReceiptsCount($con) {
@@ -1690,8 +1761,8 @@ function getResidentOnlyReservations($con) {
               LEFT JOIN guest_forms gf ON gf.ref_code = r.ref_code AND gf.resident_user_id IS NOT NULL
               WHERE (r.entry_pass_id IS NULL OR r.entry_pass_id = 0) AND r.amenity IS NOT NULL AND u.user_type = 'resident'
               AND (r.booking_for IS NULL OR r.booking_for = 'resident')
-              AND (r.approval_status IS NULL OR (r.approval_status != 'cancelled' AND r.approval_status != 'completed' AND r.approval_status != 'expired' AND r.approval_status != 'permission_granted' AND r.approval_status != 'moved_to_history' AND r.approval_status != 'denied')) 
-              AND (r.status IS NULL OR (r.status != 'cancelled' AND r.status != 'completed' AND r.status != 'expired' AND r.status != 'permission_granted' AND r.status != 'moved_to_history' AND r.status != 'denied'))
+              AND (r.approval_status IS NULL OR (r.approval_status NOT IN ('cancelled','completed','expired','permission_granted','moved_to_history') AND (r.approval_status != 'denied' OR r.payment_status = 'rejected')))
+              AND (r.status IS NULL OR (r.status NOT IN ('cancelled','completed','expired','permission_granted','moved_to_history') AND (r.status != 'denied' OR r.payment_status = 'rejected')))
               ORDER BY r.created_at DESC";
     $result = $con->query($query);
     return $result ?: false;
@@ -1806,17 +1877,22 @@ function collectResidentRequestRows($con) {
             if ($stmtGrant) { $stmtGrant->bind_param('i', $rr['id']); $stmtGrant->execute(); $stmtGrant->close(); }
             continue;
         }
-        /* Third rejected receipt: auto-denied, so it leaves this list too. */
+        /* A third rejected receipt is denied and remains visible in Rejected. */
         if ($payStatusLower === 'rejected' && $attempts >= 3 && $approvalLower !== 'denied') {
             $stmtAuto = $con->prepare("UPDATE reservations SET approval_status='denied' WHERE id=?");
             if ($stmtAuto) { $stmtAuto->bind_param('i', $rr['id']); $stmtAuto->execute(); $stmtAuto->close(); }
-            continue;
+            $approvalLower = 'denied';
         }
 
         /* The downpayment receipt is the only thing verified at this step, so a
-           request is either waiting on that check or already past it. */
-        if ($payStatusLower === 'rejected' || $approvalLower === 'denied' || $approvalLower === 'cancelled') {
+           request is either waiting on that check or already past it. A receipt
+           the admin rejected is its own state ("Payment rejected") only while the
+           resident can still resubmit; once it is denied/cancelled it remains in
+           the list under the Rejected filter. */
+        if (in_array($approvalLower, array('denied', 'cancelled'), true) || in_array($statusLower, array('denied', 'cancelled'), true)) {
             $key = 'rejected';
+        } elseif ($payStatusLower === 'rejected') {
+            $key = 'payment_rejected';
         } elseif ($approvalLower === 'approved' || $statusLower === 'approved') {
             $key = 'approved';
         } elseif ($payStatusLower === 'verified') {
@@ -1827,13 +1903,17 @@ function collectResidentRequestRows($con) {
 
         $rr['rr_key'] = $key;
         $rr['rr_label'] = residentRequestStatusLabel($key);
+        /* The resident uploaded a fresh proof of payment after it was rejected:
+           the row keeps needing action, but the admin should be able to tell that
+           this is a resubmission rather than a first-time submission. */
+        $rr['rr_resubmitted'] = ($payStatusLower === 'pending_update');
         $rr['rr_created'] = strtotime((string)($rr['created_at'] ?? '')) ?: 0;
         $rows[] = $rr;
     }
 
     /* Action first: To verify, then Ready to approve, then the rest.
        Newest first inside each group. */
-    $order = array('to_verify' => 0, 'ready' => 1, 'approved' => 2, 'rejected' => 3);
+    $order = array('to_verify' => 0, 'ready' => 1, 'approved' => 2, 'payment_rejected' => 3, 'rejected' => 4);
     usort($rows, function ($a, $b) use ($order) {
         $sa = $order[$a['rr_key']];
         $sb = $order[$b['rr_key']];
@@ -1845,10 +1925,11 @@ function collectResidentRequestRows($con) {
 
 function residentRequestStatusLabel($key) {
     $labels = array(
-        'to_verify' => 'To verify',
-        'ready'     => 'Ready to approve',
-        'approved'  => 'Approved',
-        'rejected'  => 'Rejected',
+        'to_verify'        => 'To verify',
+        'ready'            => 'Ready to approve',
+        'approved'         => 'Approved',
+        'payment_rejected' => 'Awaiting resubmission',
+        'rejected'         => 'Rejected',
     );
     return $labels[$key] ?? $key;
 }
@@ -2475,6 +2556,52 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $denialReason = substr($denialReason, 0, 1000);
         } else {
             $denialReason = null;
+        }
+
+        if ($action === 'deny_awaiting_receipt') {
+            $reservationId = intval($_POST['reservation_id'] ?? 0);
+            $staffId = $_SESSION['staff_id'] ?? null;
+            $redirectPage = preg_replace('/[^a-z_]/', '', $_POST['redirect_page'] ?? 'requests');
+
+            if ($reservationId > 0 && $denialReason !== null) {
+                $stmtDeny = $con->prepare("UPDATE reservations
+                    SET approval_status = 'denied', approved_by = ?, approval_date = NOW(), denial_reason = ?
+                    WHERE id = ? AND payment_status = 'rejected'
+                      AND (approval_status IS NULL OR approval_status = 'pending')
+                      AND (status IS NULL OR status NOT IN ('cancelled', 'deleted', 'moved_to_history'))");
+                if ($stmtDeny) {
+                    $stmtDeny->bind_param('isi', $staffId, $denialReason, $reservationId);
+                    $stmtDeny->execute();
+                    $denied = $stmtDeny->affected_rows > 0;
+                    $stmtDeny->close();
+
+                    if ($denied) {
+                        $stmtInfo = $con->prepare("SELECT user_id, ref_code, amenity FROM reservations WHERE id = ? LIMIT 1");
+                        if ($stmtInfo) {
+                            $stmtInfo->bind_param('i', $reservationId);
+                            $stmtInfo->execute();
+                            $resInfo = $stmtInfo->get_result();
+                            if ($resInfo && ($reservation = $resInfo->fetch_assoc())) {
+                                $userId = intval($reservation['user_id'] ?? 0);
+                                if ($userId > 0) {
+                                    $message = 'Your reservation was denied because a replacement receipt was not submitted. Reason: ' . $denialReason;
+                                    if (!empty($reservation['ref_code'])) { $message .= ' Code: ' . $reservation['ref_code'] . '.'; }
+                                    if (!empty($reservation['amenity'])) { $message .= ' Amenity: ' . $reservation['amenity'] . '.'; }
+                                    notifyUser($con, $userId, 'Reservation Denied', $message, 'error');
+                                }
+                            }
+                            $stmtInfo->close();
+                        }
+                    } else {
+                        $_SESSION['flash_notice'] = 'This request is no longer awaiting a replacement receipt. Nothing was changed.';
+                    }
+                } else {
+                    $_SESSION['flash_notice'] = 'Could not deny the request. Please try again.';
+                }
+            }
+
+            header('Location: admin.php?page=' . ($redirectPage ?: 'requests'));
+            exit;
         }
         
         // Handle visitor request approval/denial (guest_forms first)
@@ -5251,6 +5378,26 @@ table.table-rr tbody tr.rr-empty:hover { background: transparent; }
 .rr-pill-ready { background: var(--primary); color: #fff; }
 .rr-pill-approved { background: #dcfce7; color: #166534; }
 .rr-pill-rejected { background: #fee2e2; color: #991b1b; }
+.rr-pill-payment_rejected { background: #ffedd5; color: #9a3412; }
+.rr-resubmit-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: 6px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    border: 1px solid #c7b3f5;
+    background: #f3ecff;
+    color: #6d28d9;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 600;
+    line-height: 1.3;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+.rr-resubmit-badge i { font-size: 0.66rem; }
+table.table-rr tr.rr-row-resubmitted td:first-child { box-shadow: inset 3px 0 0 #7c3aed; }
 
 /* Actions: one horizontal row, equal buttons, no shadows */
 table.table-rr td.actions {
@@ -6850,6 +6997,7 @@ table.table-gq td.actions a.btn { height: 34px; min-height: 34px; }
 #reservationModal .rrd-pill.k-to_verify { background: #fef3c7; color: #92400e; }
 #reservationModal .rrd-pill.k-ready     { background: var(--primary); color: #fff; }
 #reservationModal .rrd-pill.k-approved  { background: #dcfce7; color: #166534; }
+#reservationModal .rrd-pill.k-payment_rejected { background: #ffedd5; color: #9a3412; }
 #reservationModal .rrd-pill.k-rejected  { background: #fee2e2; color: #991b1b; }
 
 /* --- Two-step progress row --- */
@@ -7514,75 +7662,250 @@ body.modal-open { overflow: hidden; }
 .modal-content table{ width: 100%; border-collapse: collapse; }
 .modal-content td{ padding: 6px 0; }
 
-.modal .notif-item {
-    padding: 14px 16px;
-    border-bottom: 1px solid var(--border-light);
-    display: flex;
-    align-items: flex-start;
-    gap: 14px;
-    position: relative;
-    transition: var(--transition);
-}
-.modal .notif-item:hover { background-color: var(--bg-body); }
-.modal .notif-item:last-child { border-bottom: none; }
-
-.modal .notif-item-link {
-    flex: 1;
-    display: flex;
-    gap: 14px;
-    text-decoration: none;
-    color: inherit;
-    align-items: flex-start;
-    min-width: 0;
+/* ==========================================================================
+   Notifications modal (revised)
+   Scoped to #notifModal. The dropdown .notif-panel rules are untouched.
+   ========================================================================== */
+#notifModal { padding: 20px; }
+#notifModal .notif-modal-content {
+    width: min(96vw, 560px);
+    max-height: calc(100vh - 40px);
+    padding: 0;
+    border-radius: 16px;
+    gap: 0;
+    overflow: hidden;
 }
 
-.modal .notif-type {
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-transform: none;
-    background: var(--primary-light);
-    color: var(--primary);
-    padding: 6px 8px;
-    border-radius: 8px;
-    height: auto;
-    white-space: normal;
-    width: 120px;
-    min-height: 36px;
-    text-align: center;
-    line-height: 1.2;
-    word-break: break-word;
-    margin-top: 1px;
+/* Header */
+#notifModal .notif-head {
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 18px 14px;
+    border-bottom: 1px solid var(--border-light);
+}
+#notifModal .notif-head-title {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+#notifModal .notif-head-actions { display: flex; align-items: center; gap: 6px; }
+#notifModal .notif-markall {
+    background: none;
+    border: 0;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: .82rem;
+    font-weight: 600;
+    color: var(--info);
+    padding: 6px 8px;
+    border-radius: 8px;
+    transition: var(--transition);
+}
+#notifModal .notif-markall:hover { background: var(--info-bg); }
+#notifModal .notif-close { position: static; top: auto; right: auto; flex: 0 0 auto; }
+
+/* Tabs */
+#notifModal .notif-tabs {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 12px 0;
+    border-bottom: 1px solid var(--border-light);
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+#notifModal .notif-tabs::-webkit-scrollbar { display: none; }
+#notifModal .notif-tab {
+    position: relative;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    font-family: inherit;
+    font-size: .84rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    padding: 10px 10px 9px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: var(--transition);
+}
+#notifModal .notif-tab:hover { color: var(--text-main); }
+#notifModal .notif-tab.is-active {
+    font-weight: 700;
+    color: var(--text-main);
+    border-bottom-color: var(--accent);
+}
+#notifModal .notif-tab-count {
+    display: inline-flex;
+    align-items: center;
     justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    font-size: .68rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    background: var(--bg-body);
+    border: 1px solid var(--border);
+}
+#notifModal .notif-tab.is-active .notif-tab-count { background: var(--primary-light); color: var(--primary); border-color: transparent; }
+
+/* Scroll area + divider polish */
+#notifModal .notif-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+#notifModal .notif-scroll::-webkit-scrollbar { width: 8px; }
+#notifModal .notif-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+#notifModal .notif-scroll::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* Sticky date groups */
+#notifModal .notif-group-label {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding: 10px 18px 6px;
+    background: var(--bg-surface);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
 }
 
-.modal .notif-meta {
+/* Rows */
+#notifModal .notif-row {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid var(--border-light);
+    transition: var(--transition);
+}
+#notifModal .notif-row:last-child { border-bottom: 0; }
+#notifModal .notif-row:hover { background: var(--bg-body); }
+#notifModal .notif-row.is-unread { background: var(--info-bg); }
+#notifModal .notif-dot {
+    flex: 0 0 auto;
+    align-self: center;
+    width: 8px;
+    height: 8px;
+    margin-left: 10px;
+    border-radius: 50%;
+    background: transparent;
+}
+#notifModal .notif-row.is-unread .notif-dot { background: var(--info); }
+#notifModal .notif-row-link {
     flex: 1;
-    font-size: 0.9rem;
-    line-height: 1.45;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 24px 28px 24px 16px;
+    text-decoration: none;
+    color: inherit;
     min-width: 0;
+}
+#notifModal .notif-ico {
+    flex: 0 0 40px;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+}
+#notifModal .notif-ico.cat-system    { background: #eef1f4; color: #64748b; }
+#notifModal .notif-ico.cat-resident  { background: var(--primary-light); color: var(--primary); }
+#notifModal .notif-ico.cat-guest     { background: var(--info-bg); color: var(--info); }
+#notifModal .notif-ico.cat-cancelled { background: var(--danger-bg); color: var(--danger); }
+#notifModal .notif-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+#notifModal .notif-row-title {
+    font-size: .9rem;
+    font-weight: 600;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    hyphens: none;
+}
+#notifModal .notif-row-detail { font-size: .79rem; color: var(--text-muted); }
+#notifModal .notif-code {
+    align-self: flex-start;
+    margin-top: 2px;
+    font-size: .7rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--bg-body);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1px 7px;
+}
+#notifModal .notif-row-time {
+    flex: 0 0 auto;
+    align-self: center;
+    font-size: .77rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+/* Empty state */
+#notifModal .notif-empty {
+    padding: 40px 18px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: .88rem;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    align-items: center;
+    gap: 10px;
 }
-.modal .notif-meta strong { color: var(--text-main); display: block; margin-bottom: 0; font-size: 0.92rem; }
-.modal .notif-meta div { color: var(--text-secondary); font-size: 0.84rem; word-break: break-word; }
+#notifModal .notif-empty i { font-size: 1.9rem; color: var(--success); }
 
-.modal .notif-dismiss {
-    background: transparent;
-    border: none;
-    color: var(--text-muted);
-    font-size: 0.78rem;
-    cursor: pointer;
-    padding: 6px 10px;
-    opacity: 0;
-    transition: var(--transition);
-    align-self: flex-start;
-    position: static;
+/* The shared `.modal-content > div` rule forces flex:1 + overflow-y:auto on every
+   direct child. Undo it for the header and tabs so they stay fixed height and
+   show no stray scrollbar; only the message list scrolls. */
+#notifModal .notif-head,
+#notifModal .notif-tabs {
+    flex: 0 0 auto;
+    overflow: visible;
+    padding-right: 0;
 }
-.modal .notif-item:hover .notif-dismiss { opacity: 1; }
-.modal .notif-dismiss:hover { color: var(--danger); text-decoration: underline; }
+#notifModal .notif-head { padding: 16px 26px 14px; }
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+    #notifModal .notif-ico.cat-system { background: #2a2f36; color: #9aa7b4; }
+    #notifModal .notif-row.is-unread { background: rgba(41, 128, 185, .16); }
+    #notifModal .notif-row:hover { background: rgba(255, 255, 255, .05); }
+}
+
+/* Full width on mobile */
+@media (max-width: 560px) {
+    #notifModal { padding: 0; }
+    #notifModal .notif-modal-content {
+        width: 100vw;
+        max-width: 100vw;
+        height: 100vh;
+        max-height: 100vh;
+        border-radius: 0;
+        border: 0;
+    }
+}
 
 /* Action Buttons */
 .btn-approve, .btn-success { background: var(--success); color: #fff; }
@@ -8142,6 +8465,299 @@ body.modal-open { overflow: hidden; }
     }
 }
 .notif-badge { font-family: 'Poppins', sans-serif; }
+/* ==========================================================================
+   DASHBOARD - Community Overview (modern admin redesign)
+   Only the dashboard uses these classes, so the Summary Report and the rest of
+   the panel keep the existing .panel / .dashboard-grid styles untouched.
+   ========================================================================== */
+:root {
+    /* Neutral base (same surfaces/borders/text as every other admin page) */
+    --dash-radius: 14px;
+    --dash-gap: 18px;
+    --dash-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 8px 24px rgba(16, 24, 40, .06);
+    --dash-shadow-hover: 0 12px 28px rgba(16, 24, 40, .14);
+    /* VictorianPass accents: dark forest green + gold */
+    --dash-banner-bg: linear-gradient(120deg, #1f3a29 0%, #23412e 58%, #33553c 100%);
+    --dash-gold-strong: #a9821a;
+    --dash-gold-soft: rgba(212, 175, 55, .16);
+}
+
+/* Header banner ----------------------------------------------------------- */
+.dash-banner {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin: 18px 30px 22px;
+    padding: 22px 26px;
+    border-radius: var(--dash-radius);
+    background: var(--dash-banner-bg);
+    color: #fff;
+    box-shadow: var(--dash-shadow);
+    overflow: hidden;
+}
+.dash-banner::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 90% 0%, rgba(212, 175, 55, .32), transparent 55%);
+    pointer-events: none;
+}
+.dash-banner-text { position: relative; z-index: 1; min-width: 0; }
+.dash-banner-text h1 {
+    margin: 0 0 6px;
+    font-size: 28px;
+    line-height: 1.15;
+    font-weight: 700;
+    letter-spacing: .2px;
+    color: #fff;
+}
+.dash-banner-text p {
+    margin: 0;
+    font-size: .88rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, .82);
+}
+.dash-banner-dot { opacity: .6; margin: 0 8px; }
+.dash-banner-actions { position: relative; z-index: 1; display: flex; gap: 12px; flex-wrap: wrap; }
+
+.btn-dash {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 11px 18px;
+    border-radius: 11px;
+    font-size: .86rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: var(--transition);
+}
+.btn-dash i { font-size: .95rem; }
+.btn-dash-primary { background: var(--primary); color: #fff; }
+.btn-dash-primary:hover { background: var(--primary-dark); transform: translateY(-1px); box-shadow: 0 8px 18px rgba(35, 65, 46, .35); }
+.btn-dash-gold { background: rgba(212, 175, 55, .14); border-color: rgba(212, 175, 55, .8); color: #fff; }
+.btn-dash-gold:hover { background: rgba(212, 175, 55, .3); transform: translateY(-1px); }
+
+/* KPI cards --------------------------------------------------------------- */
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: var(--dash-gap);
+    margin: 0 30px 22px;
+}
+.stat-card {
+    position: relative;
+    display: block;
+    padding: 20px 22px 18px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--dash-radius);
+    box-shadow: var(--dash-shadow);
+    overflow: hidden;
+    color: var(--text-main);
+    transition: var(--transition);
+}
+.stat-card::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 4px;
+    background: var(--primary);
+}
+.stat-card.is-primary::before,
+.stat-card.is-success::before { background: var(--primary); }
+.stat-card.is-gold::before,
+.stat-card.is-danger::before  { background: var(--accent); }
+a.stat-card:hover { transform: translateY(-3px); box-shadow: var(--dash-shadow-hover); }
+.stat-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.stat-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    border-radius: 13px;
+    font-size: 1.15rem;
+    background: var(--bg-body);
+    color: var(--text-secondary);
+}
+.stat-card.is-primary .stat-icon,
+.stat-card.is-success .stat-icon { background: var(--primary-light); color: var(--primary); }
+.stat-card.is-gold .stat-icon,
+.stat-card.is-danger .stat-icon { background: var(--dash-gold-soft); color: var(--dash-gold-strong); }
+.stat-value { font-size: 2rem; font-weight: 700; line-height: 1; letter-spacing: -.5px; color: var(--text-main); }
+.stat-label { margin-top: 8px; font-size: .92rem; font-weight: 600; color: var(--text-main); }
+.stat-sub { margin-top: 3px; font-size: .78rem; font-weight: 500; color: var(--text-muted); }
+
+/* Two-column body --------------------------------------------------------- */
+.dash-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    gap: var(--dash-gap);
+    margin: 0 30px 26px;
+    align-items: start;
+}
+.dash-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--dash-radius);
+    box-shadow: var(--dash-shadow);
+    overflow: hidden;
+}
+.dash-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--border-light);
+}
+.dash-card-head h2 { margin: 0; font-size: 1.02rem; font-weight: 700; color: var(--text-main); }
+.dash-count {
+    font-size: .74rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    background: var(--bg-body);
+    border: 1px solid var(--border);
+    padding: 3px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+.dash-body-pad { padding: 10px 22px 18px; }
+
+/* Recent visitors table */
+.dash-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.dash-table { width: 100%; min-width: 420px; border-collapse: collapse; }
+.dash-table th,
+.dash-table td { text-align: left; padding: 12px 6px; font-size: .84rem; }
+.dash-table th {
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-secondary);
+    background: #f9fafb;
+    border-bottom: 1px solid var(--border-light);
+}
+.dash-table td { border-bottom: 1px solid var(--border-light); color: var(--text-main); }
+.dash-table tbody tr:last-child td { border-bottom: 0; }
+.dash-table tbody tr:hover td { background: #f9fafb; }
+.dash-table th:first-child, .dash-table td:first-child { padding-left: 22px; }
+.dash-table th:last-child, .dash-table td:last-child { padding-right: 22px; }
+.dash-person { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.dash-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-size: .78rem;
+    font-weight: 700;
+    background: var(--primary-light);
+    color: var(--primary);
+}
+.dash-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: .74rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
+}
+.dash-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.dash-status.is-active { background: var(--primary-light); color: var(--primary); }
+.dash-status.is-inactive { background: var(--danger-bg); color: var(--danger); }
+
+/* Pending requests list */
+.dash-pending-list { display: flex; flex-direction: column; }
+.dash-pending-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 15px 0;
+    border-bottom: 1px solid var(--border-light);
+}
+.dash-pending-item:last-child { border-bottom: 0; }
+.dash-pending-main { min-width: 0; }
+.dash-pending-title { font-size: .9rem; font-weight: 600; color: var(--text-main); }
+.dash-pending-desc { margin-top: 2px; font-size: .78rem; color: var(--text-muted); }
+.dash-review {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: .8rem;
+    font-weight: 700;
+    color: var(--primary);
+    background: var(--primary-light);
+    transition: var(--transition);
+}
+.dash-review:hover { background: var(--primary); color: #fff; }
+.dash-empty { padding: 34px 18px; text-align: center; color: var(--text-muted); font-size: .84rem; }
+.dash-empty i { display: block; margin-bottom: 10px; font-size: 1.8rem; color: var(--primary); }
+.dash-empty strong { display: block; margin-bottom: 3px; font-weight: 600; color: var(--text-secondary); }
+.dash-pending-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 16px 22px 20px;
+    border-top: 1px solid var(--border-light);
+}
+.btn-outline-dash {
+    flex: 1 1 130px;
+    text-align: center;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    font-size: .8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: transparent;
+    transition: var(--transition);
+}
+.btn-outline-dash:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .dash-banner, .stat-grid, .dash-columns { margin-left: 20px; margin-right: 20px; }
+}
+@media (max-width: 900px) {
+    .dash-columns { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+    .dash-banner, .stat-grid, .dash-columns { margin-left: 14px; margin-right: 14px; }
+    .dash-banner { padding: 18px; }
+    .dash-banner-text h1 { font-size: 24px; }
+    .dash-banner-actions { width: 100%; }
+    .btn-dash { flex: 1 1 auto; justify-content: center; }
+    .stat-grid { grid-template-columns: repeat(2, 1fr); }
+    .stat-value { font-size: 1.7rem; }
+}
+@media (max-width: 480px) {
+    .stat-grid { grid-template-columns: 1fr; }
+}
+
+/* Sidebar collapses behind the hamburger below 760px */
+@media (max-width: 760px) {
+    .sidebar { max-height: 60px; }
+    .sidebar.sidebar-open { max-height: 100vh; overflow-y: auto; }
+    .sidebar:not(.sidebar-open) .nav-list,
+    .sidebar:not(.sidebar-open) .system-switcher-header,
+    .sidebar:not(.sidebar-open) .sidebar-footer { display: none; }
+    .sidebar.sidebar-open .nav-list { flex-direction: column; padding: 10px 14px 14px; }
+    .sidebar.sidebar-open .nav-item { white-space: normal; border-radius: 10px; }
+}
 </style>
 </head>
 <body>
@@ -8313,20 +8929,24 @@ body.modal-open { overflow: hidden; }
             <?php if($notifTotal>0){ $badgeText = ($notifTotal>99) ? '99+' : (string)intval($notifTotal); echo "<span class='notif-badge'>".$badgeText."</span>"; } ?>
           </button>
           <div id="notifPanel" class="notif-panel" style="display:none"></div>
-          <div id="notifModal" class="modal">
-            <div class="modal-content">
-              <button type="button" class="close" id="notifModalClose" aria-label="Close">×</button>
-              <h3>Notifications</h3>
-             <!--<div class="tabs">
-                <button class="tab-btn active" data-tab="req">Requests</button>
-                <button class="tab-btn" data-tab="rec">Payment Receipts</button>
-              </div> -->
-              <div id="tabReq" class="tab-body">
-                <div id="notifRequestsList"></div>
+          <div id="notifModal" class="modal notif-modal">
+            <div class="modal-content notif-modal-content">
+              <div class="notif-head">
+                <h3 class="notif-head-title">Notifications</h3>
+                <div class="notif-head-actions">
+                  <button type="button" class="notif-markall" id="notifMarkAll">Mark all as read</button>
+                  <button type="button" class="close notif-close" id="notifModalClose" aria-label="Close">&times;</button>
+                </div>
               </div>
-              <div id="tabRec" class="tab-body" style="display:none">
-                <div id="notifReceiptsList"></div>
+              <div class="notif-tabs" id="notifTabs">
+                <button type="button" class="notif-tab is-active" data-notif-tab="all">All <span class="notif-tab-count" data-count="all">0</span></button>
+                <button type="button" class="notif-tab" data-notif-tab="unread">Unread <span class="notif-tab-count" data-count="unread">0</span></button>
+                <button type="button" class="notif-tab" data-notif-tab="resident">Resident <span class="notif-tab-count" data-count="resident">0</span></button>
+                <button type="button" class="notif-tab" data-notif-tab="guest">Guest <span class="notif-tab-count" data-count="guest">0</span></button>
+                <button type="button" class="notif-tab" data-notif-tab="system">System <span class="notif-tab-count" data-count="system">0</span></button>
               </div>
+              <div class="notif-scroll" id="notifRequestsList"></div>
+              <div id="notifReceiptsList" hidden></div>
             </div>
           </div>
         </div>
@@ -8439,11 +9059,82 @@ body.modal-open { overflow: hidden; }
           const p=document.getElementById('notifPanel');
           const m=document.getElementById('notifModal');
           const mc=document.getElementById('notifModalClose');
-          if(t&&m){ t.addEventListener('click',function(){ m.style.display = (m.style.display==='flex') ? 'none' : 'flex'; }); }
+          if(t&&m){ t.addEventListener('click',function(){ m.style.display = (m.style.display==='flex') ? 'none' : 'flex'; if(m.style.display==='flex' && typeof pollNotifications==='function'){ pollNotifications(); } }); }
           if(mc&&m){ mc.addEventListener('click',function(){ m.style.display='none'; }); }
           document.addEventListener('click',function(e){ if(m && e.target===m){ m.style.display='none'; } });
           var lastTotal = null;
           var dismissed = new Set();
+          /* --- Notifications modal: read state, tabs and date grouping --- */
+          var notifRead = new Set();
+          var notifTab = 'all';
+          var notifLastData = null;
+          var notifGroupDefs = [['today','Today'],['yesterday','Yesterday'],['earlier','Earlier']];
+          function notifEsc(s){ return String(s==null?'':s).replace(/[<>]/g,''); }
+          function notifCat(it){
+            var type=String(it&&it.type||'').toLowerCase();
+            var src=String(it&&it.source||'').toLowerCase();
+            var title=String(it&&it.title||'').toLowerCase();
+            if(type==='resident_guest') return 'guest';
+            if(type==='incident') return 'system';
+            if(type==='notification'){ return (title.indexOf('cancel')>=0)?'cancelled':'system'; }
+            if(type==='request'){ return (src.indexOf('visitor')>=0)?'guest':'resident'; }
+            if(type==='payment') return 'resident';
+            return 'system';
+          }
+          function notifTabOf(it){ var c=notifCat(it); return (c==='cancelled')?'system':c; }
+          function notifIconFor(cat){
+            if(cat==='resident') return 'fa-house-user';
+            if(cat==='guest') return 'fa-user-group';
+            if(cat==='cancelled') return 'fa-ban';
+            return 'fa-gear';
+          }
+          function notifEpoch(it){
+            var e=parseInt(it&&it.epoch,10);
+            if(!isNaN(e) && e>0) return e;
+            var d=new Date((it&&it.time)||''); return isNaN(d.getTime())?0:Math.floor(d.getTime()/1000);
+          }
+          function notifGroupOf(ep){
+            if(!ep) return 'earlier';
+            var d=new Date(ep*1000), now=new Date();
+            var startToday=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+            var startYest=new Date(startToday.getTime()-86400000);
+            if(d>=startToday) return 'today';
+            if(d>=startYest) return 'yesterday';
+            return 'earlier';
+          }
+          function notifTimeShort(ep){
+            if(!ep) return '';
+            var d=new Date(ep*1000); if(isNaN(d.getTime())) return '';
+            var now=new Date();
+            var startToday=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+            var h=d.getHours(), mi=String(d.getMinutes()).padStart(2,'0'), ap=h>=12?'PM':'AM';
+            h=h%12; if(h===0) h=12;
+            if(d>=startToday) return h+':'+mi+' '+ap;
+            var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            return months[d.getMonth()]+' '+d.getDate();
+          }
+          function notifTimeFull(ep){
+            if(!ep) return '';
+            var d=new Date(ep*1000); if(isNaN(d.getTime())) return '';
+            var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            var h=d.getHours(), mi=String(d.getMinutes()).padStart(2,'0'), ap=h>=12?'PM':'AM';
+            h=h%12; if(h===0) h=12;
+            return months[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear()+' · '+h+':'+mi+' '+ap;
+          }
+          function notifUpdateCounts(items){
+            var c={all:0,unread:0,resident:0,guest:0,system:0};
+            for(var i=0;i<items.length;i++){ var k=keyFor(items[i]); c.all++; if(!notifRead.has(k)) c.unread++; var tb=notifTabOf(items[i]); if(c[tb]!==undefined) c[tb]++; }
+            var chips=document.querySelectorAll('#notifTabs .notif-tab-count');
+            for(var j=0;j<chips.length;j++){ var key=chips[j].getAttribute('data-count'); if(key && c[key]!==undefined) chips[j].textContent=String(c[key]); }
+          }
+          function notifSetActiveTab(){
+            var btns=document.querySelectorAll('#notifTabs [data-notif-tab]');
+            for(var i=0;i<btns.length;i++){ btns[i].classList.toggle('is-active', btns[i].getAttribute('data-notif-tab')===notifTab); }
+          }
+          function notifMarkRead(it){
+            notifRead.add(keyFor(it));
+            if(it && it.id){ try{ fetch('admin.php?action=dismiss_notification&id='+encodeURIComponent(it.id),{keepalive:true}).catch(function(){}); }catch(err){} }
+          }
           function formatNotifDateTime(value){
             if(!value) return '';
             var d=new Date(value);
@@ -8458,8 +9149,10 @@ body.modal-open { overflow: hidden; }
             return mm+'.'+dd+'.'+yy+' '+h+':'+mi+' '+ampm;
           }
           function keyFor(it){ return [String(it.type||''), String(it.ref||''), String(it.time||'')].join('|'); }
+          var notifTabs = ['all','unread','resident','guest','system'];
           function renderNotif(data){
             if(!data) return;
+            notifLastData = data;
             var badge = t && t.querySelector('.notif-badge');
             var itemsRaw = Array.isArray(data.items)?data.items:[];
             var items = [];
@@ -8470,29 +9163,52 @@ body.modal-open { overflow: hidden; }
               if(total>0){ if(!badge){ badge=document.createElement('span'); badge.className='notif-badge'; t.appendChild(badge);} badge.textContent = (total>99 ? '99+' : String(total)); if(lastTotal!==null && total>lastTotal){ badge.classList.add('pulse'); setTimeout(function(){ badge.classList.remove('pulse'); }, 1200); } }
               else { if(badge){ badge.remove(); } }
             }
-            var reqList = document.getElementById('notifRequestsList');
-            var recList = document.getElementById('notifReceiptsList');
-            var requests = Array.isArray(data.requests)?data.requests:[];
-            var receipts = Array.isArray(data.receipts)?data.receipts:[];
-            var build = function(arr){
-              var list = (arr||[]).filter(function(it){ return !dismissed.has(keyFor(it)); });
-              list.sort(function(a,b){ var ea=parseInt(a.epoch||0,10)||0; var eb=parseInt(b.epoch||0,10)||0; return eb - ea; });
-              var html='';
-              if(list.length===0){ html+="<div class='notif-item'><div class='notif-meta'>No items</div></div>"; }
-              for(var i=0;i<list.length;i++){
-                var it=list[i]||{}; var typeUpper=String(it.type||'').toUpperCase(); var badge=(it.label?String(it.label):typeUpper); var typeLower=String(it.type||'').toLowerCase(); var title=String(it.title||''); var ref=it.ref?String(it.ref):''; var amen=it.amenity?String(it.amenity):''; var rawTime=String(it.time||''); var time=formatNotifDateTime(rawTime); var href = linkFor(it); var nid=it.id||'';
-                html += "<div class='notif-item' data-id='"+nid+"' data-type='"+typeLower+"' data-ref='"+ref.replace(/[<>]/g,'')+"' data-time='"+rawTime+"'>"
-                  + "<a class='notif-item-link' href='"+href+"'>"
-                  + "<div class='notif-type'>"+badge+"</div>"
-                  + "<div class='notif-meta'><div><strong>"+title.replace(/[<>]/g,'')+"</strong>"+(amen?" — "+amen.replace(/[<>]/g,''):'')+"</div>"+(ref?"<div>Status Code: "+ref.replace(/[<>]/g,'')+"</div>":"")+"<div style='color:#888'>"+time+"</div></div>"
-                  + "</a>"
-                  + "<button type='button' class='notif-dismiss'>Dismiss</button>"
-                  + "</div>";
+            notifUpdateCounts(items);
+            notifSetActiveTab();
+            var list = document.getElementById('notifRequestsList');
+            if(!list) return;
+            var vis = items.filter(function(it){
+              if(notifTab==='all') return true;
+              if(notifTab==='unread') return !notifRead.has(keyFor(it));
+              return notifTabOf(it)===notifTab;
+            });
+            if(vis.length===0){
+              list.innerHTML = "<div class='notif-empty'><i class='fa-solid fa-circle-check' aria-hidden='true'></i><span>You&rsquo;re all caught up</span></div>";
+              return;
+            }
+            var groups = {};
+            for(var gd=0; gd<notifGroupDefs.length; gd++){ groups[notifGroupDefs[gd][0]]=[]; }
+            for(var vv=0; vv<vis.length; vv++){ var grp=notifGroupOf(notifEpoch(vis[vv])); if(!groups[grp]) groups[grp]=[]; groups[grp].push(vis[vv]); }
+            var html='';
+            for(var gi=0; gi<notifGroupDefs.length; gi++){
+              var gkey=notifGroupDefs[gi][0], glabel=notifGroupDefs[gi][1], arr=groups[gkey]||[];
+              if(!arr.length) continue;
+              html += "<div class='notif-group'><div class='notif-group-label'>"+glabel+"</div>";
+              for(var ri=0; ri<arr.length; ri++){
+                var it=arr[ri]||{};
+                var cat=notifCat(it);
+                var unread=!notifRead.has(keyFor(it));
+                var ep=notifEpoch(it);
+                var title=notifEsc(it.title);
+                var amen=it.amenity?notifEsc(it.amenity):'';
+                var ref=it.ref?notifEsc(it.ref):'';
+                var nid=it.id?String(it.id):'';
+                var href=linkFor(it);
+                html += "<div class='notif-row"+(unread?" is-unread":"")+"' data-cat='"+cat+"'>"
+                  + "<span class='notif-dot' aria-hidden='true'></span>"
+                  + "<a class='notif-row-link' href='"+href+"' data-notif-key='"+notifEsc(keyFor(it))+"' data-notif-id='"+notifEsc(nid)+"' title='"+notifEsc(notifTimeFull(ep))+"'>"
+                  +   "<span class='notif-ico cat-"+cat+"'><i class='fa-solid "+notifIconFor(cat)+"' aria-hidden='true'></i></span>"
+                  +   "<span class='notif-body'>"
+                  +     "<span class='notif-row-title'>"+title+"</span>"
+                  +     (amen?"<span class='notif-row-detail'>"+amen+"</span>":"")
+                  +     (ref?"<span class='notif-code'>"+ref+"</span>":"")
+                  +   "</span>"
+                  +   "<span class='notif-row-time'>"+notifEsc(notifTimeShort(ep))+"</span>"
+                  + "</a></div>";
               }
-              return html;
-            };
-            if(reqList){ reqList.innerHTML = build(requests); }
-            if(recList){ recList.innerHTML = build(receipts); }
+              html += "</div>";
+            }
+            list.innerHTML = html;
             lastTotal = total;
           }
           function pollNotifications(){ fetch('admin.php?action=get_notifications').then(function(r){ return r.json(); }).then(function(data){ renderNotif(data); }).catch(function(){}); }
@@ -8506,7 +9222,9 @@ body.modal-open { overflow: hidden; }
             else if(type==='incident') base='?page=report';
             else if(type==='notification'){
               var msg=String(it.title||'').toLowerCase();
-              base = (msg.indexOf('cancel')!==-1 ? '?page=history' : '?page=dashboard');
+              if(msg.indexOf('cancel')!==-1){ base = '?page=history'; }
+              else if(msg.indexOf('proof')!==-1 || msg.indexOf('resubmit')!==-1 || msg.indexOf('receipt')!==-1){ base = '?page=requests'; }
+              else { base = '?page=dashboard'; }
             }
             var ref = it.ref ? String(it.ref) : '';
             if(!ref && type==='notification'){
@@ -8518,7 +9236,14 @@ body.modal-open { overflow: hidden; }
             }
             return base;
           }
-          (function(){ var tabs = document.querySelectorAll('.tab-btn'); var tabReq = document.getElementById('tabReq'); var tabRec = document.getElementById('tabRec'); tabs.forEach(function(btn){ btn.addEventListener('click', function(){ tabs.forEach(function(b){ b.classList.remove('active'); }); btn.classList.add('active'); var t = btn.getAttribute('data-tab'); if(t==='req'){ if(tabReq) tabReq.style.display='block'; if(tabRec) tabRec.style.display='none'; } else { if(tabReq) tabReq.style.display='none'; if(tabRec) tabRec.style.display='block'; } }); }); })();
+          (function(){
+            var notifTabsEl = document.getElementById('notifTabs');
+            if(notifTabsEl){ notifTabsEl.addEventListener('click', function(e){ var b=e.target.closest('[data-notif-tab]'); if(!b || !notifTabsEl.contains(b)) return; var selectedTab=b.getAttribute('data-notif-tab')||''; if(notifTabs.indexOf(selectedTab)===-1) return; notifTab=selectedTab; notifSetActiveTab(); if(notifLastData) renderNotif(notifLastData); }); }
+            var notifListEl = document.getElementById('notifRequestsList');
+            if(notifListEl){ notifListEl.addEventListener('click', function(e){ var a=e.target.closest('a.notif-row-link'); if(!a) return; var key=a.getAttribute('data-notif-key'); if(key) notifRead.add(key); var id=a.getAttribute('data-notif-id'); if(id){ try{ fetch('admin.php?action=dismiss_notification&id='+encodeURIComponent(id),{keepalive:true}).catch(function(){}); }catch(err){} } var row=a.closest('.notif-row'); if(row){ row.classList.remove('is-unread'); } }); }
+            var markAllEl = document.getElementById('notifMarkAll');
+            if(markAllEl){ markAllEl.addEventListener('click', function(){ var items=(notifLastData&&Array.isArray(notifLastData.items))?notifLastData.items:[]; for(var i=0;i<items.length;i++){ notifMarkRead(items[i]); } if(notifLastData) renderNotif(notifLastData); }); }
+          })();
           function showToast(it){ var c=document.getElementById('toastContainer'); if(!c||!it) return; var el=document.createElement('div'); el.className='toast'; var safeTitle=String(it.title||'').replace(/[<>]/g,''); var safeAmen=it.amenity?String(it.amenity).replace(/[<>]/g,''):''; var safeRef=it.ref?String(it.ref).replace(/[<>]/g,''):''; var href=linkFor(it);
             el.innerHTML = "<div><h4>New "+(String(it.type||'').toUpperCase())+"</h4><p>"+safeTitle+(safeAmen?" — "+safeAmen:'')+(safeRef?" (Status Code: "+safeRef+")":"")+"</p><div class='actions'><a href='"+href+"' class='btn btn-view'><i class='fa-solid fa-eye'></i> Open</a><button class='btn btn-remove'><i class='fa-solid fa-xmark'></i> Dismiss</button></div></div>";
             var dismissBtn = el.querySelector('.btn-remove'); if(dismissBtn){ dismissBtn.addEventListener('click', function(){ var k = keyFor(it); dismissed.add(k); el.remove(); }); }
@@ -8708,6 +9433,11 @@ body.modal-open { overflow: hidden; }
           if(stored === '1'){ body.classList.add('sidebar-collapsed'); }
           if(toggle){
             toggle.addEventListener('click', function(){
+              if(window.matchMedia('(max-width: 760px)').matches){
+                var sidebar = document.querySelector('.sidebar');
+                if(sidebar){ sidebar.classList.toggle('sidebar-open'); }
+                return;
+              }
               var collapsed = body.classList.toggle('sidebar-collapsed');
               localStorage.setItem(key, collapsed ? '1' : '0');
             });
@@ -8723,25 +9453,154 @@ body.modal-open { overflow: hidden; }
 
 <!-- DASHBOARD -->
 <?php if ($currentPage == 'dashboard'): ?>
-<section class="panel" id="dashboard-panel">
-  <h3>Community Overview</h3>
-  <div class="dashboard-grid">
-    <a class="dashboard-widget" href="?page=residents" aria-label="View Resident Accounts">
-      <div class="dashboard-widget-value"><?php echo getPendingResidentAccountsCount($con); ?></div>
-      <div class="dashboard-widget-label">Resident Accounts</div>
+<?php
+  /* Live data for the two lower cards. The four counts below come from the
+     existing helpers and are used exactly as before. */
+  $dashPendingItems   = getDashboardPendingItems($con, 5);
+  $dashRecentVisitors = getRecentVisitorAccounts($con, 6);
+?>
+<section id="dashboard-panel" class="dash-page">
+  <!-- Header banner -->
+  <div class="dash-banner">
+    <div class="dash-banner-text">
+      <h1>Community Overview</h1>
+      <p>
+        <i class="fa-regular fa-calendar" aria-hidden="true"></i>
+        <?php echo htmlspecialchars(date('l, F j, Y')); ?>
+        <span class="dash-banner-dot">&middot;</span>
+        Victorian Heights
+      </p>
+    </div>
+    <div class="dash-banner-actions">
+      <a class="btn-dash btn-dash-primary" href="?page=residents"><i class="fa-solid fa-house-user" aria-hidden="true"></i> View Residents</a>
+      <a class="btn-dash btn-dash-gold" href="?page=visitors"><i class="fa-solid fa-user" aria-hidden="true"></i> View Visitors</a>
+    </div>
+  </div>
+
+  <!-- KPI cards -->
+  <div class="stat-grid">
+    <a class="stat-card is-primary" href="?page=residents" aria-label="View Resident Accounts">
+      <div class="stat-card-top">
+        <span class="stat-icon"><i class="fa-solid fa-house-user" aria-hidden="true"></i></span>
+      </div>
+      <div class="stat-value"><?php echo getPendingResidentAccountsCount($con); ?></div>
+      <div class="stat-label">Resident Accounts</div>
+      <div class="stat-sub">Registered resident accounts</div>
     </a>
-    <a class="dashboard-widget" href="?page=requests" aria-label="View Pending Resident Requests">
-      <div class="dashboard-widget-value"><?php echo getPendingResidentRequestsCountNew($con); ?></div>
-      <div class="dashboard-widget-label">Pending Residents Request</div>
+
+    <div class="stat-card is-gold">
+      <div class="stat-card-top">
+        <span class="stat-icon"><i class="fa-solid fa-clipboard-list" aria-hidden="true"></i></span>
+      </div>
+      <div class="stat-value"><?php echo getPendingResidentRequestsCountNew($con); ?></div>
+      <div class="stat-label">Pending Residents Request</div>
+      <div class="stat-sub">Awaiting your review</div>
+    </div>
+
+    <a class="stat-card is-success" href="?page=visitors" aria-label="View Visitor Accounts">
+      <div class="stat-card-top">
+        <span class="stat-icon"><i class="fa-solid fa-user" aria-hidden="true"></i></span>
+      </div>
+      <div class="stat-value"><?php echo getVisitorAccountsCount($con); ?></div>
+      <div class="stat-label">Visitors Accounts</div>
+      <div class="stat-sub">Registered visitor accounts</div>
     </a>
-    <a class="dashboard-widget" href="?page=visitors" aria-label="View Visitor Accounts">
-      <div class="dashboard-widget-value"><?php echo getVisitorAccountsCount($con); ?></div>
-      <div class="dashboard-widget-label">Visitors Accounts</div>
-    </a>
-    <a class="dashboard-widget" href="?page=visitor_requests" aria-label="View Pending Visitor Requests">
-      <div class="dashboard-widget-value"><?php echo getPendingVisitorRequestsCountNew($con); ?></div>
-      <div class="dashboard-widget-label">Pending Visitor Requests</div>
-    </a>
+
+    <div class="stat-card is-danger">
+      <div class="stat-card-top">
+        <span class="stat-icon"><i class="fa-solid fa-clipboard-list" aria-hidden="true"></i></span>
+      </div>
+      <div class="stat-value"><?php echo getPendingVisitorRequestsCountNew($con); ?></div>
+      <div class="stat-label">Pending Visitor Requests</div>
+      <div class="stat-sub">Awaiting your review</div>
+    </div>
+  </div>
+
+  <!-- Recent visitors + pending requests -->
+  <div class="dash-columns">
+    <!-- Recent visitors -->
+    <div class="dash-card">
+      <div class="dash-card-head">
+        <h2>Recent Visitors</h2>
+      </div>
+      <?php if ($dashRecentVisitors): ?>
+      <div class="dash-table-wrap">
+        <table class="dash-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Status</th>
+              <th>Joined</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($dashRecentVisitors as $rv):
+              $rvName = trim(($rv['first_name'] ?? '') . ' ' . ($rv['middle_name'] ?? '') . ' ' . ($rv['last_name'] ?? ''));
+              if ($rvName === '') { $rvName = (string)($rv['email'] ?? 'Visitor'); }
+              $rvActive = strtolower(trim((string)($rv['status'] ?? ''))) === 'active';
+              $rvInitials = strtoupper(substr(trim(($rv['first_name'] ?? '') . ($rv['last_name'] ?? ($rv['email'] ?? 'V'))), 0, 2));
+              $rvJoined = !empty($rv['created_at']) ? date('M j, Y', strtotime($rv['created_at'])) : '—';
+            ?>
+            <tr>
+              <td>
+                <div class="dash-person">
+                  <span class="dash-avatar" aria-hidden="true"><?php echo htmlspecialchars($rvInitials); ?></span>
+                  <span><?php echo htmlspecialchars($rvName); ?></span>
+                </div>
+              </td>
+              <td><span class="dash-status <?php echo $rvActive ? 'is-active' : 'is-inactive'; ?>"><?php echo $rvActive ? 'Active' : 'Suspended'; ?></span></td>
+              <td><?php echo htmlspecialchars($rvJoined); ?></td>
+            </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+      <?php else: ?>
+      <div class="dash-body-pad">
+        <div class="dash-empty">
+          <i class="fa-solid fa-user" aria-hidden="true"></i>
+          <strong>No visitors yet</strong>
+          Visitor accounts will appear here.
+        </div>
+      </div>
+      <?php endif; ?>
+    </div>
+
+    <!-- Pending requests -->
+    <div class="dash-card">
+      <div class="dash-card-head">
+        <h2>Pending Requests</h2>
+        <?php if ($dashPendingItems): ?><span class="dash-count"><?php echo count($dashPendingItems); ?> pending</span><?php endif; ?>
+      </div>
+      <?php if ($dashPendingItems): ?>
+      <div class="dash-body-pad">
+        <div class="dash-pending-list">
+          <?php foreach ($dashPendingItems as $item): ?>
+          <div class="dash-pending-item">
+            <div class="dash-pending-main">
+              <div class="dash-pending-title"><?php echo htmlspecialchars($item['title']); ?></div>
+              <div class="dash-pending-desc"><?php echo htmlspecialchars($item['desc']); ?></div>
+            </div>
+            <a class="dash-review" href="<?php echo htmlspecialchars($item['url']); ?>">Review <i class="fa-solid fa-arrow-right-long" aria-hidden="true"></i></a>
+          </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+      <?php else: ?>
+      <div class="dash-body-pad">
+        <div class="dash-empty">
+          <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+          <strong>You're all caught up</strong>
+          No pending requests right now.
+        </div>
+      </div>
+      <?php endif; ?>
+      <div class="dash-pending-foot">
+        <a class="btn-outline-dash" href="?page=requests">Resident Requests</a>
+        <a class="btn-outline-dash" href="?page=resident_guest_forms">Guest Requests</a>
+        <a class="btn-outline-dash" href="?page=visitor_requests">Visitor Requests</a>
+      </div>
+    </div>
   </div>
 </section>
 <?php endif; ?>
@@ -10823,7 +11682,7 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
    are always computed from the same set. This is the same memoised collector
    the sidebar badge reads, so the badge cannot drift from the boxes below. */
 $rrRows = collectResidentRequestRows($con);
-$rrCounts = array('all' => count($rrRows), 'to_verify' => 0, 'ready' => 0, 'approved' => 0, 'rejected' => 0);
+$rrCounts = array('all' => count($rrRows), 'to_verify' => 0, 'ready' => 0, 'approved' => 0, 'payment_rejected' => 0, 'rejected' => 0);
 foreach ($rrRows as $rrCounted) { $rrCounts[$rrCounted['rr_key']]++; }
 
 /* The amenity dropdown lists only what is actually in the data, in the order
@@ -10867,11 +11726,12 @@ unset($_SESSION['flash_notice']);
   <div class="rr-filters" role="group" aria-label="Filter requests by status">
     <?php
     $rrFilterDefs = array(
-        'all'       => array('All requests',    ''),
-        'to_verify' => array('To verify',        'rr-filter-dot'),
-        'ready'     => array('Ready to approve', 'rr-filter-dot is-ready'),
-        'approved'  => array('Approved',         ''),
-        'rejected'  => array('Rejected',         ''),
+        'all'              => array('All requests',    ''),
+        'to_verify'        => array('To verify',        'rr-filter-dot'),
+        'ready'            => array('Ready to approve', 'rr-filter-dot is-ready'),
+        'approved'         => array('Approved',         ''),
+        'payment_rejected' => array('Awaiting resubmission', ''),
+        'rejected'         => array('Rejected',         ''),
     );
     foreach ($rrFilterDefs as $rrFilterKey => $rrFilterDef) :
         $rrShowDot = ($rrFilterDef[1] !== '' && $rrCounts[$rrFilterKey] > 0);
@@ -11012,7 +11872,16 @@ unset($_SESSION['flash_notice']);
 
           /* Tooltips carry the details that used to sit under the buttons. */
           $rrPillTitle = '';
-          if ($rr['rr_key'] === 'approved' && !empty($rr['approved_by'])) {
+          if (!empty($rr['rr_resubmitted'])) {
+              $rrPillTitle = 'Resubmitted for verification';
+              $rrReason = trim((string)($rr['denial_reason'] ?? ''));
+              if ($rrReason !== '') { $rrPillTitle .= ' · Previous reason: ' . $rrReason; }
+          } else if ($rr['rr_key'] === 'payment_rejected') {
+              $rrAtt = intval($rr['receipt_attempts'] ?? 0);
+              $rrPillTitle = 'Proof of payment needs a new upload · Attempt ' . max($rrAtt, 1) . ' of 3 · waiting for the resident to resubmit';
+              $rrReason = trim((string)($rr['denial_reason'] ?? ''));
+              if ($rrReason !== '') { $rrPillTitle .= ' · Previous reason: ' . $rrReason; }
+          } else if ($rr['rr_key'] === 'approved' && !empty($rr['approved_by'])) {
               $rrPillTitle = 'Approved by Admin';
           } else if ($rr['rr_key'] === 'rejected') {
               $rrReason = trim((string)($rr['denial_reason'] ?? ''));
@@ -11020,6 +11889,7 @@ unset($_SESSION['flash_notice']);
           }
       ?>
         <tr data-status="<?php echo htmlspecialchars($rr['rr_key'], ENT_QUOTES); ?>"
+            class="<?php echo !empty($rr['rr_resubmitted']) ? 'rr-row-resubmitted' : ''; ?>"
             data-id="<?php echo $rrId; ?>"
             data-ref="<?php echo htmlspecialchars($rrRef, ENT_QUOTES); ?>"
             data-name="<?php echo htmlspecialchars(strtolower($rrName), ENT_QUOTES); ?>"
@@ -11063,6 +11933,11 @@ unset($_SESSION['flash_notice']);
           </td>
           <td>
             <span class="rr-pill rr-pill-<?php echo $rr['rr_key']; ?>"<?php echo ($rrPillTitle !== '' ? ' title="' . htmlspecialchars($rrPillTitle, ENT_QUOTES, 'UTF-8') . '"' : ''); ?>><?php echo htmlspecialchars($rr['rr_label']); ?></span>
+            <?php if (!empty($rr['rr_resubmitted'])): ?>
+              <span class="rr-resubmit-badge" tabindex="0" title="Resident resubmitted an updated proof of payment. Verify it again." aria-label="Resubmitted proof of payment, waiting to be verified">
+                <i class="fa-solid fa-rotate-right" aria-hidden="true"></i> Resubmitted
+              </span>
+            <?php endif; ?>
           </td>
           <td class="actions">
             <button type="button" class="btn btn-view" onclick='showReservationDetails(<?php echo $rrId; ?>,"visitor")'>View Details</button>
@@ -11126,10 +12001,11 @@ window.RR_LIST = (function(){
   var boxes     = Array.prototype.slice.call(document.querySelectorAll('[data-rr-filter]'));
   var countEls  = Array.prototype.slice.call(document.querySelectorAll('[data-rr-count]'));
 
-  /* To verify, then Ready to approve, then Approved, then Rejected. That is the
-     order the boxes sit in and the order "needs action first" sorts by. */
-  var KEYS   = ['all', 'to_verify', 'ready', 'approved', 'rejected'];
-  var RANK   = { to_verify: 0, ready: 1, approved: 2, rejected: 3 };
+  /* To verify, then Ready to approve, then Approved, then Payment rejected,
+     then Rejected. That is the order the boxes sit in and the order
+     "needs action first" sorts by. */
+  var KEYS   = ['all', 'to_verify', 'ready', 'approved', 'payment_rejected', 'rejected'];
+  var RANK   = { to_verify: 0, ready: 1, approved: 2, payment_rejected: 3, rejected: 4 };
   var PER_PAGE = 10;
   var STORE  = 'vp_admin_rr_state';
 
@@ -12623,16 +13499,10 @@ window.onclick = function(event) {
 
       <div class="rrd-reject" id="rrdReject" hidden>
         <label class="rrd-reject-label" for="rrdRejectSelect">Reason for rejection</label>
-        <select id="rrdRejectSelect">
-          <option value="">Select a reason&hellip;</option>
-          <option value="Amount does not match">Amount does not match</option>
-          <option value="Receipt is unclear">Receipt is unclear</option>
-          <option value="Reference number already used">Reference number already used</option>
-          <option value="Other">Other</option>
-        </select>
+        <input type="text" id="rrdRejectSelect" placeholder="Enter reason for rejection..." style="width:100%; padding:8px; border-radius:6px; border:1px solid #d1d5db;">
         <div class="rrd-reject-btns">
           <button type="button" class="btn btn-danger" id="rrdRejectConfirm" disabled>
-            <i class="fa-solid fa-xmark"></i> Confirm rejection
+            Confirm rejection
           </button>
           <button type="button" class="btn btn-light" onclick="rrdToggleReject(false)">Cancel</button>
         </div>
@@ -12680,7 +13550,7 @@ function buildReservationPriceBlock(details){
   const paidDownpayment = hasDownpayment ? (parseFloat(details.downpayment) || 0) : requiredDownpayment;
   const remainingBalance = Math.max(0, total - paidDownpayment);
   const paymentStatus = String(details.payment_status || 'pending').toLowerCase();
-  const paymentLabel = paymentStatus === 'verified' ? 'Verified' : (paymentStatus === 'rejected' ? 'Rejected' : 'Submitted - Awaiting Verification');
+  const paymentLabel = paymentStatus === 'verified' ? 'Verified' : (paymentStatus === 'rejected' ? ((parseInt(details.receipt_attempts||0,10) < 3) ? 'Awaiting resubmission' : 'Rejected') : 'Submitted - Awaiting Verification');
   return `<div class="price-section">
     <div class="info-row total-price"><span class="info-label">Total Price</span><span class="info-value">${fmtMoney(total)}</span></div>
     <div class="info-row price-down"><span class="info-label">Required Downpayment</span><span class="info-value">${fmtMoney(requiredDownpayment)}</span></div>
@@ -12697,7 +13567,7 @@ function buildReservationPriceBlock(details){
    scroll position all survive) and the dialog never reloads the page.
    ============================================================= */
 var RRD = { id: null, d: null, key: '', amt: null, expDate: '', busy: false, lastFocus: null, lastRowId: null, redirectPage: 'requests', zoomOpen: false };
-var RRD_LABELS = { to_verify: 'To verify', ready: 'Ready to approve', approved: 'Approved', rejected: 'Rejected' };
+var RRD_LABELS = { to_verify: 'To verify', ready: 'Ready to approve', approved: 'Approved', payment_rejected: 'Awaiting resubmission', rejected: 'Rejected' };
 
 function rrdEsc(v){
   return String(v == null ? '' : v).replace(/[&<>"']/g, function(c){
@@ -12709,7 +13579,13 @@ function rrdStatusOf(d){
   var ps = String(d.payment_status || 'pending').toLowerCase();
   var ap = String(d.approval_status || 'pending').toLowerCase();
   var st = String(d.status || '').toLowerCase();
-  if (ps === 'rejected' || ap.indexOf('denied') > -1 || ap.indexOf('reject') > -1 || ap.indexOf('cancel') > -1) { return 'rejected'; }
+  /* Visitor requests keep a single Rejected state (their list has no resubmission
+     filter); resident requests split a replaceable receipt out as its own state. */
+  var isVisitor = (parseInt(d.entry_pass_id || 0, 10) > 0) || String(d.user_type || '').toLowerCase() === 'visitor';
+  /* A full rejection (denied/cancelled) is final; a rejected receipt that the
+     resident can still replace is a distinct "Awaiting resubmission" state. */
+  if (ap.indexOf('denied') > -1 || ap.indexOf('reject') > -1 || ap.indexOf('cancel') > -1) { return 'rejected'; }
+  if (ps === 'rejected') { return isVisitor ? 'rejected' : 'payment_rejected'; }
   if (ap.indexOf('approv') > -1 || st === 'approved') { return 'approved'; }
   if (ps === 'verified') { return 'ready'; }
   return 'to_verify';
@@ -12839,7 +13715,7 @@ function rrdRenderRight(d, meta){
   payment += rrdRow('Remaining balance', balanceValue, false, 'is-balance');
   if (a.known && a.remaining <= 0) {
     payment += '<p class="rrd-balance-note">No balance due</p>';
-  } else if (a.known && RRD.key !== 'rejected') {
+  } else if (a.known && RRD.key !== 'rejected' && RRD.key !== 'payment_rejected') {
     payment += '<p class="rrd-balance-note"><span>To be paid on site</span><button type="button" class="rrd-balance-info" aria-label="How the remaining balance is paid" aria-describedby="rrdBalanceTooltip"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><span class="rrd-balance-tooltip" role="tooltip" id="rrdBalanceTooltip">The resident pays this amount at the venue on the day of the reservation. It is not part of the receipt check.</span></button></p>';
   }
   if (a.redeemed) {
@@ -12878,26 +13754,25 @@ function rrdRenderRight(d, meta){
     out += rrdCard('VHEcoPoint redemption', eco);
   }
 
-  if (RRD.key === 'to_verify') {
-    out += rrdCard('Receipt check',
-      '<table class="rrd-check"><thead><tr><th>Item</th><th>Expected</th><th>On receipt</th><th>Match</th></tr></thead><tbody>' +
-      '<tr><td class="rrd-k">Downpayment</td><td class="rrd-v">' + rrdEsc(fmtMoney(a.required)) + '</td>' +
-        '<td><input class="rrd-in" type="number" step="0.01" min="0" id="rrdInAmount" placeholder="0.00" aria-label="Downpayment amount on receipt"></td>' +
-        '<td><span class="rrd-flag wait" id="rrdFlagAmount">Enter</span></td></tr>' +
-      '<tr><td class="rrd-k">Payment date</td><td class="rrd-v">' + rrdEsc(rrdSlashDate(RRD.expDate) || 'Unknown') + '</td>' +
-        '<td><input class="rrd-in" type="date" id="rrdInDate" aria-label="Payment date on receipt"></td>' +
-        '<td><span class="rrd-flag wait" id="rrdFlagDate">Enter</span></td></tr>' +
-      '</tbody></table>' +
-      '<div class="rrd-note" style="margin-top:10px;"><i class="fa-solid fa-circle-info"></i><span>Read the amount and date off the receipt, then enter them here. A mismatch is a warning to check, not a block on verifying.</span></div>');
-  }
+  // Removed Receipt check as requested
 
-  if (RRD.key === 'rejected') {
+  if (RRD.key === 'payment_rejected') {
+    var reason = String(d.denial_reason || '').trim();
+    var att = Math.max(parseInt(d.receipt_attempts || 0, 10), 1);
+    var note = 'The receipt was rejected and the resident can still upload a corrected proof of payment. This row moves back to To verify once they resubmit.';
+    if (att >= 3) { note = 'This is the third rejected receipt. If the resident does not upload a valid proof, the request is automatically denied.'; }
+    out += rrdCard('Awaiting resubmission',
+      rrdRow('Status', 'Awaiting resubmission') +
+      rrdRow('Attempt', att + ' of 3') +
+      (reason !== '' ? rrdRow('Reason for rejection', reason) : '') +
+      '<div class="rrd-note" style="margin-top:8px;"><i class="fa-solid fa-rotate-right"></i><span>' + rrdEsc(note) + '</span></div>');
+  } else if (RRD.key === 'rejected') {
     var reason = String(d.denial_reason || '').trim();
     var att = parseInt(d.receipt_attempts || 0, 10);
-    out += rrdCard('Rejection',
-      rrdRow('Reason', reason || 'Not recorded') +
-      rrdRow('Attempts used', att + ' of 3') +
-      '<div class="rrd-note" style="margin-top:8px;"><i class="fa-solid fa-rotate-left"></i><span>Waiting for the resident to upload a new receipt. The status returns to To verify on their next submission.</span></div>');
+    out += rrdCard('Rejected',
+      rrdRow('Status', 'Rejected') +
+      (reason !== '' ? rrdRow('Reason for rejection', reason) : '') +
+      '<div class="rrd-note" style="margin-top:8px;"><i class="fa-solid fa-circle-xmark"></i><span>' + rrdEsc(att >= 3 ? 'Rejected three times, so this request is denied.' : 'This request was denied.') + '</span></div>');
   }
 
   document.getElementById('rrdRight').innerHTML = out;
@@ -12911,7 +13786,8 @@ function rrdRenderFoot(d, att){
   var sel = document.getElementById('rrdRejectSelect');
   var conf = document.getElementById('rrdRejectConfirm');
   rrdToggleReject(false);
-  sel.value = '';
+  if (sel.tagName === 'INPUT') sel.value = '';
+  else sel.value = '';
   conf.disabled = true;
   warn.hidden = true;
   warn.innerHTML = '';
@@ -12924,13 +13800,11 @@ function rrdRenderFoot(d, att){
   if (RRD.key === 'to_verify') {
     hint.className = 'rrd-foot-hint';
     hint.textContent = isVisitor
-      ? 'Compare the receipt with the breakdown, then approve or reject the receipt.'
-      : 'Compare the receipt with the breakdown, then verify or reject.';
+      ? 'Review the receipt and details, then approve or reject the receipt.'
+      : 'Review the receipt and details, then verify or reject.';
     var rejectLbl = isVisitor ? 'Reject receipt' : 'Reject payment';
     var verifyLbl = isVisitor ? 'Approve receipt' : 'Verify payment';
-    if (att < 3) {
-      html += '<button type="button" class="btn rrd-btn-danger-ghost" onclick="rrdToggleReject()"><i class="fa-solid fa-xmark"></i> ' + rejectLbl + '</button>';
-    }
+    html += '<button type="button" class="btn rrd-btn-danger-ghost" onclick="rrdToggleReject()"><i class="fa-solid fa-xmark"></i> ' + rejectLbl + '</button>';
     html += '<button type="button" class="btn btn-approve" onclick="rrdDoVerify()"><i class="fa-solid fa-check"></i> ' + verifyLbl + '</button>';
   } else if (RRD.key === 'ready') {
     hint.className = 'rrd-foot-hint is-ok';
@@ -12944,12 +13818,22 @@ function rrdRenderFoot(d, att){
     if (d.ref_code) {
       html += '<a class="btn btn-qr" href="qr_view.php?code=' + encodeURIComponent(d.ref_code) + '" target="_blank" rel="noopener"><i class="fa-solid fa-qrcode"></i> View QR</a>';
     }
+  } else if (RRD.key === 'payment_rejected') {
+    var reason = String(d.denial_reason || '').trim();
+    hint.className = 'rrd-foot-hint is-bad';
+    hint.innerHTML = '<i class="fa-solid fa-rotate-right"></i> Awaiting resubmission' + (reason ? ' — ' + rrdEsc(reason) : '') +
+      ' (attempt ' + Math.max(att, 1) + ' of 3). You can reject this request if the resident does not resubmit in time.';
+    html += '<button type="button" class="btn rrd-btn-danger-ghost" onclick="rrdToggleReject()"><i class="fa-solid fa-xmark"></i> Deny request</button>';
   } else {
     var reason = String(d.denial_reason || '').trim();
     hint.className = 'rrd-foot-hint is-bad';
     hint.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> Rejected' + (reason ? ' — ' + rrdEsc(reason) : '') +
-      (att >= 3 ? ' (3 attempts reached)' : '') + '. Nothing to do until a new receipt is uploaded.';
+      (att >= 3 ? ' (3 attempts reached)' : '') + '. This request is denied; nothing to do.';
   }
+  var rejectLabel = document.querySelector('label[for="rrdRejectSelect"]');
+  var rejectConfirm = document.getElementById('rrdRejectConfirm');
+  if (rejectLabel) { rejectLabel.textContent = RRD.key === 'payment_rejected' ? 'Reason for denying this request' : 'Reason for rejection'; }
+  if (rejectConfirm) { rejectConfirm.textContent = RRD.key === 'payment_rejected' ? 'Confirm denial' : 'Confirm rejection'; }
   btns.innerHTML = html;
 }
 
@@ -12977,7 +13861,9 @@ function rrdRender(d){
   sub.push('<span>' + rrdEsc(d.amenity || 'Amenity') + '</span>');
   sub.push('<span>' + rrdEsc(role) + '</span>');
   if (d.created_at) { sub.push('<span>Submitted ' + rrdEsc(fmtSubmittedOn(d.created_at)) + '</span>'); }
-  if (att > 0 && RRD.key === 'to_verify') { sub.push('<span>Receipt attempt ' + (att + 1) + ' of 3</span>'); }
+  if (att > 0 && (RRD.key === 'to_verify' || RRD.key === 'payment_rejected')) {
+    sub.push('<span>Receipt attempt ' + (RRD.key === 'payment_rejected' ? Math.max(att, 1) : (att + 1)) + ' of 3</span>');
+  }
   document.getElementById('rrdSub').innerHTML = sub.join('');
 
   var pill = document.getElementById('rrdPill');
@@ -13061,7 +13947,8 @@ function rrdToggleReject(show){
   box.hidden = !show;
   var sel = document.getElementById('rrdRejectSelect');
   var conf = document.getElementById('rrdRejectConfirm');
-  sel.value = '';
+  if (sel.tagName === 'INPUT') sel.value = '';
+  else sel.value = '';
   conf.disabled = true;
   if (show) { sel.focus(); }
 }
@@ -13096,7 +13983,11 @@ function rrdSetBusy(on){
   var scope = m ? m.querySelectorAll('.rrd-foot-btns .btn, .rrd-reject-btns .btn, .rrd-receipt-tools .btn, #rrdRejectConfirm') : [];
   Array.prototype.forEach.call(scope, function(b){
     if (b.tagName === 'A') { return; }
-    if (b.id === 'rrdRejectConfirm') { b.disabled = RRD.busy || !document.getElementById('rrdRejectSelect').value; return; }
+    if (b.id === 'rrdRejectConfirm') { 
+      var selEl = document.getElementById('rrdRejectSelect');
+      var hasVal = selEl && (selEl.value ? String(selEl.value).trim().length > 0 : false);
+      b.disabled = RRD.busy || !hasVal; return; 
+    }
     b.disabled = RRD.busy;
   });
 }
@@ -13172,9 +14063,11 @@ function rrdDoReject(){
   /* The reason is required, never optional. */
   if (!reason) { return; }
   rrdToggleReject(false);
-  rrdAct({ reservation_id: RRD.id, action: 'reject_receipt', denial_reason: reason, redirect_page: RRD.redirectPage }, function(){
+  var isAwaitingResubmission = RRD.key === 'payment_rejected';
+  var action = isAwaitingResubmission ? 'deny_awaiting_receipt' : 'reject_receipt';
+  rrdAct({ reservation_id: RRD.id, action: action, denial_reason: reason, redirect_page: RRD.redirectPage }, function(){
     var who = (RRD.redirectPage === 'visitor_requests') ? 'The visitor was notified.' : 'The resident was notified.';
-    rrdToast('Receipt rejected', who + ' Reason: ' + reason, 'error');
+    rrdToast(isAwaitingResubmission ? 'Request denied' : 'Receipt rejected', who + ' Reason: ' + reason, 'error');
   });
 }
 
@@ -13270,7 +14163,7 @@ function rrdSyncList(){
       pill.className = ctx.pill + ' ' + ctx.pill + '-' + RRD.key;
       pill.textContent = RRD_LABELS[RRD.key];
       var reason = String((RRD.d && RRD.d.denial_reason) || '').trim();
-      if (RRD.key === 'rejected' && reason) { pill.setAttribute('title', 'Reason: ' + reason); }
+      if ((RRD.key === 'rejected' || RRD.key === 'payment_rejected') && reason) { pill.setAttribute('title', 'Reason: ' + reason); }
       else { pill.removeAttribute('title'); }
     }
     var cell = row.querySelector('td.actions');
@@ -13299,7 +14192,7 @@ function rrdSyncList(){
     return;
   }
 
-  var counts = { all: 0, to_verify: 0, ready: 0, approved: 0, rejected: 0 };
+  var counts = { all: 0, to_verify: 0, ready: 0, approved: 0, payment_rejected: 0, rejected: 0 };
   Array.prototype.forEach.call(rows, function(r){
     var s = r.getAttribute('data-status');
     counts.all++;
@@ -13445,10 +14338,17 @@ function closeReservationModal(){
 document.addEventListener('input', function(e){
   if (e.target && (e.target.id === 'rrdInAmount' || e.target.id === 'rrdInDate')) { rrdEval(); }
 }, true);
-document.addEventListener('change', function(e){
+document.addEventListener('input', function(e){
   if (e.target && e.target.id === 'rrdRejectSelect') {
-    document.getElementById('rrdRejectConfirm').disabled = !e.target.value;
+    var conf = document.getElementById('rrdRejectConfirm');
+    if (conf) { conf.disabled = !String(e.target.value || '').trim(); }
   }
+}, true);
+document.addEventListener('click', function(e){
+  var btn = e.target && e.target.closest ? e.target.closest('#rrdRejectConfirm') : null;
+  if (!btn) { return; }
+  e.preventDefault();
+  rrdDoReject();
 }, true);
 document.addEventListener('keydown', function(e){
   var m = document.getElementById('reservationModal');
@@ -13535,7 +14435,7 @@ function showResidentReservationDetails(rrId){
         const requiredDownpayment = finalAmount * 0.5;
         const paidDownpayment = d.downpayment != null && parseFloat(d.downpayment) > 0 ? parseFloat(d.downpayment) : requiredDownpayment;
         const remainingBalance = Math.max(0, finalAmount - paidDownpayment);
-        const paymentLabel = ps === 'verified' ? 'Verified' : (ps === 'rejected' ? 'Rejected' : 'Submitted - Awaiting Verification');
+        const paymentLabel = ps === 'verified' ? 'Verified' : (ps === 'rejected' ? ((parseInt(d.receipt_attempts||0,10) < 3) ? 'Awaiting resubmission' : 'Rejected') : 'Submitted - Awaiting Verification');
         return `<div class="price-section">
           <div class="info-row"><span class="info-label">VHEcoPoint Redemption</span><span class="info-value">Discounted Redemption</span></div>
           <div class="info-row"><span class="info-label">Original Duration</span><span class="info-value">${hours} hours</span></div>
@@ -13594,7 +14494,8 @@ function showResidentReservationDetails(rrId){
       let stClass = 'st-pending';
       let stLabel = 'Pending Review';
       if (approvalStatus.includes('approv')) { stClass = 'st-approved'; stLabel = 'Approved'; }
-      else if (approvalStatus.includes('denied') || approvalStatus.includes('reject')) { stClass = 'st-denied'; stLabel = 'Denied'; }
+      else if (approvalStatus.includes('denied') || approvalStatus.includes('reject') || (ps === 'rejected' && parseInt(d.receipt_attempts||0,10) >= 3)) { stClass = 'st-denied'; stLabel = 'Denied'; }
+      else if (ps === 'rejected') { stClass = 'st-pending'; stLabel = 'Awaiting resubmission'; }
       else if (approvalStatus.includes('cancel')) { stClass = 'st-denied'; stLabel = 'Cancelled'; }
       else if (approvalStatus.includes('expire')) { stClass = 'st-expired'; stLabel = 'Expired'; }
       const priceBlock = buildReservationPriceBlock(d);
@@ -13611,7 +14512,7 @@ function showResidentReservationDetails(rrId){
       const denialReason = (d.denial_reason||'').toString().trim();
       const att = parseInt(d.receipt_attempts||0, 10);
       const showDenial = denialReason && (ps === 'rejected' || ps === 'pending_update' || approvalStatus.includes('denied') || approvalStatus.includes('reject'));
-      const waitNote = ps === 'rejected' ? ((att>=3) ? 'Denied — Max Attempts Reached. Payment rejected 3 times. No further uploads allowed.' : 'Wait for the updated proof.') : '';
+      const waitNote = ps === 'rejected' ? ((att>=3) ? 'Denied — Max Attempts Reached. Payment rejected 3 times. No further uploads allowed.' : 'Awaiting resubmission. The resident can upload an updated proof of payment.') : '';
       const receiptRedirectPage = isResidentGuest ? 'resident_guest_forms' : (d.entry_pass_id || d.user_type === 'visitor' ? 'visitor_requests' : 'requests');
       const receiptHtml = receiptPath ? (
         `<div class="details-section" style="animation: fadeIn 0.5s ease;">
@@ -13620,10 +14521,11 @@ function showResidentReservationDetails(rrId){
           ${ps !== 'verified' && d.id ? `<div class="receipt-action-row"><form method="post"><input type="hidden" name="reservation_id" value="${d.id}"><input type="hidden" name="action" value="verify_receipt"><input type="hidden" name="redirect_page" value="${receiptRedirectPage}"><button type="submit" class="btn btn-approve"><i class="fa-solid fa-check" aria-hidden="true"></i>Verify Payment Receipt</button></form>${att < 3 && ps !== 'rejected' ? `<form method="post" class="action-form action-deny" onsubmit="return openDenyModal(this)"><input type="hidden" name="reservation_id" value="${d.id}"><input type="hidden" name="action" value="reject_receipt"><input type="hidden" name="redirect_page" value="${receiptRedirectPage}"><input type="hidden" name="denial_reason" class="denial-reason"><button type="submit" class="btn btn-reject"><i class="fa-solid fa-xmark" aria-hidden="true"></i>Reject Receipt</button></form>` : ''}</div>` : ''}
         </div>`
       ) : `<div class="details-section"><h4>Proof of Payment</h4><p>${isFullyRedeemed2 ? 'No receipt uploaded. No proof of payment is required because this reservation was fully covered by the VHEcoPoint redemption.' : (d.receipt_uploaded_at || ['submitted', 'pending_update'].includes(ps) ? 'Payment submitted, but the receipt file is unavailable.' : 'No receipt uploaded.')}</p></div>`;
+      const awaitingResubmit = ps === 'rejected' && att < 3 && !approvalStatus.includes('denied') && !approvalStatus.includes('reject') && !approvalStatus.includes('cancel');
       const denialHtml = showDenial ? (
-        `<div style="margin-top:12px;padding:12px;border-radius:10px;background:#fee2e2;color:#991b1b;font-weight:600;">
-          <div>Reason: ${denialReason}</div>
-          ${waitNote ? `<div style="margin-top:6px;color:#7f1d1d;font-weight:500;">${waitNote}</div>` : ''}
+        `<div style="margin-top:12px;padding:12px;border-radius:10px;background:${awaitingResubmit ? '#fef3c7' : '#fee2e2'};color:${awaitingResubmit ? '#92400e' : '#991b1b'};font-weight:600;">
+          <div>Reason for rejection: ${denialReason}</div>
+          ${waitNote ? `<div style="margin-top:6px;font-weight:500;">${waitNote}</div>` : ''}
         </div>`
       ) : '';
       const content = `
