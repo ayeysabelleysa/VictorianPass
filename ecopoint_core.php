@@ -750,6 +750,223 @@ function eco_transition_status(mysqli $con, int $sessionId, int $stationId, stri
 }
 
 // ------------------------------------------------------------------
+// Session materials helpers
+// ------------------------------------------------------------------
+
+// Get distinct material types in order of first deposit from WASTE_DATA events
+function eco_get_session_materials_from_event_array(array $events): array {
+    $materials = [];
+    $seen = [];
+    foreach ($events as $ev) {
+        $payload = $ev['payload'] ?? $ev['event_payload'] ?? null;
+        if (is_string($payload)) {
+            $payload = json_decode($payload, true);
+        }
+        if (!is_array($payload)) {
+            continue;
+        }
+        $m = trim((string)($payload['material'] ?? ''));
+        if ($m === '') {
+            continue;
+        }
+        $key = strtolower($m);
+        if (isset($seen[$key])) {
+            continue;
+        }
+        $seen[$key] = true;
+        $materials[] = $m;
+    }
+    return $materials;
+}
+
+function eco_get_session_materials_from_events(mysqli $con, int $sessionId): array {
+    $materials = [];
+    $stmt = $con->prepare("
+        SELECT 
+            event_payload
+        FROM ecopoint_session_events
+        WHERE session_id = ?
+          AND event_type = 'WASTE_DATA'
+        ORDER BY id ASC
+    ");
+    if (!$stmt) {
+        return $materials;
+    }
+    $stmt->bind_param('i', $sessionId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $seen = [];
+    while ($row = $res->fetch_assoc()) {
+        $payload = json_decode((string)($row['event_payload'] ?? ''), true);
+        if (!is_array($payload)) continue;
+        $m = trim((string)($payload['material'] ?? ''));
+        if ($m === '') continue;
+        $key = strtolower($m);
+        if (isset($seen[$key])) continue;
+        $seen[$key] = true;
+        $materials[] = $m;
+    }
+    $stmt->close();
+    return $materials;
+}
+
+// Build formatted material display data from deposits
+// Returns array with 'label' and 'materials' (array) and 'hasMultiple'
+function eco_build_session_material_display(mysqli $con, int $sessionId, ?string $fallbackMaterialType = null): array {
+    $materials = eco_get_session_materials_from_events($con, $sessionId);
+    
+    if (empty($materials)) {
+        $fallback = trim((string)($fallbackMaterialType ?? ''));
+        if ($fallback === '' || $fallback === '-' || $fallback === '—') {
+            return [
+                'label' => '—',
+                'materials' => [],
+                'hasMultiple' => false,
+                'single' => true
+            ];
+        }
+        // If only fallback exists, treat as single
+        return [
+            'label' => $fallback,
+            'materials' => [$fallback],
+            'hasMultiple' => false,
+            'single' => true
+        ];
+    }
+    
+    if (count($materials) === 1) {
+        return [
+            'label' => $materials[0],
+            'materials' => $materials,
+            'hasMultiple' => false,
+            'single' => true
+        ];
+    }
+    
+    // Multiple materials - show Mixed with list
+    return [
+        'label' => 'Mixed',
+        'materials' => $materials,
+        'hasMultiple' => true,
+        'single' => false
+    ];
+}
+
+function eco_build_session_material_display_from_events(array $events, ?string $fallbackMaterialType = null): array {
+    $materials = eco_get_session_materials_from_event_array($events);
+    
+    if (empty($materials)) {
+        $fallback = trim((string)($fallbackMaterialType ?? ''));
+        if ($fallback === '' || $fallback === '-' || $fallback === '—') {
+            return [
+                'label' => '—',
+                'materials' => [],
+                'hasMultiple' => false,
+                'single' => true
+            ];
+        }
+        return [
+            'label' => $fallback,
+            'materials' => [$fallback],
+            'hasMultiple' => false,
+            'single' => true
+        ];
+    }
+    
+    if (count($materials) === 1) {
+        return [
+            'label' => $materials[0],
+            'materials' => $materials,
+            'hasMultiple' => false,
+            'single' => true
+        ];
+    }
+    
+    return [
+        'label' => 'Mixed',
+        'materials' => $materials,
+        'hasMultiple' => true,
+        'single' => false
+    ];
+}
+
+// Format material for HTML display in tables
+function eco_format_material_html(mysqli $con, int $sessionId, ?string $fallbackMaterialType = null, int $truncateAt = 3): string {
+    $display = eco_build_session_material_display($con, $sessionId, $fallbackMaterialType);
+    
+    if ($display['label'] === '—') {
+        return '—';
+    }
+    
+    if (!$display['hasMultiple']) {
+        return htmlspecialchars($display['label']);
+    }
+    
+    // Multiple materials: show Mixed as main, subline with comma list
+    $materialsList = $display['materials'];
+    $total = count($materialsList);
+    $visible = array_slice($materialsList, 0, $truncateAt);
+    $hiddenCount = $total - count($visible);
+    
+    $listHtml = '';
+    if ($hiddenCount > 0) {
+        $visibleStr = htmlspecialchars(implode(', ', $visible));
+        $fullList = htmlspecialchars(implode(', ', $materialsList));
+        $listHtml = $visibleStr . ', <span title="' . $fullList . '">+' . $hiddenCount . ' more</span>';
+    } else {
+        $listHtml = htmlspecialchars(implode(', ', $materialsList));
+    }
+    
+    // The sub-line should be smaller and muted - keep layout same
+    return htmlspecialchars($display['label']) . '<br><small style="color:#6b7280; font-size:0.85em;">' . $listHtml . '</small>';
+}
+
+function eco_format_material_html_from_events(array $events, ?string $fallbackMaterialType = null, int $truncateAt = 3): string {
+    $display = eco_build_session_material_display_from_events($events, $fallbackMaterialType);
+    
+    if ($display['label'] === '—') {
+        return '—';
+    }
+    
+    if (!$display['hasMultiple']) {
+        return htmlspecialchars($display['label']);
+    }
+    
+    $materialsList = $display['materials'];
+    $total = count($materialsList);
+    $visible = array_slice($materialsList, 0, $truncateAt);
+    $hiddenCount = $total - count($visible);
+    
+    $listHtml = '';
+    if ($hiddenCount > 0) {
+        $visibleStr = htmlspecialchars(implode(', ', $visible));
+        $fullList = htmlspecialchars(implode(', ', $materialsList));
+        $listHtml = $visibleStr . ', <span title="' . $fullList . '">+' . $hiddenCount . ' more</span>';
+    } else {
+        $listHtml = htmlspecialchars(implode(', ', $materialsList));
+    }
+    
+    return htmlspecialchars($display['label']) . '<br><small style="color:#6b7280; font-size:0.85em;">' . $listHtml . '</small>';
+}
+
+// Get material label for search/indexing (includes all materials)
+function eco_get_material_search_text(mysqli $con, int $sessionId, ?string $fallbackMaterialType = null): string {
+    $display = eco_build_session_material_display($con, $sessionId, $fallbackMaterialType);
+    if ($display['label'] === '—') {
+        return '';
+    }
+    return implode(', ', $display['materials']);
+}
+
+function eco_get_material_search_text_from_events(array $events, ?string $fallbackMaterialType = null): string {
+    $display = eco_build_session_material_display_from_events($events, $fallbackMaterialType);
+    if ($display['label'] === '—') {
+        return '';
+    }
+    return implode(', ', $display['materials']);
+}
+
+// ------------------------------------------------------------------
 // Finalize: Award points (idempotent — points_posted flag prevents doubles)
 // Must be called inside an already-begun transaction or it will start one.
 // ------------------------------------------------------------------

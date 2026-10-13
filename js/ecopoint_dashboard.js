@@ -496,12 +496,25 @@
     }
 
     const startTime = session.started_at || session.startedAt || session.created_at || '—';
-    const material = session.material || session.material_type || session.material_label || session.current_material || '—';
+    let material = session.material || session.material_type || session.material_label || session.current_material || '—';
+    if (session.material_list && Array.isArray(session.material_list) && session.material_list.length > 0) {
+      if (session.material_list.length === 1) {
+        material = session.material_list[0];
+      } else {
+        material = 'Mixed\n' + session.material_list.join(', ');
+      }
+    }
     const weight = Math.round(parseFloat(session.total_weight_kg || session.weight_kg || 0) * 1000);
     const points = Math.round(parseFloat(session.total_points || session.points_awarded || 0));
 
     if (startTimeEl) startTimeEl.textContent = startTime === '—' ? '—' : formatSessionTime(startTime);
-    if (materialEl) materialEl.textContent = material;
+    if (materialEl) {
+      if (material.indexOf('\n') !== -1) {
+        materialEl.innerHTML = 'Mixed<br><small style="color:#6b7280;font-size:0.85em;">' + escapeHtml(material.split('\n')[1]) + '</small>';
+      } else {
+        materialEl.textContent = material;
+      }
+    }
     if (weightEl) weightEl.textContent = weight + ' g';
     if (pointsEl) pointsEl.textContent = points + ' pts';
 

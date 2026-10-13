@@ -8984,10 +8984,10 @@ body.modal-open { overflow: hidden; }
         // Session history - search + status filter
         $where = ''; $params = []; $types = '';
         if ($swSearch !== '') {
-          $where .= " AND (u.first_name LIKE ? OR u.last_name LIKE ? OR u.house_number LIKE ? OR st.station_code LIKE ? OR ws.qr_ref_code LIKE ? OR ws.material_type LIKE ? OR CAST(ws.id AS CHAR) LIKE ?) ";
           $like = '%' . $swSearch . '%';
-          $params = array_merge($params, [$like, $like, $like, $like, $like, $like, $like]);
-          $types .= 'sssssss';
+          $where .= " AND (u.first_name LIKE ? OR u.last_name LIKE ? OR u.house_number LIKE ? OR st.station_code LIKE ? OR ws.qr_ref_code LIKE ? OR ws.material_type LIKE ? OR CAST(ws.id AS CHAR) LIKE ? OR EXISTS (SELECT 1 FROM ecopoint_session_events ev WHERE ev.session_id = ws.id AND ev.event_type='WASTE_DATA' AND JSON_UNQUOTE(JSON_EXTRACT(ev.event_payload, '$.material')) LIKE ?)) ";
+          $params = array_merge($params, [$like, $like, $like, $like, $like, $like, $like, $like]);
+          $types .= 'ssssssss';
         }
         if ($swStatus !== '' && in_array($swStatus, $swValidStatuses, true)) {
           $where .= " AND ws.status = ? ";
@@ -9093,7 +9093,18 @@ body.modal-open { overflow: hidden; }
                   <td><strong><?php echo htmlspecialchars($resident); ?></strong><br><small style="color:#6b7280;"><?php echo htmlspecialchars($s['email'] ?? ''); ?></small></td>
                   <td><?php echo htmlspecialchars($s['house_number'] ?? '-'); ?></td>
                   <td><span class="smart-waste-status-pill" style="background:<?php echo $stStyle[1]; ?>;color:<?php echo $stStyle[0]; ?>;"><?php echo htmlspecialchars($s['status']); ?></span></td>
-                  <td><?php echo htmlspecialchars(smartWasteMaterialLabel($s['material_type'] ?? '', '')); ?></td>
+                  <td><?php 
+                    $evs = [];
+                    $evQ = $con->query("SELECT event_payload FROM ecopoint_session_events WHERE session_id=".(int)$s['id']." AND event_type='WASTE_DATA' ORDER BY id ASC");
+                    while ($evQ && ($er=$evQ->fetch_assoc())) $evs[]=['payload'=>$er['event_payload']];
+                    if ($evQ) $evQ->close();
+                    $disp = eco_build_session_material_display_from_events($evs, $s['material_type'] ?? '');
+                    if ($disp['label'] === '—') echo '—';
+                    elseif (!$disp['hasMultiple']) echo htmlspecialchars($disp['label']);
+                    else {
+                      echo htmlspecialchars($disp['label']).'<br><small style="color:#6b7280;font-size:0.85em;">'.htmlspecialchars(implode(', ', $disp['materials'])).'</small>';
+                    }
+                  ?></td>
                   <td><?php echo number_format((float)($s['weight_kg'] ?? 0) * 1000, 0); ?> g</td>
                   <td><?php echo (int)($s['points_calculated'] ?? 0); ?> / <?php echo (int)($s['points_awarded'] ?? 0); ?></td>
                   <td><?php echo $s['created_at'] ? date('M j, g:i A', strtotime($s['created_at'])) : '-'; ?></td>
@@ -9155,7 +9166,18 @@ body.modal-open { overflow: hidden; }
                   <td><strong><?php echo htmlspecialchars($resident); ?></strong><br><small style="color:#6b7280;"><?php echo htmlspecialchars($s['email'] ?? ''); ?></small></td>
                   <td><?php echo htmlspecialchars($s['house_number'] ?? '-'); ?></td>
                   <td><span class="smart-waste-status-pill" style="background:<?php echo $stStyle[1]; ?>;color:<?php echo $stStyle[0]; ?>;"><?php echo htmlspecialchars($s['status']); ?></span></td>
-                  <td><?php echo htmlspecialchars(smartWasteMaterialLabel($s['material_type'] ?? '', '')); ?></td>
+                  <td><?php 
+                    $evs = [];
+                    $evQ = $con->query("SELECT event_payload FROM ecopoint_session_events WHERE session_id=".(int)$s['id']." AND event_type='WASTE_DATA' ORDER BY id ASC");
+                    while ($evQ && ($er=$evQ->fetch_assoc())) $evs[]=['payload'=>$er['event_payload']];
+                    if ($evQ) $evQ->close();
+                    $disp = eco_build_session_material_display_from_events($evs, $s['material_type'] ?? '');
+                    if ($disp['label'] === '—') echo '—';
+                    elseif (!$disp['hasMultiple']) echo htmlspecialchars($disp['label']);
+                    else {
+                      echo htmlspecialchars($disp['label']).'<br><small style="color:#6b7280;font-size:0.85em;">'.htmlspecialchars(implode(', ', $disp['materials'])).'</small>';
+                    }
+                  ?></td>
                   <td><?php echo number_format((float)($s['weight_kg'] ?? 0) * 1000, 0); ?> g</td>
                   <td style="font-weight:800;color:#166534;"><?php echo (int)($s['points_awarded'] ?? 0); ?></td>
                 </tr>

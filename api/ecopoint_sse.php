@@ -133,16 +133,20 @@ if ($active) {
         $q2 = $con->query("SELECT waste_type, material_label, weight_kg, rate_pts_per_kg, points_calculated, points_awarded, created_at FROM ecopoint_waste_items WHERE session_id = $sid ORDER BY id ASC");
         while ($q2 && ($r2 = $q2->fetch_assoc())) { $items[] = $r2; }
 
+        $matDisplay = eco_build_session_material_display_from_events($events, (string)($active['material_type'] ?? ''));
         $activeOut = [
             'id'                 => (int)$active['id'],
             'session_token_safe' => substr((string)($active['session_token'] ?? ''), 0, 8) . '…',
             'status'             => (string)($active['status'] ?? ''),
-            'material'           => eco_material_display_label((string)($active['material_type'] ?? '')),
+            'material'           => $matDisplay['label'] === '—' ? ($matDisplay['materials'][0] ?? '—') : ($matDisplay['label'] === 'Mixed' ? $matDisplay['materials'][0] ?? 'Mixed' : $matDisplay['label']),
+            'material_label'     => $matDisplay['label'],
+            'material_list'      => $matDisplay['materials'],
+            'material_display'   => $matDisplay['hasMultiple'] ? ('Mixed') : $matDisplay['label'],
             'weight_kg'          => (float)($active['weight_kg'] ?? 0),
             'points_calculated'  => (float)($active['points_calculated'] ?? 0),
             'points_awarded'     => (float)($active['points_awarded'] ?? 0),
             'total_weight_kg'    => $liveTotalWeight,
-	    'total_points'       => $liveTotalPoints,
+            'total_points'       => $liveTotalPoints,
             'created_at'         => (string)($active['created_at'] ?? ''),
             'waiting_at'         => $active['waiting_at']   ?? null,
             'started_at'         => $active['started_at']   ?? null,
@@ -175,12 +179,20 @@ if ($active) {
         $histQ->execute();
         $res = $histQ->get_result();
         while ($r = $res->fetch_assoc()) {
+            $eventsH = [];
+            $evQ = $con->query("SELECT id, event_type, event_payload, source, created_at FROM ecopoint_session_events WHERE session_id = " . (int)$r['id'] . " AND event_type='WASTE_DATA' ORDER BY id ASC LIMIT 50");
+            while ($evQ && ($erv = $evQ->fetch_assoc())) {
+                $eventsH[] = ['payload' => $erv['event_payload']];
+            }
+            if ($evQ) $evQ->close();
+            $matDisplayH = eco_build_session_material_display_from_events($eventsH, (string)($r['material_type'] ?? '-'));
             $history[] = [
                 'id'              => (int)$r['id'],
                 'status'          => (string)$r['status'],
-                'material'        => eco_material_display_label((string)($r['material_type'] ?? '-')),
-                'weight_kg'       => (float)($r['weight_kg'] ?? 0),
-                'points_awarded'  => (float)($r['points_awarded'] ?? 0),
+                'material'        => $matDisplayH['label'],
+                'material_list'   => $matDisplayH['materials'],
+                'weight_kg'       => (float)$r['weight_kg'] ?? 0,
+                'points_awarded'  => (float)$r['points_awarded'] ?? 0,
                 'created_at'      => (string)$r['created_at'],
                 'completed_at'    => $r['completed_at'] ?? null,
                 'station_name'    => (string)($r['station_name'] ?? ''),

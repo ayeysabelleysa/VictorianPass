@@ -61,10 +61,17 @@ if ($session) {
             'created_at' => $row['created_at'],
         ];
     }
+    $eventsAll = [];
+    $qev = $con->query("SELECT event_payload FROM ecopoint_session_events WHERE session_id = $sid AND event_type='WASTE_DATA' ORDER BY id ASC");
+    while ($qev && ($rev = $qev->fetch_assoc())) { $eventsAll[] = ['payload' => $rev['event_payload']]; }
+    if ($qev) $qev->close();
+    $matDisplayA = eco_build_session_material_display_from_events($eventsAll, (string)($session['material_type'] ?? ''));
     $sessionOut = [
         'id'                => (int)$session['id'],
         'status'            => (string)$session['status'],
-        'material'          => (string)($session['material_type'] ?? ''),
+        'material'          => $matDisplayA['label'] === '—' ? '' : ($matDisplayA['hasMultiple'] ? 'Mixed' : $matDisplayA['label']),
+        'material_label'    => $matDisplayA['label'],
+        'material_list'     => $matDisplayA['materials'],
         'weight_kg'         => (float)($session['weight_kg'] ?? 0),
         'total_weight_kg'   => (float)($session['weight_kg'] ?? 0),
         'points_calculated' => (float)($session['points_calculated'] ?? 0),
@@ -101,12 +108,18 @@ if ($histQ) {
     $histQ->execute();
     $res = $histQ->get_result();
     while ($row = $res->fetch_assoc()) {
+        $eventsH = [];
+        $evQh = $con->query("SELECT event_payload FROM ecopoint_session_events WHERE session_id = " . (int)$row['id'] . " AND event_type='WASTE_DATA' ORDER BY id ASC");
+        while ($evQh && ($rev = $evQh->fetch_assoc())) { $eventsH[] = ['payload' => $rev['event_payload']]; }
+        if ($evQh) $evQh->close();
+        $matDisplayH = eco_build_session_material_display_from_events($eventsH, (string)($row['material_type'] ?? '-'));
         $history[] = [
             'id'                => (int)$row['id'],
             'status'            => $row['status'],
-            'material'          => (string)($row['material_type'] ?? '-'),
-            'weight_kg'         => (float)($row['weight_kg'] ?? 0),
-            'points_awarded'    => (float)($row['points_awarded'] ?? 0),
+            'material'          => $matDisplayH['label'],
+            'material_list'     => $matDisplayH['materials'],
+            'weight_kg'         => (float)$row['weight_kg'] ?? 0,
+            'points_awarded'    => (float)$row['points_awarded'] ?? 0,
             'created_at'        => $row['created_at'],
             'station_name'      => (string)($row['station_name'] ?? ''),
         ];

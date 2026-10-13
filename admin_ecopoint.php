@@ -153,16 +153,16 @@ while ($q && $r = $q->fetch_assoc()) $activeSessions[] = $r;
 
 $recent = [];
 $qLimit = 50;
-$searchQ = trim((string)($_GET['q'] ?? ''));
-$where = '';
-$params = [];
-$types  = '';
-if ($searchQ !== '') {
-    $where = " AND (u.first_name LIKE ? OR u.last_name LIKE ? OR u.house_number LIKE ? OR st.station_code LIKE ? OR ws.qr_ref_code LIKE ? OR CAST(ws.id AS CHAR) LIKE ?) ";
-    $like = '%' . $searchQ . '%';
-    $params = [$like,$like,$like,$like,$like,$like];
-    $types  = 'ssssss';
-}
+  $searchQ = trim((string)($_GET['q'] ?? ''));
+  $where = '';
+  $params = [];
+  $types  = '';
+  if ($searchQ !== '') {
+      $like = '%' . $searchQ . '%';
+      $where = " AND (u.first_name LIKE ? OR u.last_name LIKE ? OR u.house_number LIKE ? OR st.station_code LIKE ? OR ws.qr_ref_code LIKE ? OR CAST(ws.id AS CHAR) LIKE ? OR EXISTS (SELECT 1 FROM ecopoint_session_events ev WHERE ev.session_id = ws.id AND ev.event_type='WASTE_DATA' AND JSON_UNQUOTE(JSON_EXTRACT(ev.event_payload, '$.material')) LIKE ?)) ";
+      $params = [$like,$like,$like,$like,$like,$like,$like];
+      $types  = 'sssssss';
+  }
 $stmt = $con->prepare("
     SELECT ws.*, st.station_code, st.station_name,
            u.first_name, u.last_name, u.house_number, u.email
@@ -337,7 +337,17 @@ if ($stmt) {
         <td><?php echo htmlspecialchars(trim(($s['first_name'] ?? '').' '.($s['last_name'] ?? ''))); ?></td>
         <td><?php echo htmlspecialchars($s['house_number'] ?? ''); ?></td>
         <td><span class="pill <?php echo strtolower($s['status']); ?>"><?php echo $s['status']; ?></span></td>
-        <td><?php echo htmlspecialchars($s['material_type'] ?? '—'); ?></td>
+        <td><?php 
+        require_once __DIR__ . '/ecopoint_core.php';
+        $evs = [];
+        $evQ = $con->query("SELECT event_payload FROM ecopoint_session_events WHERE session_id=".(int)$s['id']." AND event_type='WASTE_DATA' ORDER BY id ASC");
+        while ($evQ && ($er=$evQ->fetch_assoc())) $evs[]=['payload'=>$er['event_payload']];
+        if ($evQ) $evQ->close();
+        $disp = eco_build_session_material_display_from_events($evs, $s['material_type'] ?? '');
+        if ($disp['label'] === '—') echo '—';
+        elseif (!$disp['hasMultiple']) echo htmlspecialchars($disp['label']);
+        else echo htmlspecialchars($disp['label']).'<br><small style="color:#6b7280;font-size:0.85em;">'.htmlspecialchars(implode(', ', $disp['materials'])).'</small>';
+      ?></td>
         <td><?php echo number_format((float)($s['weight_kg'] ?? 0), 2); ?> kg</td>
         <td><?php echo (int)($s['points_calculated'] ?? 0); ?> / <?php echo (int)($s['points_awarded'] ?? 0); ?></td>
         <td><?php echo $s['started_at'] ? date('g:i A', strtotime($s['started_at'])) : ($s['created_at'] ? date('g:i A', strtotime($s['created_at'])) : ''); ?></td>
@@ -373,7 +383,17 @@ if ($stmt) {
         <td><?php echo htmlspecialchars(trim(($s['first_name'] ?? '').' '.($s['last_name'] ?? ''))); ?></td>
         <td><?php echo htmlspecialchars($s['house_number'] ?? ''); ?></td>
         <td><span class="pill <?php echo strtolower($s['status']); ?>"><?php echo $s['status']; ?></span></td>
-        <td><?php echo htmlspecialchars($s['material_type'] ?? '—'); ?></td>
+        <td><?php 
+          require_once __DIR__ . '/ecopoint_core.php';
+          $evs = [];
+          $evQ = $con->query("SELECT event_payload FROM ecopoint_session_events WHERE session_id=".(int)$s['id']." AND event_type='WASTE_DATA' ORDER BY id ASC");
+          while ($evQ && ($er=$evQ->fetch_assoc())) $evs[]=['payload'=>$er['event_payload']];
+          if ($evQ) $evQ->close();
+          $disp = eco_build_session_material_display_from_events($evs, $s['material_type'] ?? '');
+          if ($disp['label'] === '—') echo '—';
+          elseif (!$disp['hasMultiple']) echo htmlspecialchars($disp['label']);
+          else echo htmlspecialchars($disp['label']).'<br><small style="color:#6b7280;font-size:0.85em;">'.htmlspecialchars(implode(', ', $disp['materials'])).'</small>';
+        ?></td>
         <td><?php echo number_format((float)($s['weight_kg'] ?? 0), 2); ?> kg</td>
         <td><b style="color:#166534"><?php echo (int)($s['points_awarded'] ?? 0); ?></b></td>
         <td><button class="btn-link" onclick="openDetail(<?php echo (int)$s['id']; ?>)">View</button></td>
@@ -397,6 +417,28 @@ if ($stmt) {
 </div>
 
 <script>
+function buildMaterialDisplay(evList, fallback){
+  var materials = [];
+  var seen = {};
+  (evList||[]).forEach(function(ev){
+    var p = ev.payload || null;
+    if (typeof p === 'string') try { p = JSON.parse(p); } catch(e) {}
+    if (!p || !p.material) return;
+    var m = String(p.material).trim();
+    if (!m) return;
+    var k = m.toLowerCase();
+    if (seen[k]) return;
+    seen[k] = true;
+    materials.push(m);
+  });
+  if (materials.length === 0) {
+    var fb = String(fallback||'').trim();
+    if (!fb || fb === '-' || fb === '—') return {label:'—', materials:[], hasMultiple:false};
+    return {label:fb, materials:[fb], hasMultiple:false};
+  }
+  if (materials.length === 1) return {label:materials[0], materials:materials, hasMultiple:false};
+  return {label:'Mixed', materials:materials, hasMultiple:true};
+}
 function openDetail(id){
   var bg = document.getElementById('detailBg');
   var body = document.getElementById('detailBody');
@@ -460,10 +502,17 @@ function renderDetail(d){
         + '<th>Category</th><th>Label</th><th>Rate (pts/kg)</th><th>Weight (kg)</th><th>Points calculated</th><th>Points awarded</th>'
         + '</tr></thead><tbody>';
   if (items.length === 0) {
-    // Legacy case: no waste_items, use session-level totals
-    html += '<tr><td colspan="6" style="padding:16px;text-align:center;color:var(--muted)">'
-          + (s.material_type ? 'Session-level data only (' + escapeHtml(s.material_type) + ' · ' + fmtKg(s.weight_kg) + ')' : 'No waste-item rows for this session.')
-          + '</td></tr>';
+    // Legacy case: no waste_items, use session-level totals from events
+    html += '<tr><td colspan="6" style="padding:16px;text-align:center;color:var(--muted))">';
+    var matEvs = [];
+    if (events && events.length) {
+      events.forEach(function(ev){ if (String(ev.event_type||'').toUpperCase()==='WASTE_DATA') matEvs.push({payload: ev.payload}); });
+    }
+    var dispD = buildMaterialDisplay(matEvs, s.material_type||'');
+    if (dispD.label === '—') html += 'Session-level data only (— · ' + fmtKg(s.weight_kg) + ')';
+    else if (!dispD.hasMultiple) html += 'Session-level data only (' + escapeHtml(dispD.label) + ' · ' + fmtKg(s.weight_kg) + ')';
+    else html += 'Session-level data only (Mixed: ' + escapeHtml(dispD.materials.join(', ')) + ' · ' + fmtKg(s.weight_kg) + ')';
+    html += '</td></tr>';
   } else {
     items.forEach(function(it){
       html += '<tr>'
