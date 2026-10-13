@@ -1,10 +1,34 @@
+import json
 import time
+import uuid
 import requests
 import os
 import subprocess
 import sys
 
-from offline_queue import init_db, save_transaction
+from offline_queue import (
+    init_db,
+    save_transaction,
+    get_pending_transactions,
+    has_pending_transactions,
+    get_session_sync_summary,
+    is_session_finalized,
+    mark_session_finalized,
+    mark_synced,
+    mark_failed,
+    mark_failed_permanent,
+    MAX_RETRY_COUNT,
+    is_retry_due,
+    begin_actuation,
+    mark_actuation_started,
+    mark_actuation_completed,
+    mark_actuation_abandoned,
+    mark_actuation_uncertain,
+    recover_actuation_states,
+    get_uncertain_transactions,
+    is_submittable,
+    transaction_exists
+)
 
 from qr_scanner import (
     start_scanner,
@@ -29,6 +53,8 @@ from inductive import (
 )
 
 import Servo
+
+import aluminum_detection as ALUMINUM
 
 
 # =========================================================
@@ -118,6 +144,24 @@ CANCEL_API = (
     f"{API_BASE_URL}/cancel_session.php"
 )
 
+# =============================================================
+# RECOGNIZED ENDPOINT ERROR CONTRACT
+#
+# The PHP endpoints answer every rejection of their own as JSON with
+# {"success": false, "message": "..."} and never as a web-server
+# error page. A session-level 404 is only trusted as "already
+# finalized / ineligible / not owned" when the message matches the
+# endpoint's own contract below; any other 404 body is treated as
+# ambiguous and retried. Constants must stay in sync with the PHP.
+# =============================================================
+COMPLETE_NOT_FOUND_MESSAGE = (
+    "Session not found or not eligible for completion"
+)
+SUBMIT_NOT_FOUND_MESSAGE = (
+    "Session not found, already finalized, or does not belong "
+    "to this station"
+)
+
 API_KEY = os.getenv("VHECO_API_KEY")
 
 STATION_ID = "VH-ECO-001"
@@ -169,6 +213,49 @@ WEIGHT_STABLE_TIMEOUT = 10.0
 
 
 # =========================================================
+# ALUMINUM DETECTION POLICY
+# =========================================================
+#
+# How the station decides an item is an aluminum can:
+#
+#   "inductive"  (default) - aluminum ONLY when the inductive
+#                 sensor reports stable metal. This is the
+#                 station's original behavior, so an unset or
+#                 invalid configuration changes nothing.
+#   "camera"     - aluminum from a confirmed, sufficiently
+#                 confident camera detection of a verified
+#                 aluminum-can class. The inductive sensor need
+#                 NOT activate.
+#   "hybrid"     - either a confident camera detection OR a
+#                 stable inductive detection is enough.
+#
+# Plastic, Paper and Cardboard handling is never affected by the
+# mode; only the aluminum edge is governed by this policy.
+ALUMINUM_DETECTION_MODE = ALUMINUM.normalize_mode(
+    os.getenv("VHECO_ALUMINUM_MODE", ALUMINUM.DEFAULT_MODE)
+)
+
+# Optional camera-confidence floor for accepting an aluminum
+# detection. The default equals the camera service's own global
+# confidence threshold, so no global camera threshold changes.
+try:
+    _ALUMINUM_MIN_CAMERA_CONFIDENCE = float(
+        os.getenv(
+            "VHECO_ALUMINUM_MIN_CONFIDENCE",
+            ALUMINUM.DEFAULT_MIN_CAMERA_CONFIDENCE,
+        )
+    )
+except (TypeError, ValueError):
+    _ALUMINUM_MIN_CAMERA_CONFIDENCE = (
+        ALUMINUM.DEFAULT_MIN_CAMERA_CONFIDENCE
+    )
+
+ALUMINUM_CONFIG = {
+    "min_camera_confidence": _ALUMINUM_MIN_CAMERA_CONFIDENCE,
+}
+
+
+# =========================================================
 # CAMERA
 # =========================================================
 
@@ -215,17 +302,66 @@ def reset_camera():
         pass
 
 
+# Full /status dict from the most recent camera poll, used by the
+# aluminum policy to read the model's aluminum capability and the
+# detection confidence. Kept as a module global so tests (and the
+# process_item flow) can inspect it without a second HTTP request.
+_last_camera_status = {}
+
+
+def _remember_camera_status(data):
+    global _last_camera_status
+
+    if isinstance(data, dict):
+        _last_camera_status = dict(data)
+
+
+def camera_evidence():
+    """Last camera /status dict (empty when the camera never answered)."""
+    return dict(_last_camera_status)
+
+
+def _camera_aluminum_evidence(status, material):
+    """Shape a camera /status dict into aluminum policy evidence."""
+    if not isinstance(status, dict):
+        status = {}
+
+    return {
+        "supported": bool(status.get("aluminum_supported")),
+        "confirmed": bool(status.get("confirmed")),
+        "material": material,
+        "confidence": status.get("material_confidence"),
+    }
+
+
 # =========================================================
 # API POST
 # =========================================================
 
-def api_post(url, data):
+API_TIMEOUT = 10
+
+
+def api_post_ex(url, data, timeout=None):
+    """POST and return a structured outcome so callers can tell a
+    transport failure (ambiguous — the server may or may not have
+    processed the request) apart from a definite server answer.
+
+    Returns:
+        {
+            "http_status":    int | None,
+            "json":           dict | None,
+            "transport_error": str | None,   # None = we got an HTTP response
+        }
+    """
+    if timeout is None:
+        timeout = API_TIMEOUT
+
     try:
         response = requests.post(
             url,
             headers=API_HEADERS,
             json=data,
-            timeout=10
+            timeout=timeout
         )
 
         print(
@@ -239,25 +375,53 @@ def api_post(url, data):
         )
 
         try:
-            result = response.json()
+            payload = response.json()
 
         except Exception:
             print("Invalid JSON response from server.")
-            return None
+            payload = None
 
-        return result
+        return {
+            "http_status": response.status_code,
+            "json": payload if isinstance(payload, dict) else None,
+            "transport_error": None
+        }
 
     except requests.exceptions.Timeout:
         print("Hostinger API timeout.")
-        return None
+        return {
+            "http_status": None,
+            "json": None,
+            "transport_error": "timeout"
+        }
 
     except requests.exceptions.ConnectionError:
         print("Cannot connect to Hostinger.")
-        return None
+        return {
+            "http_status": None,
+            "json": None,
+            "transport_error": "connection_error"
+        }
 
     except Exception as e:
         print(f"API error: {e}")
+        return {
+            "http_status": None,
+            "json": None,
+            "transport_error": str(e)
+        }
+
+
+def api_post(url, data):
+    info = api_post_ex(url, data)
+
+    if info["http_status"] is None:
         return None
+
+    if info["json"] is None:
+        return None
+
+    return info["json"]
 
 
 # =========================================================
@@ -367,6 +531,7 @@ def create_api_session(qr_code):
     return {
         "session_token": session_token,
         "resident": resident,
+        "qr_code": resident_code,
         "cap_state": result.get("cap_state", {})
     }
 
@@ -375,7 +540,105 @@ def create_api_session(qr_code):
 # SUBMIT WASTE DATA
 # =========================================================
 
-def submit_waste_data(session_token, material, weight):
+def _recognized_app_rejection(http_status, result, not_found_message):
+    """True only when the server body is a recognized PHP endpoint
+    error for this request.
+
+    The endpoints always answer their own rejections as JSON with
+        {"success": false, "message": "..."}
+    and never as a web-server error page or non-JSON body.
+
+    - HTTP 404 is only trusted when the message matches the
+      endpoint's own not-found / not-eligible / not-owned contract.
+      A generic HTML 404, malformed JSON, or an unexpected JSON 404
+      carries no evidence that the request can never succeed, so it
+      is never treated as terminal.
+    - Other 4xx statuses (400/401/403/405) are trusted when they
+      carry the endpoint's success:false + message envelope, which
+      the PHP code sets for every rejection it emits.
+
+    Retryable-on-mismatch is the safe direction: if the endpoint
+    contract ever changes, the station retries instead of retiring a
+    session or permanently failing an item.
+    """
+    if not isinstance(result, dict):
+        return False
+
+    if result.get("success") is not False:
+        return False
+
+    message = result.get("message")
+    if not isinstance(message, str) or message.strip() == "":
+        return False
+
+    if not (400 <= http_status < 500):
+        return False
+
+    if http_status == 404:
+        return message.strip() == not_found_message
+
+    return True
+
+
+def _classify_submit_failure(info):
+    """Decide whether a failed submit is worth retrying later.
+
+    retryable = True  -> transport failure, 5xx, or any response that
+                         carries no reliable evidence the attempt can
+                         never succeed (generic or non-JSON 4xx,
+                         malformed JSON): safe to retry because the
+                         server de-duplicates on transaction_id.
+    retryable = False -> the PHP endpoint answered definitively with
+                         its own JSON error contract: invalid payload
+                         or an expired/finalized/missing session;
+                         sending the identical payload again can
+                         never succeed.
+
+    A body is only trusted as definitive when it matches this
+    endpoint's recognized error contract (see
+    _recognized_app_rejection). An unexpected or non-JSON 4xx must
+    not permanently FAIL an item.
+    """
+    if info["transport_error"] is not None:
+        return True
+
+    status = info["http_status"]
+
+    if status is None:
+        return True
+
+    if info["json"] is None:
+        # Non-JSON body (proxy/gateway error page, etc.).
+        return True
+
+    if status >= 500:
+        return True
+
+    if not isinstance(info["json"], dict):
+        return True
+
+    # Every recognized endpoint rejection (400/401/403/404/405) is
+    # definitive for this payload; a generic or unexpected 4xx is not.
+    return not _recognized_app_rejection(
+        status,
+        info["json"],
+        SUBMIT_NOT_FOUND_MESSAGE
+    )
+
+
+def submit_waste_data(session_token, material, weight, transaction_id=None):
+    """Submit one item to Hostinger.
+
+    weight      -> grams (as measured by the load cell); converted
+                   to kilograms for the API.
+    transaction_id -> stable client-generated ID, created BEFORE
+                   the first attempt and reused on every retry so
+                   the server can de-duplicate. Strongly recommended.
+
+    Returns an outcome dict:
+        {"ok": bool, "retryable": bool, "result": dict|None,
+         "message": str, "http_status": int|None}
+    """
     if (
         weight is None
         or weight < MIN_WEIGHT
@@ -385,43 +648,74 @@ def submit_waste_data(session_token, material, weight):
             "Refusing to submit invalid weight."
         )
 
-        return None
-
-    result = api_post(
-        SUBMIT_WASTE_API,
-        {
-            "session_token": session_token,
-            "material": material.capitalize(),
-            "weight_kg": weight / 1000,
-            "raw_hardware_data": {
-                "station_id": STATION_ID
-            }
+        return {
+            "ok": False,
+            "retryable": False,
+            "result": None,
+            "message": "invalid_weight",
+            "http_status": None
         }
+
+    raw_hardware_data = {
+        "station_id": STATION_ID
+    }
+
+    # The server checks BOTH the top-level field and this nested
+    # copy when looking for a duplicate transaction.
+    if transaction_id:
+        raw_hardware_data["transaction_id"] = transaction_id
+
+    payload = {
+        "session_token": session_token,
+        "material": material.capitalize(),
+        "weight_kg": weight / 1000,
+        "raw_hardware_data": raw_hardware_data
+    }
+
+    if transaction_id:
+        payload["transaction_id"] = transaction_id
+
+    info = api_post_ex(
+        SUBMIT_WASTE_API,
+        payload
     )
 
-    if not result:
-        print(
-            "No response from waste submission API."
-        )
+    result = info["json"]
 
-        return None
-
-    if not result.get("success"):
-        print(
-            "Waste submission failed:",
-            result.get(
-                "message",
-                "Unknown error"
+    if info["transport_error"] is None and result and result.get("success"):
+        if result.get("duplicate"):
+            print(
+                "Waste data already recorded by server "
+                "(idempotent replay)."
             )
-        )
+        else:
+            print(
+                "Waste data submitted successfully."
+            )
 
-        return None
+        return {
+            "ok": True,
+            "retryable": False,
+            "result": result,
+            "message": "ok",
+            "http_status": info["http_status"]
+        }
 
-    print(
-        "Waste data submitted successfully."
-    )
+    if info["transport_error"]:
+        message = f"transport_error:{info['transport_error']}"
+    elif result:
+        message = result.get("message", "Unknown error")
+        print("Waste submission failed:", message)
+    else:
+        message = f"http_{info['http_status']}_invalid_json"
 
-    return result
+    return {
+        "ok": False,
+        "retryable": _classify_submit_failure(info),
+        "result": result,
+        "message": message,
+        "http_status": info["http_status"]
+    }
 
 
 # =========================================================
@@ -496,6 +790,110 @@ def complete_api_session(
     return result
 
 
+def complete_api_session_ex(
+    session_token,
+    material=None,
+    weight=None
+):
+    """Complete a session and classify the outcome so the
+    abandoned-session finalizer can tell a transient failure apart
+    from a definitive one.
+
+    Only a response that matches the endpoint's recognized error
+    contract can retire a session (see _recognized_app_rejection).
+    In particular, the documented 404 body
+        {"success": false, "message": "Session not found or not
+         eligible for completion"}
+    is the only 404 treated as already-finalized / definitively
+    ineligible. A generic HTML 404, non-JSON body, malformed or
+    unexpected JSON, 5xx, timeout or connection failure is never
+    terminal, so it can never write the local finalization ledger.
+
+    Returns:
+        {
+            "ok":          bool,   # server confirmed completion
+            "terminal":    bool,   # server gave a RECOGNIZED
+                                   # definitive answer that the
+                                   # session is not completable
+                                   # (already finalized/cancelled,
+                                   # ineligible, bad payload, auth):
+                                   # never retry
+            "result":      dict | None,
+            "message":     str,
+            "http_status": int | None,
+        }
+    """
+    if not session_token:
+        return {
+            "ok": False,
+            "terminal": True,
+            "result": None,
+            "message": "no_session_token",
+            "http_status": None
+        }
+
+    data = {
+        "session_token": session_token
+    }
+
+    if material is not None:
+        data["final_material"] = material.capitalize()
+
+    if weight is not None:
+        data["final_weight_kg"] = weight / 1000
+
+    data["raw_hardware_data"] = {
+        "station_id": STATION_ID
+    }
+
+    info = api_post_ex(
+        COMPLETE_API,
+        data
+    )
+
+    result = info["json"]
+
+    if info["transport_error"] is None and result and result.get("success"):
+        return {
+            "ok": True,
+            "terminal": False,
+            "result": result,
+            "message": "ok",
+            "http_status": info["http_status"]
+        }
+
+    if info["transport_error"]:
+        message = f"transport_error:{info['transport_error']}"
+    elif result:
+        message = result.get("message", "Unknown error")
+    else:
+        message = f"http_{info['http_status']}_invalid_json"
+
+    status = info["http_status"]
+
+    # A session is only retired when the PHP endpoint gave a
+    # recognized, definitive answer about THIS session. The endpoint
+    # documents exactly one 404 body for already-finalized /
+    # ineligible sessions and always answers its own rejections as
+    # JSON {"success": false, "message": "..."}. Any generic or
+    # non-JSON 4xx, malformed/unexpected body, 5xx, timeout or
+    # connection failure carries no evidence that the session is
+    # done, so it is never written to the local finalization ledger.
+    terminal = _recognized_app_rejection(
+        status,
+        result,
+        COMPLETE_NOT_FOUND_MESSAGE
+    )
+
+    return {
+        "ok": False,
+        "terminal": terminal,
+        "result": result,
+        "message": message,
+        "http_status": status
+    }
+
+
 # =========================================================
 # CANCEL HOSTINGER SESSION
 # =========================================================
@@ -531,6 +929,615 @@ def cancel_api_session(
                 "Unknown error"
             )
         )
+
+
+# =========================================================
+# OFFLINE QUEUE: SAFE WRAPPERS
+#
+# The queue lives on local storage that can fail independently of
+# the station (disk I/O error, full disk, locked/corrupt DB). A
+# queue fault must NEVER crash the station loop and must NEVER be
+# mistaken for "nothing queued". These wrappers isolate callers
+# from sqlite3 exceptions.
+# =========================================================
+
+def _mark_synced_safe(transaction_id):
+    """Mark a row SYNCED; never raises.
+
+    Returns True on success. On failure the row stays PENDING and
+    will be re-submitted later; the server de-duplicates by
+    transaction_id, so re-sending is safe.
+    """
+    try:
+        mark_synced(transaction_id)
+        return True
+
+    except Exception as e:
+        print(
+            f"[OFFLINE] WARNING: could not mark transaction "
+            f"{transaction_id} as SYNCED: {e}. It stays PENDING "
+            f"and will be re-tried (server de-duplicates by id)."
+        )
+        return False
+
+
+def _mark_failed_safe(transaction_id, error):
+    """Record one retryable failure; never raises."""
+    try:
+        mark_failed(transaction_id, error)
+        return True
+
+    except Exception as e:
+        print(
+            f"[OFFLINE] WARNING: could not record retry for "
+            f"transaction {transaction_id}: {e}"
+        )
+        return False
+
+
+def _mark_failed_permanent_safe(transaction_id, error):
+    """Move a row to FAILED; never raises."""
+    try:
+        mark_failed_permanent(transaction_id, error)
+        return True
+
+    except Exception as e:
+        print(
+            f"[OFFLINE] WARNING: could not mark transaction "
+            f"{transaction_id} as FAILED: {e}"
+        )
+        return False
+
+
+# =========================================================
+# M5: DURABLE PRE-ACTUATION (WRITE-AHEAD) SAFE WRAPPERS
+#
+# These never raise: the caller MUST refuse to move the servo
+# when one returns False, because an unrecorded physical sort
+# cannot be recovered.
+# =========================================================
+
+def _begin_actuation_safe(
+    transaction_id,
+    session_token,
+    qr_code,
+    material,
+    weight,
+    points
+):
+    """Commit the pre-actuation record; never raises.
+
+    Returns True only when the row is durably committed. False means
+    the caller must NOT command the servo.
+    """
+    payload = json.dumps({
+        "station_id": STATION_ID,
+        "transaction_id": transaction_id,
+        "points_preview": points,
+        "weight_g": weight,
+        "actuation_requested_at": time.time()
+    })
+
+    try:
+        begin_actuation(
+            transaction_id,
+            session_token,
+            qr_code,
+            material.capitalize(),
+            weight / 1000.0,
+            payload
+        )
+        return True
+
+    except Exception as e:
+        print(
+            f"[OFFLINE] FATAL: pre-actuation record for "
+            f"{transaction_id} could NOT be committed: {e}"
+        )
+        return False
+
+
+def _mark_actuation_started_safe(transaction_id):
+    """Persist actuation-started before the servo command; never raises."""
+    try:
+        mark_actuation_started(transaction_id)
+        return True
+
+    except Exception as e:
+        print(
+            f"[ACTUATION] WARNING: could not persist actuation-started "
+            f"for {transaction_id}: {e}"
+        )
+        return False
+
+
+def _mark_actuation_completed_safe(transaction_id):
+    """Persist actuation-completed after the servo returns; never raises."""
+    try:
+        mark_actuation_completed(transaction_id)
+        return True
+
+    except Exception as e:
+        print(
+            f"[ACTUATION] WARNING: could not persist actuation-complete "
+            f"for {transaction_id}: {e}"
+        )
+        return False
+
+
+def _mark_actuation_abandoned_safe(transaction_id, reason):
+    """Resolve a never-commanded actuation; never raises."""
+    try:
+        mark_actuation_abandoned(transaction_id, reason)
+        return True
+
+    except Exception as e:
+        print(
+            f"[ACTUATION] WARNING: could not mark {transaction_id} "
+            f"ABANDONED: {e}"
+        )
+        return False
+
+
+def _mark_actuation_uncertain_safe(transaction_id, reason):
+    """Flag an unknown physical outcome; never raises."""
+    try:
+        mark_actuation_uncertain(transaction_id, reason)
+        return True
+
+    except Exception as e:
+        print(
+            f"[ACTUATION] WARNING: could not mark {transaction_id} "
+            f"UNCERTAIN: {e}"
+        )
+        return False
+
+
+def _report_uncertain_transactions():
+    """Print a prominent diagnostic for unresolved physical outcomes.
+
+    These rows are never submitted or awarded automatically and they
+    block session finalization. An operator identifies them by their
+    transaction_id (also recorded in the SQLite queue at
+    pending_transactions.actuation_state = 'UNCERTAIN') and resolves
+    each by physically inspecting the affected bin/item and deciding
+    manually whether the item was sorted and should be credited; there
+    is no automated physical confirmation on this hardware.
+    """
+    try:
+        rows = get_uncertain_transactions()
+
+    except Exception as e:
+        print(
+            f"[ACTUATION] WARNING: could not list uncertain "
+            f"transactions: {e}"
+        )
+        return
+
+    if not rows:
+        return
+
+    print()
+    print("=" * 60)
+    print(f"  [ACTUATION] {len(rows)} UNRESOLVED transaction(s)")
+    print("=" * 60)
+    print("  These items MAY have been physically sorted but the")
+    print("  completion was not recorded (power loss during sorting).")
+    print("  They will NOT be submitted or awarded automatically and")
+    print("  they BLOCK session finalization until resolved.")
+    print("  Operator action required. Inspect each item against the")
+    print("  bin/receipt log, then resolve the row out-of-band.")
+    for row in rows:
+        print(
+            f"    - id={row['id']} tx={row['transaction_id']} "
+            f"session={row['session_token']} material={row['material']} "
+            f"weight_kg={row['weight_kg']} error={row['last_error']}"
+        )
+    print("=" * 60)
+    print()
+
+
+def _session_finalized_safe(session_token):
+    """True when the session is already recorded as finalized.
+
+    On a read error, reports True (fail safe): a session that cannot
+    be checked is treated as done so the station never spins on
+    repeated completion attempts for it."""
+    try:
+        return is_session_finalized(session_token)
+
+    except Exception as e:
+        print(
+            f"[OFFLINE] WARNING: could not read finalize ledger for "
+            f"session {session_token}: {e}; assuming already handled."
+        )
+        return True
+
+
+def _mark_session_finalized_safe(session_token):
+    """Record a session as finalized; never raises."""
+    try:
+        mark_session_finalized(session_token)
+        return True
+
+    except Exception as e:
+        print(
+            f"[OFFLINE] WARNING: could not record session "
+            f"{session_token} as finalized: {e}. It may be attempted "
+            f"again later (re-completion is idempotent server-side)."
+        )
+        return False
+
+
+# =========================================================
+# OFFLINE QUEUE: RECORD FAILED SUBMISSIONS
+# =========================================================
+
+def record_failed_submission(
+    session_token,
+    qr_code,
+    material,
+    weight,
+    transaction_id,
+    outcome
+):
+    """Persist an item that was physically processed/sorted but
+    could not be confirmed by the Hostinger API.
+
+    weight -> grams (converted to kilograms for the queue DB).
+
+    Returns:
+        "QUEUED"             -> saved, will be retried automatically
+        "TERMINAL"           -> saved as FAILED for audit; never retried
+                                (server rejected definitively: expired
+                                session, bad payload, auth, ...)
+        "FAILED_NOT_RECORDED"-> the item was saved, but its terminal
+                                FAILED status could NOT be persisted;
+                                it stays PENDING (retryable)
+        "NOT_SAVED"          -> local write failed (critically low disk);
+                                the caller must surface this loudly
+    """
+    payload = {
+        "station_id": STATION_ID,
+        "transaction_id": transaction_id,
+        "queued_at": time.time(),
+        "http_status": outcome.get("http_status"),
+        "error": outcome.get("message")
+    }
+
+    try:
+        # M5: the pre-actuation record was already committed before the
+        # servo moved. If it is still present, do not re-insert (and
+        # never report the item as lost on a transient write error); a
+        # missing row means an older/legacy path, so save it now.
+        if transaction_exists(transaction_id):
+            print(
+                f"[OFFLINE] Transaction {transaction_id} is already "
+                f"durably recorded (pre-actuation); keeping it queued."
+            )
+        else:
+            save_transaction(
+                transaction_id,
+                session_token,
+                qr_code,
+                material.capitalize(),
+                weight / 1000.0,
+                json.dumps(payload)
+            )
+
+    except RuntimeError as e:
+        print(
+            f"[OFFLINE] LOW DISK: transaction {transaction_id} "
+            f"could NOT be queued: {e}"
+        )
+        return "NOT_SAVED"
+
+    except Exception as e:
+        print(
+            f"[OFFLINE] Queue write failed for transaction "
+            f"{transaction_id}: {e}"
+        )
+        return "NOT_SAVED"
+
+    if outcome.get("retryable"):
+        print(
+            f"[OFFLINE] Item saved to the offline queue "
+            f"(transaction {transaction_id}); it will be "
+            f"retried automatically."
+        )
+        return "QUEUED"
+
+    if not _mark_failed_permanent_safe(
+        transaction_id,
+        outcome.get("message", "terminal failure")
+    ):
+        print(
+            f"[OFFLINE] Transaction {transaction_id} was saved to the "
+            f"offline queue, but the FAILED status could NOT be "
+            f"persisted. It stays PENDING and will be retried; the "
+            f"server still de-duplicates by transaction_id, so this "
+            f"cannot double-count."
+        )
+        return "FAILED_NOT_RECORDED"
+
+    print(
+        f"[OFFLINE] Transaction {transaction_id} recorded as "
+        f"FAILED (will not retry): "
+        f"{outcome.get('message')}"
+    )
+    return "TERMINAL"
+
+
+# =========================================================
+# OFFLINE QUEUE: FLUSH (RETRY PENDING TRANSACTIONS)
+# =========================================================
+
+def flush_offline_queue():
+    """Try to sync every PENDING queued transaction that is due.
+
+    M3 persistent backoff: a PENDING row whose retry deadline
+    (next_retry_at, persisted in SQLite) has not arrived is skipped, so
+    repeated flushes during an outage do not hammer the API. The
+    deadline survives a Pi restart because it lives in the queue DB.
+
+      - success                -> SYNCED, deadline cleared
+      - retryable failure      -> stays PENDING, retry_count++ and
+                                  next_retry_at = now + delay(count)
+      - terminal failure       -> FAILED (deadline cleared)
+      - retry_count >= MAX     -> FAILED (gave up, logged) -- checked
+                                  for EVERY PENDING row on every flush
+                                  BEFORE the backoff skip, so a retry
+                                  deadline can never postpone this
+                                  permanent-failure check.
+
+    Each row keeps its original transaction_id so the server
+    can de-duplicate even when an earlier attempt actually
+    reached the server (ambiguous timeout).
+
+    Returns the number of rows synced in this pass.
+    """
+    try:
+        pending = get_pending_transactions()
+
+    except Exception as e:
+        print(f"[OFFLINE] Queue unreadable: {e}")
+        return 0
+
+    if not pending:
+        return 0
+
+    due = []
+    waiting = 0
+    unresolved = 0
+
+    for row in pending:
+        txid = row["transaction_id"]
+
+        # M5: never submit a row whose physical actuation is not
+        # confirmed. PREPARED/ACTUATING are incomplete; ABANDONED and
+        # UNCERTAIN are deliberate unresolved outcomes. These rows are
+        # left exactly as they are -- not retried, not failed, not
+        # discarded -- so they keep blocking session finalization until
+        # an operator resolves them. The gate is checked BEFORE the
+        # retry-limit guard so an unresolved row is never converted to
+        # FAILED by the retry counter.
+        if not is_submittable(row):
+            unresolved += 1
+            continue
+
+        # Retry-limit guard first: reaching MAX_RETRY_COUNT is terminal
+        # and is never delayed by a pending backoff deadline.
+        if row["retry_count"] >= MAX_RETRY_COUNT:
+            if _mark_failed_permanent_safe(
+                txid,
+                f"gave up after {row['retry_count']} retries: "
+                f"{row['last_error']}"
+            ):
+                print(
+                    f"[OFFLINE] Transaction {txid} moved to FAILED "
+                    f"after {row['retry_count']} retries."
+                )
+            continue
+
+        if is_retry_due(row):
+            due.append(row)
+        else:
+            waiting += 1
+
+    if unresolved:
+        print(
+            f"[OFFLINE] {unresolved} transaction(s) are UNRESOLVED "
+            f"(physical sorting outcome not confirmed) and will NOT "
+            f"be submitted automatically. Operator review required."
+        )
+
+    if not due:
+        if waiting:
+            print(
+                f"[OFFLINE] {waiting} queued transaction(s) are "
+                f"waiting on retry backoff; nothing to send yet."
+            )
+        return 0
+
+    if waiting:
+        print(
+            f"[OFFLINE] Flushing {len(due)} due transaction(s) "
+            f"({waiting} waiting on backoff)..."
+        )
+    else:
+        print(
+            f"[OFFLINE] Flushing {len(due)} queued "
+            f"transaction(s)..."
+        )
+
+    synced = 0
+
+    for row in due:
+        txid = row["transaction_id"]
+        weight_kg = row["weight_kg"] or 0.0
+
+        outcome = submit_waste_data(
+            row["session_token"],
+            row["material"],
+            weight_kg * 1000.0,
+            transaction_id=txid
+        )
+
+        if outcome["ok"]:
+            if _mark_synced_safe(txid):
+                synced += 1
+                print(
+                    f"[OFFLINE] Transaction {txid} synced."
+                )
+
+        elif outcome["retryable"]:
+            _mark_failed_safe(txid, outcome["message"])
+            print(
+                f"[OFFLINE] Transaction {txid} not yet synced "
+                f"(attempt {row['retry_count'] + 1}/"
+                f"{MAX_RETRY_COUNT}): {outcome['message']}"
+            )
+
+        else:
+            if _mark_failed_permanent_safe(txid, outcome["message"]):
+                print(
+                    f"[OFFLINE] Transaction {txid} terminal, "
+                    f"will not retry: {outcome['message']}"
+                )
+
+    return synced
+
+
+# =========================================================
+# OFFLINE QUEUE: FINALIZE ABANDONED SESSIONS
+#
+# A session that was never completed (station moved on, network
+# dropped, power loss) leaves its successfully-recorded items
+# unawarded until the session is finalized. The server only
+# self-heals a stale session when some request touches it, which
+# will not happen once the station stops referencing that token,
+# so the station drives finalization here.
+# =========================================================
+
+def finalize_abandoned_sessions(current_session_token=None):
+    """Complete any session whose queued work has fully synced.
+
+    A session is finalized only when ALL of these hold:
+      - it is NOT the currently active session;
+      - it has no PENDING transactions left (nothing unsynced);
+      - at least one of its transactions is SYNCED (points are
+        actually waiting to be awarded);
+      - it has not already been finalized by this station.
+
+    Failures NEVER mark a session locally complete: the ledger entry
+    is written only after the server confirms (or definitively
+    refuses) completion. Transient/DB failures are simply retried on
+    the next flush.
+
+    Returns the number of sessions finalized in this pass.
+    """
+    try:
+        summary = get_session_sync_summary()
+
+    except Exception as e:
+        print(
+            f"[OFFLINE] WARNING: could not list sessions to "
+            f"finalize: {e}"
+        )
+        return 0
+
+    finalized = 0
+
+    for row in summary:
+        token = row["session_token"]
+
+        if not token:
+            continue
+
+        # Never touch the session the resident is using right now.
+        if token == current_session_token:
+            continue
+
+        # Any unsynced item means finalizing now would strand it.
+        if row["pending_count"]:
+            continue
+
+        # Nothing was recorded for this session -> nothing to award.
+        if not row["synced_count"]:
+            continue
+
+        if _session_finalized_safe(token):
+            continue
+
+        outcome = complete_api_session_ex(token)
+
+        if outcome["ok"]:
+            _mark_session_finalized_safe(token)
+            finalized += 1
+            print(
+                f"[OFFLINE] Abandoned session {token[:8]}... "
+                f"finalized; points awarded: "
+                f"{outcome['result'].get('points_awarded', 0)}"
+            )
+
+        elif outcome["terminal"]:
+            # Server already finalized/cancelled it (e.g. by its own
+            # stale-session recovery), or the session can never be
+            # completed. Record it so we stop re-attempting.
+            _mark_session_finalized_safe(token)
+            print(
+                f"[OFFLINE] Session {token[:8]}... is not "
+                f"completable ({outcome['message']}); not retrying."
+            )
+
+        else:
+            print(
+                f"[OFFLINE] Abandoned session {token[:8]}... not "
+                f"finalized yet ({outcome['message']}); will retry."
+            )
+
+    return finalized
+
+
+# =========================================================
+# SESSION SAFETY GUARDS
+# =========================================================
+
+def _queue_pending_safe(session_token=None):
+    """Conservative read of the offline queue; never raises.
+
+    Returns True when a PENDING row exists OR when the queue cannot
+    be read at all. Treating an unreadable queue as "pending" is the
+    only fail-safe choice: it prevents the station from cancelling or
+    completing a session that may still hold unsynced transactions.
+    """
+    try:
+        return has_pending_transactions(session_token)
+
+    except Exception as e:
+        print(
+            f"[OFFLINE] WARNING: could not read the offline queue "
+            f"({e}); assuming pending transactions exist to stay safe."
+        )
+        return True
+
+
+def should_cancel_session(items, session_token):
+    """Cancelling is only safe when nothing was recorded and no
+    queued transaction for this session is still waiting to sync.
+
+    An unreadable queue is treated as pending, so the session is
+    NOT cancelled (fail safe)."""
+    return items == 0 and not _queue_pending_safe(session_token)
+
+
+def should_complete_session(items, session_token):
+    """Completing is only safe when at least one item was accepted
+    AND no queued transaction for this session is still unsynced.
+
+    An unreadable queue is treated as pending, so the session is
+    NOT completed (fail safe)."""
+    return items > 0 and not _queue_pending_safe(session_token)
 
 
 # =========================================================
@@ -676,6 +1683,11 @@ def get_camera_material():
         if data:
             saw_status = True
 
+            # Keep the full status for the aluminum policy so it can
+            # read the model's aluminum capability and the detection
+            # confidence without polling the camera again.
+            _remember_camera_status(data)
+
             if data.get("camera_available", False):
                 saw_available = True
 
@@ -687,7 +1699,12 @@ def get_camera_material():
                     return "Mixed"
 
                 # -------------------------------------------------
-                # CAMERA CONFIRMED PLASTIC / PAPER
+                # CAMERA CONFIRMED PLASTIC / PAPER / ALUMINUM
+                #
+                # Aluminum is only ever reported by a model that
+                # exposes a verified aluminum-can class. Whether it
+                # is *used* is decided by the configured mode in
+                # process_item().
                 # -------------------------------------------------
 
                 if data.get("confirmed"):
@@ -695,7 +1712,8 @@ def get_camera_material():
 
                     if material in (
                         "Plastic",
-                        "Paper"
+                        "Paper",
+                        "Aluminum"
                     ):
                         return material
 
@@ -885,12 +1903,21 @@ def end_session_on_removal_timeout(session_token, items):
             "to award points."
         )
 
-    else:
+    elif should_cancel_session(items, session_token):
 
         cancel_api_session(
             session_token,
             f"Item not removed within "
             f"{REMOVAL_TIMEOUT:.0f} seconds"
+        )
+
+    else:
+
+        print(
+            "[OFFLINE] Queued item(s) still pending for this "
+            "session; NOT cancelling so they can be retried. "
+            "The session will finalize automatically once "
+            "sync succeeds or times out server-side."
         )
 
     print()
@@ -908,7 +1935,7 @@ def end_session_on_removal_timeout(session_token, items):
 # PROCESS ONE ITEM
 # =========================================================
 
-def process_item():
+def process_item(session_token, resident_code):
     print()
     print("Ready for next item.")
     print(
@@ -939,6 +1966,12 @@ def process_item():
     print("Checking camera...")
 
     camera_material = get_camera_material()
+    camera_info = camera_evidence()
+
+    # Tracks how aluminum was established, so the final material
+    # check knows whether the inductive sensor is authoritative for
+    # this item. None unless the item was classified as aluminum.
+    aluminum_source = None
 
     # -----------------------------------------------------
     # CAMERA DETECTED MIXED MATERIAL
@@ -955,10 +1988,52 @@ def process_item():
         return "REJECTED"
 
     # -----------------------------------------------------
+    # CAMERA CONFIRMED ALUMINUM
+    #
+    # Only reachable when the loaded model exposes a verified
+    # aluminum-can class. The configured mode decides whether to
+    # trust it; in the default "inductive" mode a camera reading
+    # is ignored and the inductive sensor (below) decides, which
+    # is exactly the original behavior.
+    # -----------------------------------------------------
+
+    if (
+        camera_material == "Aluminum"
+        and ALUMINUM_DETECTION_MODE != ALUMINUM.MODE_INDUCTIVE
+    ):
+        decision = ALUMINUM.resolve_aluminum(
+            ALUMINUM_DETECTION_MODE,
+            _camera_aluminum_evidence(camera_info, camera_material),
+            {"active": False, "stable": False},
+            ALUMINUM_CONFIG
+        )
+
+        if decision.accepted:
+            material = "aluminum"
+            aluminum_source = decision.source
+
+            print(
+                "Camera confirmed: Aluminum"
+            )
+
+        else:
+            print(
+                "Camera aluminum detection not accepted: "
+                f"{decision.reason}"
+            )
+
+            notify_unrecognized_item()
+
+            if not wait_for_removal():
+                return "REMOVAL_TIMEOUT"
+
+            return "REJECTED"
+
+    # -----------------------------------------------------
     # CAMERA SUCCESSFULLY IDENTIFIED PLASTIC / PAPER
     # -----------------------------------------------------
 
-    if camera_material in (
+    elif camera_material in (
         "Plastic",
         "Paper"
     ):
@@ -982,15 +2057,24 @@ def process_item():
             "Checking inductive sensor..."
         )
 
+        # In "camera" mode the inductive sensor is NOT authoritative:
+        # a metal reading alone must not classify the item. In
+        # "inductive" and "hybrid" modes it still may.
+        inductive_may_classify = (
+            ALUMINUM_DETECTION_MODE
+            in (ALUMINUM.MODE_INDUCTIVE, ALUMINUM.MODE_HYBRID)
+        )
+
         metal = metal_detected()
 
-        if metal:
+        if metal and inductive_may_classify:
             print(
                 "Metal detected. "
                 "Confirming aluminum..."
             )
 
             verify_start = time.monotonic()
+            metal_stable = True
 
             while (
                 time.monotonic()
@@ -998,24 +2082,36 @@ def process_item():
                 < METAL_STABLE_TIME
             ):
                 if not metal_detected():
-                    print(
-                        "Metal verification failed."
-                    )
-
-                    if not wait_for_removal():
-                        return "REMOVAL_TIMEOUT"
-
-                    return "REJECTED"
+                    metal_stable = False
+                    break
 
                 time.sleep(0.05)
 
+            if not metal_stable:
+                print(
+                    "Metal verification failed."
+                )
+
+                if not wait_for_removal():
+                    return "REMOVAL_TIMEOUT"
+
+                return "REJECTED"
+
             material = "aluminum"
+            aluminum_source = "inductive"
 
             print(
                 "Aluminum confirmed."
             )
 
         else:
+            if metal:
+                print(
+                    "Metal detected, but the inductive sensor is "
+                    f"not authoritative in '{ALUMINUM_DETECTION_MODE}' "
+                    "mode and the camera did not confirm aluminum."
+                )
+
             print(
                 "Item could not be identified."
             )
@@ -1067,7 +2163,11 @@ def process_item():
 
     if material == "aluminum":
 
-        if not metal_detected():
+        # Inductive-confirmed aluminum must still be metal at the end.
+        # Camera-confirmed aluminum does not require the inductive
+        # sensor (camera mode is explicitly camera-based and the item
+        # may not trigger the coil reliably).
+        if aluminum_source == "inductive" and not metal_detected():
             print(
                 "Metal verification lost."
             )
@@ -1110,18 +2210,120 @@ def process_item():
         return "REJECTED"
 
     # =====================================================
-    # 6. SORT MATERIAL INTO THE CORRECT BIN
+    # 6. DURABLE PRE-ACTUATION RECORD (M5 WRITE-AHEAD)
+    #
+    # Generate the transaction id ONCE and commit a write-ahead
+    # record to the offline queue BEFORE the servo can move.
+    # If the record cannot be durably committed we must NOT sort:
+    # an unsorted item is recoverable (the resident can try again),
+    # while a sorted-but-unrecorded item is not.
     # =====================================================
 
+    transaction_id = uuid.uuid4().hex
+
+    if not _begin_actuation_safe(
+        transaction_id,
+        session_token,
+        resident_code,
+        material,
+        weight,
+        points
+    ):
+        print(
+            "[ACTUATION] Refusing to sort: the durable "
+            "pre-actuation record could not be committed."
+        )
+        print(
+            "Please remove the item and try again."
+        )
+
+        if not wait_for_removal():
+            return "REMOVAL_TIMEOUT"
+
+        return "REJECTED"
+
+    # Persist 'actuation started' BEFORE issuing the servo command so a
+    # crash from here on is an UNKNOWN physical outcome (never assumed
+    # "nothing happened"). If it cannot be persisted we abandon the
+    # (still PREPARED) record and refuse to move the servo.
+    if not _mark_actuation_started_safe(transaction_id):
+        _mark_actuation_abandoned_safe(
+            transaction_id,
+            "could not persist actuation-started state"
+        )
+        print(
+            "[ACTUATION] Refusing to sort: could not record that "
+            "sorting was about to begin."
+        )
+        print(
+            "Please remove the item and try again."
+        )
+
+        if not wait_for_removal():
+            return "REMOVAL_TIMEOUT"
+
+        return "REJECTED"
+
+    # =====================================================
+    # 7. SORT MATERIAL INTO THE CORRECT BIN
+    # =====================================================
+
+    actuated = False
+
     try:
-        Servo.sort_material(material)
+        actuated = Servo.sort_material(material) is not False
 
     except Exception as e:
         print(
             f"[SERVO] Sort failed: {e}"
         )
 
-    return weight, points, material
+    if not actuated:
+        # The command may or may not have moved the mechanism. Do not
+        # claim a physical placement: keep the record UNCERTAIN so it is
+        # never submitted or awarded automatically and blocks session
+        # finalization until an operator resolves it.
+        _mark_actuation_uncertain_safe(
+            transaction_id,
+            "servo command did not complete successfully"
+        )
+        print(
+            "[ACTUATION] Physical sort could not be confirmed. The "
+            "transaction is marked UNCERTAIN and will NOT be awarded "
+            "automatically."
+        )
+        print(
+            "Please remove the item. Staff has been flagged to review."
+        )
+
+        if not wait_for_removal():
+            return "REMOVAL_TIMEOUT"
+
+        return "REJECTED"
+
+    if not _mark_actuation_completed_safe(transaction_id):
+        # The servo returned successfully, but we cannot record it.
+        # Treat as UNCERTAIN rather than risk re-sorting or awarding an
+        # unconfirmed outcome on the next pass.
+        _mark_actuation_uncertain_safe(
+            transaction_id,
+            "could not persist actuation completion (servo returned OK)"
+        )
+        print(
+            "[ACTUATION] Sort completed but could not be recorded. The "
+            "transaction is marked UNCERTAIN and will NOT be awarded "
+            "automatically."
+        )
+        print(
+            "Please remove the item. Staff has been flagged to review."
+        )
+
+        if not wait_for_removal():
+            return "REMOVAL_TIMEOUT"
+
+        return "REJECTED"
+
+    return weight, points, material, transaction_id
 
 
 # =========================================================
@@ -1129,12 +2331,86 @@ def process_item():
 # =========================================================
 
 
+def _init_offline_queue_or_stop():
+    """Initialise the offline queue before any transaction runs.
+
+    The station must NEVER begin normal processing with an unusable
+    offline queue: a physically sorted item that cannot be queued
+    would be silently unrecoverable. On failure, log clearly and
+    signal a deliberate safe-stop (return False).
+
+    Returns True when the queue is ready, False to stop the station.
+    """
+    try:
+        init_db()
+
+    except Exception as e:
+        print()
+        print("=" * 60)
+        print("  [OFFLINE] FATAL: offline queue could not be initialised")
+        print("=" * 60)
+        print(f"  Reason : {e}")
+        print("  Action : STOPPING. The station will not process any")
+        print("           items until the queue is usable, so a sorted")
+        print("           item can never be lost without being recorded.")
+        print("  Fix    : check storage, permissions and disk space,")
+        print("           then restart the station.")
+        print("=" * 60)
+        print()
+        return False
+
+    # M5: resolve any actuation that a crash or power loss interrupted.
+    # A PREPARED row never commanded the servo (safe to abandon); an
+    # ACTUATING row may have (kept UNCERTAIN: never auto-submitted or
+    # awarded, and it blocks session finalization until an operator
+    # resolves it). This must run before any flush so an uncertain row
+    # can never be sent to the server as a normal transaction.
+    try:
+        recovered = recover_actuation_states()
+
+    except Exception as e:
+        print(
+            f"[ACTUATION] WARNING: could not recover interrupted "
+            f"actuation states: {e}"
+        )
+        recovered = []
+
+    if recovered:
+        print()
+        print("=" * 60)
+        print("  [ACTUATION] RECOVERED INTERRUPTED SORTING")
+        print("=" * 60)
+        for transaction_id, from_state, to_state in recovered:
+            print(
+                f"  {transaction_id}: {from_state} -> {to_state}"
+            )
+        print("=" * 60)
+        print()
+
+    _report_uncertain_transactions()
+
+    return True
+
+
 def main():
     scanner = None
 
-    init_db()
+    if not _init_offline_queue_or_stop():
+        return
 
     try:
+
+        # =====================================================
+        # STARTUP: SYNC ANY TRANSACTIONS LEFT OVER FROM A
+        # PREVIOUS RUN (POWER LOSS, REBOOT, NETWORK OUTAGE)
+        # =====================================================
+
+        flush_offline_queue()
+
+        # Any session left behind by the previous run is abandoned
+        # (there is no active session yet): finalize the ones whose
+        # queued work has fully synced so their points are awarded.
+        finalize_abandoned_sessions()
 
         # =====================================================
         # START CAMERA SERVICE
@@ -1235,12 +2511,28 @@ def main():
                 "resident"
             ]
 
+            resident_code = session.get("qr_code")
+
             # =================================================
             # LOCAL SESSION COUNTERS
             # =================================================
 
             items = 0
             total_points = float(session.get("cap_state", {}).get("daily_points_used", 0))
+
+            # =================================================
+            # NETWORK JUST WORKED FOR QR VERIFICATION:
+            # TRY TO SYNC ANY QUEUED OFFLINE TRANSACTIONS NOW
+            # (they may belong to earlier sessions of any
+            # resident; each row carries its own token)
+            # =================================================
+
+            flush_offline_queue()
+
+            # The resident's NEW session is now the active one; any
+            # other session whose queued work has fully synced is
+            # abandoned and can be finalized to release its points.
+            finalize_abandoned_sessions(session_token)
 
             # =================================================
             # USER SESSION STARTED
@@ -1295,7 +2587,10 @@ def main():
                 # PROCESS ITEM
                 # -------------------------------------------------
 
-                result = process_item()
+                result = process_item(
+                    session_token,
+                    resident_code
+                )
 
                 # =================================================
                 # IDLE (no item placed before IDLE_TIMEOUT)
@@ -1346,12 +2641,27 @@ def main():
                             "to award points."
                         )
 
-                    else:
+                    elif should_cancel_session(
+                        items,
+                        session_token
+                    ):
 
                         cancel_api_session(
                             session_token,
                             f"No item detected for "
                             f"{IDLE_TIMEOUT} seconds"
+                        )
+
+                    else:
+
+                        print(
+                            "[OFFLINE] Queued item(s) still "
+                            "pending for this session; NOT "
+                            "cancelling so they can be "
+                            "retried. The session will "
+                            "finalize automatically once "
+                            "sync succeeds or times out "
+                            "server-side."
                         )
 
                     print()
@@ -1410,29 +2720,80 @@ def main():
 
                 # =================================================
                 # VALID ITEM
+                #
+                # process_item() generated transaction_id and already
+                # committed the durable pre-actuation record before the
+                # servo moved; that SAME id is reused for every submit
+                # and retry so the server can de-duplicate.
                 # =================================================
 
-                weight, points, material = result
+                weight, points, material, transaction_id = result
 
                 # =================================================
                 # SUBMIT WASTE DATA TO HOSTINGER
+                #
+                # The transaction_id is the stable id created before
+                # actuation and reused on every retry, so the server
+                # can de-duplicate even when a request reached it but
+                # the response was lost.
                 # =================================================
 
                 submitted = submit_waste_data(
                     session_token,
                     material,
-                    weight
+                    weight,
+                    transaction_id=transaction_id
                 )
 
-                if submitted is None:
+                if not submitted["ok"]:
 
                     print(
                         "Failed to submit waste data."
                     )
 
-                    print(
-                        "Item will not be counted."
+                    saved = record_failed_submission(
+                        session_token,
+                        resident_code,
+                        material,
+                        weight,
+                        transaction_id,
+                        submitted
                     )
+
+                    if saved == "QUEUED":
+
+                        print(
+                            "Item stored for automatic "
+                            "retry; it will be counted "
+                            "when the connection recovers."
+                        )
+
+                    elif saved == "TERMINAL":
+
+                        print(
+                            "Item rejected by the server "
+                            "permanently; it will not be "
+                            "retried. Please try again with "
+                            "a new item."
+                        )
+
+                    elif saved == "FAILED_NOT_RECORDED":
+
+                        print(
+                            "Item was saved to the offline "
+                            "queue but its permanent status "
+                            "could not be recorded; it stays "
+                            "queued for retry and will not be "
+                            "double-counted."
+                        )
+
+                    else:
+
+                        print(
+                            "WARNING: item could NOT be "
+                            "stored locally (low disk). "
+                            "This item is LOST."
+                        )
 
                     if not wait_for_removal():
 
@@ -1444,6 +2805,11 @@ def main():
                         break
 
                     continue
+
+                # The item reached the server. Mark the durable
+                # pre-actuation record SYNCED so it stops counting as
+                # pending work and is never re-sent by a later flush.
+                _mark_synced_safe(transaction_id)
 
                 # =================================================
                 # LOCAL DAILY POINT CAP
@@ -1460,10 +2826,6 @@ def main():
                 )
 
                 total_points += points
-
-                transaction_id = (
-                    f"{session_token}-{items + 1}"
-                )
 
                 items += 1
 
@@ -1523,14 +2885,46 @@ def main():
 
             # =================================================
             # COMPLETE HOSTINGER SESSION
+            #
+            # Never finalize while queued transactions for this
+            # session are still unsynced: completion would make
+            # them unreplayable (the session stops accepting
+            # submissions), silently losing the points.
             # =================================================
 
             completed = None
             if items > 0:
 
-                completed = complete_api_session(
-                    session_token
-                )
+                if _queue_pending_safe(session_token):
+
+                    print(
+                        "[OFFLINE] Attempting one final "
+                        "sync before completing the "
+                        "session..."
+                    )
+                    flush_offline_queue()
+
+                    # Sync may have resolved other abandoned
+                    # sessions too; finalize any that are now done
+                    # (the current session is excluded).
+                    finalize_abandoned_sessions(session_token)
+
+                if should_complete_session(items, session_token):
+
+                    completed = complete_api_session(
+                        session_token
+                    )
+
+                else:
+
+                    print(
+                        "[OFFLINE] Some queued item(s) for "
+                        "this session are still unsynced; "
+                        "NOT completing now. The session "
+                        "will finalize automatically once "
+                        "sync succeeds or times out "
+                        "server-side."
+                    )
 
             if completed:
 

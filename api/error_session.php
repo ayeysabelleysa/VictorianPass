@@ -13,7 +13,7 @@ $station  = eco_authenticate_station($con);
 $input    = eco_read_json_input();
 
 $token    = trim((string)($input['session_token'] ?? ''));
-$message  = trim((string)($input['error_message'] ?? 'Unknown hardware error'));
+$message  = eco_normalize_hardware_error_message((string)($input['error_message'] ?? 'Unknown hardware error'));
 $code     = trim((string)($input['error_code'] ?? ''));
 $payload  = $input['payload'] ?? null;
 
@@ -21,16 +21,40 @@ if ($message === '') {
     eco_json_response(['success' => false, 'message' => 'error_message is required'], 400);
 }
 
+$stationId = (int)$station['station_id'];
+
+// Pre-lock lookup, OUTSIDE the transaction. This drives the server-side
+// stale-session timeout recovery, which starts its OWN transaction; doing it
+// inside ours would issue a nested begin_transaction (an implicit commit of
+// this transaction in MySQL). Its result is NOT authoritative: the row is
+// re-read and locked under the transaction below.
+if ($token !== '') {
+    eco_load_session_for_station($con, $station, $token, true);
+}
+
 $con->begin_transaction();
 try {
-    $stationId = (int)$station['station_id'];
-
     if ($token !== '') {
-        $session = eco_load_session_for_station($con, $station, $token, true);
-        if ($session) {
-            $sessionId = (int)$session['id'];
-            eco_transition_status($con, $sessionId, $stationId, 'ERROR', $message);
-            eco_log_event($con, $sessionId, $stationId, 'ERROR', [
+        // Re-read + lock the session by token AND station ownership.
+        $locked = eco_lock_session_for_station($con, $station, $token);
+
+        // Mark ERROR only while the session is still OPEN and owned by this
+        // station. The allowed-from guard makes the check and the write ONE
+        // atomic UPDATE: if a concurrent completion/cancel already committed,
+        // the row is no longer OPEN -> 0 rows -> never overwritten, and no
+        // ERROR event is recorded for the stale report.
+        $applied = eco_terminal_transition_allowed($locked, $stationId)
+            && eco_transition_status(
+                $con,
+                (int)$locked['id'],
+                $stationId,
+                'ERROR',
+                $message,
+                ECO_SESSION_STATUSES_OPEN
+            );
+
+        if ($applied) {
+            eco_log_event($con, (int)$locked['id'], $stationId, 'ERROR', [
                 'error_code'    => $code,
                 'error_message' => $message,
                 'payload'       => $payload,

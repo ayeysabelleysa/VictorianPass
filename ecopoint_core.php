@@ -33,7 +33,44 @@ define('ECO_ALLOWED_MATERIALS',     array_keys(ECO_MATERIAL_RATES));
 define('ECO_SESSION_STATUSES',      ['WAITING','ACTIVE','PROCESSING','COMPLETED','CANCELLED','ERROR']);
 define('ECO_SESSION_STATUSES_OPEN', ['WAITING','ACTIVE','PROCESSING']); // non-final, user can have only one
 
+// Marker embedded in ecopoint_waste_sessions.error_message when the
+// backend's own finalize path (api/complete_session.php) fails after
+// rolling back the award transaction. The retry-recovery path uses it
+// to tell a finalize failure (safe to recover) apart from a deliberate
+// hardware-reported ERROR (api/error_session.php), which must stay
+// ERROR for audit and is never resurrected into a COMPLETED session.
+define('ECO_FINALIZE_ERROR_MARKER', 'finalize_error: ');
+
+// ------------------------------------------------------------------
+// Reserved-marker protection (pure helper — no DB access)
+//
+// ECO_FINALIZE_ERROR_MARKER is what makes an ERROR session ELIGIBLE
+// for retry recovery in eco_finalize_error_session(). Only the
+// backend's own finalize path (api/complete_session.php) may stamp it.
+// Hardware-supplied error reports therefore MUST pass through this
+// normalizer at the API boundary so a fault message can never
+// impersonate a genuine server-side finalization failure (which would
+// otherwise turn an ordinary hardware ERROR into a recoverable one).
+// ------------------------------------------------------------------
+function eco_normalize_hardware_error_message(string $message): string {
+    $message = trim($message);
+
+    if (
+        $message !== ''
+        && strncmp($message, ECO_FINALIZE_ERROR_MARKER, strlen(ECO_FINALIZE_ERROR_MARKER)) === 0
+    ) {
+        // Drop the reserved prefix and replace it with a neutral label so
+        // the rest of the report stays auditable but can never match the
+        // recovery gate. (Replacing, rather than prepending, keeps the
+        // message no longer than the original.)
+        $message = '[hardware] ' . substr($message, strlen(ECO_FINALIZE_ERROR_MARKER));
+    }
+
+    return $message;
+}
+
 require_once __DIR__ . '/connect.php';
+require_once __DIR__ . '/ecopoint_idempotency.php';
 
 // ------------------------------------------------------------------
 // HTTP helpers
@@ -444,6 +481,131 @@ function eco_recover_stale_session(mysqli$con, int $sessionId): bool {
 }
 
 // ------------------------------------------------------------------
+// Recover a session left in ERROR by a failed finalization
+//
+// api/complete_session.php rolls back the award transaction, marks the
+// session ERROR ('finalize_error: ...') and answers HTTP 500. Because
+// eco_load_session_for_station() only returns OPEN statuses, the
+// station's retry would otherwise receive the 404 contract and the
+// resident's already-recorded WASTE_DATA events would stay stranded.
+//
+// This helper completes ONLY such a session, and only when ALL of the
+// following hold:
+//   - the session is owned by this station (station_id matches);
+//   - the session status is ERROR; it can never resurrect a
+//     COMPLETED / CANCELLED session;
+//   - the ERROR was caused by the backend's own finalize failure
+//     (error_message carries ECO_FINALIZE_ERROR_MARKER); a deliberate
+//     hardware-reported ERROR (api/error_session.php) is left alone;
+//   - there is something awardable (points_posted already set, or at
+//     least one WASTE_DATA event with points); an invalid ERROR
+//     session with nothing recorded is never completed;
+//   - the award is idempotent: eco_award_points_and_finalize() locks
+//     the row FOR UPDATE and only awards while points_posted = 0, with
+//     the flag and the point_transactions row in the same transaction,
+//     so a completed retry can never double-award points.
+//
+// Returns null when the session is not a recoverable ERROR session
+// (caller answers the normal 404 contract), or an array with the
+// post-award session row + the eco_award_points_and_finalize() result
+// when recovery completed. Rethrows so the endpoint can answer a JSON
+// 500 for genuinely transient failures.
+// ------------------------------------------------------------------
+function eco_finalize_error_session(mysqli $con, array $station, string $token): ?array {
+    $token     = trim($token);
+    $stationId = (int)$station['station_id'];
+    if ($token === '') return null;
+
+    $con->begin_transaction();
+
+    try {
+        $stmt = $con->prepare("
+            SELECT *
+            FROM   ecopoint_waste_sessions
+            WHERE  session_token = ?
+              AND  station_id    = ?
+              AND  status        = 'ERROR'
+            LIMIT  1
+            FOR UPDATE
+        ");
+        if (!$stmt) {
+            throw new RuntimeException('Finalize-recovery lock failed: ' . $con->error);
+        }
+        $stmt->bind_param('si', $token, $stationId);
+        $stmt->execute();
+        $session = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$session) {
+            $con->rollback();
+            return null;
+        }
+
+        // Only a finalize failure (error_message stamped with the
+        // marker) is recoverable. A deliberate hardware ERROR remains
+        // ERROR for the audit trail.
+        $errorMsg = (string)($session['error_message'] ?? '');
+        if (strncmp($errorMsg, ECO_FINALIZE_ERROR_MARKER, strlen(ECO_FINALIZE_ERROR_MARKER)) !== 0) {
+            $con->rollback();
+            return null;
+        }
+
+        $sessionId     = (int)$session['id'];
+        $alreadyPosted = ((int)($session['points_posted'] ?? 0) === 1);
+
+        if (!$alreadyPosted) {
+            $sumStmt = $con->prepare("
+                SELECT COALESCE(SUM(
+                    CAST(JSON_UNQUOTE(JSON_EXTRACT(event_payload, '$.points_calc')) AS DECIMAL(10,2))
+                ), 0) AS total_points
+                FROM   ecopoint_session_events
+                WHERE  session_id = ?
+                  AND  event_type = 'WASTE_DATA'
+            ");
+            if (!$sumStmt) {
+                throw new RuntimeException('Finalize-recovery inspect failed: ' . $con->error);
+            }
+            $sumStmt->bind_param('i', $sessionId);
+            $sumStmt->execute();
+            $totals = $sumStmt->get_result()->fetch_assoc();
+            $sumStmt->close();
+
+            // Nothing was ever recorded -> completing would be a no-op
+            // and would "complete" an invalid session. Leave it ERROR.
+            if ((float)($totals['total_points'] ?? 0) <= 0) {
+                $con->rollback();
+                return null;
+            }
+        }
+
+        $result = eco_award_points_and_finalize($con, $sessionId, $stationId);
+
+        eco_log_event($con, $sessionId, $stationId, 'FINALIZE_RECOVERED', [
+            'awarded_points' => (float)$result['awarded_points'],
+            'previous_status'=> 'ERROR',
+        ], 'BACKEND');
+
+        // Return the post-award values so the endpoint answers with the
+        // same contract as a normal completion.
+        $fresh = $con->prepare("SELECT * FROM ecopoint_waste_sessions WHERE id = ?");
+        $fresh->bind_param('i', $sessionId);
+        $fresh->execute();
+        $after = $fresh->get_result()->fetch_assoc();
+        $fresh->close();
+
+        $con->commit();
+
+        return [
+            'session' => $after,
+            'result'  => $result,
+        ];
+    } catch (Throwable $e) {
+        try { $con->rollback(); } catch (Throwable $_) {}
+        throw $e;
+    }
+}
+
+// ------------------------------------------------------------------
 // Duplicate-active-session guard
 // A resident may have at most ONE session that's WAITING/ACTIVE/PROCESSING.
 // (OPEN status set — duplicates blocked by DB UNIQUE KEY + this check.)
@@ -510,6 +672,74 @@ function eco_log_event(mysqli $con, int $sessionId, int $stationId, string $type
     $json = ($payload === null) ? null : json_encode($payload, JSON_UNESCAPED_UNICODE);
     $stmt->bind_param('iisss', $sessionId, $stationId, $type, $json, $source);
     @$stmt->execute();
+}
+
+// ------------------------------------------------------------------
+// Required session-event persistence (strict variant of eco_log_event)
+//
+// Some events are load-bearing for correctness, not just audit. The
+// WASTE_DATA event is the source of truth that eco_award_points_and_
+// finalize() and the stale/ERROR recovery paths aggregate (points_calc,
+// weight_kg). eco_log_event() intentionally swallows insert errors so
+// that optional diagnostic/audit events can never fail an otherwise
+// valid workflow. For a REQUIRED event that behaviour is wrong: a
+// silently dropped WASTE_DATA row would let the item's submission commit
+// while the points are never awarded, and a later stale-session recovery
+// would see no recorded waste and cancel a session that actually took it.
+//
+// This helper is deliberately strict:
+//   - it prepares a fresh statement (no shared static cache);
+//   - it never suppresses database errors with @;
+//   - it throws RuntimeException on ANY prepare/bind/execute failure.
+//
+// Callers MUST invoke it inside their transaction. The exception
+// propagates to the caller's catch block, which rolls the transaction
+// back, so the event, the session snapshot and the award effects either
+// all persist or none do. A retry after the rollback re-runs with the
+// same transaction id and finds nothing recorded, so it inserts exactly
+// one event and awards once.
+// ------------------------------------------------------------------
+function eco_log_required_event(mysqli $con, int $sessionId, int $stationId, string $type, $payload, string $source = 'HARDWARE'): void {
+    $json = ($payload === null) ? null : json_encode($payload, JSON_UNESCAPED_UNICODE);
+
+    $stmt = $con->prepare("
+        INSERT INTO ecopoint_session_events
+        (session_id, station_id, event_type, event_payload, source)
+        VALUES (?, ?, ?, ?, ?)
+    ");
+    if (!$stmt) {
+        throw new RuntimeException(
+            'Failed to prepare required session event "' . $type . '": ' . $con->error
+        );
+    }
+
+    if (!$stmt->bind_param('iisss', $sessionId, $stationId, $type, $json, $source)) {
+        $bindError = (string)$stmt->error;
+        $stmt->close();
+        throw new RuntimeException(
+            'Failed to bind required session event "' . $type . '": ' . $bindError
+        );
+    }
+
+    try {
+        $ok = $stmt->execute();
+    } catch (Throwable $e) {
+        throw new RuntimeException(
+            'Failed to persist required session event "' . $type . '": ' . $e->getMessage(),
+            0,
+            $e
+        );
+    }
+
+    if (!$ok) {
+        $execError = (string)$stmt->error;
+        $stmt->close();
+        throw new RuntimeException(
+            'Failed to persist required session event "' . $type . '": ' . $execError
+        );
+    }
+
+    $stmt->close();
 }
 
 // ------------------------------------------------------------------
@@ -710,18 +940,54 @@ function eco_load_session_for_station(mysqli $con, array $station, string $token
 
 // ------------------------------------------------------------------
 // Atomically transition session status (state machine)
+//
+// $allowFrom is an optional list of source statuses the transition is
+// permitted to move FROM. When supplied, the guard is applied in the
+// SAME atomic UPDATE (no read-then-write window), so a concurrent
+// request that already finalised the session is never overwritten.
+// Returns true when the transition was applied, false when it was
+// skipped (invalid status, no matching row, or guard mismatch).
 // ------------------------------------------------------------------
-function eco_transition_status(mysqli $con, int $sessionId, int $stationId, string $newStatus, ?string $errorMsg = null): void {
+function eco_transition_status(mysqli $con, int $sessionId, int $stationId, string $newStatus, ?string $errorMsg = null, ?array $allowFrom = null): bool {
     $newStatus = strtoupper($newStatus);
     $allowed   = ECO_SESSION_STATUSES;
-    if (!in_array($newStatus, $allowed, true)) return;
+    if (!in_array($newStatus, $allowed, true)) return false;
 
     // Single status update (safe & simple)
-    $stmt = $con->prepare("UPDATE ecopoint_waste_sessions SET status = ? WHERE id = ? AND station_id = ?");
-    if (!$stmt) return;
-    $stmt->bind_param('sii', $newStatus, $sessionId, $stationId);
+    $sql    = "UPDATE ecopoint_waste_sessions SET status = ? WHERE id = ? AND station_id = ?";
+    $types  = 'sii';
+    $params = [$newStatus, $sessionId, $stationId];
+
+    if ($allowFrom !== null) {
+        $from = [];
+        foreach ($allowFrom as $s) {
+            $s = strtoupper((string)$s);
+            if (in_array($s, $allowed, true) && !in_array($s, $from, true)) {
+                $from[] = $s;
+            }
+        }
+        if (!$from) return false;
+
+        $sql   .= " AND status IN (" . implode(',', array_fill(0, count($from), '?')) . ")";
+        $types .= str_repeat('s', count($from));
+        foreach ($from as $s) {
+            $params[] = $s;
+        }
+    }
+
+    $stmt = $con->prepare($sql);
+    if (!$stmt) return false;
+    $stmt->bind_param($types, ...$params);
     $stmt->execute();
+    $affected = (int)$stmt->affected_rows;
     $stmt->close();
+
+    // A guarded transition that matched nothing means the row was
+    // already finalised by another request: leave it fully untouched
+    // (skip the timestamp audit as well).
+    if ($allowFrom !== null && $affected === 0) {
+        return false;
+    }
 
     // Per-status timestamp auditing
     if ($newStatus === 'WAITING') {
@@ -747,6 +1013,8 @@ function eco_transition_status(mysqli $con, int $sessionId, int $stationId, stri
             @$s->execute();
         }
     }
+
+    return true;
 }
 
 // ------------------------------------------------------------------
