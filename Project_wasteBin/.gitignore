@@ -1,4 +1,9 @@
+# VHEcoPoint local SQLite offline queue (runtime data - never track)
+vheco_local.db
+vheco_local.db-wal
+vheco_local.db-shm
 vheco_local.py
+
 camera_test.py
 yolo11n.pt
 

@@ -29,6 +29,102 @@ function eco_material_display_label(string $raw): string {
     return ($raw !== '' && $raw !== '-') ? $raw : '-';
 }
 
+// Resident-facing material label. Must match residentEcoPointMaterialLabel()
+// in profileresident.php so the live-updated tracker rows line up with the
+// server-rendered tracker instead of creating a THIRD naming scheme.
+function eco_resident_material_label(string $materialType, string $description = ''): string {
+    $haystack = strtolower(trim($materialType) . ' ' . $description);
+    if (strpos($haystack, 'plastic') !== false || strpos($haystack, 'pet') !== false) return 'Plastic Bottles';
+    if (strpos($haystack, 'aluminum') !== false || strpos($haystack, 'aluminium') !== false || strpos($haystack, 'can') !== false) return 'Aluminum Cans';
+    if (strpos($haystack, 'cardboard') !== false || strpos($haystack, 'paper') !== false) return 'Paper (Old Documents)';
+    return 'Other';
+}
+
+// Consolidated dashboard aggregate, mirroring the exact aggregation loops in
+// profileresident.php. Shipping it inside the SSE snapshot lets the live JS
+// refresh the weekly Material Cap Tracker and the Points History from the SAME
+// source of truth as the KPI cards, so those sections can no longer sit stale
+// (showing 0) while the balance cards already show the new points.
+function eco_build_dashboard_block(mysqli $con, int $userId, array $cap): array {
+    $weeklyStats = [
+        'Plastic Bottles'       => ['points' => 0, 'weight' => 0.0],
+        'Aluminum Cans'         => ['points' => 0, 'weight' => 0.0],
+        'Paper (Old Documents)' => ['points' => 0, 'weight' => 0.0],
+    ];
+    $week    = eco_week_bounds();
+    $wStart  = (string)$week['week_start_date'];
+    $wEnd    = (string)$week['week_end_date'];
+    $today   = date('Y-m-d');
+    $weeklyPoints = 0;
+    $todayPoints  = 0;
+    $history = [];
+
+    $stmt = $con->prepare("
+        SELECT transaction_type, amount, description, material_type, weight_kg, created_at
+        FROM point_transactions
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+        LIMIT 200
+    ");
+    if ($stmt) {
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        while ($row = $res->fetch_assoc()) {
+            $type = strtolower(trim((string)($row['transaction_type'] ?? '')));
+            if ($type !== 'earn' && $type !== 'redeem') continue;
+            $createdAt = (string)($row['created_at'] ?? '');
+            $ts = $createdAt !== '' ? strtotime($createdAt) : false;
+            if ($ts === false || $ts <= 0) $ts = time();
+            $dateKey  = date('Y-m-d', $ts);
+            $amount   = intval($row['amount'] ?? 0);
+            $label    = eco_resident_material_label((string)($row['material_type'] ?? ''), (string)($row['description'] ?? ''));
+            $weightKg = floatval($row['weight_kg'] ?? 0);
+            if ($type !== 'earn') continue;
+
+            $history[] = [
+                'type'           => 'earn',
+                'amount'         => $amount,
+                'date_ts'        => $ts,
+                'date_label'     => date('M j, Y', $ts),
+                'time_label'     => date('g:i A', $ts),
+                'description'    => (string)($row['description'] ?? ''),
+                'material_label' => $label,
+                'weight_kg'      => $weightKg,
+            ];
+            if ($dateKey >= $wStart && $dateKey <= $wEnd) {
+                $weeklyPoints += $amount;
+                if (isset($weeklyStats[$label])) {
+                    $weeklyStats[$label]['points'] += $amount;
+                    $weeklyStats[$label]['weight'] += $weightKg;
+                }
+            }
+            if ($dateKey === $today) $todayPoints += $amount;
+        }
+        $stmt->close();
+    }
+    usort($history, function ($a, $b) { return $b['date_ts'] <=> $a['date_ts']; });
+
+    if (!isset($cap['weekly_points_used'])) $cap['weekly_points_used'] = $weeklyPoints;
+    if (!isset($cap['daily_points_used']))  $cap['daily_points_used']  = $todayPoints;
+    $weeklyUsed   = (int)round((float)$cap['weekly_points_used']);
+    $todayUsed    = (int)round((float)$cap['daily_points_used']);
+    $sessionsUsed = (int)($cap['daily_sessions_used'] ?? 0);
+
+    return [
+        'current_points'     => (int)round((float)eco_user_balance($con, $userId)),
+        'weekly_points'      => $weeklyUsed,
+        'weekly_values'      => $weeklyStats,
+        'today_points'       => $todayUsed,
+        'today_sessions_used'=> $sessionsUsed,
+        'history'            => $history,
+        'weekly_remaining'   => max(0, (int)ECO_WEEKLY_POINT_CAP - $weeklyUsed),
+        'weekly_progress'    => (int)ECO_WEEKLY_POINT_CAP > 0 ? min(100, (int)round(($weeklyUsed / (int)ECO_WEEKLY_POINT_CAP) * 100)) : 0,
+        'daily_remaining'    => max(0, (int)ECO_DAILY_POINT_CAP - $todayUsed),
+        'sessions_remaining' => max(0, (int)ECO_DAILY_SESSION_CAP - $sessionsUsed),
+    ];
+}
+
 // SSE headers (required for browser to keep connection alive).
 // NOTE: header() only QUEUES a header — nothing is sent to the client yet,
 // so the PHP session can still be started below. The actual send happens
@@ -114,6 +210,25 @@ if ($active) {
     }
 }
 
+// Projected ELIGIBLE points for the items accumulated so far. The raw live
+// total is run through the SAME cap rules used at finalization
+// (eco_apply_cap_rules: daily cap, weekly cap, max-balance room), so the
+// live panel cannot promise more than the resident can actually receive.
+// `total_points` stays the raw calculation on purpose; the dashboard JS uses
+// `estimated_points` for the headline number and shows the raw value as
+// pre-cap context.
+$estimatedPoints = 0.0;
+if ($active && $liveTotalPoints > 0) {
+    $projCalc = [
+        'material'        => (string)($active['material_type'] ?? ''),
+        'weight_kg'       => $liveTotalWeight,
+        'rate_pts_per_kg' => (float)(ECO_MATERIAL_RATES[(string)($active['material_type'] ?? '')] ?? 0),
+        'raw_points'      => $liveTotalPoints,
+        'valid'           => true,
+    ];
+    $estimatedPoints = round((float)eco_apply_cap_rules($projCalc, $cap, $balance), 2);
+}
+
     $activeOut = null;
     if ($active) {
         $sid = (int)$active['id'];
@@ -145,6 +260,8 @@ if ($active) {
             'weight_kg'          => (float)($active['weight_kg'] ?? 0),
             'points_calculated'  => (float)($active['points_calculated'] ?? 0),
             'points_awarded'     => (float)($active['points_awarded'] ?? 0),
+            'points_raw'         => $liveTotalPoints,
+            'estimated_points'   => $estimatedPoints,
             'total_weight_kg'    => $liveTotalWeight,
             'total_points'       => $liveTotalPoints,
             'created_at'         => (string)($active['created_at'] ?? ''),
@@ -208,6 +325,7 @@ if ($active) {
         'polled_at'       => date('Y-m-d H:i:s'),
         'current_balance' => $balance,
         'cap_state'       => $cap,
+        'dashboard'       => eco_build_dashboard_block($con, $userId, $cap),
         'active_session'  => $activeOut,
         'recent_sessions' => $history,
         'points_limit_reached' => ((float)$balance >= (float)ECO_MAX_BALANCE),

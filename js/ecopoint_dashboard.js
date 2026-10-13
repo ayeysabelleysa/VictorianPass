@@ -85,6 +85,12 @@
     }
   }
 
+  function escapeHtml(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function(m) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]);
+    });
+  }
+
   function setClass(id, className, add) {
     const el = getElement(id);
     if (el) {
@@ -470,6 +476,7 @@
       if (pointsEl) pointsEl.textContent = '0 pts';
       if (panel) panel.style.opacity = '0.8';
       setStyle('ecopoint-live-actions', { display: 'none' });
+      setStyle('ecopoint-live-cap-note', { display: 'none' });
       hideReadyForNextItem();
       return;
     }
@@ -505,7 +512,17 @@
       }
     }
     const weight = Math.round(parseFloat(session.total_weight_kg || session.weight_kg || 0) * 1000);
-    const points = Math.round(parseFloat(session.total_points || session.points_awarded || 0));
+    // Raw accumulated points (sum of per-item calculations) and the projected
+    // ELIGIBLE award after daily/weekly caps and the max-balance room. The
+    // backend computes `estimated_points` with the real cap rules; we only
+    // render it. The headline must never imply more than the resident can
+    // actually receive, so the estimated (capped) value wins here and the raw
+    // calculation is shown as pre-cap context when it differs.
+    const rawPoints = Math.round(parseFloat(session.total_points || session.points_awarded || 0));
+    const estimatedPoints = (session.estimated_points !== undefined && session.estimated_points !== null)
+      ? Math.round(parseFloat(session.estimated_points))
+      : rawPoints;
+    const points = estimatedPoints;
 
     if (startTimeEl) startTimeEl.textContent = startTime === '—' ? '—' : formatSessionTime(startTime);
     if (materialEl) {
@@ -517,6 +534,8 @@
     }
     if (weightEl) weightEl.textContent = weight + ' g';
     if (pointsEl) pointsEl.textContent = points + ' pts';
+
+    updateLiveCapNote(snapshot, rawPoints, estimatedPoints);
 
     // Show "End Session Early" while the session is running (ACTIVE/PROCESSING/WAITING).
     // The resident can finish and end the session at any point; the backend finalizes
@@ -530,6 +549,32 @@
     if (session.waste_items && session.waste_items.length > 0) {
       updateWasteItemsDisplay(session.waste_items);
     }
+  }
+
+  // Show the pre-cap calculation separately when caps are actually binding.
+  // Uses ONLY authoritative snapshot data (never a hardcoded 100), so a
+  // resident who already earned points today sees their true remaining
+  // allowance. Hidden whenever nothing was truncated.
+  function updateLiveCapNote(snapshot, rawPoints, estimatedPoints) {
+    const noteEl = getElement('ecopoint-live-cap-note');
+    if (!noteEl) return;
+    if (!snapshot || !snapshot.active_session || rawPoints <= estimatedPoints || estimatedPoints <= 0) {
+      noteEl.style.display = 'none';
+      return;
+    }
+    const cap = snapshot.cap_state || {};
+    const dailyLeft = Math.max(0, Math.round(parseFloat(cap.daily_points_left || 0)));
+    const weeklyLeft = Math.max(0, Math.round(parseFloat(cap.weekly_points_left || 0)));
+    noteEl.style.display = 'flex';
+    setHTML(
+      'ecopoint-live-cap-note',
+      '<i class="fa-solid fa-circle-info ecopoint-info" aria-hidden="true"></i>' +
+      '<span>' + number_format(rawPoints) + ' pts calculated before caps &mdash; ' +
+      number_format(estimatedPoints) + ' pts eligible now. ' +
+      number_format(dailyLeft) + ' pts of today\'s remaining allowance' +
+      (weeklyLeft < rawPoints ? '; weekly allowance ' + number_format(weeklyLeft) + ' pts' : '') +
+      '.</span>'
+    );
   }
 
   function getStatusLabel(status) {
@@ -636,7 +681,12 @@
       const material = item.material_label || item.waste_type || 'Unknown';
       const weight = Math.round(parseFloat(item.weight_kg || 0) * 1000);
       const ratePerG = (parseFloat(item.rate_pts_per_kg || 0) / 1000).toFixed(3);
-      const points = Math.round(parseFloat(item.points_awarded || 0));
+      // Points are only awarded at finalize, so while the session is open
+      // points_awarded is still 0. Fall back to the calculated points so the
+      // per-item line matches the live total the station is accumulating.
+      const points = Math.round(parseFloat(
+        item.points_awarded || item.points_calculated || 0
+      ));
       itemsHTML += `<div style="margin-bottom: 4px;">• ${material}: ${weight}g @ ${ratePerG}pts/g = ${points}pts</div>`;
     });
     itemsHTML += '</div>';
@@ -689,6 +739,62 @@
         dailySessions + ' session' + (dailySessions === 1 ? '' : 's') + ' remaining. Maximum of 3 VHEcoPoint station visits per day.'
       );
     }
+
+    // Keep the big "X / 3 Used Today" number in sync too. It is derived from
+    // the SAME cap_state the cards use, so a completed OR early-ended visit
+    // is counted here immediately instead of waiting for a page reload.
+    const sessionsUsedEl = getElement('ecopoint-sessions-used');
+    if (sessionsUsedEl) {
+      setText('ecopoint-sessions-used', number_format(Math.max(0, 3 - dailySessions)));
+    }
+  }
+
+  // Consolidated dashboard aggregate block (snapshot.dashboard), when the
+  // backend provides it. Rendering the weekly tracker and points history from
+  // the SAME snapshot data as the KPI cards stops those sections drifting
+  // behind the live cards. Absent block => the server-rendered values stay.
+  function updateWeeklyMaterialTracker(dashboard) {
+    if (!dashboard || !dashboard.weekly_values) return;
+    const slugByLabel = {
+      'Plastic Bottles': 'plastic',
+      'Aluminum Cans': 'aluminum',
+      'Paper (Old Documents)': 'paper',
+    };
+    Object.keys(slugByLabel).forEach(function(label) {
+      const slug = slugByLabel[label];
+      const st = dashboard.weekly_values[label] || { points: 0, weight: 0 };
+      const pts = Math.round(parseFloat(st.points || 0));
+      const grams = Math.round(parseFloat(st.weight || 0) * 1000);
+      setText('ecopoint-weekly-material-' + slug + '-points', number_format(pts));
+      setText('ecopoint-weekly-material-' + slug + '-weight', number_format(grams));
+      setStyle('ecopoint-weekly-material-' + slug + '-bar', { width: Math.min(100, (pts / 250) * 100) + '%' });
+    });
+    const weekly = Math.round(parseFloat(dashboard.weekly_points || 0));
+    const prog = Math.min(100, Math.round((weekly / 250) * 100));
+    setHTML('ecopoint-weekly-progress', number_format(weekly) + ' / 250 pts &middot; ' + prog + '%');
+    setStyle('ecopoint-weekly-progress-bar', { width: prog + '%' });
+  }
+
+  function updatePointsHistory(dashboard) {
+    if (!dashboard || !Array.isArray(dashboard.history)) return;
+    const historyEl = getElement('ecopoint-history-container');
+    if (!historyEl) return;
+    const rows = dashboard.history;
+    if (!rows.length) {
+      setHTML('ecopoint-history-container', '<div class="ecopoint-empty">No VHEcoPoint activity yet.</div>');
+      return;
+    }
+    let html = '';
+    rows.forEach(function(h) {
+      const grams = Math.round(parseFloat(h.weight_kg || 0) * 1000);
+      const label = h.material_label || 'VHEcoPoint';
+      const title = label + (grams > 0 ? (' - ' + number_format(grams) + ' g') : '');
+      const when = h.time_label ? ('  |  ' + h.time_label) : '';
+      html += '<div class="vp-tx-row"><span class="sim-tx-icon">&#11015;</span>' +
+              '<span style="flex:1;">' + title + when + '  |  <b>+' +
+              number_format(h.amount || 0) + ' pts</b></span></div>';
+    });
+    setHTML('ecopoint-history-container', html);
   }
 
   // Simple number formatter
@@ -711,6 +817,8 @@
         ['updateCurrentBalance', () => updateCurrentBalance(snapshot.current_balance)],
         ['updateWeeklyPoints', () => updateWeeklyPoints(snapshot.cap_state)],
         ['updateCapState', () => updateCapState(snapshot.cap_state)],
+        ['updateWeeklyMaterialTracker', () => updateWeeklyMaterialTracker(snapshot.dashboard)],
+        ['updatePointsHistory', () => updatePointsHistory(snapshot.dashboard)],
       ];
       updaters.forEach(function(entry) {
         try {

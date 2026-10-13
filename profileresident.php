@@ -4255,7 +4255,7 @@ body.modal-open{overflow:hidden}
               </div>
               <div class="ecopoint-kpi-card">
                 <div class="ecopoint-kpi-label"><i class="fa-solid fa-right-to-bracket" style="margin-right:5px; opacity:0.7;"></i>Daily Sessions Used</div>
-                <div class="ecopoint-kpi-value"><?php echo number_format($ecoPointTodaySessionsUsed); ?> / <?php echo number_format($ecoPointDailySessionsMax); ?> Used Today</div>
+                <div class="ecopoint-kpi-value"><span id="ecopoint-sessions-used"><?php echo number_format($ecoPointTodaySessionsUsed); ?></span> / <?php echo number_format($ecoPointDailySessionsMax); ?> Used Today</div>
                 <div class="ecopoint-kpi-subtext"><i class="fa-solid fa-circle-info ecopoint-info" title="Each session is one VHEcoPoint station visit. The daily maximum is 3 visits."></i> <span id="ecopoint-sessions-remaining"><?php echo number_format($ecoPointSessionsRemaining); ?> session<?php echo $ecoPointSessionsRemaining === 1 ? '' : 's'; ?> remaining. Maximum of 3 VHEcoPoint station visits per day.</span></div>
               </div>
               <div class="ecopoint-kpi-card">
@@ -4293,6 +4293,7 @@ body.modal-open{overflow:hidden}
                   <strong id="ecopoint-live-points">0 pts</strong>
                 </div>
               </div>
+              <div class="ecopoint-live-cap-note" id="ecopoint-live-cap-note" role="status" aria-live="polite" style="display:none; margin-top:8px; padding:8px 10px; border-radius:10px; background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; font-size:0.78rem; align-items:center; gap:8px;"></div>
               <div class="ecopoint-live-ready-indicator" id="ecopoint-live-ready" role="status" aria-live="polite" style="display:none;">
                 <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
                 <div>
@@ -4313,24 +4314,29 @@ body.modal-open{overflow:hidden}
               <div class="ecopoint-card-note"><i class="fa-solid fa-circle-info ecopoint-info" style="margin-right:4px;" title="Every contribution this week counts toward the 250-point program cap. Each row shows what you have recycled so far."></i>Weekly contributions count toward the current 250-point program cap. Material rows show your contribution by recyclables logged this week.</div>
               <div style="display:flex;justify-content:space-between;align-items:flex-end;margin:10px 0 6px 0;">
                 <div style="font-weight:700;color:#374151;font-size:13px;">Total Weekly Progress</div>
-                <div style="font-weight:800;color:#14532d;font-size:15px;"><?php echo number_format($ecoPointWeeklyPoints); ?> / <?php echo number_format($ecoPointWeeklyCap); ?> pts &middot; <?php echo intval($ecoPointWeeklyProgress); ?>%</div>
+                <div style="font-weight:800;color:#14532d;font-size:15px;"><span id="ecopoint-weekly-progress"><?php echo number_format($ecoPointWeeklyPoints); ?> / <?php echo number_format($ecoPointWeeklyCap); ?> pts &middot; <?php echo intval($ecoPointWeeklyProgress); ?>%</span></div>
               </div>
               <div class="ecopoint-progress" style="margin-bottom:14px;">
-                <div class="ecopoint-progress-bar" style="width:<?php echo intval($ecoPointWeeklyProgress); ?>%;"></div>
+                <div class="ecopoint-progress-bar" id="ecopoint-weekly-progress-bar" style="width:<?php echo intval($ecoPointWeeklyProgress); ?>%;"></div>
               </div>
               <!-- Download Station QR removed per request -->
               <div class="ecopoint-material-list">
                 <?php foreach ($ecoPointWeeklyStats as $materialLabel => $materialStat): ?>
-                  <?php $materialProgress = $ecoPointWeeklyCap > 0 ? min(100, round(($materialStat['points'] / $ecoPointWeeklyCap) * 100)) : 0; ?>
+                  <?php
+                    $materialProgress = $ecoPointWeeklyCap > 0 ? min(100, round(($materialStat['points'] / $ecoPointWeeklyCap) * 100)) : 0;
+                    $materialSlug = stripos($materialLabel, 'plastic') !== false ? 'plastic'
+                                  : (stripos($materialLabel, 'aluminum') !== false ? 'aluminum'
+                                  : (stripos($materialLabel, 'paper') !== false || stripos($materialLabel, 'cardboard') !== false ? 'paper' : 'other'));
+                  ?>
                   <div class="ecopoint-material-row">
                     <div class="ecopoint-material-main">
                       <div class="ecopoint-material-title"><?php echo htmlspecialchars($materialLabel); ?></div>
-                      <div class="ecopoint-material-subtitle"><?php echo number_format($materialStat['weight'] * 1000, 0); ?> g recycled this week</div>
+                      <div class="ecopoint-material-subtitle" id="ecopoint-weekly-material-<?php echo $materialSlug; ?>-weight"><?php echo number_format($materialStat['weight'] * 1000, 0); ?> g recycled this week</div>
                       <div class="ecopoint-progress" style="margin-top:8px;">
-                        <div class="ecopoint-progress-bar" style="width:<?php echo intval($materialProgress); ?>%;"></div>
+                        <div class="ecopoint-progress-bar" id="ecopoint-weekly-material-<?php echo $materialSlug; ?>-bar" style="width:<?php echo intval($materialProgress); ?>%;"></div>
                       </div>
                     </div>
-                    <div class="ecopoint-material-value"><?php echo number_format((float)$materialStat['points'], 0); ?> pts</div>
+                    <div class="ecopoint-material-value" id="ecopoint-weekly-material-<?php echo $materialSlug; ?>-points"><?php echo number_format((float)$materialStat['points'], 0); ?> pts</div>
                   </div>
                 <?php endforeach; ?>
               </div>
@@ -4339,6 +4345,7 @@ body.modal-open{overflow:hidden}
             <div class="ecopoint-card">
               <h3 class="ecopoint-card-title"><i class="fa-solid fa-receipt" style="margin-right:6px; font-size:0.85em; opacity:0.7;"></i>Points History</h3>
               <div class="ecopoint-card-note"><i class="fa-solid fa-circle-info ecopoint-info" style="margin-right:4px;" title="Your complete record of VHEcoPoint earn and redeem transactions, most recent first."></i>Your VHEcoPoint earn and redeem transactions.</div>
+              <div id="ecopoint-history-container">
               <?php if (empty($allPointHistory)): ?>
                 <div class="ecopoint-empty">No VHEcoPoint activity yet.</div>
               <?php else: ?>
@@ -4415,6 +4422,7 @@ body.modal-open{overflow:hidden}
                   <?php endforeach; ?>
                 </div>
               <?php endif; ?>
+              </div>
             </div>
           </div>
         </div>
