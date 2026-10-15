@@ -8758,6 +8758,308 @@ a.stat-card:hover { transform: translateY(-3px); box-shadow: var(--dash-shadow-h
     .sidebar.sidebar-open .nav-list { flex-direction: column; padding: 10px 14px 14px; }
     .sidebar.sidebar-open .nav-item { white-space: normal; border-radius: 10px; }
 }
+
+/* Residents, visitors and security directory */
+:root {
+    color-scheme: light;
+    --people-surface: #ffffff;
+    --people-page: #f4f6f8;
+    --people-text: #263445;
+    --people-muted: #778392;
+    --people-border: #e3e8ee;
+    --people-row-hover: #f7f9fc;
+    --people-badge-bg: #f3f5f7;
+    --people-blue: #2563eb;
+    --people-blue-soft: #eff6ff;
+    --people-red: #c0392b;
+    --people-red-soft: #fef2f2;
+    --people-green: #166534;
+    --people-green-soft: #dcfce7;
+}
+
+.page-header:has(+ #residents-panel),
+.page-header:has(+ #visitors-panel),
+.page-header:has(+ #security-panel) {
+    padding: 18px 30px 16px;
+    margin: 0;
+}
+.page-header:has(+ #residents-panel) h2,
+.page-header:has(+ #visitors-panel) h2,
+.page-header:has(+ #security-panel) h2 {
+    color: var(--people-text);
+    font-size: 29px;
+    font-weight: 700;
+    line-height: 1.25;
+}
+.people-panel {
+    margin: 0 30px 24px;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--people-border);
+    border-radius: 14px;
+    background: var(--people-surface);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, .06);
+}
+.people-panel .panel-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 68px;
+    margin: 0;
+    padding: 16px 24px;
+    border: 0;
+}
+.people-panel .panel-heading h3 {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    color: var(--people-text);
+    font-size: 16px;
+    font-weight: 700;
+}
+.people-count {
+    display: inline-flex;
+    align-items: center;
+    min-height: 26px;
+    padding: 4px 10px;
+    border: 1px solid var(--people-border);
+    border-radius: 999px;
+    background: var(--people-badge-bg);
+    color: var(--people-muted);
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.people-table-scroll {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.people-panel table {
+    width: 100%;
+    min-width: 860px;
+    margin: 0;
+    border-collapse: collapse;
+}
+#security-panel table { min-width: 660px; }
+.people-panel th,
+.people-panel td {
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--people-border);
+    color: var(--people-text);
+    font-size: 13px;
+    line-height: 1.4;
+    vertical-align: middle;
+    overflow-wrap: normal;
+}
+.people-panel th {
+    position: static;
+    background: var(--people-page);
+    color: var(--people-muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.people-panel tbody tr { transition: background-color .16s ease; }
+.people-panel tbody tr:hover { background: var(--people-row-hover); }
+.people-panel tbody tr:last-child td { border-bottom: 0; }
+.people-panel td:first-child { min-width: 220px; }
+.people-panel td:last-child { white-space: normal; }
+.people-panel#residents-panel td,
+.people-panel#visitors-panel td { white-space: nowrap; }
+.person-cell {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    min-width: 0;
+}
+.person-avatar {
+    display: inline-flex;
+    flex: 0 0 38px;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border: 1px solid rgba(201, 162, 39, .28);
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f4d879 0%, #c9a227 100%);
+    color: #3b3020;
+    font-size: 12px;
+    font-weight: 700;
+}
+.person-copy {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 2px;
+}
+.person-name {
+    overflow: hidden;
+    color: var(--people-text);
+    font-weight: 600;
+    text-overflow: ellipsis;
+}
+.person-meta {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--people-muted);
+    font-size: 11px;
+    white-space: nowrap;
+}
+.people-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 3px 9px;
+    border: 1px solid var(--people-border);
+    border-radius: 6px;
+    background: var(--people-badge-bg);
+    color: var(--people-text);
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.people-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 23px;
+    padding: 3px 9px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    line-height: 1.2;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.people-status.is-active {
+    border-color: #bbebc9;
+    background: var(--people-green-soft);
+    color: var(--people-green);
+}
+.people-status.is-inactive {
+    border-color: #fecaca;
+    background: var(--people-red-soft);
+    color: #991b1b;
+}
+.people-status.is-pending {
+    border-color: #f5d68a;
+    background: #fffbeb;
+    color: #92400e;
+}
+.people-panel .actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    gap: 7px;
+    min-width: 355px;
+}
+.people-panel td.actions > * { width: auto; }
+.people-panel td.actions > .btn { flex: 0 0 auto; }
+.people-panel td.actions form,
+.people-panel td.actions .delete-form.show {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    gap: 7px;
+    width: auto;
+    margin: 0;
+}
+.people-panel .suspend-reason {
+    width: 150px;
+    height: 32px;
+    padding: 5px 9px;
+    border: 1px solid var(--people-border);
+    border-radius: 6px;
+    background: var(--people-surface);
+    color: var(--people-text);
+    font-size: 12px;
+}
+/* Buttons use the shared solid .btn / .btn-view / .btn-approve / .btn-reject /
+   .btn-remove palette so the directory matches the Requests and Guest tables.
+   Only sizing and alignment are tuned here. */
+.people-panel td.actions .btn {
+    width: auto;
+    height: 34px;
+    min-height: 34px;
+    padding: 0 14px;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 0.78rem;
+    font-weight: 600;
+    gap: 6px;
+    white-space: nowrap;
+    box-shadow: none;
+}
+.people-panel td.actions .btn:hover {
+    box-shadow: none;
+    transform: none;
+}
+.people-panel .actions form:has(.suspend-reason:placeholder-shown) .btn-reject {
+    opacity: .48;
+    cursor: not-allowed;
+    pointer-events: none;
+    box-shadow: none;
+    transform: none;
+}
+.people-panel td[colspan] {
+    padding: 28px 24px;
+    color: var(--people-muted);
+    text-align: center;
+}
+@media (prefers-color-scheme: dark) {
+    :root {
+        color-scheme: dark;
+        --people-surface: #211f1d;
+        --people-page: #2a2724;
+        --people-text: #f1ede7;
+        --people-muted: #b4aaa0;
+        --people-border: #46403a;
+        --people-row-hover: #2c2926;
+        --people-badge-bg: #302c28;
+        --people-blue: #8ab4ff;
+        --people-blue-soft: #27364d;
+        --people-red: #f28b82;
+        --people-red-soft: #452b29;
+        --people-green: #a7e2b4;
+        --people-green-soft: #21392a;
+    }
+    .people-panel { box-shadow: 0 8px 24px rgba(0, 0, 0, .22); }
+    .people-status.is-pending { background: #44381e; border-color: #67542a; color: #f3ce79; }
+    .people-status.is-inactive { border-color: #70413d; color: #ffc4bf; }
+}
+@media (max-width: 1024px) {
+    .people-panel { margin: 0 20px 20px; }
+    .page-header:has(+ #residents-panel),
+    .page-header:has(+ #visitors-panel),
+    .page-header:has(+ #security-panel) { padding: 16px 20px 14px; }
+}
+@media (max-width: 760px) {
+    .sidebar { width: 100%; height: auto; max-height: 56px; overflow: hidden; }
+    .sidebar.sidebar-open { max-height: 100vh; overflow-y: auto; }
+    .sidebar:not(.sidebar-open) .nav-list,
+    .sidebar:not(.sidebar-open) .sidebar-footer { display: none; }
+    .sidebar.sidebar-open .nav-list { flex-direction: column; padding: 10px 14px 14px; }
+    .sidebar.sidebar-open .nav-item { white-space: normal; border-radius: 10px; }
+    .main { width: 100%; }
+    .people-panel { margin: 0 14px 16px; }
+    .people-panel .panel-heading { min-height: 60px; padding: 14px 16px; }
+    .people-panel th,
+    .people-panel td { padding: 13px 16px; }
+    .page-header:has(+ #residents-panel),
+    .page-header:has(+ #visitors-panel),
+    .page-header:has(+ #security-panel) { padding: 14px 14px 12px; }
+    .page-header:has(+ #residents-panel) h2,
+    .page-header:has(+ #visitors-panel) h2,
+    .page-header:has(+ #security-panel) h2 { font-size: 27px; }
+}
 </style>
 </head>
 <body>
@@ -11310,8 +11612,13 @@ window.GQ_LIST = (function(){
 
 <!-- RESIDENTS -->
 <?php if ($currentPage == 'residents'): ?>
-<section class="panel" id="residents-panel">
-  <h3>Registered Residents</h3>
+<?php $residents = getResidents($con); ?>
+<section class="panel people-panel" id="residents-panel">
+  <div class="panel-heading">
+    <h3>Registered Residents</h3>
+    <span class="people-count"><?php echo (int)($residents ? $residents->num_rows : 0); ?> total</span>
+  </div>
+  <div class="people-table-scroll">
   <table class="table table-residents">
     <thead>
       <tr>
@@ -11323,18 +11630,22 @@ window.GQ_LIST = (function(){
     </thead>
     <tbody>
       <?php
-      $residents = getResidents($con);
       if ($residents && $residents->num_rows > 0) {
           while ($resident = $residents->fetch_assoc()) {
+              $residentFirstName = trim((string)($resident['first_name'] ?? ''));
+              $residentLastName = trim((string)($resident['last_name'] ?? ''));
+              $residentFullName = trim($residentFirstName . ' ' . $residentLastName);
+              $residentInitials = strtoupper(substr($residentFirstName, 0, 1) . substr($residentLastName, 0, 1));
+              $status = strtolower($resident['status'] ?? 'active');
+              $residentIsActive = ($status !== 'disabled');
               echo "<tr>";
-              echo "<td>" . $resident['first_name'] . " " . $resident['last_name'] . "</td>";
-              echo "<td>" . $resident['house_number'] . "</td>";
+              echo "<td><div class='person-cell'><span class='person-avatar' aria-hidden='true'>" . ($residentInitials !== '' ? $residentInitials : 'R') . "</span><span class='person-copy'><span class='person-name'>" . $residentFullName . "</span><span class='person-meta'>Resident <span class='people-status " . ($residentIsActive ? 'is-active' : 'is-inactive') . "'>" . ($residentIsActive ? 'ACTIVE' : 'INACTIVE') . "</span></span></span></div></td>";
+              echo "<td><span class='people-badge'>" . $resident['house_number'] . "</span></td>";
               echo "<td>" . date('M d, Y', strtotime($resident['created_at'])) . "</td>";
               echo "<td class='actions'>";
               echo "<button type='button' class='btn btn-view' onclick='showUserDetails(" . intval($resident['id']) . ",\"resident\")'>View Details</button>";
-              $status = strtolower($resident['status'] ?? 'active');
               if ($status !== 'disabled') {
-                echo "<form method='post' style='display:inline;' onsubmit='return openAdminConfirm(this, \"Deactivate this account?\")'>";
+                echo "<form method='post' onsubmit='return openAdminConfirm(this, \"Deactivate this account?\")'>";
                 echo "<input type='hidden' name='user_id' value='" . intval($resident['id']) . "'>";
                 echo "<input type='hidden' name='user_action' value='deactivate_user'>";
                 echo "<input type='hidden' name='redirect_page' value='residents'>";
@@ -11342,7 +11653,7 @@ window.GQ_LIST = (function(){
                 echo "<button type='submit' class='btn btn-reject'><i class='fa-solid fa-ban'></i> Deactivate</button>";
                 echo "</form>";
               } else {
-                echo "<form method='post' class='delete-form show' onsubmit='return openAdminConfirm(this, \"Delete this account permanently?\")' style='display:inline;'>";
+                echo "<form method='post' class='delete-form show' onsubmit='return openAdminConfirm(this, \"Delete this account permanently?\")'>";
                 echo "<input type='hidden' name='user_id' value='" . intval($resident['id']) . "'>";
                 echo "<input type='hidden' name='user_action' value='delete_user'>";
                 echo "<input type='hidden' name='redirect_page' value='residents'>";
@@ -11358,12 +11669,18 @@ window.GQ_LIST = (function(){
       ?>
     </tbody>
   </table>
+  </div>
 </section>
 <?php endif; ?>
 
 <?php if ($currentPage == 'visitors'): ?>
-<section class="panel" id="visitors-panel">
-  <h3>Registered Visitors</h3>
+<?php $visitors = getVisitors($con); ?>
+<section class="panel people-panel" id="visitors-panel">
+  <div class="panel-heading">
+    <h3>Registered Visitors</h3>
+    <span class="people-count"><?php echo (int)($visitors ? $visitors->num_rows : 0); ?> total</span>
+  </div>
+  <div class="people-table-scroll">
   <table class="table table-residents">
     <thead>
       <tr>
@@ -11375,21 +11692,23 @@ window.GQ_LIST = (function(){
     </thead>
     <tbody>
       <?php
-      $visitors = getVisitors($con);
       if ($visitors && $visitors->num_rows > 0) {
           while ($visitor = $visitors->fetch_assoc()) {
               echo "<tr>";
               $fullName = trim(($visitor['first_name'] ?? '') . ' ' . ($visitor['last_name'] ?? ''));
-              echo "<td>" . ($fullName !== '' ? $fullName : 'Visitor') . "</td>";
+              $visitorFirstName = trim((string)($visitor['first_name'] ?? ''));
+              $visitorLastName = trim((string)($visitor['last_name'] ?? ''));
+              $visitorInitials = strtoupper(substr($visitorFirstName, 0, 1) . substr($visitorLastName, 0, 1));
+              echo "<td><div class='person-cell'><span class='person-avatar' aria-hidden='true'>" . ($visitorInitials !== '' ? $visitorInitials : 'V') . "</span><span class='person-copy'><span class='person-name'>" . ($fullName !== '' ? $fullName : 'Visitor') . "</span><span class='person-meta'>Visitor</span></span></div></td>";
               $status = strtolower($visitor['status'] ?? 'active');
-              $statusLabel = ucfirst($status);
-              $statusClass = ($status === 'active') ? 'badge-approved' : (($status === 'pending') ? 'badge-pending' : 'badge-rejected');
-              echo "<td><span class='badge $statusClass'>" . $statusLabel . "</span></td>";
+              $statusLabel = ($status === 'disabled') ? 'INACTIVE' : strtoupper($status);
+              $statusClass = ($status === 'active') ? 'is-active' : (($status === 'pending') ? 'is-pending' : 'is-inactive');
+              echo "<td><span class='people-status $statusClass'>" . $statusLabel . "</span></td>";
               echo "<td>" . (!empty($visitor['created_at']) ? date('M d, Y', strtotime($visitor['created_at'])) : '-') . "</td>";
               echo "<td class='actions'>";
               echo "<button type='button' class='btn btn-view' onclick='showUserDetails(" . intval($visitor['id']) . ",\"visitor\")'>View Details</button>";
               if ($status !== 'disabled') {
-                echo "<form method='post' style='display:inline;' onsubmit='return openAdminConfirm(this, \"Deactivate this account?\")'>";
+                echo "<form method='post' onsubmit='return openAdminConfirm(this, \"Deactivate this account?\")'>";
                 echo "<input type='hidden' name='user_id' value='" . intval($visitor['id']) . "'>";
                 echo "<input type='hidden' name='user_action' value='deactivate_user'>";
                 echo "<input type='hidden' name='redirect_page' value='visitors'>";
@@ -11397,7 +11716,7 @@ window.GQ_LIST = (function(){
                 echo "<button type='submit' class='btn btn-reject'><i class='fa-solid fa-ban'></i> Deactivate</button>";
                 echo "</form>";
               } else {
-                echo "<form method='post' class='delete-form show' onsubmit='return openAdminConfirm(this, \"Delete this account permanently?\")' style='display:inline;'>";
+                echo "<form method='post' class='delete-form show' onsubmit='return openAdminConfirm(this, \"Delete this account permanently?\")'>";
                 echo "<input type='hidden' name='user_id' value='" . intval($visitor['id']) . "'>";
                 echo "<input type='hidden' name='user_action' value='delete_user'>";
                 echo "<input type='hidden' name='redirect_page' value='visitors'>";
@@ -11413,6 +11732,7 @@ window.GQ_LIST = (function(){
       ?>
     </tbody>
   </table>
+  </div>
 </section>
 <?php endif; ?>
 
@@ -11643,8 +11963,13 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
 
 <!-- SECURITY GUARDS -->
 <?php if ($currentPage == 'security'): ?>
-<section class="panel" id="security-panel">
-  <h3>Security Guards on Duty</h3>
+<?php $guards = getSecurityGuards($con); ?>
+<section class="panel people-panel" id="security-panel">
+  <div class="panel-heading">
+    <h3>Security Guards on Duty</h3>
+    <span class="people-count"><?php echo (int)($guards ? $guards->num_rows : 0); ?> total</span>
+  </div>
+  <div class="people-table-scroll">
   <table class="table table-security">
     <thead>
       <tr>
@@ -11656,14 +11981,15 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
     </thead>
     <tbody>
       <?php
-      $guards = getSecurityGuards($con);
       if ($guards && $guards->num_rows > 0) {
           while ($guard = $guards->fetch_assoc()) {
+              $guardEmail = trim((string)($guard['email'] ?? ''));
+              $guardInitial = strtoupper(substr($guardEmail, 0, 1));
               echo "<tr>";
-              echo "<td>" . $guard['id'] . "</td>";
-              echo "<td>" . $guard['email'] . "</td>";
-              echo "<td>" . $guard['role'] . "</td>";
-              echo "<td><span class='badge badge-active'>On Duty</span></td>";
+              echo "<td><span class='people-badge'>" . $guard['id'] . "</span></td>";
+              echo "<td><div class='person-cell'><span class='person-avatar' aria-hidden='true'>" . ($guardInitial !== '' ? $guardInitial : 'S') . "</span><span class='person-copy'><span class='person-name'>" . $guardEmail . "</span><span class='person-meta'>Security guard</span></span></div></td>";
+              echo "<td><span class='people-badge'>" . $guard['role'] . "</span></td>";
+              echo "<td><span class='people-status is-active'>ON DUTY</span></td>";
               echo "</tr>";
           }
       } else {
@@ -11672,6 +11998,7 @@ window.addEventListener('click', function(e){ var m=document.getElementById('rec
       ?>
     </tbody>
   </table>
+  </div>
 </section>
 <?php endif; ?>
 
