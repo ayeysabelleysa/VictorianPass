@@ -5278,11 +5278,13 @@ document.addEventListener('DOMContentLoaded', function() {
   function showFormLimit(sec){
     if (!formLimit) { return; }
     formLimit.style.display = 'flex';
+    document.body.style.paddingBottom = '104px';
     if (formLimitCount) { formLimitCount.textContent = fmt(sec); }
     window.__vpHoldExpired = false;
   }
   function hideFormLimit(){
     if (formLimit) { formLimit.style.display = 'none'; }
+    document.body.style.paddingBottom = '';
   }
 
   function stopTimer(){ if (timer) { clearInterval(timer); timer = null; } }
