@@ -1586,10 +1586,6 @@ if (ob_get_level() > 0) { ob_end_flush(); }
                       <small class="nonrefundable">Downpayment is non-refundable.</small>
                       <small class="booking-mode-hint" id="bookingModeHint"></small>
                     </div>
-                    <div id="formTimeLimit" class="form-time-limit" style="display:none;align-items:center;gap:8px;padding:10px 14px;margin:0 0 10px;border-radius:10px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px;font-weight:600;" role="timer" aria-live="polite">
-                      <i class="fa-regular fa-clock" aria-hidden="true"></i>
-                      <span>Please complete this booking within <span id="formTimeLimitCountdown" style="font-variant-numeric:tabular-nums;">--:--</span></span>
-                    </div>
                     <div id="submitWrap" class="res-item submit-wrap">
                       <button id="submitBtn" class="btn-submit disabled" type="submit" disabled>Next</button>
                     </div>
@@ -3823,7 +3819,8 @@ async function changePersons(val){
         const sM=toMinutes(st), eM=toMinutes(et);
         const overlap=times.some(function(t){ if(!t.has_time){ return true; } const ts=toMinutes(t.start), te=toMinutes(t.end); return !(eM<=ts || sM>=te); });
         if(overlap){
-          showTimeError('Selected time overlaps an existing booking. Please choose a different time.');
+          if(typeof displaySlotError==='function'){ displaySlotError('Selected time overlaps an existing booking. Please choose a different time.'); }
+          else { showTimeError('Selected time overlaps an existing booking. Please choose a different time.'); }
           return;
         }
       }
@@ -5193,6 +5190,11 @@ document.addEventListener('DOMContentLoaded', function() {
 })();
 </script>
 <?php endif; ?>
+
+<div id="formTimeLimit" class="form-time-limit" style="display:none;position:fixed;left:0;right:0;bottom:0;z-index:9998;justify-content:center;align-items:center;gap:8px;padding:12px 16px;background:#991b1b;color:#fff;font-size:14px;font-weight:600;box-shadow:0 -4px 16px rgba(0,0,0,.22);" role="timer" aria-live="polite">
+  <i class="fa-regular fa-clock" aria-hidden="true"></i>
+  <span>Please complete this booking within <span id="formTimeLimitCountdown" style="font-variant-numeric:tabular-nums;font-weight:800;">--:--</span></span>
+</div>
 
 <script>
 (function(){
