@@ -5191,7 +5191,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 <?php endif; ?>
 
-<div id="formTimeLimit" class="form-time-limit" style="display:none;position:fixed;left:0;right:0;bottom:0;z-index:9998;justify-content:center;align-items:center;gap:8px;padding:12px 16px;background:#991b1b;color:#fff;font-size:14px;font-weight:600;box-shadow:0 -4px 16px rgba(0,0,0,.22);" role="timer" aria-live="polite">
+<div id="formTimeLimit" class="form-time-limit" style="display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:24px;z-index:9998;justify-content:center;align-items:center;gap:10px;padding:14px 24px;border-radius:999px;background:#991b1b;color:#fff;font-size:15px;font-weight:600;box-shadow:0 12px 34px rgba(153,27,27,.45),0 4px 12px rgba(0,0,0,.28);max-width:min(92vw,580px);text-align:center;" role="timer" aria-live="polite">
   <i class="fa-regular fa-clock" aria-hidden="true"></i>
   <span>Please complete this booking within <span id="formTimeLimitCountdown" style="font-variant-numeric:tabular-nums;font-weight:800;">--:--</span></span>
 </div>
@@ -5229,6 +5229,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Form time-limit indicator (mirrors the active slot hold)
   var formLimit = document.getElementById('formTimeLimit');
   var formLimitCount = document.getElementById('formTimeLimitCountdown');
+  if (formLimit && formLimit.parentNode !== document.body) { document.body.appendChild(formLimit); }
 
   if (!holdField || !banner) { return; }
 
