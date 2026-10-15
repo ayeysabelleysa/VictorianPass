@@ -2,6 +2,7 @@
 require_once __DIR__ . '/session_bootstrap.php';
 include 'connect.php';
 require_once __DIR__ . '/qr_url_helpers.php';
+require_once __DIR__ . '/amenity_holds.php';
 
 function downpaymentColumnExists($con, string $col): bool {
     if (!($con instanceof mysqli)) return false;
@@ -107,6 +108,16 @@ if ((!is_array($pending) || empty($pending)) && $ref_code !== '' && ($con instan
                 'points_used' => $pointsUsedExists ? intval($rwC['points_used'] ?? 0) : 0
             ];
             $_SESSION['pending_reservation'] = $pending;
+            // Recover an active hold for this owner+slot if the session was lost
+            // (e.g. a page reload), so confirmation still validates the hold.
+            if (empty($pending['hold_token']) && !empty($pending['amenity']) && !empty($pending['start_date'])) {
+                [$dpUid, , $dpOwner] = vpResolveIdentity();
+                $recovered = vpFindActiveHoldForOwner($con, $dpOwner, $dpUid, (string)$pending['amenity'], (string)$pending['start_date'], (string)$pending['end_date'], $pending['start_time'], $pending['end_time']);
+                if ($recovered) {
+                    $pending['hold_token'] = $recovered['hold_token'];
+                    $_SESSION['pending_reservation'] = $pending;
+                }
+            }
             if ($entry_pass_id <= 0 && !empty($pending['entry_pass_id'])) { $entry_pass_id = intval($pending['entry_pass_id']); }
         }
         $stmtC->close();
@@ -305,6 +316,44 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
             $chk->close();
           }
         }
+        // --- Race-safe slot serialization (holds + double-booking guard) ------
+        // The pending session always belongs to one actor who should still own a
+        // temporary hold for this exact slot. Lock the (amenity|date) resource
+        // rows, re-check for conflicts against the latest committed data, then
+        // write inside the same transaction so two confirmations cannot both win.
+        $slotAmenity      = (string)($amenity ?? '');
+        $slotStart        = (string)($start ?? '');
+        $slotEnd          = (string)($end ?? '');
+        $slotStartTime    = $startTime;
+        $slotEndTime      = $endTime;
+        $pendingHoldToken = is_array($pending) ? (string)($pending['hold_token'] ?? '') : '';
+        $pendingWaitlistToken = is_array($pending) ? (string)($pending['waitlist_token'] ?? '') : '';
+        $txOpen = false;
+        // If a hold token was carried here, it must still be valid for this exact
+        // slot. An expired/released hold stops the booking rather than silently
+        // proceeding on a slot that is no longer reserved for this resident.
+        if ($pendingHoldToken !== '' && empty($msg) && $slotAmenity !== '' && $slotStart !== '' && $slotEnd !== '') {
+          $holdCheck = vpValidateHoldForSlot($con, $pendingHoldToken, $slotAmenity, $slotStart, $slotEnd, $slotStartTime, $slotEndTime);
+          if (empty($holdCheck[0])) {
+            $msg = $holdCheck[1] . ' Please return to the calendar and select the slot again.';
+            if (isset($target) && is_file($target)) { @unlink($target); }
+          }
+        }
+        if (empty($msg) && $slotAmenity !== '' && $slotStart !== '' && $slotEnd !== '') {
+          vpEnsureSlotLockRows($con, $slotAmenity, $slotStart, $slotEnd);
+          @$con->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+          $con->begin_transaction();
+          $txOpen = true;
+          vpLockSlotRows($con, $slotAmenity, $slotStart, $slotEnd);
+          $slotConflicts = vpFindConflicts($con, $slotAmenity, $slotStart, $slotEnd, $slotStartTime, $slotEndTime, $pendingHoldToken !== '' ? $pendingHoldToken : null, $ref_code);
+          if (!empty($slotConflicts)) {
+            $msg = 'That time slot is no longer available. Please choose another slot.';
+            $con->rollback();
+            $txOpen = false;
+            if (isset($target) && is_file($target)) { @unlink($target); }
+          }
+        }
+        if (empty($msg)) {
         // Adaptive UPDATE: only set columns that actually exist in the deployed DB.
         $colOk = function($col) use ($con){ return downpaymentColumnExists($con, $col); };
         $updSets = [];
@@ -408,6 +457,19 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
               }
             }
           } catch (Throwable $_) { }
+        }
+        // Close the slot-serialization transaction: commit only if every write
+        // succeeded, otherwise roll everything back.
+        if ($txOpen) {
+          if (empty($msg)) {
+            $con->commit();
+            if ($pendingHoldToken !== '') { vpMarkHoldConverted($con, $pendingHoldToken, $ref_code); }
+            if ($pendingWaitlistToken !== '') { vpWaitlistMarkStatus($con, $pendingWaitlistToken, 'converted'); }
+          } else {
+            $con->rollback();
+          }
+          $txOpen = false;
+        }
         }
       }
       if(empty($msg)){

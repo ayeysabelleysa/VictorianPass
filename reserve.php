@@ -51,6 +51,7 @@ if ($isReserveApiRequest) {
   define('VP_JSON_ERROR_RESPONSE', true);
 }
 require_once __DIR__ . '/connect.php';
+require_once __DIR__ . '/amenity_holds.php';
 vpMark('db_connect');
 $generatedCode = '';
 $errorMsg = '';
@@ -246,6 +247,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $guest_id_post = isset($_POST['guest_id']) ? trim($_POST['guest_id']) : '';
     $guest_ref_code_post = isset($_POST['guest_ref_code']) ? trim($_POST['guest_ref_code']) : '';
     $redemption_confirmed_post = isset($_POST['redemption_confirmed']) && $_POST['redemption_confirmed'] === '1';
+    $hold_token_post = isset($_POST['hold_token']) ? trim((string)$_POST['hold_token']) : '';
+    $waitlist_token_post = isset($_POST['waitlist_token']) ? trim((string)$_POST['waitlist_token']) : '';
     $residentsCount = max(0, intval($_POST['residents_count'] ?? 0));
     $guestsCount = max(0, intval($_POST['guests_count'] ?? 0));
     if ($residentsCount + $guestsCount <= 0) { $guestsCount = max(1, $persons); }
@@ -381,6 +384,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $maxH = ($amenity === 'Clubhouse' || $amenity === 'Multi-Purpose Building') ? 21 : 18;
       if ((int)$stObj->format('H') < $minH || (int)$etObj->format('H') > $maxH) {
         $errorMsg = 'Selected time is outside operating hours.';
+      }
+    }
+    // A submitted hold token is authoritative: if it is present it must match the
+    // selected slot and still be active, otherwise the resident is returned to
+    // the calendar instead of silently booking a slot they no longer hold.
+    if (!$errorMsg && $hold_token_post !== '') {
+      $holdCheck = vpValidateHoldForSlot($con, $hold_token_post, $amenity, $start, $end, $startTime, $endTime);
+      if (empty($holdCheck[0])) {
+        $errorMsg = $holdCheck[1] . ' This slot is no longer being held for you.';
       }
     }
     $visitorFlow = ($sessionUserType === null || $sessionUserType !== 'resident');
@@ -603,7 +615,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               'guest_ref_code' => $guest_ref_code_post,
               'ref_code' => $newRef,
               'use_points' => $use_points_post,
-              'points_used' => $points_required
+              'points_used' => $points_required,
+              'hold_token' => $hold_token_post,
+              'waitlist_token' => $waitlist_token_post
             ];
             $generatedCode = $newRef;
             $canSubmit = true;
@@ -615,20 +629,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               // If using points, deduct the free hour and proceed
               if ($use_points_post && !$errorMsg) {
                 try {
+                vpEnsureSlotLockRows($con, $amenity, $start, $end);
+                @$con->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
                 $con->begin_transaction();
-                
-                $deductOk = false;
-                if ($stmtLock = $con->prepare("SELECT id FROM users WHERE id = ? FOR UPDATE")) {
+
+                // Serialize this slot, then re-check for conflicts that appeared
+                // while we waited for the resource lock. Our own hold token and
+                // our own ref_code are excluded so they don't block us.
+                vpLockSlotRows($con, $amenity, $start, $end);
+                $slotConflicts = vpFindConflicts($con, $amenity, $start, $end, $startTime, $endTime, $hold_token_post !== '' ? $hold_token_post : null, $newRef !== '' ? $newRef : null);
+                $deductOk = empty($slotConflicts);
+                if (!$deductOk) {
+                  $errorMsg = 'That time slot is no longer available. Please pick another slot.';
+                }
+
+                $userLocked = false;
+                if ($deductOk && ($stmtLock = $con->prepare("SELECT id FROM users WHERE id = ? FOR UPDATE"))) {
                   $stmtLock->bind_param('i', $sessionUserId);
                   $stmtLock->execute();
                   $lockedUser = $stmtLock->get_result();
-                  $deductOk = $lockedUser && $lockedUser->num_rows > 0;
+                  $userLocked = $lockedUser && $lockedUser->num_rows > 0;
                   $stmtLock->close();
-                } else {
+                } else if ($deductOk) {
                   error_log('reserve.php points user lock prepare failed: ' . $con->error);
                 }
-                if (!$deductOk) {
+                if ($deductOk && !$userLocked) {
                   $errorMsg = 'Unable to verify your account for point redemption. Please try again.';
+                  $deductOk = false;
                 }
                 if ($deductOk) {
                   $lockedBalance = reserveCalcVHEcoBalance($con, intval($sessionUserId));
@@ -702,7 +729,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   }
                 } else {
                   $con->commit();
-                  
+
+                  // Consume the hold now that the reservation row exists, and
+                  // close out any waitlist entry the resident held for this slot.
+                  if ($hold_token_post !== '') { vpMarkHoldConverted($con, $hold_token_post, $newRef); }
+                  if ($waitlist_token_post !== '') { vpWaitlistMarkStatus($con, $waitlist_token_post, 'converted'); }
+
                   // Store pending reservation in session for downpayment page
                   $_SESSION['pending_reservation']['use_points'] = $use_points_post;
                   $_SESSION['pending_reservation']['points_used'] = $points_required;
@@ -929,6 +961,27 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_times') {
         $stmt3->close();
       }
       vpMark('booked_times_guest');
+
+      // Query 4: active temporary holds. Holds block everyone except the actor
+      // who owns them, so a resident browsing while holding a slot still sees
+      // their own selection as available.
+      [$holdUid, $holdAcct, $holdOwner] = vpResolveIdentity();
+      $activeHolds = vpHoldListForSlot($con, $amenity, $startDate, $endDate, $holdOwner, $holdUid);
+      foreach ($activeHolds as $h) {
+        if (!empty($h['mine'])) { continue; }
+        $times[] = [
+          'start_date' => $h['start_date'],
+          'end_date'   => $h['end_date'],
+          'start'      => $h['start'],
+          'end'        => $h['end'],
+          'has_time'   => $h['has_time'] ? 1 : 0,
+          'persons'    => 0,
+          'use_points' => 0,
+          'hold'       => 1,
+          'status'     => 'HELD',
+        ];
+      }
+      vpMark('booked_times_holds');
 
     } catch (Throwable $e) {
       reserveJsonError('reserve.php booked_times error: ' . $e->getMessage());
@@ -1326,6 +1379,8 @@ if (ob_get_level() > 0) { ob_end_flush(); }
           <input type="hidden" name="booking_for" id="bookingForField" value="<?php echo $isResident ? 'resident' : 'guest'; ?>">
           <input type="hidden" name="guest_id" id="guestIdField" value="">
           <input type="hidden" name="guest_ref_code" id="guestRefField" value="">
+          <input type="hidden" name="hold_token" id="holdTokenField" value="">
+          <input type="hidden" name="waitlist_token" id="waitlistTokenField" value="">
           <input type="hidden" name="residents_count" id="residentsCountInput" value="<?php echo ($sessionUserType === 'resident') ? '1' : '0'; ?>">
           <input type="hidden" name="guests_count" id="guestsCountInput" value="<?php echo ($sessionUserType === 'resident') ? '0' : '1'; ?>">
           <input type="hidden" id="submitAllowed" value="1">
@@ -1333,6 +1388,40 @@ if (ob_get_level() > 0) { ob_end_flush(); }
           <input type="hidden" name="redemption_confirmed" id="redemption-confirmed-input" value="0">
             <div class="reservation-card" id="reservationCard" style="display:none;">
             <input type="hidden" name="amenity" id="amenityField" value="">
+            <div id="holdBanner" class="hold-banner" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;margin:0 0 12px;border-radius:10px;background:#fff7e6;border:1px solid #f2c94c;color:#7a5b00;font-size:13px;" role="status" aria-live="polite">
+              <i class="fa-solid fa-hourglass-half" aria-hidden="true"></i>
+              <span id="holdBannerText" style="flex:1;min-width:180px;">We're holding this slot for you.</span>
+              <span id="holdCountdown" style="font-weight:700;font-variant-numeric:tabular-nums;"></span>
+              <button type="button" id="holdWaitlistBtn" class="btn-link" style="display:none;font-weight:600;" >Join waitlist</button>
+            </div>
+            <div id="queueOverlay" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(17,24,39,.55);align-items:center;justify-content:center;padding:16px;">
+              <div role="dialog" aria-modal="true" aria-labelledby="queueTitle" style="width:100%;max-width:440px;background:#fff;border-radius:16px;padding:22px 22px 18px;box-shadow:0 20px 60px rgba(0,0,0,.25);font-family:inherit;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+                  <span id="queueStatusIcon" style="width:38px;height:38px;border-radius:50%;background:#fff7e6;color:#b7791f;display:flex;align-items:center;justify-content:center;flex:0 0 38px;"><i class="fa-solid fa-hourglass-half"></i></span>
+                  <div style="flex:1;min-width:0;">
+                    <div id="queueTitle" style="font-weight:700;font-size:16px;color:#111827;">You're in the Queue!</div>
+                    <div id="queueSlot" style="font-size:12.5px;color:#6b7280;margin-top:2px;">--</div>
+                  </div>
+                  <span id="queueBadge" style="font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;background:#fef3c7;color:#92400e;white-space:nowrap;">In Queue</span>
+                </div>
+                <p id="queueMessage" style="font-size:13.5px;color:#374151;line-height:1.5;margin:10px 0 6px;">--</p>
+                <div id="queuePositionWrap" style="font-size:13px;font-weight:600;color:#111827;margin:6px 0;display:none;">
+                  <i class="fa-solid fa-list-ol" aria-hidden="true"></i> <span id="queuePosition">You are #1 in line</span>
+                </div>
+                <div id="queueCountdownWrap" style="display:none;background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;border-radius:10px;padding:9px 12px;font-weight:700;font-size:13px;margin:8px 0;">
+                  <i class="fa-regular fa-clock" aria-hidden="true"></i> Claim within <span id="queueCountdown">05:00</span>
+                </div>
+                <div id="queueAlternativesWrap" style="display:none;margin:8px 0;">
+                  <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">Suggested free times on this date:</div>
+                  <div id="queueAlternatives" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
+                  <button type="button" id="queueClaimBtn" class="btn-main small" style="display:none;">Claim this slot</button>
+                  <button type="button" id="queueLeaveBtn" style="background:#fff;border:1px solid #e5e7eb;color:#b91c1c;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;">Cancel waiting</button>
+                  <button type="button" id="queueBackBtn" style="background:#fff;border:1px solid #e5e7eb;color:#374151;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;">Back to calendar</button>
+                </div>
+              </div>
+            </div>
             <div class="reservation-grid">
               <div class="calendar-shell">
                 <div class="calendar-title"><i class="fa-regular fa-calendar-days" aria-hidden="true"></i> Select Date</div>
@@ -1496,6 +1585,10 @@ if (ob_get_level() > 0) { ob_end_flush(); }
                       <small class="dp-info">This is a partial payment of 50% of the total price. The remaining balance can be paid onsite at the administration office.</small>
                       <small class="nonrefundable">Downpayment is non-refundable.</small>
                       <small class="booking-mode-hint" id="bookingModeHint"></small>
+                    </div>
+                    <div id="formTimeLimit" class="form-time-limit" style="display:none;align-items:center;gap:8px;padding:10px 14px;margin:0 0 10px;border-radius:10px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px;font-weight:600;" role="timer" aria-live="polite">
+                      <i class="fa-regular fa-clock" aria-hidden="true"></i>
+                      <span>Please complete this booking within <span id="formTimeLimitCountdown" style="font-variant-numeric:tabular-nums;">--:--</span></span>
                     </div>
                     <div id="submitWrap" class="res-item submit-wrap">
                       <button id="submitBtn" class="btn-submit disabled" type="submit" disabled>Next</button>
@@ -3649,6 +3742,11 @@ async function changePersons(val){
         if(typeof showNextValidationMessage==='function'){ showNextValidationMessage(miss); }
         return;
       }
+      if(window.__vpHoldExpired){
+        if(typeof showNextValidationMessage==='function'){ showNextValidationMessage([]); }
+        showToast('Your time to complete this booking expired. Please select the time slot again.','warning');
+        return;
+      }
       let verifyAllowed=true;
       const gateEl=document.getElementById('submitAllowed');
       if(gateEl && gateEl.value==='0'){ verifyAllowed=false; setFieldWarning('amenityField','Payment pending. Complete downpayment to continue.'); }
@@ -3852,6 +3950,7 @@ async function changePersons(val){
         return;
       } else {
         window.__verifyConfirmed=false;
+        window.__vpSubmitting = true;
         submitting=true;
         formEl.submit();
         return;
@@ -3907,6 +4006,7 @@ async function changePersons(val){
     }
         if(vm){ vpHideModal(vm); }
         showToast('Details confirmed.','success');
+        window.__vpSubmitting = true;
         const f = (typeof formEl !== 'undefined' && formEl) ? formEl : document.querySelector('form');
         if(f){
           if(typeof f.requestSubmit === 'function'){
@@ -5093,6 +5193,429 @@ document.addEventListener('DOMContentLoaded', function() {
 })();
 </script>
 <?php endif; ?>
+
+<script>
+(function(){
+  if (window.__vpHoldInit) { return; }
+  window.__vpHoldInit = true;
+
+  var API = 'amenity_hold_api.php';
+  var holdField = document.getElementById('holdTokenField');
+  var waitlistField = document.getElementById('waitlistTokenField');
+  var banner = document.getElementById('holdBanner');
+  var bannerText = document.getElementById('holdBannerText');
+  var countdownEl = document.getElementById('holdCountdown');
+  var waitlistBtn = document.getElementById('holdWaitlistBtn');
+
+  // Queue modal elements
+  var qOverlay = document.getElementById('queueOverlay');
+  var qTitle = document.getElementById('queueTitle');
+  var qSlot = document.getElementById('queueSlot');
+  var qBadge = document.getElementById('queueBadge');
+  var qMessage = document.getElementById('queueMessage');
+  var qPosWrap = document.getElementById('queuePositionWrap');
+  var qPos = document.getElementById('queuePosition');
+  var qCountWrap = document.getElementById('queueCountdownWrap');
+  var qCount = document.getElementById('queueCountdown');
+  var qAltWrap = document.getElementById('queueAlternativesWrap');
+  var qAlt = document.getElementById('queueAlternatives');
+  var qClaim = document.getElementById('queueClaimBtn');
+  var qLeave = document.getElementById('queueLeaveBtn');
+  var qBack = document.getElementById('queueBackBtn');
+  var qIcon = document.getElementById('queueStatusIcon');
+
+  // Form time-limit indicator (mirrors the active slot hold)
+  var formLimit = document.getElementById('formTimeLimit');
+  var formLimitCount = document.getElementById('formTimeLimitCountdown');
+
+  if (!holdField || !banner) { return; }
+
+  var hold = null;          // {token, expiresAt, amenity, startDate, endDate, startTime, endTime}
+  var timer = null;
+  var lastState = null;     // { sig, complete }
+  var queue = null;         // { token, sig, poll, lastStatus }
+  var qCountdownTimer = null;
+
+  function val(id){ var el = document.getElementById(id); return el ? (el.value || '') : ''; }
+  function norm(t){ t = String(t || ''); return t.length === 5 ? (t + ':00') : t; }
+
+  function api(body){
+    return fetch(API, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(body).toString()
+    }).then(function(r){ return r.json().catch(function(){ return null; }); })
+      .catch(function(){ return null; });
+  }
+
+  function note(msg, type){
+    if (typeof showToast === 'function') {
+      try { showToast('<i class="fa-solid fa-hourglass-half"></i> ' + msg, type || 'success'); } catch (e) {}
+    }
+  }
+
+  function fmt(sec){
+    sec = Math.max(0, Math.floor(sec));
+    var m = Math.floor(sec / 60), s = sec % 60;
+    return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  function showBanner(text, timerText, showWaitlist){
+    banner.style.display = 'flex';
+    if (bannerText) { bannerText.textContent = text; }
+    if (countdownEl) {
+      countdownEl.textContent = timerText || '';
+      countdownEl.style.display = timerText ? '' : 'none';
+    }
+    if (waitlistBtn) { waitlistBtn.style.display = showWaitlist ? '' : 'none'; }
+  }
+  function hideBanner(){ banner.style.display = 'none'; }
+
+  function showFormLimit(sec){
+    if (!formLimit) { return; }
+    formLimit.style.display = 'flex';
+    if (formLimitCount) { formLimitCount.textContent = fmt(sec); }
+    window.__vpHoldExpired = false;
+  }
+  function hideFormLimit(){
+    if (formLimit) { formLimit.style.display = 'none'; }
+  }
+
+  function stopTimer(){ if (timer) { clearInterval(timer); timer = null; } }
+  function tick(){
+    if (!hold) { return; }
+    var remain = Math.floor((hold.expiresAt - Date.now()) / 1000);
+    if (remain <= 0) { onExpired(); return; }
+    if (countdownEl) { countdownEl.textContent = fmt(remain); }
+    if (formLimitCount) { formLimitCount.textContent = fmt(remain); }
+  }
+  function startTimer(){ stopTimer(); timer = setInterval(tick, 250); tick(); }
+
+  function onExpired(){
+    stopTimer();
+    hold = null;
+    holdField.value = '';
+    hideFormLimit();
+    window.__vpHoldExpired = true;
+    // Force a fresh selection: clear the chosen time so the resident cannot
+    // keep extending the limit by re-clicking the same (still unchanged) slot.
+    var stEl = document.getElementById('startTimeInput'); if (stEl) { stEl.value = ''; }
+    var etEl = document.getElementById('endTimeInput'); if (etEl) { etEl.value = ''; }
+    var tr = document.getElementById('selectedTimeRange'); if (tr) { tr.style.display = 'none'; tr.innerHTML = ''; }
+    var cont = document.getElementById('timeSlotContainer');
+    if (cont) { Array.prototype.forEach.call(cont.querySelectorAll('.slot-btn.selected'), function(b){ b.classList.remove('selected'); }); }
+    if (typeof updateActionStates === 'function') { try { updateActionStates(); } catch (e) {} }
+    showBanner('Your hold expired. Please pick the time slot again.', '', false);
+    note('Your time to complete this booking expired. Please select the time slot again.', 'warning');
+  }
+
+  function setHold(data){
+    var exp = Date.parse(data.expires_at);
+    hold = {
+      token: data.hold_token,
+      expiresAt: isNaN(exp) ? (Date.now() + 10 * 60 * 1000) : exp,
+      amenity: data.amenity || '',
+      startDate: data.start_date || '',
+      endDate: data.end_date || '',
+      startTime: data.start_time || '',
+      endTime: data.end_time || ''
+    };
+    holdField.value = data.hold_token;
+    showBanner(data.reused ? 'We are still holding this slot for you.' : 'We are holding this slot for you.',
+               fmt((hold.expiresAt - Date.now()) / 1000), false);
+    showFormLimit((hold.expiresAt - Date.now()) / 1000);
+    startTimer();
+    // A hold for a different slot means we no longer need the old queue entry.
+    if (queue && queue.sig && queue.sig !== signature()) { leaveQueue({ silent: true }); }
+  }
+
+  function slot(){
+    return {
+      amenity: val('amenityField'),
+      start_date: val('startDateInput'),
+      end_date: val('endDateInput') || val('startDateInput'),
+      start_time: val('startTimeInput'),
+      end_time: val('endTimeInput'),
+      entry_pass_id: val('entry_pass_id'),
+      ref_code: val('refCodeField')
+    };
+  }
+
+  function acquireHold(){
+    var s = slot();
+    if (!s.amenity || !s.start_date || !s.start_time) { return; }
+    if (hold &&
+        hold.amenity === s.amenity &&
+        hold.startDate === s.start_date &&
+        norm(hold.startTime) === norm(s.start_time) &&
+        norm(hold.endTime) === norm(s.end_time)) {
+      return; // same slot, keep countdown (must not reset/extend)
+    }
+    var previous = hold;
+    if (previous && previous.token) { api({ action: 'release_hold', hold_token: previous.token }); }
+    hold = null;
+    stopTimer();
+    showBanner('Holding this slot...', '', false);
+    api({
+      action: 'hold_slot',
+      amenity: s.amenity,
+      start_date: s.start_date,
+      end_date: s.end_date,
+      start_time: s.start_time,
+      end_time: s.end_time,
+      entry_pass_id: s.entry_pass_id,
+      ref_code: s.ref_code
+    }).then(function(data){
+      if (data && data.success) { setHold(data); return; }
+      if (data && data.conflict) {
+        holdField.value = '';
+        stopTimer();
+        hideBanner();
+        hideFormLimit();
+        // Per the reservation policy, a conflicting click adds the resident to
+        // the waiting line instead of letting them book the slot directly.
+        joinQueue();
+        return;
+      }
+      hideBanner();
+      if (data && data.message) { note(data.message, 'warning'); }
+    });
+  }
+
+  function releaseHold(){
+    if (!hold || !hold.token) { hideBanner(); hideFormLimit(); holdField.value = ''; return; }
+    var token = hold.token;
+    hold = null; stopTimer(); hideBanner(); hideFormLimit(); holdField.value = '';
+    api({ action: 'release_hold', hold_token: token });
+  }
+
+  // ---- Waiting line / queue --------------------------------------------
+  function rangeLabel(st, et){
+    var t = function(x){ if(!x){return '';} x=String(x); var p=x.split(':'); var h=parseInt(p[0],10); var m=p[1]||'00'; var ap=h>=12?'PM':'AM'; h=h%12; if(h===0){h=12;} return h+':'+m+' '+ap; };
+    return t(st) + (et ? (' \u2013 ' + t(et)) : '');
+  }
+
+  function stopQueueCountdown(){ if (qCountdownTimer) { clearInterval(qCountdownTimer); qCountdownTimer = null; } }
+  function startQueueCountdown(sec){
+    stopQueueCountdown();
+    var remain = Math.max(0, parseInt(sec, 10) || 0);
+    if (qCount) { qCount.textContent = fmt(remain); }
+    qCountdownTimer = setInterval(function(){
+      remain--;
+      if (remain <= 0) { stopQueueCountdown(); if (qCount) { qCount.textContent = '00:00'; } return; }
+      if (qCount) { qCount.textContent = fmt(remain); }
+    }, 1000);
+  }
+
+  function stopQueuePoll(){ if (queue && queue.poll) { clearInterval(queue.poll); queue.poll = null; } }
+
+  function renderQueue(data){
+    if (!qOverlay) { return; }
+    var status = data.status || 'waiting';
+    if (qSlot) { qSlot.textContent = (data.amenity || '') + (data.start_date ? (' \u2022 ' + data.start_date) : '') + (data.start_time ? (' \u2022 ' + rangeLabel(data.start_time, data.end_time)) : ''); }
+    if (qMessage) { qMessage.textContent = data.message || ''; }
+
+    var badge = 'In Queue', title = "You're in the Queue!", bg = '#fef3c7', fg = '#92400e',
+        icon = 'fa-hourglass-half', icbg = '#fff7e6', icfg = '#b7791f';
+    if (status === 'offered') { badge = 'Slot available'; title = 'Slot Available'; bg = '#dcfce7'; fg = '#166534'; icon = 'fa-bell'; icbg = '#dcfce7'; icfg = '#166534'; }
+    else if (status === 'unavailable') { badge = 'Unavailable'; title = 'Slot No Longer Available'; bg = '#fee2e2'; fg = '#991b1b'; icon = 'fa-circle-xmark'; icbg = '#fee2e2'; icfg = '#991b1b'; }
+    else if (status === 'expired') { badge = 'Offer expired'; title = 'Offer Expired'; bg = '#f3f4f6'; fg = '#374151'; icon = 'fa-clock'; icbg = '#f3f4f6'; icfg = '#374151'; }
+    else if (status === 'converted') { badge = 'Submitted'; title = 'Request Submitted'; bg = '#dcfce7'; fg = '#166534'; icon = 'fa-check'; icbg = '#dcfce7'; icfg = '#166534'; }
+    else if (status === 'declined' || status === 'cancelled') { badge = 'Left queue'; title = 'Waiting Cancelled'; bg = '#f3f4f6'; fg = '#374151'; icon = 'fa-door-open'; icbg = '#f3f4f6'; icfg = '#374151'; }
+    if (qBadge) { qBadge.textContent = badge; qBadge.style.background = bg; qBadge.style.color = fg; }
+    if (qTitle) { qTitle.textContent = title; }
+    if (qIcon) { qIcon.style.background = icbg; qIcon.style.color = icfg; qIcon.innerHTML = '<i class="fa-solid ' + icon + '"></i>'; }
+
+    if (qPosWrap) {
+      if (status === 'waiting' && parseInt(data.position, 10) > 0) {
+        if (qPos) { qPos.textContent = 'You are #' + data.position + ' in line' + (parseInt(data.total, 10) > 1 ? (' of ' + data.total) : ''); }
+        qPosWrap.style.display = '';
+      } else {
+        qPosWrap.style.display = 'none';
+      }
+    }
+
+    if (status === 'offered' && data.seconds_remaining != null) {
+      if (qCountWrap) { qCountWrap.style.display = ''; }
+      startQueueCountdown(data.seconds_remaining);
+    } else {
+      if (qCountWrap) { qCountWrap.style.display = 'none'; }
+      stopQueueCountdown();
+    }
+
+    if (qClaim) { qClaim.style.display = (status === 'offered') ? '' : 'none'; }
+
+    if (qAlt && qAltWrap) {
+      var alts = data.alternatives || [];
+      if (alts.length) {
+        qAlt.innerHTML = '';
+        alts.forEach(function(a){
+          var chip = document.createElement('span');
+          chip.style.cssText = 'font-size:12px;background:#eef2ff;color:#3730a3;border-radius:999px;padding:4px 10px;font-weight:600;';
+          chip.textContent = rangeLabel(a.start_time, a.end_time);
+          qAlt.appendChild(chip);
+        });
+        qAltWrap.style.display = '';
+      } else {
+        qAltWrap.style.display = 'none';
+      }
+    }
+    // When the resident dismisses the panel with "Back to calendar", keep it
+    // hidden on routine polls, but always re-surface it when the slot is
+    // offered or becomes unavailable.
+    if (queue && status !== 'offered' && status !== 'unavailable') {
+      if (!queue.dismissed) { qOverlay.style.display = 'flex'; }
+    } else {
+      if (queue) { queue.dismissed = false; }
+      qOverlay.style.display = 'flex';
+    }
+  }
+
+  function setQueueToken(token, sig){
+    if (waitlistField) { waitlistField.value = token || ''; }
+    if (!queue) { queue = { token: token, sig: sig, poll: null, lastStatus: 'waiting' }; }
+    else { queue.token = token; queue.sig = sig; }
+  }
+
+  function startQueuePoll(){
+    if (!queue || !queue.token) { return; }
+    stopQueuePoll();
+    queue.poll = setInterval(function(){ pollQueue(); }, 5000);
+  }
+
+  function pollQueue(){
+    if (!queue || !queue.token) { return; }
+    api({ action: 'waitlist_status', waitlist_token: queue.token }).then(function(data){
+      if (!data || !data.success) { return; }
+      if (data.active === false) { leaveQueue({ silent: true }); return; }
+      var prev = queue.lastStatus || 'waiting';
+      queue.lastStatus = data.status;
+      renderQueue(data);
+      if (data.status === 'offered' && prev !== 'offered') { note('Your slot is now available \u2014 claim it within the timer.', 'success'); }
+      if (data.status === 'unavailable' && prev !== 'unavailable') { note('That slot was confirmed for another resident. Please choose another time.', 'warning'); }
+      if (data.status === 'expired' && prev !== 'expired') { note('Your claim window expired. Please pick another time.', 'warning'); }
+      if (data.status === 'converted' || data.status === 'declined' || data.status === 'cancelled' || data.status === 'expired' || data.status === 'unavailable') {
+        stopQueuePoll();
+      }
+    });
+  }
+
+  function joinQueue(){
+    var s = slot();
+    if (!s.amenity || !s.start_date || !s.start_time) { return; }
+    // Only keep one active queue entry at a time.
+    if (queue && queue.sig && queue.sig !== signature()) { leaveQueue({ silent: true }); }
+    var sig = signature();
+    api({
+      action: 'join_waitlist',
+      amenity: s.amenity, start_date: s.start_date, end_date: s.end_date,
+      start_time: s.start_time, end_time: s.end_time, entry_pass_id: s.entry_pass_id
+    }).then(function(data){
+      if (data && data.success) {
+        setQueueToken(data.waitlist_token, sig);
+        queue.lastStatus = data.status || 'waiting';
+        renderQueue(data);
+        startQueuePoll();
+        if (!data.duplicate) { note("You're in the Queue! We'll hold your place.", 'info'); }
+      } else if (data && data.message) {
+        note(data.message, 'warning');
+      }
+    });
+  }
+
+  function leaveQueue(opts){
+    opts = opts || {};
+    var token = queue && queue.token;
+    stopQueuePoll();
+    stopQueueCountdown();
+    queue = null;
+    if (waitlistField) { waitlistField.value = ''; }
+    if (qOverlay) { qOverlay.style.display = 'none'; }
+    if (token) {
+      api({ action: 'waitlist_leave', waitlist_token: token });
+      if (!opts.silent) { note('You left the waiting line.', 'success'); }
+    }
+  }
+
+  function claimQueue(){
+    stopQueuePoll();
+    stopQueueCountdown();
+    if (qOverlay) { qOverlay.style.display = 'none'; }
+    // The server already placed a fresh claim hold on this slot for us; fetch
+    // it so the booking form can proceed. Never assume based on the notification.
+    api({ action: 'hold_status' }).then(function(data){
+      if (data && data.success && data.active && data.hold_token) {
+        setHold(data);
+        note('Slot claimed. Please complete your booking.', 'success');
+      } else {
+        acquireHold();
+      }
+    });
+  }
+
+  if (qClaim) { qClaim.addEventListener('click', function(e){ e.preventDefault(); claimQueue(); }); }
+  if (qLeave) { qLeave.addEventListener('click', function(e){ e.preventDefault(); leaveQueue(); }); }
+  if (qBack)  { qBack.addEventListener('click', function(e){ e.preventDefault(); if (queue) { queue.dismissed = true; } if (qOverlay) { qOverlay.style.display = 'none'; } }); }
+  if (waitlistBtn) { waitlistBtn.addEventListener('click', function(e){ e.preventDefault(); if (queue) { renderQueue(queue); } else { joinQueue(); } }); }
+
+  function signature(){
+    return [val('amenityField'), val('startDateInput'), val('endDateInput'),
+            val('startTimeInput'), val('endTimeInput')].join('|');
+  }
+
+  function restoreState(){
+    api({ action: 'hold_status' }).then(function(data){
+      if (data && data.success && data.active && data.hold_token) { setHold(data); return; }
+      api({ action: 'waitlist_status' }).then(function(qd){
+        if (qd && qd.success && qd.active && (qd.status === 'waiting' || qd.status === 'offered')) {
+          setQueueToken(qd.waitlist_token, signature());
+          queue.lastStatus = qd.status;
+          renderQueue(qd);
+          startQueuePoll();
+        }
+      });
+    });
+  }
+
+  // Watch for slot changes made anywhere in the page (selectTimeSlot etc. set
+  // hidden fields via JS, which does not fire change events), then acquire or
+  // release the hold accordingly.
+  setInterval(function(){
+    var sig = signature();
+    if (lastState && sig === lastState.sig) { return; }
+    var s = slot();
+    var complete = !!(s.amenity && s.start_date && s.start_time && s.end_time);
+    var prev = lastState;
+    lastState = { sig: sig, complete: complete };
+    if (complete) {
+      // If we are already queued for this exact slot, don't hammer hold_slot.
+      if (queue && queue.sig === sig) { return; }
+      acquireHold();
+    } else if (prev && prev.complete && hold) {
+      releaseHold();
+    }
+  }, 600);
+
+  // Best-effort release when leaving the page. Skipped for a legitimate form
+  // submission, otherwise the release races the booking POST and the server
+  // rejects the booking as an expired hold.
+  window.addEventListener('beforeunload', function(){
+    if (window.__vpSubmitting) { return; }
+    if (hold && hold.token && navigator.sendBeacon) {
+      var fd = new URLSearchParams({ action: 'release_hold', hold_token: hold.token });
+      navigator.sendBeacon(API, fd);
+    }
+  });
+
+  function boot(){ setTimeout(restoreState, 500); }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();
+</script>
 
 </body>
 </html>
