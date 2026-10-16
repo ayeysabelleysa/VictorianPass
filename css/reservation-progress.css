@@ -1,5 +1,5 @@
 /* ============================================================
-   VictorianPass - Reservation Steps card + progress tracker
+   VictorianPass - Reservation Steps card + 5-step progress tracker
    Card shell: reserve.php (.booking-steps)
    Tracker:    reserve.php + downpayment.php (.res-progress)
    ============================================================ */
@@ -24,7 +24,6 @@
   --rs-dot-bg:#ffffff;
   --rs-dot-border:#cfd5db;
 
-  --rs-footer-bg:#f7f9fa;
   --rs-focus:#2f6b3d;
 }
 
@@ -46,7 +45,6 @@
     --rs-dot-bg:#1c1917;
     --rs-dot-border:#4a423c;
 
-    --rs-footer-bg:#231f1d;
     --rs-focus:#6cc68b;
   }
 }
@@ -83,7 +81,7 @@
 }
 .booking-steps-toggle-wrap{display:flex;align-items:center;gap:10px;}
 
-/* "Step n of 3" chip (text swapped per step via data-current) */
+/* "Step n of 5" chip (text swapped per step via data-current) */
 .booking-steps-chip{
   font-size:12px;
   font-weight:600;
@@ -96,6 +94,14 @@
 }
 .res-chip-step{display:none;}
 .res-chip-step[data-n="1"]{display:inline;}
+.booking-steps:has(#resProgress[data-current="2"]) .res-chip-step[data-n="1"],
+.booking-steps:has(#resProgress[data-current="3"]) .res-chip-step[data-n="1"],
+.booking-steps:has(#resProgress[data-current="4"]) .res-chip-step[data-n="1"],
+.booking-steps:has(#resProgress[data-current="5"]) .res-chip-step[data-n="1"]{display:none;}
+.booking-steps:has(#resProgress[data-current="2"]) .res-chip-step[data-n="2"],
+.booking-steps:has(#resProgress[data-current="3"]) .res-chip-step[data-n="3"],
+.booking-steps:has(#resProgress[data-current="4"]) .res-chip-step[data-n="4"],
+.booking-steps:has(#resProgress[data-current="5"]) .res-chip-step[data-n="5"]{display:inline;}
 
 /* Collapse button: 30px outlined square, thin minus line */
 .booking-steps-toggle{
@@ -118,20 +124,18 @@
 .booking-steps-toggle:hover{background:var(--rs-green-soft);border-color:var(--rs-green-2);}
 .booking-steps-toggle:focus-visible{outline:2px solid var(--rs-focus);outline-offset:2px;}
 
-/* Progress bar under the header (33 / 66 / 100% via data-current) */
+/* Progress bar under the header (20/40/60/80/100% via data-current) */
 .res-progress-track{height:3px;background:var(--rs-border);overflow:hidden;}
 .res-progress-fill{
   height:100%;
-  width:33.333%;
+  width:20%;
   background:var(--rs-green-2);
   transition:width .45s cubic-bezier(.2,.8,.2,1);
 }
-.booking-steps:has(#resProgress[data-current="2"]) .res-progress-fill{width:66.666%;}
-.booking-steps:has(#resProgress[data-current="3"]) .res-progress-fill{width:100%;}
-.booking-steps:has(#resProgress[data-current="2"]) .res-chip-step[data-n="1"],
-.booking-steps:has(#resProgress[data-current="3"]) .res-chip-step[data-n="1"]{display:none;}
-.booking-steps:has(#resProgress[data-current="2"]) .res-chip-step[data-n="2"],
-.booking-steps:has(#resProgress[data-current="3"]) .res-chip-step[data-n="3"]{display:inline;}
+.booking-steps:has(#resProgress[data-current="2"]) .res-progress-fill{width:40%;}
+.booking-steps:has(#resProgress[data-current="3"]) .res-progress-fill{width:60%;}
+.booking-steps:has(#resProgress[data-current="4"]) .res-progress-fill{width:80%;}
+.booking-steps:has(#resProgress[data-current="5"]) .res-progress-fill{width:100%;}
 
 /* Body (holds the tracker) */
 .booking-steps .booking-steps-body{
@@ -162,7 +166,7 @@
    ============================================================ */
 .res-progress{
   --res-dot:40px;
-  --res-gap:24px;
+  --res-gap:16px;
   position:relative;
   width:100%;
   box-sizing:border-box;
@@ -171,7 +175,8 @@
 .res-progress *{box-sizing:border-box;}
 .res-progress-steps{
   display:grid;
-  grid-template-columns:repeat(3,minmax(0,1fr));
+  grid-auto-flow:column;
+  grid-auto-columns:minmax(0,1fr);
   column-gap:var(--res-gap);
   align-items:start;
   list-style:none;
@@ -233,12 +238,17 @@
   font-size:13px;
   line-height:1.55;
   color:var(--rs-muted);
-  max-width:240px;
+  max-width:220px;
   margin:6px auto 0;
   text-align:center;
   overflow-wrap:break-word;
   word-break:normal;
 }
+
+/* Conditional last step: CASH = "Downpayment", POINTS = "Confirm" */
+.res-step5-points{display:none;}
+.res-progress.is-points .res-step5-cash{display:none;}
+.res-progress.is-points .res-step5-points{display:block;}
 
 /* Active */
 .res-progress-step.is-active .res-progress-dot{
@@ -261,13 +271,16 @@
 .res-progress-step.is-complete .res-progress-check{display:block;}
 .res-progress-step.is-complete .res-progress-title{color:var(--rs-text);}
 
-/* Legacy rail/bar hidden - progress now drawn by the track + ::before connectors */
+/* Legacy rail/bar hidden */
 .res-progress-rail{display:none;}
 
 /* ============================================================
-   Desktop / tablet - horizontal stepper WITH connectors
+   Desktop / tablet - horizontal 5-column stepper WITH connectors
    ============================================================ */
 @media (min-width:641px){
+  /* 5 narrow columns in the reserve card -> keep descriptions short */
+  .booking-steps .res-progress-sub{max-width:180px;}
+
   .res-progress-step:not(:first-child)::before{
     content:'';
     position:absolute;
@@ -283,7 +296,7 @@
 }
 
 /* ============================================================
-   Mobile - keep the existing vertical stepper
+   Mobile - vertical stepper (5 steps), circle left / text right
    ============================================================ */
 @media (max-width:640px){
   .booking-steps-header{padding:16px 18px;}

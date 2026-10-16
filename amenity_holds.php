@@ -42,7 +42,8 @@ if (!function_exists('vpAmenityHoldsEnsureSchema')) {
     {
         $v1Done = function_exists('vpSchemaDone') && vpSchemaDone($con, 'amenity_holds_v1');
         $v2Done = function_exists('vpSchemaDone') && vpSchemaDone($con, 'amenity_holds_v2');
-        if ($v1Done && $v2Done) {
+        $v3Done = function_exists('vpSchemaDone') && vpSchemaDone($con, 'amenity_holds_v3');
+        if ($v1Done && $v2Done && $v3Done) {
             return;
         }
 
@@ -136,6 +137,30 @@ if (!function_exists('vpAmenityHoldsEnsureSchema')) {
             }
         }
 
+        // --- v3: configurable amenity capacity + downpayment hold -------------
+        if (!$v3Done) {
+            $v3Defaults = [
+                'amenity_max_persons' => json_encode([
+                    'Clubhouse'              => 200,
+                    'Multi-Purpose Building' => 50,
+                    'Tennis Court'           => 60,
+                    'Basketball Court'       => 30,
+                ]),
+                'vp_downpayment_hold_hours' => '24',
+            ];
+            $v3Stmt = $con->prepare("INSERT IGNORE INTO app_settings (setting_key, setting_value) VALUES (?, ?)");
+            if ($v3Stmt) {
+                foreach ($v3Defaults as $k => $v) {
+                    $v3Stmt->bind_param('ss', $k, $v);
+                    $v3Stmt->execute();
+                }
+                $v3Stmt->close();
+            }
+            if (function_exists('vpMarkSchemaDone')) {
+                vpMarkSchemaDone($con, 'amenity_holds_v3');
+            }
+        }
+
         if (!$v1Done && function_exists('vpMarkSchemaDone')) {
             vpMarkSchemaDone($con, 'amenity_holds_v1');
         }
@@ -182,6 +207,91 @@ if (!function_exists('vpWaitlistOfferSeconds')) {
             $min = 5;
         }
         return $min * 60;
+    }
+}
+
+if (!function_exists('vpAmenityMaxPersonsMap')) {
+    /**
+     * Per-amenity maximum persons. Built-in defaults, overridable via the
+     * app_settings key 'amenity_max_persons' (JSON object). A value of 0 means
+     * "no limit" for that amenity.
+     */
+    function vpAmenityMaxPersonsMap(mysqli $con): array
+    {
+        static $cache = null;
+        if ($cache !== null) {
+            return $cache;
+        }
+        $cache = [
+            'Clubhouse'              => 200,
+            'Multi-Purpose Building' => 50,
+            'Tennis Court'           => 60,
+            'Basketball Court'       => 30,
+        ];
+        $raw = vpAmenitySetting($con, 'amenity_max_persons', json_encode($cache));
+        $decoded = json_decode((string)$raw, true);
+        if (is_array($decoded)) {
+            foreach ($decoded as $k => $v) {
+                if (is_numeric($v)) {
+                    $cache[(string)$k] = (int)$v;
+                }
+            }
+        }
+        return $cache;
+    }
+}
+
+if (!function_exists('vpAmenityMaxPersons')) {
+    /** Configured max persons for a single amenity; 0 means no limit. */
+    function vpAmenityMaxPersons(mysqli $con, string $amenity): int
+    {
+        $map = vpAmenityMaxPersonsMap($con);
+        return array_key_exists($amenity, $map) ? (int)$map[$amenity] : 0;
+    }
+}
+
+if (!function_exists('vpDownpaymentHoldHours')) {
+    /**
+     * Hours a pending downpayment holds a slot before it is auto-cancelled.
+     * env override -> app_settings -> 24 hours.
+     */
+    function vpDownpaymentHoldHours(mysqli $con): int
+    {
+        $env = getenv('VP_DOWNPAYMENT_HOLD_HOURS');
+        if ($env !== false && is_numeric($env) && (int)$env > 0) {
+            return (int)$env;
+        }
+        $hours = (int)vpAmenitySetting($con, 'vp_downpayment_hold_hours', '24');
+        return $hours > 0 ? $hours : 24;
+    }
+}
+
+if (!function_exists('vpExpireStaleDownpayments')) {
+    /**
+     * Cancel reservations still awaiting a downpayment (payment_status
+     * 'pending' + approval_status 'pending') older than the configured hold
+     * window. Returns the number of rows cancelled.
+     */
+    function vpExpireStaleDownpayments(mysqli $con): int
+    {
+        $hours = vpDownpaymentHoldHours($con);
+        $stmt = $con->prepare(
+            "UPDATE reservations
+                SET approval_status = 'cancelled', status = 'cancelled'
+              WHERE payment_status = 'pending'
+                AND approval_status = 'pending'
+                AND status NOT IN ('cancelled','deleted','moved_to_history')
+                AND created_at IS NOT NULL
+                AND created_at < (NOW() - INTERVAL ? HOUR)"
+        );
+        if (!$stmt) {
+            return 0;
+        }
+        $stmt->bind_param('i', $hours);
+        $stmt->execute();
+        $n = $stmt->affected_rows;
+        $stmt->close();
+        return (int)$n;
     }
 }
 

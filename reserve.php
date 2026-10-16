@@ -53,6 +53,10 @@ if ($isReserveApiRequest) {
 require_once __DIR__ . '/connect.php';
 require_once __DIR__ . '/amenity_holds.php';
 vpMark('db_connect');
+// Release slots held by downpayments that were never completed in time.
+if ($isGetPageLoad && isset($con) && $con instanceof mysqli && function_exists('vpExpireStaleDownpayments')) {
+  vpExpireStaleDownpayments($con);
+}
 $generatedCode = '';
 $errorMsg = '';
 $canSubmit = true;
@@ -72,6 +76,13 @@ $refFromQuery = isset($_GET['ref_code']) ? trim($_GET['ref_code']) : '';
 if ($resetReservation) {
   unset($_SESSION['pending_reservation'], $_SESSION['dp_ref_code'], $_SESSION['flash_ref_code'], $_SESSION['reservation_submitted']);
 }
+
+// One-shot flag set by the booking success paths (this page for points and
+// downpayment.php for the cash hand-off). When present, the next load of this
+// page discards any persisted client-side draft so the stepper starts at
+// Step 1 instead of reflecting an already-completed reservation.
+$clearClientDraft = !empty($_SESSION['reserve_clear_client_draft']);
+if ($clearClientDraft) { unset($_SESSION['reserve_clear_client_draft']); }
 
 // Copy every session value this request may need into local variables BEFORE
 // releasing the session lock. Nothing below may read $_SESSION after the lock
@@ -364,11 +375,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errorMsg = 'Reservations must be made at least 1 day in advance.';
       }
     } else {
-      $maxPersons = 0;
-      if ($amenity === 'Clubhouse') { $maxPersons = 200; }
-      else if ($amenity === 'Multi-Purpose Building') { $maxPersons = 50; }
-      else if ($amenity === 'Tennis Court') { $maxPersons = 60; }
-      else if ($amenity === 'Basketball Court') { $maxPersons = 30; }
+      $maxPersons = function_exists('vpAmenityMaxPersons') ? vpAmenityMaxPersons($con, (string)$amenity) : 0;
       if ($persons < 1) {
         $errorMsg = 'Persons must be at least 1.';
       } else if ($maxPersons > 0 && $persons > $maxPersons) {
@@ -738,6 +745,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   // Store pending reservation in session for downpayment page
                   $_SESSION['pending_reservation']['use_points'] = $use_points_post;
                   $_SESSION['pending_reservation']['points_used'] = $points_required;
+
+                  // The booking is created — invalidate the client-side draft so
+                  // the stepper restarts at Step 1 on the next visit.
+                  $_SESSION['reserve_clear_client_draft'] = 1;
                   
                   if ($price > 0) {
                     // Remaining balance exists — redirect to downpayment for the paid hours
@@ -769,6 +780,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $redir = 'downpayment.php?continue=' . (($acct === 'resident') ? 'reserve_resident' : 'reserve');
                 if (!empty($entry_pass_id)) { $redir .= '&entry_pass_id=' . urlencode((string)$entry_pass_id); }
                 if (!empty($newRef)) { $redir .= '&ref_code=' . urlencode($newRef); }
+                // Reservation handed off to the payment page — invalidate the
+                // client-side draft so the stepper restarts at Step 1 later.
+                $_SESSION['reserve_clear_client_draft'] = 1;
                 header('Location: ' . $redir);
                 exit;
               }
@@ -1113,6 +1127,12 @@ vpMark('household');
   <link rel="stylesheet" href="css/navbar.css?v=<?php echo substr(@md5_file(__DIR__ . '/css/navbar.css') ?: '', 0, 12); ?>">
   <link rel="stylesheet" href="css/ecopoint-brand.css?v=<?php echo substr(@md5_file(__DIR__ . '/css/ecopoint-brand.css') ?: '', 0, 12); ?>">
   <link rel="stylesheet" href="css/reservation-progress.css?v=<?php echo substr(@md5_file(__DIR__ . '/css/reservation-progress.css') ?: '', 0, 12); ?>">
+  <?php if ($clearClientDraft): ?>
+  <script>try{sessionStorage.setItem('reserve_completed','1');sessionStorage.removeItem('reserve_form');}catch(e){}</script>
+  <?php endif; ?>
+  <?php if ($_SERVER['REQUEST_METHOD'] === 'POST'): ?>
+  <script>try{sessionStorage.removeItem('reserve_submitted');}catch(e){}</script>
+  <?php endif; ?>
 </head>
 <?php
 // Flush the <head> HTML now so the browser can start loading CSS/JS while the
@@ -1274,9 +1294,11 @@ if (ob_get_level() > 0) { ob_end_flush(); }
           <div class="booking-steps-label">Reservation steps</div>
           <div class="booking-steps-toggle-wrap">
             <span class="booking-steps-chip" aria-hidden="true">
-              <span class="res-chip-step" data-n="1">Step 1 of 3</span>
-              <span class="res-chip-step" data-n="2">Step 2 of 3</span>
-              <span class="res-chip-step" data-n="3">Step 3 of 3</span>
+              <span class="res-chip-step" data-n="1">Step 1 of 5</span>
+              <span class="res-chip-step" data-n="2">Step 2 of 5</span>
+              <span class="res-chip-step" data-n="3">Step 3 of 5</span>
+              <span class="res-chip-step" data-n="4">Step 4 of 5</span>
+              <span class="res-chip-step" data-n="5">Step 5 of 5</span>
             </span>
             <button type="button" class="booking-steps-toggle" id="bookingStepsToggle" aria-label="Minimize instructions" aria-expanded="true">−</button>
           </div>
@@ -1293,29 +1315,53 @@ if (ob_get_level() > 0) { ob_end_flush(); }
                 <span class="res-progress-text">
                   <span class="res-progress-kicker">Step 1</span>
                   <span class="res-progress-title">Select Amenity</span>
-                  <span class="res-progress-sub">Choose the VictorianPass facility you want to reserve</span>
+                  <span class="res-progress-sub">Choose the facility you want to reserve</span>
                 </span>
               </li>
-              <li class="res-progress-step" id="rp-step-schedule" data-step="2">
+              <li class="res-progress-step" id="rp-step-datetime" data-step="2">
                 <span class="res-progress-dot" aria-hidden="true">
                   <span class="res-progress-num">2</span>
                   <svg class="res-progress-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                 </span>
                 <span class="res-progress-text">
                   <span class="res-progress-kicker">Step 2</span>
-                  <span class="res-progress-title">Set Schedule</span>
-                  <span class="res-progress-sub">Select a date and time from the calendar</span>
+                  <span class="res-progress-title">Date &amp; Time</span>
+                  <span class="res-progress-sub">Pick your date and time slot</span>
                 </span>
               </li>
-              <li class="res-progress-step" id="rp-step-review" data-step="3">
+              <li class="res-progress-step" id="rp-step-participants" data-step="3">
                 <span class="res-progress-dot" aria-hidden="true">
                   <span class="res-progress-num">3</span>
                   <svg class="res-progress-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                 </span>
                 <span class="res-progress-text">
                   <span class="res-progress-kicker">Step 3</span>
-                  <span class="res-progress-title">Review &amp; Pay</span>
-                  <span class="res-progress-sub">Check your reservation details, cash payment, or point redemption guide</span>
+                  <span class="res-progress-title">Participants</span>
+                  <span class="res-progress-sub">Enter the number of participants</span>
+                </span>
+              </li>
+              <li class="res-progress-step" id="rp-step-payment" data-step="4">
+                <span class="res-progress-dot" aria-hidden="true">
+                  <span class="res-progress-num">4</span>
+                  <svg class="res-progress-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </span>
+                <span class="res-progress-text">
+                  <span class="res-progress-kicker">Step 4</span>
+                  <span class="res-progress-title">Payment</span>
+                  <span class="res-progress-sub">Choose Points or Cash</span>
+                </span>
+              </li>
+              <li class="res-progress-step" id="rp-step-final" data-step="5">
+                <span class="res-progress-dot" aria-hidden="true">
+                  <span class="res-progress-num">5</span>
+                  <svg class="res-progress-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </span>
+                <span class="res-progress-text">
+                  <span class="res-progress-kicker">Step 5</span>
+                  <span class="res-progress-title res-step5-cash">Downpayment</span>
+                  <span class="res-progress-title res-step5-points">Confirm</span>
+                  <span class="res-progress-sub res-step5-cash">Pay the 50% GCash downpayment</span>
+                  <span class="res-progress-sub res-step5-points">Review and confirm your points redemption</span>
                 </span>
               </li>
             </ol>
@@ -1745,6 +1791,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
   const minDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
   const minDateStr = `${minDate.getFullYear()}-${String(minDate.getMonth()+1).padStart(2,'0')}-${String(minDate.getDate()).padStart(2,'0')}`;
   const currentUserType="<?php echo $sessionUserType !== null ? htmlspecialchars($sessionUserType, ENT_QUOTES) : ''; ?>";
+  const VP_AMENITY_MAX_PERSONS = <?php echo json_encode(function_exists('vpAmenityMaxPersonsMap') ? vpAmenityMaxPersonsMap($con) : [], JSON_UNESCAPED_SLASHES); ?>;
   let residentPoints = <?php echo isset($residentPoints) ? intval($residentPoints) : 0; ?>;
   let selectedStart=null,selectedEnd=null;
   let endDateRangeError=false;
@@ -2009,6 +2056,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     const usePointsInput = document.getElementById('use-points-input');
     const toggle = document.getElementById('use-points-toggle');
     if (usePointsInput) usePointsInput.value = redemptionConfirmed && toggle && toggle.checked ? '1' : '0';
+    if (typeof updateResProgress === 'function') { updateResProgress(); }
   }
 
   function updateRedemptionInfo() {
@@ -3222,10 +3270,10 @@ async function changePersons(val){
   }
 
   function getAmenityMaxPersons(amen){
-    if(amen==='Clubhouse') return 200;
-    if(amen==='Multi-Purpose Building') return 50;
-    if(amen==='Tennis Court') return 60;
-    if(amen==='Basketball Court') return 30;
+    if(typeof VP_AMENITY_MAX_PERSONS!=='undefined' && VP_AMENITY_MAX_PERSONS && Object.prototype.hasOwnProperty.call(VP_AMENITY_MAX_PERSONS,amen)){
+      const n=parseInt(VP_AMENITY_MAX_PERSONS[amen],10);
+      return (isNaN(n)||n<=0)?Infinity:n;
+    }
     return Infinity;
   }
 
@@ -3971,6 +4019,7 @@ async function changePersons(val){
       } else {
         window.__verifyConfirmed=false;
         window.__vpSubmitting = true;
+        try{ sessionStorage.setItem('reserve_submitted','1'); }catch(_){}
         submitting=true;
         formEl.submit();
         return;
@@ -4027,6 +4076,7 @@ async function changePersons(val){
         if(vm){ vpHideModal(vm); }
         showToast('Details confirmed.','success');
         window.__vpSubmitting = true;
+        try{ sessionStorage.setItem('reserve_submitted','1'); }catch(_){}
         const f = (typeof formEl !== 'undefined' && formEl) ? formEl : document.querySelector('form');
         if(f){
           if(typeof f.requestSubmit === 'function'){
@@ -4295,32 +4345,56 @@ async function changePersons(val){
   }
   // Horizontal reservation progress tracker. Step 1 = amenity chosen,
   // Step 2 = schedule complete (same gate as the Next button), Step 3 = review/pay.
+  // Horizontal reservation progress tracker (5 steps).
+  // 1 Select Amenity, 2 Date & Time, 3 Participants, 4 Payment, 5 Downpayment / Confirm.
   function updateResProgress(){
     const root=document.getElementById('resProgress');
     if(!root) return;
-    const amen=(document.getElementById('amenityField')?.value||'').trim();
-    const missing=(typeof getNextButtonMissingFields==='function')?getNextButtonMissingFields():[];
+    const get=function(id){ const el=document.getElementById(id); return el?String(el.value||''):''; };
+    const amen=get('amenityField').trim();
+    const s=get('startDateInput'), eD=get('endDateInput'), st=get('startTimeInput'), et=get('endTimeInput');
+    const persons=parseInt(get('personsInput')||'0',10)||0;
+    const hours=parseInt(get('hoursInput')||'0',10)||0;
+    const max=(typeof getAmenityMaxPersons==='function')?getAmenityMaxPersons(amen):Infinity;
+
     const amenityDone=amen!=='';
-    const scheduleDone=amenityDone && missing.length===0;
-    const states={1:'',2:'',3:''};
-    if(amenityDone){ states[1]='is-complete'; } else { states[1]='is-active'; }
-    if(amenityDone){ states[2]=scheduleDone?'is-complete':'is-active'; }
-    if(scheduleDone){ states[3]='is-active'; }
-    const map={1:'rp-step-amenity',2:'rp-step-schedule',3:'rp-step-review'};
-    [1,2,3].forEach(function(n){
+
+    let scheduleDone=false;
+    if(amenityDone && s && eD && st && et){
+      const dateOk=(typeof minDateStr==='undefined' || s>=minDateStr) && eD>=s && Math.floor((new Date(eD)-new Date(s))/86400000)<=6;
+      const sm=parseInt(st.split(':')[0],10)*60+parseInt(st.split(':')[1]||'0',10);
+      const em=parseInt(et.split(':')[0],10)*60+parseInt(et.split(':')[1]||'0',10);
+      const timeOk=em>sm;
+      const hourOk=(typeof isHourBasedAmenity!=='function' || !isHourBasedAmenity(amen)) || hours>=1;
+      scheduleDone=dateOk && timeOk && hourOk;
+    }
+
+    const guestsDone=scheduleDone && persons>=1 && (max===Infinity || persons<=max);
+
+    const pointsToggle=document.getElementById('use-points-toggle');
+    const pointsActive=!!(pointsToggle && pointsToggle.checked);
+    const confirmed=(typeof redemptionConfirmed!=='undefined') ? !!redemptionConfirmed : true;
+    const missing=(typeof getNextButtonMissingFields==='function')?getNextButtonMissingFields():[];
+    const formReady=missing.length===0 && (!pointsActive || confirmed);
+    const paymentDone=guestsDone && formReady;
+
+    const states={1:'is-active',2:'',3:'',4:'',5:''};
+    if(amenityDone){ states[1]='is-complete'; states[2]='is-active'; }
+    if(scheduleDone){ states[2]='is-complete'; states[3]='is-active'; }
+    if(guestsDone){ states[3]='is-complete'; states[4]='is-active'; }
+    if(paymentDone){ states[4]='is-complete'; states[5]='is-active'; }
+
+    const map={1:'rp-step-amenity',2:'rp-step-datetime',3:'rp-step-participants',4:'rp-step-payment',5:'rp-step-final'};
+    for(let n=1;n<=5;n++){
       const el=document.getElementById(map[n]);
-      if(!el) return;
+      if(!el) continue;
       el.classList.remove('is-active','is-complete');
       if(states[n]) el.classList.add(states[n]);
-    });
+    }
     let activeStep=1;
-    for(let n=1;n<=3;n++){ if(states[n]==='is-active'){ activeStep=n; break; } }
+    for(let n=1;n<=5;n++){ if(states[n]==='is-active'){ activeStep=n; break; } }
     root.setAttribute('data-current',String(activeStep));
-    const completeCount=(states[1]==='is-complete'?1:0)+(states[2]==='is-complete'?1:0)+(states[3]==='is-complete'?1:0);
-    const total=3;
-    const pct=total>1?Math.round((completeCount/(total-1))*100):0;
-    const bar=document.getElementById('resProgressBar');
-    if(bar){ bar.style.width=Math.max(0,Math.min(100,pct))+'%'; }
+    root.classList.toggle('is-points',pointsActive);
   }
   function persistForm(){
     try{
@@ -4344,6 +4418,7 @@ async function changePersons(val){
   }
   function restoreFormFromSession(){
     try{
+      if(sessionStorage.getItem('reserve_completed')==='1' || sessionStorage.getItem('reserve_submitted')==='1'){ return; }
       const raw=sessionStorage.getItem('reserve_form'); if(!raw) return;
       const data=JSON.parse(raw||'{}');
       if(data.amenity){ document.getElementById('amenityField').value=data.amenity; }
@@ -4389,6 +4464,26 @@ async function changePersons(val){
       refreshAvailabilityFromServer();
     }catch(_){}
   }
+  // Once a reservation is completed (the user reached the downpayment /
+  // success page), drop the persisted form and reset the progress steps so the
+  // next visit starts clean instead of showing the previous booking as done.
+  // Post-booking pages set sessionStorage 'reserve_completed' = '1'.
+  function vpConsumeReservationCompletion(){
+    let completed=false;
+    try{ completed = sessionStorage.getItem('reserve_completed') === '1' || sessionStorage.getItem('reserve_submitted') === '1'; }catch(_){}
+    if(!completed) return false;
+    try{ sessionStorage.removeItem('reserve_completed'); sessionStorage.removeItem('reserve_submitted'); sessionStorage.removeItem('reserve_form'); }catch(_){}
+    if(typeof clearBookingFormState === 'function'){ clearBookingFormState(); }
+    else {
+      if(typeof resetReservationForm === 'function'){ resetReservationForm(); }
+      if(typeof updateActionStates === 'function'){ updateActionStates(); }
+      if(typeof updateBookingSummary === 'function'){ updateBookingSummary(); }
+    }
+    return true;
+  }
+  document.addEventListener('DOMContentLoaded',function(){
+    vpConsumeReservationCompletion();
+  });
   ['amenityField','startDateInput','endDateInput','startTimeInput','endTimeInput','personsInput','hoursInput','downpaymentInput'].forEach(id=>{const el=document.getElementById(id); if(el){ el.addEventListener('input',function(){ markDirty(id); persistForm(); updateActionStates(); showIncompleteWarnings(false); if(typeof updateBookingSummary === 'function'){ updateBookingSummary(); } }); }});
   async function refreshAvailabilityFromServer(){
     selectedAmenity = document.getElementById('amenityField').value || '';
@@ -4407,7 +4502,11 @@ async function changePersons(val){
       refreshAvailabilityFromServer();
     }
   }
-  window.addEventListener('pageshow',function(e){ refreshAvailabilityDebounced(e && e.persisted); });
+  window.addEventListener('pageshow',function(e){
+    vpConsumeReservationCompletion();
+    if(typeof updateActionStates === 'function'){ updateActionStates(); }
+    refreshAvailabilityDebounced(e && e.persisted);
+  });
   window.addEventListener('focus',function(){ refreshAvailabilityDebounced(false); });
   window.addEventListener('storage',function(e){
     try{

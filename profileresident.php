@@ -1222,6 +1222,30 @@ body.account-blocked { overflow: hidden; }
   color: #6b7280;
 }
 
+/* Points History rows (also re-rendered live by js/ecopoint_dashboard.js).
+   The emitted rows carry inline styles matching the server render above; these
+   rules are a safety net so a live/SSE refresh can never fall back to an
+   unstyled `.vp-tx-row` / `.sim-tx-icon` list again. */
+#ecopoint-history-container .vp-tx-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  cursor: pointer;
+}
+#ecopoint-history-container .sim-tx-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 0.8rem;
+}
+
 /* Action buttons */
 .main-content.ecopoint-active #panel-points-history .ecopoint-action-btn {
   background: linear-gradient(135deg, #d4af37, #f1d77d);
@@ -2585,40 +2609,38 @@ body.qr-modal-open{ overflow:hidden }
 #qrChoiceModal .qr-modal-content .close,
 #qrViewModal .qr-modal-content .close {
   position: absolute !important;
-  top: 14px !important;
-  right: 14px !important;
-  width: 34px !important;
-  height: 34px !important;
+  top: 10px !important;
+  right: 12px !important;
+  width: 32px !important;
+  height: 32px !important;
   padding: 0 !important;
   margin: 0 !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  border: 1px solid #e1e5e9;
+  border: 0;
   border-radius: 50%;
-  background: #f1f3f5;
-  color: #354150;
+  background: #e5e7eb;
+  color: #111827;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
   cursor: pointer;
   transform: none !important;
-  transition: background-color .16s ease, color .16s ease;
+  transition: filter .2s ease;
 }
 #qrChoiceModal .qr-modal-content .close:hover,
 #qrViewModal .qr-modal-content .close:hover {
-  background: #e4e8eb;
-  color: #14202b;
-}
-#qrChoiceModal .qr-modal-content .close svg,
-#qrViewModal .qr-modal-content .close svg {
-  width: 16px;
-  height: 16px;
-  pointer-events: none;
+  filter: brightness(0.92);
+  background: #e5e7eb;
+  color: #111827;
 }
 #qrChoiceModal .qr-modal-content .close:focus-visible,
 #qrViewModal .qr-modal-content .close:focus-visible,
 #qrChoiceModal .qr-modal-content .btn-confirm:focus-visible,
 #qrViewModal .qr-modal-content .btn-confirm:focus-visible {
-  outline: 3px solid #74a982;
-  outline-offset: 3px;
+  outline: 2px solid #23412e;
+  outline-offset: 2px;
 }
 #qrChoiceModal .qr-modal-icon,
 #qrViewModal .qr-modal-icon {
@@ -3857,9 +3879,7 @@ body.modal-open{overflow:hidden}
   <!-- QR Choice Modal -->
   <div id="qrChoiceModal" class="modal qr-modal" style="display:none;">
     <div class="modal-content qr-modal-content" id="qrChoiceModalContent">
-      <button type="button" class="close" aria-label="Close" id="qrChoiceClose">
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m7 7 10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-      </button>
+      <button type="button" class="close" aria-label="Close" id="qrChoiceClose">&times;</button>
       <div class="qr-modal-icon" aria-hidden="true">
         <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <rect x="4" y="4" width="9" height="9" rx="1"/>
@@ -3886,9 +3906,7 @@ body.modal-open{overflow:hidden}
   <!-- QR View Modal (full ID card preview) -->
   <div id="qrViewModal" class="modal qr-modal" style="display:none;">
     <div class="modal-content qr-modal-content" id="qrViewModalContent">
-      <button type="button" class="close" aria-label="Close" id="qrViewClose">
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m7 7 10 10M17 7 7 17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-      </button>
+      <button type="button" class="close" aria-label="Close" id="qrViewClose">&times;</button>
       <div class="qr-modal-icon" aria-hidden="true">
         <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <rect x="4" y="4" width="9" height="9" rx="1"/>
@@ -8121,5 +8139,6 @@ window.VP_CSRF_TOKEN = <?php echo json_encode(function_exists('vpCsrfGetToken') 
 })();
 </script>
 <?php endif; ?>
+<script>try{if(new URLSearchParams(location.search).get('reservation_success')==='1'){sessionStorage.setItem('reserve_completed','1');sessionStorage.removeItem('reserve_form');}}catch(e){}</script>
 </body>
 </html>

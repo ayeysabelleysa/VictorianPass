@@ -775,6 +775,11 @@
     setStyle('ecopoint-weekly-progress-bar', { width: prog + '%' });
   }
 
+  // Render the Points History EXACTLY like the server-rendered markup in
+  // profileresident.php (date-group headers, coloured earn/redeem icon circles
+  // and expandable detail rows). The old implementation emitted a stripped
+  // `.vp-tx-row`/`.sim-tx-icon` list whose classes have no CSS on this page, so
+  // every live/SSE refresh replaced the designed history with a plain list.
   function updatePointsHistory(dashboard) {
     if (!dashboard || !Array.isArray(dashboard.history)) return;
     const historyEl = getElement('ecopoint-history-container');
@@ -784,16 +789,84 @@
       setHTML('ecopoint-history-container', '<div class="ecopoint-empty">No VHEcoPoint activity yet.</div>');
       return;
     }
-    let html = '';
-    rows.forEach(function(h) {
-      const grams = Math.round(parseFloat(h.weight_kg || 0) * 1000);
-      const label = h.material_label || 'VHEcoPoint';
-      const title = label + (grams > 0 ? (' - ' + number_format(grams) + ' g') : '');
-      const when = h.time_label ? ('  |  ' + h.time_label) : '';
-      html += '<div class="vp-tx-row"><span class="sim-tx-icon">&#11015;</span>' +
-              '<span style="flex:1;">' + title + when + '  |  <b>+' +
-              number_format(h.amount || 0) + ' pts</b></span></div>';
+
+    const fieldStyle = 'display:flex; justify-content:space-between;';
+    let html = '<div style="display:flex; flex-direction:column;">';
+    let currentDateGroup = '';
+
+    rows.forEach(function(h, idx) {
+      const isEarn = (String(h.type || 'earn').toLowerCase() !== 'redeem');
+      const amount = Math.round(parseFloat(h.amount || 0));
+      const dateLabel = h.date_label || '';
+      const timeLabel = h.time_label || '';
+      const materialLabel = h.material_label || 'VHEcoPoint';
+      const weightKg = parseFloat(h.weight_kg || 0);
+      const description = h.description || '';
+
+      if (dateLabel !== currentDateGroup) {
+        currentDateGroup = dateLabel;
+        html += '<div style="font-size:0.75rem; font-weight:700; color:#6b7280; text-transform:uppercase; letter-spacing:0.04em; padding:14px 0 6px 0; border-bottom:1px solid #f1f5f9;">' +
+                escapeHtml(dateLabel) + '</div>';
+      }
+
+      const iconStyle = isEarn ? 'background:#dcfce7; color:#166534;' : 'background:#fef2f2; color:#991b1b;';
+      const amountStyle = isEarn ? 'color:#166534;' : 'color:#991b1b;';
+      const arrow = isEarn ? 'fa-arrow-down' : 'fa-arrow-up';
+
+      let title;
+      if (isEarn) {
+        title = escapeHtml(materialLabel) + (weightKg > 0 ? ' - ' + number_format(weightKg * 1000) + ' g' : '');
+      } else {
+        title = escapeHtml(description !== '' ? description : 'Points Redeemed');
+      }
+
+      html += '<div style="border-bottom:1px solid #f1f5f9;">' +
+        '<div class="vp-tx-row" style="display:flex; align-items:center; gap:12px; padding:12px 0; cursor:pointer;" onclick="var d=document.getElementById(&#39;vp-detail-' + idx + '&#39;); d.style.display=d.style.display===&#39;none&#39;?&#39;block&#39;:&#39;none&#39;;">' +
+          '<div style="width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; ' + iconStyle + '">' +
+            '<i class="fa-solid ' + arrow + '" style="font-size:0.8rem;"></i>' +
+          '</div>' +
+          '<div style="flex:1; min-width:0;">' +
+            '<div style="font-size:0.82rem; font-weight:600; color:#111827; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + title + '</div>' +
+            '<div style="font-size:0.7rem; color:#9ca3af; margin-top:1px;">' + escapeHtml(timeLabel) + '</div>' +
+          '</div>' +
+          '<div style="font-size:0.9rem; font-weight:800; ' + amountStyle + ' white-space:nowrap;">' + (isEarn ? '+' : '-') + number_format(amount) + ' pts</div>' +
+          '<div style="flex-shrink:0; width:18px; text-align:center; color:#9ca3af; font-size:0.65rem;">' +
+            '<i class="fa-solid fa-chevron-down"></i>' +
+          '</div>' +
+        '</div>' +
+        '<div id="vp-detail-' + idx + '" style="display:none; padding:0 0 14px 48px;">' +
+          '<div style="background:#f9fafb; border-radius:10px; padding:14px 16px; font-size:0.78rem; color:#374151; line-height:1.7;">';
+
+      if (isEarn) {
+        html += '<div style="' + fieldStyle + '"><span style="color:#6b7280;">Type</span><span style="font-weight:600; color:#166534;">Points Earned</span></div>' +
+                '<div style="' + fieldStyle + '"><span style="color:#6b7280;">Material</span><span style="font-weight:600;">' + escapeHtml(materialLabel) + '</span></div>';
+        if (weightKg > 0) {
+          html += '<div style="' + fieldStyle + '"><span style="color:#6b7280;">Weight</span><span style="font-weight:600;">' + number_format(weightKg * 1000) + ' g</span></div>';
+        }
+        html += '<div style="' + fieldStyle + '"><span style="color:#6b7280;">Points Earned</span><span style="font-weight:800; color:#166534;">+' + number_format(amount) + ' pts</span></div>';
+      } else {
+        let amenityName = '';
+        let refCode = '';
+        const mAmenity = /for\s+(.+?)(?:\s+\(Ref:.*)?$/i.exec(description);
+        if (mAmenity && mAmenity[1]) amenityName = mAmenity[1].trim();
+        const mRef = /\(Ref:\s*([^)]+)\)/.exec(description);
+        if (mRef && mRef[1]) refCode = mRef[1].trim();
+
+        html += '<div style="' + fieldStyle + '"><span style="color:#6b7280;">Type</span><span style="font-weight:600; color:#991b1b;">Points Redeemed</span></div>';
+        if (amenityName !== '') {
+          html += '<div style="' + fieldStyle + '"><span style="color:#6b7280;">Amenity</span><span style="font-weight:600;">' + escapeHtml(amenityName) + '</span></div>';
+        }
+        if (refCode !== '') {
+          html += '<div style="' + fieldStyle + '"><span style="color:#6b7280;">Reference</span><span style="font-weight:600; font-family:monospace; font-size:0.72rem;">' + escapeHtml(refCode) + '</span></div>';
+        }
+        html += '<div style="' + fieldStyle + '"><span style="color:#6b7280;">Points Used</span><span style="font-weight:800; color:#991b1b;">-' + number_format(amount) + ' pts</span></div>';
+      }
+
+      html += '<div style="display:flex; justify-content:space-between; margin-top:4px; padding-top:8px; border-top:1px solid #e5e7eb;"><span style="color:#6b7280;">Date &amp; Time</span><span style="font-weight:600;">' + escapeHtml(dateLabel + ' at ' + timeLabel) + '</span></div>' +
+        '</div></div></div>';
     });
+
+    html += '</div>';
     setHTML('ecopoint-history-container', html);
   }
 
