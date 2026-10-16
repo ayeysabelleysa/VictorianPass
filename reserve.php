@@ -1112,6 +1112,7 @@ vpMark('household');
   <link rel="stylesheet" href="css/reserve.css?v=<?php echo substr(@md5_file(__DIR__ . '/css/reserve.css') ?: '', 0, 12); ?>">
   <link rel="stylesheet" href="css/navbar.css?v=<?php echo substr(@md5_file(__DIR__ . '/css/navbar.css') ?: '', 0, 12); ?>">
   <link rel="stylesheet" href="css/ecopoint-brand.css?v=<?php echo substr(@md5_file(__DIR__ . '/css/ecopoint-brand.css') ?: '', 0, 12); ?>">
+  <link rel="stylesheet" href="css/reservation-progress.css?v=<?php echo substr(@md5_file(__DIR__ . '/css/reservation-progress.css') ?: '', 0, 12); ?>">
 </head>
 <?php
 // Flush the <head> HTML now so the browser can start loading CSS/JS while the
@@ -1272,32 +1273,53 @@ if (ob_get_level() > 0) { ob_end_flush(); }
         <div class="booking-steps-header">
           <div class="booking-steps-label">Reservation steps</div>
           <div class="booking-steps-toggle-wrap">
+            <span class="booking-steps-chip" aria-hidden="true">
+              <span class="res-chip-step" data-n="1">Step 1 of 3</span>
+              <span class="res-chip-step" data-n="2">Step 2 of 3</span>
+              <span class="res-chip-step" data-n="3">Step 3 of 3</span>
+            </span>
             <button type="button" class="booking-steps-toggle" id="bookingStepsToggle" aria-label="Minimize instructions" aria-expanded="true">−</button>
           </div>
         </div>
+        <div class="res-progress-track" aria-hidden="true"><div class="res-progress-fill"></div></div>
         <div class="booking-steps-body">
-          <div class="booking-step is-active" id="step-amenity">
-            <div class="step-index">1</div>
-            <div class="step-content">
-              <div class="step-title">Select amenity</div>
-              <div class="step-subtitle">Choose the VictorianPass facility you want to reserve</div>
-            </div>
+          <div class="res-progress" id="resProgress" data-current="1">
+            <ol class="res-progress-steps">
+              <li class="res-progress-step is-active" id="rp-step-amenity" data-step="1">
+                <span class="res-progress-dot" aria-hidden="true">
+                  <span class="res-progress-num">1</span>
+                  <svg class="res-progress-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </span>
+                <span class="res-progress-text">
+                  <span class="res-progress-kicker">Step 1</span>
+                  <span class="res-progress-title">Select Amenity</span>
+                  <span class="res-progress-sub">Choose the VictorianPass facility you want to reserve</span>
+                </span>
+              </li>
+              <li class="res-progress-step" id="rp-step-schedule" data-step="2">
+                <span class="res-progress-dot" aria-hidden="true">
+                  <span class="res-progress-num">2</span>
+                  <svg class="res-progress-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </span>
+                <span class="res-progress-text">
+                  <span class="res-progress-kicker">Step 2</span>
+                  <span class="res-progress-title">Set Schedule</span>
+                  <span class="res-progress-sub">Select a date and time from the calendar</span>
+                </span>
+              </li>
+              <li class="res-progress-step" id="rp-step-review" data-step="3">
+                <span class="res-progress-dot" aria-hidden="true">
+                  <span class="res-progress-num">3</span>
+                  <svg class="res-progress-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </span>
+                <span class="res-progress-text">
+                  <span class="res-progress-kicker">Step 3</span>
+                  <span class="res-progress-title">Review &amp; Pay</span>
+                  <span class="res-progress-sub">Check your reservation details, cash payment, or point redemption guide</span>
+                </span>
+              </li>
+            </ol>
           </div>
-          <div class="booking-step" id="step-schedule">
-            <div class="step-index">2</div>
-            <div class="step-content">
-              <div class="step-title">Set schedule</div>
-              <div class="step-subtitle">Select a date and time from the calendar</div>
-            </div>
-          </div>
-          <div class="booking-step" id="step-review">
-            <div class="step-index">3</div>
-            <div class="step-content">
-              <div class="step-title">Review &amp; pay</div>
-              <div class="step-subtitle">Check your reservation details, cash payment, or point redemption guide</div>
-            </div>
-          </div>
-
         </div>
       </div>
 
@@ -2753,6 +2775,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     renderTimeSlotButtons();
     updateRedemptionInfo();
     try{ document.getElementById('reservationCard').style.display='none'; document.getElementById('reservationTitle').textContent='Reserve an Amenity'; document.getElementById('reservationHint').textContent='Select an amenity to continue'; }catch(_){}
+    if(typeof updateResProgress==='function'){ updateResProgress(); }
   }
 
   function resetReservationForm(){
@@ -4268,6 +4291,36 @@ async function changePersons(val){
       }
     }
     const sw=document.getElementById('submitWrap'); if(sw){ sw.style.display = 'flex'; }
+    updateResProgress();
+  }
+  // Horizontal reservation progress tracker. Step 1 = amenity chosen,
+  // Step 2 = schedule complete (same gate as the Next button), Step 3 = review/pay.
+  function updateResProgress(){
+    const root=document.getElementById('resProgress');
+    if(!root) return;
+    const amen=(document.getElementById('amenityField')?.value||'').trim();
+    const missing=(typeof getNextButtonMissingFields==='function')?getNextButtonMissingFields():[];
+    const amenityDone=amen!=='';
+    const scheduleDone=amenityDone && missing.length===0;
+    const states={1:'',2:'',3:''};
+    if(amenityDone){ states[1]='is-complete'; } else { states[1]='is-active'; }
+    if(amenityDone){ states[2]=scheduleDone?'is-complete':'is-active'; }
+    if(scheduleDone){ states[3]='is-active'; }
+    const map={1:'rp-step-amenity',2:'rp-step-schedule',3:'rp-step-review'};
+    [1,2,3].forEach(function(n){
+      const el=document.getElementById(map[n]);
+      if(!el) return;
+      el.classList.remove('is-active','is-complete');
+      if(states[n]) el.classList.add(states[n]);
+    });
+    let activeStep=1;
+    for(let n=1;n<=3;n++){ if(states[n]==='is-active'){ activeStep=n; break; } }
+    root.setAttribute('data-current',String(activeStep));
+    const completeCount=(states[1]==='is-complete'?1:0)+(states[2]==='is-complete'?1:0)+(states[3]==='is-complete'?1:0);
+    const total=3;
+    const pct=total>1?Math.round((completeCount/(total-1))*100):0;
+    const bar=document.getElementById('resProgressBar');
+    if(bar){ bar.style.width=Math.max(0,Math.min(100,pct))+'%'; }
   }
   function persistForm(){
     try{

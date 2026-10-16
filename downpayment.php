@@ -533,6 +533,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="css/navbar.css?v=<?php echo substr(@md5_file(__DIR__ . '/css/navbar.css') ?: '', 0, 12); ?>">
   <link rel="stylesheet" href="css/ecopoint-brand.css?v=<?php echo substr(@md5_file(__DIR__ . '/css/ecopoint-brand.css') ?: '', 0, 12); ?>">
+  <link rel="stylesheet" href="css/reservation-progress.css?v=<?php echo substr(@md5_file(__DIR__ . '/css/reservation-progress.css') ?: '', 0, 12); ?>">
   <style>
     *{font-family:'Poppins',sans-serif}
     body{margin:0;background:#fafbfc;color:#111827}
@@ -727,6 +728,56 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     <a href="<?php echo htmlspecialchars($backLink); ?>" class="back-btn" id="backBtn" aria-label="Back"><i class="fa-solid fa-arrow-left"></i></a>
   </div>
   <div class="wrap">
+    <?php
+      // Reservation progress tracker (persisted via the pending reservation / session).
+      // Steps 1 and 2 are complete once an amenity and a valid schedule were captured
+      // on reserve.php; Step 3 (review & pay) is the current stage on this page.
+      $rpAmenity = trim((string)($pending['amenity'] ?? ''));
+      $rpSchedOk = $rpAmenity !== ''
+        && !empty($pending['start_date']) && !empty($pending['end_date'])
+        && !empty($pending['start_time']) && !empty($pending['end_time']);
+      $rpStep1 = $rpAmenity !== '' ? 'is-complete' : 'is-active';
+      $rpStep2 = $rpSchedOk ? 'is-complete' : ($rpAmenity !== '' ? 'is-active' : '');
+      $rpStep3 = 'is-active';
+      $rpBarPct = $rpStep2 === 'is-complete' ? 100 : ($rpStep1 === 'is-complete' ? 50 : 0);
+    ?>
+    <div class="res-progress-wrap">
+      <div class="res-progress" id="resProgress" data-current="3">
+        <ol class="res-progress-steps">
+          <li class="res-progress-step <?php echo $rpStep1; ?>" data-step="1">
+            <span class="res-progress-dot" aria-hidden="true">
+              <span class="res-progress-num">1</span>
+              <svg class="res-progress-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </span>
+            <span class="res-progress-text">
+              <span class="res-progress-title">Select Amenity</span>
+              <span class="res-progress-sub">Choose the VictorianPass facility you want to reserve</span>
+            </span>
+          </li>
+          <li class="res-progress-step <?php echo $rpStep2; ?>" data-step="2">
+            <span class="res-progress-dot" aria-hidden="true">
+              <span class="res-progress-num">2</span>
+              <svg class="res-progress-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </span>
+            <span class="res-progress-text">
+              <span class="res-progress-title">Set Schedule</span>
+              <span class="res-progress-sub">Select a date and time from the calendar</span>
+            </span>
+          </li>
+          <li class="res-progress-step <?php echo $rpStep3; ?>" data-step="3">
+            <span class="res-progress-dot" aria-hidden="true">
+              <span class="res-progress-num">3</span>
+              <svg class="res-progress-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </span>
+            <span class="res-progress-text">
+              <span class="res-progress-title">Review &amp; Pay</span>
+              <span class="res-progress-sub">Check your reservation details, cash payment, or point redemption guide</span>
+            </span>
+          </li>
+        </ol>
+        <div class="res-progress-rail" aria-hidden="true"><div class="res-progress-bar" style="width:<?php echo (int)$rpBarPct; ?>%"></div></div>
+      </div>
+    </div>
     <div class="card">
       <h2 class="title">Downpayment</h2>
       <p class="meta">Use the GCash details shown to pay your partial payment. Upload the receipt and click Confirm.</p>
