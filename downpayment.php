@@ -3,6 +3,7 @@ require_once __DIR__ . '/session_bootstrap.php';
 include 'connect.php';
 require_once __DIR__ . '/qr_url_helpers.php';
 require_once __DIR__ . '/amenity_holds.php';
+require_once __DIR__ . '/reservation_expiry.php';
 
 function downpaymentColumnExists($con, string $col): bool {
     if (!($con instanceof mysqli)) return false;
@@ -77,6 +78,17 @@ if ($ref_code_url !== '') {
 $ref_code = isset($_SESSION['dp_ref_code']) ? $_SESSION['dp_ref_code'] : '';
 $user_id = isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : null;
 $pending = isset($_SESSION['pending_reservation']) ? $_SESSION['pending_reservation'] : null;
+
+// Expire unpaid bookings past their payment window and, if this resident just
+// lost one, hand them to the Profile page where the popup is shown.
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && $userType === 'resident' && $user_id
+    && $con instanceof mysqli && function_exists('vpReservationExpirySweepAndRedirect')) {
+    $dpExpiryRedirect = vpReservationExpirySweepAndRedirect($con, intval($user_id));
+    if ($dpExpiryRedirect !== null) {
+        header('Location: ' . $dpExpiryRedirect);
+        exit;
+    }
+}
 
 if ((!is_array($pending) || empty($pending)) && $ref_code !== '' && ($con instanceof mysqli)) {
     $colsC = ['amenity', 'start_date', 'end_date', 'start_time', 'end_time', 'persons', 'price', 'downpayment', 'entry_pass_id', 'account_type'];
@@ -178,6 +190,18 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     $continue_post = isset($_POST['continue']) ? $_POST['continue'] : $continue;
     $entry_pass_id_post_form = isset($_POST['entry_pass_id']) ? intval($_POST['entry_pass_id']) : $entry_pass_id;
     $reservationId = 0;
+    // A booking that is already past its payment window cannot be paid for:
+    // expire it and send the resident to the Profile popup instead of storing
+    // a receipt against a dead reservation.
+    if ($userType === 'resident' && $ref_code !== '' && is_string($tokenPosted)
+        && hash_equals($_SESSION['csrf_token'] ?? '', $tokenPosted)
+        && $con instanceof mysqli && function_exists('vpReservationExpiryGuardRef')) {
+      $dpRefExpired = vpReservationExpiryGuardRef($con, $user_id ? intval($user_id) : null, $ref_code);
+      if ($dpRefExpired !== null) {
+        header('Location: ' . $dpRefExpired);
+        exit;
+      }
+    }
     if (!is_string($tokenPosted) || !hash_equals($_SESSION['csrf_token'] ?? '', $tokenPosted)) {
       $msg = 'Invalid submission.';
     } else if ($ref_code !== '' && empty($msg)) {

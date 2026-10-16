@@ -2,6 +2,7 @@
 require_once __DIR__ . '/session_bootstrap.php';
 require_once 'connect.php';
 require_once __DIR__ . '/qr_url_helpers.php';
+require_once __DIR__ . '/reservation_expiry.php';
 if (!defined('ECO_WEEKLY_POINT_CAP')) { define('ECO_WEEKLY_POINT_CAP', 250); }
 $__t0 = microtime(true);
 $__marks = [];
@@ -48,6 +49,12 @@ if (!$user) {
   header('Location: mainpage.php');
   exit;
 }
+// Expire this resident's unpaid bookings once their payment window passes,
+// then collect the one-time "Booking expired" popup for the modal below.
+if ($con instanceof mysqli && function_exists('vpReservationExpirySweepAndRedirect')) {
+  vpReservationExpirySweepAndRedirect($con, $userId);
+}
+$bookingExpired = function_exists('vpReservationExpiryTakeFlash') ? vpReservationExpiryTakeFlash() : null;
 // Compose full name for display
 $fullName = trim(($user['first_name'] ?? '') . ' ' . ($user['middle_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
 
@@ -3809,6 +3816,25 @@ body.modal-open{overflow:hidden}
     height: 70px;
     min-height: 70px;
   }
+}
+/* One-time "Booking expired" popup */
+#bookingExpiredModal{background:rgba(15,23,42,.55);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);}
+#bookingExpiredModal .booking-expired-content{background:#ffffff;border-radius:16px;border:1px solid #e5e7eb;box-shadow:0 24px 70px rgba(15,23,42,.35);width:90%;max-width:420px;padding:28px 24px 22px;text-align:center;position:relative;}
+.booking-expired-close{position:absolute;top:10px;right:14px;background:none;border:none;font-size:1.6rem;line-height:1;color:#9ca3af;cursor:pointer;padding:2px 6px;border-radius:8px;}
+.booking-expired-close:hover{color:#4b5563;background:#f3f4f6;}
+.booking-expired-icon{width:64px;height:64px;border-radius:50%;background:#fff7ed;color:#c2410c;display:flex;align-items:center;justify-content:center;margin:2px auto 14px;}
+#bookingExpiredModal h3{margin:0 0 8px;font-size:1.2rem;font-weight:700;color:#111827;}
+#bookingExpiredModal p{margin:0;color:#4b5563;line-height:1.5;font-size:.95rem;}
+.booking-expired-actions{display:flex;flex-direction:column;gap:10px;margin-top:20px;}
+.booking-expired-book{background:#23412e;color:#ffffff;border:none;border-radius:10px;padding:12px 16px;font-weight:600;font-size:.95rem;cursor:pointer;}
+.booking-expired-book:hover{background:#1b3324;}
+.booking-expired-dismiss{background:#ffffff;color:#374151;border:1px solid #d1d5db;border-radius:10px;padding:12px 16px;font-weight:600;font-size:.95rem;cursor:pointer;}
+.booking-expired-dismiss:hover{background:#f9fafb;}
+@media (max-width:420px){
+  #bookingExpiredModal .booking-expired-content{padding:24px 18px 18px;}
+  #bookingExpiredModal h3{font-size:1.1rem;}
+  #bookingExpiredModal p{font-size:.9rem;}
+  .booking-expired-icon{width:56px;height:56px;}
 }
 </style>
 </head>
@@ -7659,6 +7685,53 @@ body.modal-open{overflow:hidden}
   }
 })();
 </script>
+
+<?php if (!empty($bookingExpired)) { ?>
+<div class="modal" id="bookingExpiredModal" role="dialog" aria-modal="true" aria-labelledby="bookingExpiredTitle">
+  <div class="modal-content booking-expired-content">
+    <button type="button" class="booking-expired-close" aria-label="Close">&times;</button>
+    <div class="booking-expired-icon" aria-hidden="true">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9"></circle>
+        <path d="M12 7.5V12l3 1.8"></path>
+      </svg>
+    </div>
+    <h3 id="bookingExpiredTitle">Booking expired</h3>
+    <p>Your reservation expired because it wasn't completed in time. Please book another reservation.</p>
+    <div class="booking-expired-actions">
+      <button type="button" class="booking-expired-book">Book another reservation</button>
+      <button type="button" class="booking-expired-dismiss">Close</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var modal = document.getElementById('bookingExpiredModal');
+  if (!modal) return;
+  var lastFocus = document.activeElement;
+  function onKey(e){ if (e.key === 'Escape' || e.keyCode === 27) { close(); } }
+  function open(){
+    modal.style.display = 'flex';
+    var b = modal.querySelector('.booking-expired-book');
+    if (b) { try { b.focus(); } catch (e) {} }
+  }
+  function close(){
+    modal.style.display = 'none';
+    document.removeEventListener('keydown', onKey);
+    if (lastFocus && lastFocus.focus) { try { lastFocus.focus(); } catch (e) {} }
+  }
+  var closeBtn = modal.querySelector('.booking-expired-close');
+  var dismissBtn = modal.querySelector('.booking-expired-dismiss');
+  var bookBtn = modal.querySelector('.booking-expired-book');
+  if (closeBtn) closeBtn.addEventListener('click', close);
+  if (dismissBtn) dismissBtn.addEventListener('click', close);
+  if (bookBtn) bookBtn.addEventListener('click', function(){ window.location.href = 'reserve.php'; });
+  modal.addEventListener('click', function(e){ if (e.target === modal) close(); });
+  document.addEventListener('keydown', onKey);
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', open); } else { open(); }
+})();
+</script>
+<?php } ?>
 
 <div class="modal" id="reportWaitModal" data-show="<?php echo $showReportWait ? '1' : '0'; ?>">
   <div class="modal-content report-wait-content">

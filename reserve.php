@@ -29,7 +29,7 @@ ob_start(); // Prevents header issues on redirect
 // Read-only session for GET page loads: avoids holding the file lock while
 // heavy DB queries run, which prevents 504s when concurrent AJAX requests
 // from the previous page still hold the lock.
-$isReserveApiRequest = $_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && in_array($_GET['action'], ['booked_dates', 'booked_times', 'check_points'], true);
+$isReserveApiRequest = $_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && in_array($_GET['action'], ['booked_dates', 'booked_times', 'check_points', 'expire_overdue'], true);
 $resetReservation = isset($_GET['reset_reservation']) && $_GET['reset_reservation'] === '1';
 $isGetPageLoad = ($_SERVER['REQUEST_METHOD'] === 'GET' && !$isReserveApiRequest);
 // reset_reservation GETs must persist the session unset below, so they get a writable session.
@@ -52,10 +52,28 @@ if ($isReserveApiRequest) {
 }
 require_once __DIR__ . '/connect.php';
 require_once __DIR__ . '/amenity_holds.php';
+require_once __DIR__ . '/reservation_expiry.php';
 vpMark('db_connect');
-// Release slots held by downpayments that were never completed in time.
-if ($isGetPageLoad && isset($con) && $con instanceof mysqli && function_exists('vpExpireStaleDownpayments')) {
-  vpExpireStaleDownpayments($con);
+// Expire unpaid bookings whose payment window has passed: this frees their
+// slot and refunds any redeemed points, and hands a resident who just lost one
+// over to the Profile page with the one-time "Booking expired" popup.
+if ($isGetPageLoad && isset($con) && $con instanceof mysqli && function_exists('vpReservationExpirySweepAndRedirect')) {
+  $expiryUserId = null;
+  $expiryUserType = '';
+  if (function_exists('vpResolveIdentity')) {
+    $identityParts = vpResolveIdentity();
+    $expiryUserId = $identityParts[0] ?? null;
+    $expiryUserType = (string)($identityParts[1] ?? '');
+  } else {
+    $expiryUserId = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
+    $expiryUserType = (string)($_SESSION['user_type'] ?? '');
+  }
+  if ($expiryUserType !== 'resident') { $expiryUserId = null; }
+  $expiryRedirect = vpReservationExpirySweepAndRedirect($con, $expiryUserId);
+  if ($expiryRedirect !== null) {
+    header('Location: ' . $expiryRedirect);
+    exit;
+  }
 }
 $generatedCode = '';
 $errorMsg = '';
@@ -232,6 +250,23 @@ function generateUniqueRefCode($con){
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  // Server-side expiry on submit: an unpaid booking already past its payment
+  // window dies here (slot freed, points refunded) and the resident is sent to
+  // the Profile popup instead of stacking a new booking on top of it.
+  if (isset($con) && $con instanceof mysqli && function_exists('vpReservationExpirySweepAndRedirect')) {
+    $postExpiryUser = null;
+    if (function_exists('vpResolveIdentity')) {
+      $postIdentity = vpResolveIdentity();
+      if ((string)($postIdentity[1] ?? '') === 'resident') { $postExpiryUser = $postIdentity[0] ?? null; }
+    } elseif (isset($sessionUserType) && $sessionUserType === 'resident') {
+      $postExpiryUser = isset($sessionUserId) ? $sessionUserId : null;
+    }
+    $postExpiryRedirect = vpReservationExpirySweepAndRedirect($con, $postExpiryUser);
+    if ($postExpiryRedirect !== null) {
+      header('Location: ' . $postExpiryRedirect);
+      exit;
+    }
+  }
   $tokenPosted = isset($_POST['csrf_token']) ? $_POST['csrf_token'] : '';
   $csrfOk = false;
   if (is_string($tokenPosted) && $tokenPosted !== '') {
@@ -716,6 +751,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $resCols[] = 'points_used'; $resPh[] = '?';
                     $resVals[] = $points_required; $resTypes .= 'i';
                   }
+                  // Payment deadline for this booking. Written at insert time so
+                  // the window does not shift when the setting changes later.
+                  if (reserveTableColumnExists($con, 'reservations', 'expires_at')) {
+                    $resCols[] = 'expires_at';
+                    $resPh[] = 'DATE_ADD(NOW(), INTERVAL ' . (int)vpDownpaymentHoldHours($con) . ' HOUR)';
+                  }
                   $resSql = "INSERT INTO reservations (" . implode(', ', $resCols) . ") VALUES (" . implode(', ', $resPh) . ")";
                   if ($stmt = $con->prepare($resSql)) {
                     $bindArgs = [$resTypes];
@@ -1014,6 +1055,31 @@ if (isset($_GET['action']) && $_GET['action'] === 'check_points') {
     reserveJsonResponse(['ok' => true, 'balance' => $balance, 'redeemable' => reserveRedeemableRewardCount($balance)]);
   } catch (Throwable $e) {
     reserveJsonError('reserve.php check_points error: ' . $e->getMessage());
+  }
+}
+
+// Hit by the booking countdown when it reaches 0: expires any unpaid booking
+// of this resident that is past its payment window and, when one was lost,
+// returns the Profile URL so the browser can show the popup.
+if (isset($_GET['action']) && $_GET['action'] === 'expire_overdue') {
+  if ($sessionUserType !== 'resident' || $sessionUserId === null) {
+    reserveJsonResponse(['ok' => false, 'redirect' => null], 401);
+  }
+  try {
+    $uid = intval($sessionUserId);
+    $expiryResult = vpExpireDueReservations($con, $uid);
+    $expiryRedirect = null;
+    if (!empty($expiryResult['mine'])) {
+      $expiryRedirect = vpReservationExpiryFlash($expiryResult['mine']);
+    }
+    reserveJsonResponse([
+      'ok'       => true,
+      'expired'  => (int)$expiryResult['count'],
+      'points'   => (int)$expiryResult['points'],
+      'redirect' => $expiryRedirect,
+    ]);
+  } catch (Throwable $e) {
+    reserveJsonError('reserve.php expire_overdue error: ' . $e->getMessage());
   }
 }
 if ($sessionUserType === 'resident') {
@@ -5464,6 +5530,15 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof updateActionStates === 'function') { try { updateActionStates(); } catch (e) {} }
     showBanner('Your hold expired. Please pick the time slot again.', '', false);
     note('Your time to complete this booking expired. Please select the time slot again.', 'warning');
+    // Booking countdown reached 0: ask the server whether an unpaid booking of
+    // this resident is now past its payment window. When one was lost it hands
+    // the browser to the Profile page, where the popup is shown.
+    try {
+      fetch('reserve.php?action=expire_overdue', { method: 'GET', credentials: 'same-origin' })
+        .then(function(r){ return r.json().catch(function(){ return null; }); })
+        .then(function(j){ if (j && j.redirect) { window.location.href = j.redirect; } })
+        .catch(function(){});
+    } catch (e) {}
   }
 
   function setHold(data){

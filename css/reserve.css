@@ -2554,3 +2554,22 @@ input:focus-visible {
     grid-template-columns:1fr;
   }
 }
+
+/* "Please complete this booking within ..." pill - one line on phones.
+   Inline styles set font-size:15px / padding:14px 24px, so !important wins. */
+@media (max-width:640px){
+  #formTimeLimit{
+    white-space:nowrap;
+    font-size:clamp(9px,2.9vw,13px) !important;
+    padding:8px 10px !important;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    min-width:0;
+  }
+  #formTimeLimit > span{
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    min-width:0;
+  }
+}

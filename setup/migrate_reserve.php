@@ -124,6 +124,12 @@ reserveSetupAddColumn($con, 'reservations', 'use_points', 'TINYINT(1) DEFAULT 0'
 reserveSetupAddColumn($con, 'reservations', 'points_used', 'INT DEFAULT 0');
 reserveSetupAddColumn($con, 'users', 'points', 'INT DEFAULT 0');
 
+// Booking expiry: the payment deadline of a reservation that was created but
+// never paid for. Written once at insert time and backfilled below so the
+// deadline does not shift when the hold window setting changes later.
+reserveSetupAddColumn($con, 'reservations', 'expires_at', 'DATETIME NULL');
+reserveSetupEnsureIndex($con, 'reservations', 'idx_reserve_expires_at', 'expires_at');
+
 // The reservation flow stores placeholder rows before amenity/date/price are
 // chosen, so these columns must be nullable.
 reserveSetupSetNullable($con, 'reservations', 'amenity', 'VARCHAR(100) NULL');
@@ -177,5 +183,27 @@ reserveSetupEnsureIndex($con, 'reservations', 'idx_reserve_user_created', 'user_
 reserveSetupEnsureIndex($con, 'resident_reservations', 'idx_rr_user_created', 'user_id, created_at');
 reserveSetupEnsureIndex($con, 'guest_forms', 'idx_gf_resident_status', 'resident_user_id, approval_status, created_at');
 reserveSetupEnsureIndex($con, 'point_transactions', 'idx_pt_user_type', 'user_id, transaction_type');
+
+// Backfill the payment deadline for rows created before this column existed.
+$holdHours = 24;
+$stHold = $con->prepare("SELECT setting_value FROM app_settings WHERE setting_key = 'vp_downpayment_hold_hours' LIMIT 1");
+if ($stHold) {
+    if ($stHold->execute()) {
+        $stHold->bind_result($holdVal);
+        if ($stHold->fetch() && is_numeric($holdVal) && (int)$holdVal > 0) { $holdHours = (int)$holdVal; }
+    }
+    $stHold->close();
+}
+$holdHours = (int)$holdHours;
+$stBack = $con->prepare(
+    'UPDATE reservations SET expires_at = DATE_ADD(created_at, INTERVAL ? HOUR)
+      WHERE expires_at IS NULL AND created_at IS NOT NULL'
+);
+if ($stBack) {
+    $stBack->bind_param('i', $holdHours);
+    $stBack->execute();
+    echo 'Backfilled reservations.expires_at (window: ' . $holdHours . " hours, {$stBack->affected_rows} rows)\n";
+    $stBack->close();
+}
 
 echo "Reserve schema setup complete.\n";
