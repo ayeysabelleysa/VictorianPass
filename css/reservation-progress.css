@@ -27,27 +27,9 @@
   --rs-focus:#2f6b3d;
 }
 
-@media (prefers-color-scheme:dark){
-  :root{
-    --rs-card:#1c1917;
-    --rs-border:#332d28;
-    --rs-shadow:0 1px 3px rgba(0,0,0,.5);
-
-    --rs-green:#6cc68b;
-    --rs-green-2:#6cc68b;
-    --rs-green-soft:rgba(108,198,139,.16);
-    --rs-on-green:#1c1917;
-
-    --rs-text:#f5f5f4;
-    --rs-muted:#a8a29e;
-    --rs-muted-strong:#d6d3d1;
-    --rs-num:#a8a29e;
-    --rs-dot-bg:#1c1917;
-    --rs-dot-border:#4a423c;
-
-    --rs-focus:#6cc68b;
-  }
-}
+/* NOTE: no prefers-color-scheme:dark overrides here on purpose. The rest of
+   reserve.php / downpayment.php is light-only, so letting the steps card turn
+   dark on an OS in dark mode made it the only dark thing on the page. */
 
 /* ============================================================
    Card shell (.booking-steps) - reserve.php
@@ -299,13 +281,31 @@
    Mobile - vertical stepper (5 steps), circle left / text right
    ============================================================ */
 @media (max-width:640px){
-  .booking-steps-header{padding:16px 18px;}
-  .booking-steps .booking-steps-body{padding:24px 18px;}
+  .booking-steps-header{
+    flex-wrap:wrap;
+    row-gap:8px;
+    gap:10px;
+    padding:14px 16px;
+  }
+  .booking-steps-label{font-size:12px;letter-spacing:.08em;}
+  /* stacked steps are taller than the desktop row; .booking-steps clips with
+     overflow:hidden, so give the body headroom instead of letting it cut off */
+  .booking-steps .booking-steps-body{padding:20px 16px;max-height:880px;}
 
-  .res-progress-steps{grid-template-columns:1fr;grid-auto-rows:1fr;gap:18px;}
+  /* Stack the 5 steps VERTICALLY. The base rule uses grid-auto-flow:column
+     (for the desktop row); without switching it back to row here the steps
+     flowed into 5 squeezed columns on phones. */
+  .res-progress-steps{
+    grid-auto-flow:row;
+    grid-template-columns:1fr;
+    grid-auto-columns:auto;
+    grid-auto-rows:1fr;
+    row-gap:18px;
+    column-gap:0;
+  }
   .res-progress-step{flex-direction:row;align-items:center;text-align:left;gap:14px;}
   .res-progress-dot{flex:0 0 auto;}
-  .res-progress-text{align-items:flex-start;text-align:left;width:auto;flex:1 1 auto;}
+  .res-progress-text{align-items:flex-start;text-align:left;width:auto;flex:1 1 auto;min-width:0;}
   .res-progress-kicker{margin-top:0;}
   .res-progress-title{margin-top:2px;white-space:normal;}
   .res-progress-sub{max-width:none;margin:4px 0 0;text-align:left;}
@@ -325,6 +325,14 @@
   }
   .res-progress-step.is-active::before,
   .res-progress-step.is-complete::before{background:var(--rs-green-2);}
+}
+
+/* Small phones - keep the vertical stack comfortable */
+@media (max-width:380px){
+  .res-progress{--res-dot:34px;}
+  .res-progress-title{font-size:14px;}
+  .res-progress-sub{font-size:12.5px;}
+  .booking-steps-chip{font-size:11px;padding:4px 9px;}
 }
 
 /* ============================================================

@@ -3732,7 +3732,6 @@ async function changePersons(val){
         const bookNowBtn=card.querySelector('button[data-action="book-now"]');
         if(bookNowBtn){ bookNowBtn.classList.add('visible'); }
         const key=card.getAttribute('data-key');
-        selectAmenityByKey(key);
         showInlineAmenityDetails(key);
         try{
           updateAmenityDescription(key);
@@ -5343,7 +5342,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 <?php endif; ?>
 
-<div id="formTimeLimit" class="form-time-limit" style="display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:24px;z-index:9998;justify-content:center;align-items:center;gap:10px;padding:14px 24px;border-radius:999px;background:#991b1b;color:#fff;font-size:15px;font-weight:600;box-shadow:0 12px 34px rgba(153,27,27,.45),0 4px 12px rgba(0,0,0,.28);max-width:min(92vw,580px);text-align:center;" role="timer" aria-live="polite">
+<div id="formTimeLimit" class="form-time-limit" style="display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:24px;z-index:9998;justify-content:center;align-items:center;gap:10px;padding:14px 24px;border-radius:999px;background:#ffffff;color:#b91c1c;border:1px solid #fecaca;font-size:15px;font-weight:600;box-shadow:0 10px 30px rgba(15,23,42,.14),0 2px 6px rgba(15,23,42,.08);max-width:min(92vw,580px);text-align:center;" role="timer" aria-live="polite">
   <i class="fa-regular fa-clock" aria-hidden="true"></i>
   <span>Please complete this booking within <span id="formTimeLimitCountdown" style="font-variant-numeric:tabular-nums;font-weight:800;">--:--</span></span>
 </div>
