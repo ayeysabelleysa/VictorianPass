@@ -2667,17 +2667,22 @@ html { max-width:100%; overflow-x:hidden; }
 }
 #facilities .amenity-details{
   display:grid;
-  grid-template-columns:1.22fr .8fr 1.03fr;
-  gap:16px;
+  grid-template-columns:repeat(3,1fr);
+  gap:0;
   margin-top:auto;
   border-top:1px solid var(--vp-border);
   padding:20px 28px 28px;
 }
 #facilities .amenity-detail{
   display:flex;
+  flex-direction:column;
   align-items:flex-start;
-  gap:10px;
+  gap:8px;
   min-width:0;
+}
+#facilities .amenity-detail + .amenity-detail{
+  border-left:1px solid var(--vp-border);
+  padding-left:16px;
 }
 #facilities .amenity-detail-icon{
   flex:none;
@@ -2712,7 +2717,7 @@ html { max-width:100%; overflow-x:hidden; }
   font-size:.95rem;
   font-weight:600;
   color:var(--vp-ink);
-  overflow-wrap:anywhere;
+  white-space:nowrap;
 }
 #facilities .amenity-detail-sub{
   font-size:.88rem;
@@ -2720,13 +2725,24 @@ html { max-width:100%; overflow-x:hidden; }
   color:var(--vp-muted);
   white-space:nowrap;
 }
-@media (max-width:1000px){
-  #facilities .amenity-details{ grid-template-columns:repeat(2,minmax(0,1fr)); }
-  #facilities .amenity-detail:nth-child(3){ grid-column:1 / -1; }
-}
 @media (max-width:560px){
-  #facilities .amenity-details{ grid-template-columns:1fr; }
-  #facilities .amenity-detail:nth-child(3){ grid-column:auto; }
+  #facilities .amenity-details{
+    grid-template-columns:1fr;
+    padding-top:0;
+    padding-bottom:0;
+  }
+  #facilities .amenity-detail{
+    flex-direction:row;
+    align-items:center;
+    gap:12px;
+    padding:12px 0;
+  }
+  #facilities .amenity-detail + .amenity-detail{
+    border-left:0;
+    border-top:1px solid var(--vp-border);
+    padding-left:0;
+  }
+  #facilities .amenity-detail-text{ gap:2px; }
 }
 
 /* ---------- 3. How it works — cream ---------- */
@@ -4073,22 +4089,6 @@ html { max-width:100%; overflow-x:hidden; }
 @keyframes navPanelDrop{
   from{ opacity:0; transform:translateY(-10px); }
   to{ opacity:1; transform:translateY(0); }
-}
-
-/* =========================================================
-   AMENITY CARD DETAIL CELLS — overflow guard
-   The availability/capacity/price cells switch to a 3-column
-   grid that is too narrow between ~641-1200px (single words
-   like "Capacity" and the nowrap time string spilled out of
-   their cells). Use 2 columns up to 1200px so every label and
-   value has room, then 1 column on phones.
-   ========================================================= */
-@media (max-width:1200px){
-  #facilities .amenity-details{ grid-template-columns:repeat(2,minmax(0,1fr)); }
-  #facilities .amenity-detail:nth-child(3){ grid-column:1 / -1; }
-  #facilities .amenity-detail-sub{ white-space:normal; }
-  #facilities .amenity-detail-label,
-  #facilities .amenity-detail-value{ overflow-wrap:anywhere; }
 }
 
 /* =========================================================

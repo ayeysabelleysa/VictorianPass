@@ -620,7 +620,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             <span class="amenity-detail-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg></span>
             <div class="amenity-detail-text">
               <span class="amenity-detail-label">Availability</span>
-              <span class="amenity-detail-value">Monday &ndash; Sunday</span>
+              <span class="amenity-detail-value">Mon &ndash; Sun</span>
               <span class="amenity-detail-sub">9:00 AM &ndash; 9:00 PM</span>
             </div>
           </div>
@@ -650,7 +650,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             <span class="amenity-detail-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg></span>
             <div class="amenity-detail-text">
               <span class="amenity-detail-label">Availability</span>
-              <span class="amenity-detail-value">Monday &ndash; Sunday</span>
+              <span class="amenity-detail-value">Mon &ndash; Sun</span>
               <span class="amenity-detail-sub">9:00 AM &ndash; 9:00 PM</span>
             </div>
           </div>
@@ -680,7 +680,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             <span class="amenity-detail-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg></span>
             <div class="amenity-detail-text">
               <span class="amenity-detail-label">Availability</span>
-              <span class="amenity-detail-value">Monday &ndash; Sunday</span>
+              <span class="amenity-detail-value">Mon &ndash; Sun</span>
               <span class="amenity-detail-sub">9:00 AM &ndash; 6:00 PM</span>
             </div>
           </div>
@@ -710,7 +710,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             <span class="amenity-detail-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg></span>
             <div class="amenity-detail-text">
               <span class="amenity-detail-label">Availability</span>
-              <span class="amenity-detail-value">Monday &ndash; Sunday</span>
+              <span class="amenity-detail-value">Mon &ndash; Sun</span>
               <span class="amenity-detail-sub">9:00 AM &ndash; 6:00 PM</span>
             </div>
           </div>
