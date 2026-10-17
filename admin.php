@@ -5643,6 +5643,9 @@ table.table-rr tbody tr.rr-empty .rr-empty-clear[hidden] { display: none; }
     color: var(--text-secondary);
     margin-right: auto;
 }
+.rr-pager-top {
+    margin: 12px 0 12px;
+}
 .rr-page-btn {
     min-width: 34px;
     min-height: 34px;
@@ -10723,7 +10726,7 @@ a.stat-card:hover { transform: translateY(-3px); box-shadow: var(--dash-shadow-h
                FROM point_transactions pt
                LEFT JOIN users u ON u.id = pt.user_id
                WHERE pt.transaction_type='redeem'
-               ORDER BY pt.created_at DESC LIMIT 10");
+               ORDER BY pt.created_at DESC LIMIT 200");
         if ($r) { while ($row = $r->fetch_assoc()) $amenityRedemptionLogs[] = $row; }
       } catch (Throwable $e) {}
     }
@@ -10909,8 +10912,14 @@ a.stat-card:hover { transform: translateY(-3px); box-shadow: var(--dash-shadow-h
   <div class="smart-waste-card">
         <h4>Real-Time Active Sessions</h4>
         <div class="smart-waste-note">Sessions currently in progress at VHEcoPoint stations. Refreshes automatically.</div>
+        <div class="rr-pager rr-pager-top" data-tp-pager="sw-active" hidden>
+          <span class="rr-pager-info" data-tp-info></span>
+          <button type="button" class="rr-page-btn" data-tp-prev aria-label="Previous page">&larr;</button>
+          <span data-tp-nums></span>
+          <button type="button" class="rr-page-btn" data-tp-next aria-label="Next page">&rarr;</button>
+        </div>
         <div class="table-responsive-wrapper smart-waste-table-compact">
-          <table>
+          <table id="sw-active-table">
             <thead><tr>
               <th>ID</th><th>Station</th><th>Resident</th><th>House</th><th>Status</th><th>Material</th><th>Weight (g)</th><th>Points (calc / award)</th><th>Started</th><th>Elapsed</th>
             </tr></thead>
@@ -10950,6 +10959,12 @@ a.stat-card:hover { transform: translateY(-3px); box-shadow: var(--dash-shadow-h
             </tbody>
           </table>
         </div>
+        <div class="rr-pager" data-tp-pager="sw-active" hidden>
+          <span class="rr-pager-info" data-tp-info></span>
+          <button type="button" class="rr-page-btn" data-tp-prev aria-label="Previous page">&larr;</button>
+          <span data-tp-nums></span>
+          <button type="button" class="rr-page-btn" data-tp-next aria-label="Next page">&rarr;</button>
+        </div>
       </div>
 
       <div class="smart-waste-card">
@@ -10978,8 +10993,14 @@ a.stat-card:hover { transform: translateY(-3px); box-shadow: var(--dash-shadow-h
           </div>
         </form>
         <div style="height:10px;"></div>
+        <div class="rr-pager rr-pager-top" data-tp-pager="sw-sessions" hidden>
+          <span class="rr-pager-info" data-tp-info></span>
+          <button type="button" class="rr-page-btn" data-tp-prev aria-label="Previous page">&larr;</button>
+          <span data-tp-nums></span>
+          <button type="button" class="rr-page-btn" data-tp-next aria-label="Next page">&rarr;</button>
+        </div>
         <div class="table-responsive-wrapper smart-waste-table-compact">
-          <table>
+          <table id="sw-history-table">
             <thead><tr>
               <th>ID</th><th>Started</th><th>Ended</th><th>Duration</th><th>Resident</th><th>House</th><th>Status</th><th>Material</th><th>Weight (g)</th><th>Pts Awarded</th>
             </tr></thead>
@@ -11021,6 +11042,12 @@ a.stat-card:hover { transform: translateY(-3px); box-shadow: var(--dash-shadow-h
             </tbody>
           </table>
         </div>
+        <div class="rr-pager" data-tp-pager="sw-sessions" hidden>
+          <span class="rr-pager-info" data-tp-info></span>
+          <button type="button" class="rr-page-btn" data-tp-prev aria-label="Previous page">&larr;</button>
+          <span data-tp-nums></span>
+          <button type="button" class="rr-page-btn" data-tp-next aria-label="Next page">&rarr;</button>
+        </div>
       </div>
   <?php endif; ?>
 
@@ -11028,8 +11055,14 @@ a.stat-card:hover { transform: translateY(-3px); box-shadow: var(--dash-shadow-h
       <div class="smart-waste-card">
         <h4>Amenity Redemption / Usage Logs</h4>
         <div class="smart-waste-note">Separate log showing which resident redeemed points for which amenity or facility booking.</div>
+        <div class="rr-pager rr-pager-top" data-tp-pager="sw-logs" hidden>
+          <span class="rr-pager-info" data-tp-info></span>
+          <button type="button" class="rr-page-btn" data-tp-prev aria-label="Previous page">&larr;</button>
+          <span data-tp-nums></span>
+          <button type="button" class="rr-page-btn" data-tp-next aria-label="Next page">&rarr;</button>
+        </div>
         <div class="table-responsive-wrapper smart-waste-table-compact">
-          <table>
+          <table id="sw-logs-table">
             <thead><tr>
               <th>Time</th><th>Resident Account</th><th>House</th><th>Amenity Redeemed</th><th>Points Spent</th><th>Booking Reference</th>
             </tr></thead>
@@ -11056,6 +11089,12 @@ a.stat-card:hover { transform: translateY(-3px); box-shadow: var(--dash-shadow-h
               <?php endforeach; endif; ?>
             </tbody>
           </table>
+        </div>
+        <div class="rr-pager" data-tp-pager="sw-logs" hidden>
+          <span class="rr-pager-info" data-tp-info></span>
+          <button type="button" class="rr-page-btn" data-tp-prev aria-label="Previous page">&larr;</button>
+          <span data-tp-nums></span>
+          <button type="button" class="rr-page-btn" data-tp-next aria-label="Next page">&rarr;</button>
         </div>
       </div>
   <?php endif; ?>
@@ -11160,6 +11199,74 @@ a.stat-card:hover { transform: translateY(-3px); box-shadow: var(--dash-shadow-h
   </div>
   <?php endif; ?>
 </section>
+<script>
+/* Client-side pagination for the VHEcoPoint Sessions history and Amenity Logs
+   tables. Renders the same pager at the top and bottom so the admin never has
+   to scroll to the end of a long table to change pages. */
+(function(){
+  function initTablePager(key, tableId, perPage){
+    var table = document.getElementById(tableId);
+    if (!table || !table.tBodies.length) { return; }
+    var tbody  = table.tBodies[0];
+    var rows   = Array.prototype.slice.call(tbody.rows).filter(function(r){
+      return !r.querySelector('td[colspan]');
+    });
+    var pagers = Array.prototype.slice.call(document.querySelectorAll('[data-tp-pager="' + key + '"]'));
+    if (!pagers.length) { return; }
+    if (rows.length <= perPage) {
+      pagers.forEach(function(p){ p.hidden = true; });
+      return;
+    }
+    var pages = Math.ceil(rows.length / perPage);
+    var page  = 1;
+
+    function render(){
+      rows.forEach(function(r, i){
+        r.style.display = (i >= (page - 1) * perPage && i < page * perPage) ? '' : 'none';
+      });
+      pagers.forEach(function(p){
+        p.hidden = false;
+        var info = p.querySelector('[data-tp-info]');
+        if (info) {
+          info.textContent = 'Page ' + page + ' of ' + pages + ' · showing ' + rows.length + ' record' + (rows.length === 1 ? '' : 's');
+        }
+        var prev = p.querySelector('[data-tp-prev]');
+        var next = p.querySelector('[data-tp-next]');
+        if (prev) { prev.disabled = (page <= 1); }
+        if (next) { next.disabled = (page >= pages); }
+        var nums = p.querySelector('[data-tp-nums]');
+        if (!nums) { return; }
+        nums.innerHTML = '';
+        for (var n = 1; n <= pages; n++) {
+          (function(nn){
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'rr-page-btn';
+            b.textContent = String(nn);
+            b.setAttribute('aria-label', 'Page ' + nn);
+            if (nn === page) { b.setAttribute('aria-current', 'true'); }
+            b.addEventListener('click', function(){ page = nn; render(); });
+            nums.appendChild(b);
+          })(n);
+        }
+      });
+    }
+
+    pagers.forEach(function(p){
+      var prev = p.querySelector('[data-tp-prev]');
+      var next = p.querySelector('[data-tp-next]');
+      if (prev) { prev.addEventListener('click', function(){ if (page > 1) { page--; render(); } }); }
+      if (next) { next.addEventListener('click', function(){ if (page < pages) { page++; render(); } }); }
+    });
+
+    render();
+  }
+
+  initTablePager('sw-active', 'sw-active-table', 10);
+  initTablePager('sw-sessions', 'sw-history-table', 10);
+  initTablePager('sw-logs', 'sw-logs-table', 10);
+})();
+</script>
 <?php endif; ?>
 
 
@@ -12783,6 +12890,13 @@ unset($_SESSION['flash_notice']);
 
   <p class="rr-result-line" id="rr-result-line" aria-live="polite"></p>
 
+  <div class="rr-pager rr-pager-top" id="rr-pager-top" data-rr-pager hidden>
+    <span class="rr-pager-info" id="rr-pager-info-top" data-rr-pager-info></span>
+    <button type="button" class="rr-page-btn" data-rr-page-prev aria-label="Previous page">&larr;</button>
+    <span data-rr-page-numbers></span>
+    <button type="button" class="rr-page-btn" data-rr-page-next aria-label="Next page">&rarr;</button>
+  </div>
+
   <div class="rr-table-wrap">
     <table class="table table-rr" id="rr-table" data-vr-own-search="1">
       <thead>
@@ -12945,11 +13059,11 @@ unset($_SESSION['flash_notice']);
     </table>
   </div>
 
-  <div class="rr-pager" id="rr-pager" hidden>
-    <span class="rr-pager-info" id="rr-pager-info"></span>
-    <button type="button" class="rr-page-btn" id="rr-page-prev" aria-label="Previous page">&larr;</button>
-    <span id="rr-page-numbers"></span>
-    <button type="button" class="rr-page-btn" id="rr-page-next" aria-label="Next page">&rarr;</button>
+  <div class="rr-pager" id="rr-pager" data-rr-pager hidden>
+    <span class="rr-pager-info" id="rr-pager-info" data-rr-pager-info></span>
+    <button type="button" class="rr-page-btn" id="rr-page-prev" data-rr-page-prev aria-label="Previous page">&larr;</button>
+    <span id="rr-page-numbers" data-rr-page-numbers></span>
+    <button type="button" class="rr-page-btn" id="rr-page-next" data-rr-page-next aria-label="Next page">&rarr;</button>
   </div>
 
 </section>
@@ -12962,11 +13076,16 @@ window.RR_LIST = (function(){
   var emptyRow = document.getElementById('rr-empty-row');
   var emptyBtn = document.getElementById('rr-empty-clear');
   var resultEl = document.getElementById('rr-result-line');
-  var pager    = document.getElementById('rr-pager');
-  var pagerInf = document.getElementById('rr-pager-info');
-  var pagePrev = document.getElementById('rr-page-prev');
-  var pageNext = document.getElementById('rr-page-next');
-  var pageNums = document.getElementById('rr-page-numbers');
+  var pagers   = Array.prototype.slice.call(document.querySelectorAll('[data-rr-pager]'));
+
+  function rrPagerParts(p){
+    return {
+      inf:  p.querySelector('[data-rr-pager-info]'),
+      prev: p.querySelector('[data-rr-page-prev]'),
+      next: p.querySelector('[data-rr-page-next]'),
+      nums: p.querySelector('[data-rr-page-numbers]')
+    };
+  }
 
   var searchIn  = document.getElementById('search-input');
   var sortSel   = document.getElementById('rr-sort');
@@ -13122,26 +13241,29 @@ window.RR_LIST = (function(){
   }
 
   function renderPager(pages, from, to, shown){
-    if (!pager) { return; }
-    if (pages < 2) { pager.hidden = true; return; }
-    pager.hidden = false;
-    if (pagerInf) { pagerInf.textContent = 'Page ' + state.page + ' of ' + pages + ' · showing ' + shown; }
-    if (pagePrev) { pagePrev.disabled = (state.page <= 1); }
-    if (pageNext) { pageNext.disabled = (state.page >= pages); }
-    if (!pageNums) { return; }
-    pageNums.textContent = '';
-    for (var p = 1; p <= pages; p++) {
-      (function(page){
-        var b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'rr-page-btn';
-        b.textContent = String(page);
-        b.setAttribute('aria-label', 'Page ' + page);
-        if (page === state.page) { b.setAttribute('aria-current', 'true'); }
-        b.addEventListener('click', function(){ state.page = page; apply(); });
-        pageNums.appendChild(b);
-      })(p);
-    }
+    if (!pagers.length) { return; }
+    pagers.forEach(function(p){
+      var parts = rrPagerParts(p);
+      if (pages < 2) { p.hidden = true; return; }
+      p.hidden = false;
+      if (parts.inf) { parts.inf.textContent = 'Page ' + state.page + ' of ' + pages + ' · showing ' + shown; }
+      if (parts.prev) { parts.prev.disabled = (state.page <= 1); }
+      if (parts.next) { parts.next.disabled = (state.page >= pages); }
+      if (!parts.nums) { return; }
+      parts.nums.textContent = '';
+      for (var pn = 1; pn <= pages; pn++) {
+        (function(page){
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'rr-page-btn';
+          b.textContent = String(page);
+          b.setAttribute('aria-label', 'Page ' + page);
+          if (page === state.page) { b.setAttribute('aria-current', 'true'); }
+          b.addEventListener('click', function(){ state.page = page; apply(); });
+          parts.nums.appendChild(b);
+        })(pn);
+      }
+    });
   }
 
   function setStatus(key, persist){
@@ -13240,8 +13362,11 @@ window.RR_LIST = (function(){
     if (dateTo) { dateTo.addEventListener('change', function(){ state.to = dateTo.value; t(); }); }
     if (clearBtn) { clearBtn.addEventListener('click', clearAll); }
     if (emptyBtn) { emptyBtn.addEventListener('click', clearAll); }
-    if (pagePrev) { pagePrev.addEventListener('click', function(){ if (state.page > 1) { state.page--; apply(); } }); }
-    if (pageNext) { pageNext.addEventListener('click', function(){ state.page++; apply(); }); }
+    pagers.forEach(function(p){
+      var parts = rrPagerParts(p);
+      if (parts.prev) { parts.prev.addEventListener('click', function(){ if (state.page > 1) { state.page--; apply(); } }); }
+      if (parts.next) { parts.next.addEventListener('click', function(){ state.page++; apply(); }); }
+    });
     boxes.forEach(function(btn){
       btn.addEventListener('click', function(){ setStatus(btn.getAttribute('data-rr-filter'), true); });
     });
