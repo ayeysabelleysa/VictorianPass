@@ -101,6 +101,20 @@ $stmt->bind_param('ssii', $storedPath, $newStatus, $reservationId, $sessionUserI
 if ($stmt->execute() && $stmt->affected_rows === 1) {
     if ($newStatus === 'pending_update') {
         try {
+            /* Word the alert for the right kind of account: a visitor resubmit is
+               not a resident's, and the admin reads this in the notification list. */
+            $subject = 'Resident';
+            $stmtWho = $con->prepare("SELECT u.user_type FROM reservations r LEFT JOIN users u ON u.id = r.user_id WHERE r.id = ? LIMIT 1");
+            if ($stmtWho) {
+                $stmtWho->bind_param('i', $reservationId);
+                if ($stmtWho->execute()) {
+                    $resWho = $stmtWho->get_result();
+                    if ($resWho && ($whoRow = $resWho->fetch_assoc())) {
+                        if (strtolower(trim((string)($whoRow['user_type'] ?? ''))) === 'visitor') { $subject = 'Visitor'; }
+                    }
+                }
+                $stmtWho->close();
+            }
             $con->query("CREATE TABLE IF NOT EXISTS notifications (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 user_id INT NULL COMMENT 'For residents',
@@ -114,7 +128,7 @@ if ($stmt->execute() && $stmt->affected_rows === 1) {
                 INDEX idx_is_read (is_read)
             ) ENGINE=InnoDB");
             $title = 'Payment proof resubmitted';
-            $message = "Resident resubmitted an updated proof of payment for reservation {$ref_code}. Verify it again.";
+            $message = "{$subject} resubmitted an updated proof of payment for reservation {$ref_code}. Verify it again.";
             $type = 'warning';
             $stmtN = $con->prepare("INSERT INTO notifications (user_id, title, message, type, created_at) VALUES (NULL, ?, ?, ?, NOW())");
             if ($stmtN) {

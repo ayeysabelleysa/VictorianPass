@@ -1808,18 +1808,21 @@ function collectVisitorRequestRows($con) {
             if ($stmtGrant) { $stmtGrant->bind_param('i', $vr['id']); $stmtGrant->execute(); $stmtGrant->close(); }
             continue;
         }
-        /* Third rejected receipt: auto-denied, so it leaves this list too. */
+        /* A third rejected receipt is denied and remains visible in Rejected. */
         if ($payStatusLower === 'rejected' && $attempts >= 3 && $approvalLower !== 'denied') {
             $stmtAuto = $con->prepare("UPDATE reservations SET approval_status='denied' WHERE id=?");
             if ($stmtAuto) { $stmtAuto->bind_param('i', $vr['id']); $stmtAuto->execute(); $stmtAuto->close(); }
-            continue;
+            $approvalLower = 'denied';
         }
 
         /* A visitor cannot submit without paying the downpayment, so every row
-           here already has a receipt. The only step before approval is the
-           admin's own receipt check, hence exactly four states. */
-        if ($payStatusLower === 'rejected' || $approvalLower === 'denied' || $approvalLower === 'cancelled') {
+           here already has a receipt. A rejected receipt the visitor can still
+           replace is its own "Awaiting resubmission" state; a denied or
+           cancelled request is final. */
+        if ($approvalLower === 'denied' || $approvalLower === 'cancelled' || $statusLower === 'denied' || $statusLower === 'cancelled') {
             $key = 'rejected';
+        } elseif ($payStatusLower === 'rejected') {
+            $key = 'payment_rejected';
         } elseif ($approvalLower === 'approved' || $statusLower === 'approved') {
             $key = 'approved';
         } elseif ($payStatusLower === 'verified') {
@@ -1830,6 +1833,10 @@ function collectVisitorRequestRows($con) {
 
         $vr['vr_key']    = $key;
         $vr['vr_label']  = visitorRequestStatusLabel($key);
+        /* The visitor uploaded a fresh proof of payment after it was rejected:
+           the row keeps needing action, but the admin should be able to tell that
+           this is a resubmission rather than a first-time submission. */
+        $vr['vr_resubmitted'] = ($payStatusLower === 'pending_update');
         $vr['vr_created'] = strtotime((string)($vr['created_at'] ?? '')) ?: 0;
         $vr['vr_visit']   = strtotime((string)($vr['start_date'] ?? '')) ?: 0;
         $vr['vr_pay']     = ($vr['downpayment'] === null || $vr['downpayment'] === '') ? -1 : (float)$vr['downpayment'];
@@ -1841,10 +1848,11 @@ function collectVisitorRequestRows($con) {
 
 function visitorRequestStatusLabel($key) {
     $labels = array(
-        'to_verify' => 'To verify',
-        'ready'     => 'Ready to approve',
-        'approved'  => 'Approved',
-        'rejected'  => 'Rejected',
+        'to_verify'        => 'To verify',
+        'ready'            => 'Ready to approve',
+        'approved'         => 'Approved',
+        'payment_rejected' => 'Awaiting resubmission',
+        'rejected'         => 'Rejected',
     );
     return $labels[$key] ?? $key;
 }
@@ -2031,7 +2039,7 @@ function getVisitorRequestsActionCount($con) {
 }
 
 function getVisitorRequestsCounts($con) {
-    $counts = array('all' => 0, 'to_verify' => 0, 'ready' => 0, 'approved' => 0, 'rejected' => 0);
+    $counts = array('all' => 0, 'to_verify' => 0, 'ready' => 0, 'approved' => 0, 'payment_rejected' => 0, 'rejected' => 0);
     foreach (collectVisitorRequestRows($con) as $vr) {
         $counts['all']++;
         if (array_key_exists($vr['vr_key'], $counts)) { $counts[$vr['vr_key']]++; }
@@ -5923,7 +5931,29 @@ table.table-vr tbody tr.vr-empty:hover { background: transparent; }
 .vr-pill-to_verify { background: #fef3c7; color: #92400e; }
 .vr-pill-ready     { background: var(--primary); color: #fff; }
 .vr-pill-approved  { background: #dcfce7; color: #166534; }
+.vr-pill-payment_rejected { background: #ffedd5; color: #9a3412; }
 .vr-pill-rejected  { background: #fee2e2; color: #991b1b; }
+
+/* A visitor resubmitted a fresh proof of payment: the row keeps needing action,
+   so it is flagged the same way the resident list flags a resubmission. */
+.vr-resubmit-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 600;
+    line-height: 1.3;
+    white-space: nowrap;
+    vertical-align: middle;
+    background: #ede9fe;
+    color: #5b21b6;
+}
+.vr-resubmit-badge i { font-size: 0.66rem; }
+table.table-vr tr.vr-row-resubmitted td:first-child { box-shadow: inset 3px 0 0 #7c3aed; }
 
 /* Actions: one horizontal row, equal buttons, no shadows */
 table.table-vr td.actions {
@@ -7976,6 +8006,157 @@ body.modal-open { overflow: hidden; }
 #userDetailsContent {
     padding: 18px 20px 22px;
 }
+
+/* ==========================================================================
+   Residents & Visitors directory: compact rows + the profile popup
+   ========================================================================== */
+.people-panel#residents-panel td.actions,
+.people-panel#visitors-panel td.actions {
+    width: 1%;
+    min-width: 0;
+    text-align: right;
+    white-space: nowrap;
+}
+.people-panel#residents-panel td.actions .btn,
+.people-panel#visitors-panel td.actions .btn {
+    display: inline-flex;
+    vertical-align: middle;
+}
+
+/* ---- Profile popup (resident + visitor) ---- */
+#userModal {
+    --vu-surface: #ffffff;
+    --vu-border: #e6ebe6;
+    --vu-text: #263445;
+    --vu-muted: #778392;
+    --vu-danger: #c0392b;
+    --vu-danger-soft: #fef2f2;
+}
+#userModal .modal-content {
+    width: min(92vw, 540px);
+    border-radius: 16px;
+    border-color: var(--vu-border);
+    background: var(--vu-surface);
+    color: var(--vu-text);
+}
+#userModal .modal-content h3 {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 14px 54px 14px 20px;
+    background: var(--vu-surface);
+    border-bottom: 1px solid var(--vu-border);
+    color: var(--vu-text);
+}
+#userModal .user-modal-head-pill { margin-left: 2px; }
+#userModal [hidden] { display: none !important; }
+
+/* Round X close (top-right) */
+#userModal .modal-content .close {
+    top: 12px;
+    right: 16px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+}
+#userModal .modal-content .close:focus-visible {
+    outline: 2px solid var(--vu-danger);
+    outline-offset: 2px;
+}
+
+/* Footer: reason field + deactivate button (no Close button) */
+#userModal .user-modal-footer {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--vu-border);
+    background: var(--vu-surface);
+    overflow: visible;
+}
+#userModal .user-deactivate-reason {
+    flex: 1 1 auto;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    height: 40px;
+    padding: 9px 12px;
+    border: 1px solid var(--vu-border);
+    border-radius: 8px;
+    background: var(--vu-surface);
+    color: var(--vu-text);
+    font-family: inherit;
+    font-size: .85rem;
+}
+#userModal .user-deactivate-reason::placeholder { color: var(--vu-muted); }
+#userModal .user-deactivate-reason:focus-visible {
+    outline: none;
+    border-color: var(--vu-danger);
+    box-shadow: 0 0 0 3px rgba(192, 57, 43, .12);
+}
+#userModal .user-modal-footer .btn {
+    flex: 0 0 auto;
+    min-height: 40px;
+    padding: 8px 16px;
+    white-space: nowrap;
+}
+#userModal .user-deactivated-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    color: var(--vu-muted);
+    font-size: .88rem;
+    font-style: italic;
+}
+
+/* Outlined red deactivate button */
+.btn-outline-danger {
+    background: transparent;
+    color: #c0392b;
+    border: 1px solid #c0392b;
+}
+.btn-outline-danger:hover { background: #c0392b; color: #fff; }
+.btn-outline-danger:disabled,
+.btn-outline-danger[disabled] {
+    opacity: .5;
+    cursor: not-allowed;
+    filter: none;
+    transform: none;
+    box-shadow: none;
+}
+#userModal .btn-outline-danger { color: var(--vu-danger); border-color: var(--vu-danger); }
+#userModal .btn-outline-danger:hover:not(:disabled) { background: var(--vu-danger); color: #fff; }
+#userModal .btn-outline-danger:focus-visible {
+    outline: 2px solid var(--vu-danger);
+    outline-offset: 2px;
+}
+
+@media (max-width: 560px) {
+    #userModal .user-modal-footer {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    #userModal .user-modal-footer .btn { width: 100%; }
+    #userModal #userDetailsContent > div {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+    #userModal {
+        --vu-surface: #211f1d;
+        --vu-border: #46403a;
+        --vu-text: #f1ede7;
+        --vu-muted: #b4aaa0;
+        --vu-danger: #f28b82;
+        --vu-danger-soft: #452b29;
+    }
+    #userModal .modal-content h4 { color: var(--vu-text) !important; }
+}
 #visitorDetailsContent .request-details,
 #residentReservationDetailsContent .request-details,
 #reservationDetailsContent .request-details,
@@ -8523,6 +8704,40 @@ body.modal-open { overflow: hidden; }
 .dash-banner-dot { opacity: .6; margin: 0 8px; }
 .dash-banner-actions { position: relative; z-index: 1; display: flex; gap: 12px; flex-wrap: wrap; }
 
+/* Brand strip sitting above the Community Overview banner ------------------ */
+.dash-brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 18px 30px 0;
+    padding: 14px 20px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--dash-radius);
+    box-shadow: var(--dash-shadow);
+}
+.dash-brand-logo {
+    display: block;
+    width: auto;
+    height: 46px;
+    flex: 0 0 auto;
+}
+.dash-brand-text { display: flex; flex-direction: column; min-width: 0; }
+.dash-brand-title {
+    margin: 0;
+    font-size: 22px;
+    line-height: 1.15;
+    font-weight: 800;
+    letter-spacing: .2px;
+    color: var(--text-main);
+}
+.dash-brand-sub {
+    margin-top: 2px;
+    font-size: .84rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
 .btn-dash {
     display: inline-flex;
     align-items: center;
@@ -8730,13 +8945,16 @@ a.stat-card:hover { transform: translateY(-3px); box-shadow: var(--dash-shadow-h
 
 /* Responsive */
 @media (max-width: 1024px) {
-    .dash-banner, .stat-grid, .dash-columns { margin-left: 20px; margin-right: 20px; }
+    .dash-brand, .dash-banner, .stat-grid, .dash-columns { margin-left: 20px; margin-right: 20px; }
 }
 @media (max-width: 900px) {
     .dash-columns { grid-template-columns: 1fr; }
 }
 @media (max-width: 768px) {
-    .dash-banner, .stat-grid, .dash-columns { margin-left: 14px; margin-right: 14px; }
+    .dash-brand, .dash-banner, .stat-grid, .dash-columns { margin-left: 14px; margin-right: 14px; }
+    .dash-brand { padding: 12px 16px; gap: 12px; }
+    .dash-brand-logo { height: 38px; }
+    .dash-brand-title { font-size: 18px; }
     .dash-banner { padding: 18px; }
     .dash-banner-text h1 { font-size: 24px; }
     .dash-banner-actions { width: 100%; }
@@ -9059,6 +9277,435 @@ a.stat-card:hover { transform: translateY(-3px); box-shadow: var(--dash-shadow-h
     .page-header:has(+ #residents-panel) h2,
     .page-header:has(+ #visitors-panel) h2,
     .page-header:has(+ #security-panel) h2 { font-size: 27px; }
+}
+
+/* ==========================================================================
+   VHEcoPoint (eco restyle)
+   Scoped to #smart-waste-panel.vp-eco-page so the VictorianPass admin,
+   Dashboard, People directory and every other page keep their own styles.
+   The palette lives in the --eco-* custom properties below.
+   ========================================================================== */
+:root {
+    --eco-900: #163a20;
+    --eco-800: #1f4d2b;
+    --eco-700: #2f6b3d;
+    --eco-500: #2f9e5a;
+    --eco-200: #bfe8cf;
+    --eco-100: #dff3e6;
+    --eco-50:  #f0faf4;
+    --eco-gold: #c9a227;
+    --eco-text: #2c3e50;
+    --eco-muted: #6b7785;
+    --eco-card: #ffffff;
+    --eco-pg: #f0faf4;
+    --eco-row-hover: #f4faf6;
+}
+
+/* Page shell: replaces the big white rounded .panel wrapper --------------- */
+#smart-waste-panel.vp-eco-page {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+    margin: 18px 30px 26px;
+    overflow: visible;
+    display: flex;
+    flex-direction: column;
+    gap: var(--dash-gap, 18px);
+}
+
+/* Banner ------------------------------------------------------------------ */
+.eco-brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 20px;
+    background: var(--bg-surface, var(--eco-card));
+    border: 1px solid var(--border, var(--eco-200));
+    border-radius: var(--dash-radius, 14px);
+    box-shadow: var(--dash-shadow);
+}
+.eco-brand-logo {
+    display: block;
+    width: auto;
+    height: 46px;
+    flex: 0 0 auto;
+}
+.eco-brand-text { display: flex; flex-direction: column; min-width: 0; }
+.eco-brand-title {
+    margin: 0;
+    font-size: 22px;
+    line-height: 1.15;
+    font-weight: 800;
+    letter-spacing: .2px;
+    color: var(--text-main, var(--eco-text));
+}
+.eco-brand-sub {
+    margin-top: 2px;
+    font-size: .84rem;
+    font-weight: 500;
+    color: var(--text-secondary, var(--eco-muted));
+}
+.smart-waste-brand-banner {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: nowrap;
+    padding: 22px 26px;
+    border-radius: var(--dash-radius);
+    background: var(--dash-banner-bg);
+    color: #fff;
+    box-shadow: var(--dash-shadow);
+    margin-bottom: 0;
+    overflow: hidden;
+    min-height: 88px;
+}
+.smart-waste-brand-banner::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 90% 0%, rgba(212, 175, 55, .32), transparent 55%);
+    pointer-events: none;
+}
+.smart-waste-brand-banner::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(circle at 92% -10%, rgba(201, 162, 39, .32), transparent 55%);
+}
+.vp-eco-banner-main {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+.vp-eco-banner-icon {
+    display: none;
+}
+.vp-eco-banner-text { display: flex; flex-direction: row; align-items: center; gap: 12px; min-width: 0; }
+.smart-waste-brand-banner .station-name {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: .2px;
+    text-align: left;
+    color: #fff;
+    white-space: nowrap;
+}
+.smart-waste-brand-banner .station-desc {
+    display: none;
+}
+.smart-waste-brand-banner .station-desc .dash-banner-dot {
+    display: none;
+}
+.smart-waste-brand-banner .station-desc i { font-size: .85rem; }
+.vp-eco-banner-actions {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    gap: 12px;
+    flex-wrap: nowrap;
+    flex: 0 0 auto;
+}
+.vp-eco-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 11px 18px;
+    border-radius: 11px;
+    font-size: .86rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: var(--transition);
+}
+.vp-eco-btn {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+}
+.vp-eco-btn:hover {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(35, 65, 46, .35);
+}
+.vp-eco-btn i { font-size: .95rem; }
+
+/* Section label ----------------------------------------------------------- */
+.vp-eco-section-label {
+    margin: 2px 2px -6px;
+    font-size: .74rem;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--eco-700);
+}
+
+/* Cards ------------------------------------------------------------------- */
+.vp-eco-page .smart-waste-card {
+    background: var(--eco-card);
+    border: 1px solid var(--eco-200);
+    border-radius: 14px;
+    padding: 24px;
+    box-shadow: 0 6px 20px rgba(22, 58, 32, .06);
+    overflow: visible;
+}
+.vp-eco-page .smart-waste-card h4 {
+    margin: 0 0 4px;
+    font-size: 1.02rem;
+    font-weight: 700;
+    color: var(--eco-800);
+}
+.vp-eco-page .smart-waste-note {
+    margin-bottom: 16px;
+    color: var(--eco-muted);
+    font-size: .84rem;
+}
+.vp-eco-stack { display: flex; flex-direction: column; gap: 20px; }
+
+/* KPI row ----------------------------------------------------------------- */
+.vp-eco-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--dash-gap, 18px);
+    margin: 0;
+}
+.vp-eco-kpi {
+    position: relative;
+    display: block;
+    padding: 20px 22px 18px;
+    background: var(--bg-surface, var(--eco-card));
+    border: 1px solid var(--border, var(--eco-200));
+    border-radius: var(--dash-radius, 14px);
+    box-shadow: var(--dash-shadow);
+    overflow: hidden;
+    color: var(--text-main, var(--eco-text));
+    transition: var(--transition);
+}
+.vp-eco-kpi::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 4px;
+    background: var(--primary, var(--eco-500));
+}
+.vp-eco-kpi:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--dash-shadow-hover);
+}
+.vp-eco-kpi-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    border-radius: 13px;
+    font-size: 1.15rem;
+    background: var(--primary-light, var(--eco-50));
+    color: var(--primary, var(--eco-700));
+    margin-bottom: 14px;
+    border: 1px solid transparent;
+}
+.vp-eco-kpi-label {
+    margin-top: 8px;
+    font-size: .92rem;
+    font-weight: 600;
+    color: var(--text-main, var(--eco-text));
+}
+.vp-eco-kpi-value {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -.5px;
+    color: var(--text-main, var(--eco-text));
+}
+.vp-eco-kpi-sub {
+    margin-top: 3px;
+    font-size: .78rem;
+    font-weight: 500;
+    color: var(--text-muted, var(--eco-muted));
+    line-height: 1.3;
+}
+
+/* Weekly chart ------------------------------------------------------------ */
+.vp-eco-chart { position: relative; }
+.smart-waste-chart {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 12px;
+    align-items: end;
+    height: 190px;
+    min-height: 180px;
+    padding-top: 6px;
+    border-bottom: 2px solid var(--eco-200);
+    background-image: repeating-linear-gradient(to top, transparent 0, transparent 44px, var(--eco-100) 44px, var(--eco-100) 45px);
+    background-position: bottom;
+}
+.smart-waste-bar-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.smart-waste-bar {
+    width: min(46px, 72%);
+    height: var(--vp-h, 6px);
+    border-radius: 8px 8px 4px 4px;
+    background: linear-gradient(180deg, var(--eco-500) 0%, var(--eco-700) 100%);
+    box-shadow: none;
+    transition: height .3s ease;
+}
+.smart-waste-bar-wrap.is-today .smart-waste-bar {
+    background: linear-gradient(180deg, var(--eco-700) 0%, var(--eco-900) 100%);
+}
+.smart-waste-bar-value { font-size: .78rem; font-weight: 700; color: var(--eco-700); }
+.smart-waste-bar-wrap.is-today .smart-waste-bar-value { color: var(--eco-900); }
+.smart-waste-bar-label { font-size: .76rem; font-weight: 600; color: var(--eco-muted); }
+.smart-waste-bar-wrap.is-today .smart-waste-bar-label { color: var(--eco-800); font-weight: 800; }
+.vp-eco-chart-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--eco-muted);
+    font-size: .86rem;
+    pointer-events: none;
+}
+
+/* Participation rates ----------------------------------------------------- */
+.vp-eco-participation-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 14px;
+}
+.vp-eco-participation {
+    padding: 16px 18px;
+    border: 1px solid var(--eco-200);
+    border-radius: 12px;
+    background: #fbfefb;
+}
+.vp-eco-progress {
+    height: 6px;
+    margin: 10px 0 8px;
+    border-radius: 999px;
+    background: var(--eco-200);
+    overflow: hidden;
+}
+.vp-eco-progress span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--eco-500);
+}
+
+/* Station participants ---------------------------------------------------- */
+.vp-eco-participants { gap: 0; }
+.vp-eco-participant {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--eco-200);
+    cursor: pointer;
+}
+.vp-eco-participant:last-child { border-bottom: 0; }
+.vp-eco-participant:hover { background: var(--eco-row-hover); }
+.vp-eco-participant:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+    background: var(--eco-row-hover);
+}
+.vp-eco-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 42px;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: var(--eco-100);
+    color: var(--eco-800);
+    font-size: .86rem;
+    font-weight: 800;
+}
+.vp-eco-participant .smart-waste-list-main { flex: 1; min-width: 0; }
+.vp-eco-participant-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.vp-eco-participant-name { font-weight: 700; color: var(--eco-text); font-size: .92rem; }
+.vp-eco-house {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: var(--eco-100);
+    color: var(--eco-700);
+    font-size: .7rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.vp-eco-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.vp-eco-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--eco-50);
+    border: 1px solid var(--eco-200);
+    color: var(--eco-700);
+    font-size: .72rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.vp-eco-last {
+    flex: 0 0 auto;
+    margin-left: auto;
+    color: var(--eco-muted);
+    font-size: .76rem;
+    white-space: nowrap;
+}
+
+/* Responsive -------------------------------------------------------------- */
+@media (max-width: 1024px) {
+    #smart-waste-panel.vp-eco-page { margin: 18px 20px 22px; }
+}
+@media (max-width: 900px) {
+    .vp-eco-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+    #smart-waste-panel.vp-eco-page { margin: 14px 14px 18px; padding: 0; border-radius: 0; }
+    .eco-brand { padding: 12px 16px; gap: 12px; }
+    .eco-brand-logo { height: 38px; }
+    .eco-brand-title { font-size: 18px; }
+    .smart-waste-brand-banner { padding: 18px; min-height: auto; flex-wrap: wrap; }
+    .smart-waste-brand-banner .station-name { font-size: 24px; }
+    .vp-eco-banner-text { flex-direction: column; align-items: flex-start; gap: 6px; }
+    .vp-eco-banner-actions { width: 100%; flex-wrap: wrap; }
+    .vp-eco-btn { flex: 1 1 auto; justify-content: center; }
+}
+@media (max-width: 560px) {
+    .vp-eco-kpi-grid { grid-template-columns: 1fr; }
+    .vp-eco-participation-grid { grid-template-columns: 1fr; }
+    .vp-eco-participant { flex-wrap: wrap; }
+    .vp-eco-last { margin-left: 56px; }
+}
+
+/* Dark mode --------------------------------------------------------------- */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --eco-card: #16241b;
+        --eco-pg: #0f1a13;
+        --eco-200: #2c4a37;
+        --eco-100: #1d3527;
+        --eco-50: #14241a;
+        --eco-row-hover: #1b2c21;
+        --eco-text: #e7f0ea;
+        --eco-muted: #9fb3a6;
+    }
+    .vp-eco-participation { background: #16241b; }
 }
 </style>
 </head>
@@ -9588,7 +10235,7 @@ a.stat-card:hover { transform: translateY(-3px); box-shadow: var(--dash-shadow-h
              to redraw the row and both box counts. */
           function vrSignature(d){
             var c = (d && d.counts) ? d.counts : {};
-            var keys = ['all', 'to_verify', 'ready', 'approved', 'rejected'];
+            var keys = ['all', 'to_verify', 'ready', 'approved', 'payment_rejected', 'rejected'];
             var out = [];
             for (var i = 0; i < keys.length; i++) { out.push(parseInt(c[keys[i]], 10) || 0); }
             return out.join(':');
@@ -9762,6 +10409,15 @@ a.stat-card:hover { transform: translateY(-3px); box-shadow: var(--dash-shadow-h
   $dashRecentVisitors = getRecentVisitorAccounts($con, 6);
 ?>
 <section id="dashboard-panel" class="dash-page">
+  <!-- Brand strip -->
+  <div class="dash-brand">
+    <img src="images/logo.svg" alt="" aria-hidden="true" class="dash-brand-logo">
+    <div class="dash-brand-text">
+      <span class="dash-brand-title">Victorian Pass</span>
+      <span class="dash-brand-sub">Victorian Heights Subdivision &middot; Admin System</span>
+    </div>
+  </div>
+
   <!-- Header banner -->
   <div class="dash-banner">
     <div class="dash-banner-text">
@@ -9960,6 +10616,11 @@ a.stat-card:hover { transform: translateY(-3px); box-shadow: var(--dash-shadow-h
   // (defensive: never fatals if ecopoint tables or point_transactions are
   //  missing - the page still renders with empty states).
   // ---------------------------------------------------------------------
+  // The session tables call eco_build_session_material_display_from_events(),
+  // so the shared EcoPoint core (function definitions only) must be loaded on
+  // these three pages. Loaded here instead of globally so no other admin page
+  // pays for it.
+  require_once __DIR__ . '/ecopoint_core.php';
   if (!defined('ECO_SESSION_STATUSES_OPEN')) { define('ECO_SESSION_STATUSES_OPEN', ['WAITING', 'ACTIVE', 'PROCESSING']); }
   function swDuration($created, $end = null) {
     $c = is_string($created) && $created !== '' ? strtotime($created) : 0;
@@ -10188,44 +10849,58 @@ a.stat-card:hover { transform: translateY(-3px); box-shadow: var(--dash-shadow-h
     if (($mr['kg_today'] ?? 0) > $maxKgToday)    $maxKgToday    = floatval($mr['kg_today']);
   }
 ?>
-<section class="panel" id="smart-waste-panel">
-  <div class="smart-waste-brand-banner">
-    <span class="station-name">VHEcoPoint</span>
-    <span class="station-desc">Smart Waste Segregation Station</span>
+<section class="panel vp-eco-page" id="smart-waste-panel">
+  <!-- Brand strip -->
+  <div class="eco-brand">
+    <span class="eco-brand-icon" aria-hidden="true">
+      <?php echo vh_eco_logo('eco-brand-logo'); ?>
+    </span>
+    <div class="eco-brand-text">
+      <span class="eco-brand-title">VHEcoPoint</span>
+      <span class="eco-brand-sub">Victorian Heights Subdivision &middot; Smart Waste Segregation Station</span>
+    </div>
   </div>
-  <h3>VHEcoPoint Admin Panel</h3>
+
+  <!-- Banner -->
+  <div class="vp-eco-section-label"><?php echo $currentPage == 'smart_waste' ? 'Overview' : ($currentPage == 'smart_waste_sessions' ? 'Sessions' : 'Amenity Logs'); ?></div>
 
   <?php if ($currentPage == 'smart_waste'): ?>
-  <div class="dashboard-grid" style="padding:0; margin:0 0 20px; grid-template-columns:repeat(3, 1fr);">
-    <div class="dashboard-widget">
-      <div class="dashboard-widget-label">Active Sessions Now</div>
-      <div class="dashboard-widget-value"><?php echo number_format($swStats['active_now']); ?></div>
-      <div class="dashboard-widget-subtext">WAITING / ACTIVE / PROCESSING sessions</div>
+  <div class="vp-eco-kpi-grid">
+    <div class="vp-eco-kpi">
+      <span class="vp-eco-kpi-icon"><i class="fa-solid fa-tower-broadcast"></i></span>
+      <div class="vp-eco-kpi-label">Active sessions now</div>
+      <div class="vp-eco-kpi-value"><?php echo number_format($swStats['active_now']); ?></div>
+      <div class="vp-eco-kpi-sub">Waiting, active or processing sessions</div>
     </div>
-    <div class="dashboard-widget">
-      <div class="dashboard-widget-label">Completed Today</div>
-      <div class="dashboard-widget-value"><?php echo number_format($swStats['completed_today']); ?></div>
-      <div class="dashboard-widget-subtext"><?php echo number_format($swStats['total_kg_today'] * 1000, 0); ?> g - <?php echo number_format($swStats['total_pts_today']); ?> pts today</div>
+    <div class="vp-eco-kpi">
+      <span class="vp-eco-kpi-icon"><i class="fa-solid fa-circle-check"></i></span>
+      <div class="vp-eco-kpi-label">Completed today</div>
+      <div class="vp-eco-kpi-value"><?php echo number_format($swStats['completed_today']); ?></div>
+      <div class="vp-eco-kpi-sub"><?php echo number_format($swStats['total_kg_today'] * 1000, 0); ?> g - <?php echo number_format($swStats['total_pts_today']); ?> pts today</div>
     </div>
-    <div class="dashboard-widget">
-      <div class="dashboard-widget-label">Total Sessions</div>
-      <div class="dashboard-widget-value"><?php echo number_format($swStats['total_sessions']); ?></div>
-      <div class="dashboard-widget-subtext"><?php echo number_format($swStats['total_kg'] * 1000, 0); ?> g collected all-time</div>
+    <div class="vp-eco-kpi">
+      <span class="vp-eco-kpi-icon"><i class="fa-solid fa-recycle"></i></span>
+      <div class="vp-eco-kpi-label">Total sessions</div>
+      <div class="vp-eco-kpi-value"><?php echo number_format($swStats['total_sessions']); ?></div>
+      <div class="vp-eco-kpi-sub"><?php echo number_format($swStats['total_kg'] * 1000, 0); ?> g collected all-time</div>
     </div>
-    <div class="dashboard-widget">
-      <div class="dashboard-widget-label">VHEcoPoints Awarded</div>
-      <div class="dashboard-widget-value"><?php echo number_format($swStats['total_pts']); ?></div>
-      <div class="dashboard-widget-subtext"><?php echo number_format($swStats['total_pts_today']); ?> earned today - <?php echo number_format($swStats['redeemed_points']); ?> redeemed</div>
+    <div class="vp-eco-kpi">
+      <span class="vp-eco-kpi-icon"><i class="fa-solid fa-star"></i></span>
+      <div class="vp-eco-kpi-label">VHEcoPoints awarded</div>
+      <div class="vp-eco-kpi-value"><?php echo number_format($swStats['total_pts']); ?></div>
+      <div class="vp-eco-kpi-sub"><?php echo number_format($swStats['total_pts_today']); ?> earned today - <?php echo number_format($swStats['redeemed_points']); ?> redeemed</div>
     </div>
-    <div class="dashboard-widget">
-      <div class="dashboard-widget-label">Total Grams Collected</div>
-      <div class="dashboard-widget-value"><?php echo number_format($swStats['total_kg'] * 1000, 0); ?></div>
-      <div class="dashboard-widget-subtext"><?php echo number_format($swStats['total_sessions']); ?> completed sessions all-time</div>
+    <div class="vp-eco-kpi">
+      <span class="vp-eco-kpi-icon"><i class="fa-solid fa-weight-scale"></i></span>
+      <div class="vp-eco-kpi-label">Total grams collected</div>
+      <div class="vp-eco-kpi-value"><?php echo number_format($swStats['total_kg'] * 1000, 0); ?></div>
+      <div class="vp-eco-kpi-sub"><?php echo number_format($swStats['total_sessions']); ?> completed sessions all-time</div>
     </div>
-    <div class="dashboard-widget">
-      <div class="dashboard-widget-label">Registered Residents</div>
-      <div class="dashboard-widget-value"><?php echo number_format($swStats['resident_count']); ?></div>
-      <div class="dashboard-widget-subtext"><?php echo number_format($accountLogActive); ?> have used the station - <?php echo number_format($accountLogMonth); ?> active this month</div>
+    <div class="vp-eco-kpi">
+      <span class="vp-eco-kpi-icon"><i class="fa-solid fa-users"></i></span>
+      <div class="vp-eco-kpi-label">Registered residents</div>
+      <div class="vp-eco-kpi-value"><?php echo number_format($swStats['resident_count']); ?></div>
+      <div class="vp-eco-kpi-sub"><?php echo number_format($accountLogActive); ?> have used the station - <?php echo number_format($accountLogMonth); ?> active this month</div>
     </div>
   </div>
   <?php endif; ?>
@@ -10386,82 +11061,97 @@ a.stat-card:hover { transform: translateY(-3px); box-shadow: var(--dash-shadow-h
   <?php endif; ?>
 
   <?php if ($currentPage == 'smart_waste'): ?>
-  <div style="display:flex; flex-direction:column; gap:16px;">
+  <div class="vp-eco-stack">
     <div class="smart-waste-card">
-      <h4>Weekly Station Activity</h4>
+      <h4>Weekly station activity</h4>
       <div class="smart-waste-note">VHEcoPoint sessions logged per day over the last 7 days.</div>
-      <div class="smart-waste-chart">
-        <?php foreach ($weeklyActivity as $day): ?>
-          <?php
-            $barHeight = max(18, intval((($day['count'] ?? 0) / $maxWeeklyCount) * 120));
-            if (($day['count'] ?? 0) === 0) { $barHeight = 18; }
-          ?>
-          <div class="smart-waste-bar-wrap">
-            <div class="smart-waste-bar-value"><?php echo intval($day['count'] ?? 0); ?></div>
-            <div class="smart-waste-bar" style="height:<?php echo $barHeight; ?>px;"></div>
-            <div class="smart-waste-bar-label"><?php echo htmlspecialchars($day['label'] ?? ''); ?></div>
-          </div>
-        <?php endforeach; ?>
+      <div class="vp-eco-chart">
+        <div class="smart-waste-chart">
+          <?php foreach ($weeklyActivity as $dayKey => $day): ?>
+            <?php
+              $dayCount = intval($day['count'] ?? 0);
+              $barHeight = max(18, intval(($dayCount / $maxWeeklyCount) * 120));
+              $isZero = ($dayCount === 0);
+              $isToday = ($dayKey === date('Y-m-d'));
+            ?>
+            <div class="smart-waste-bar-wrap<?php echo $isToday ? ' is-today' : ''; ?>">
+              <div class="smart-waste-bar-value"><?php echo $dayCount; ?></div>
+              <div class="smart-waste-bar<?php echo $isZero ? ' is-zero' : ''; ?>" style="<?php echo $isZero ? '' : ('--vp-h:' . $barHeight . 'px;'); ?>"></div>
+              <div class="smart-waste-bar-label"><?php echo htmlspecialchars($day['label'] ?? ''); ?></div>
+            </div>
+          <?php endforeach; ?>
+        </div>
+        <?php if (array_sum(array_column($weeklyActivity, 'count')) === 0): ?>
+          <div class="vp-eco-chart-empty">No sessions logged this week</div>
+        <?php endif; ?>
       </div>
     </div>
 
     <div class="smart-waste-card">
-      <h4>Resident Participation Rates</h4>
+      <h4>Resident participation rates</h4>
       <div class="smart-waste-note">Participation is based on registered VictorianPass residents who have successfully scanned their QR code at a VHEcoPoint station.</div>
-      <div class="smart-waste-kpi-grid">
-        <div class="smart-waste-kpi">
-          <div class="smart-waste-kpi-label">VHEcoPoint Participants</div>
-          <div class="smart-waste-kpi-value"><?php echo number_format($participationStats['all_time_count']); ?></div>
-          <div class="smart-waste-kpi-subtext">Unique residents with at least 1 successful VHEcoPoint QR scan</div>
+      <div class="vp-eco-participation-grid">
+        <div class="vp-eco-participation">
+          <div class="vp-eco-kpi-label">VHEcoPoint participants</div>
+          <div class="vp-eco-kpi-value"><?php echo number_format($participationStats['all_time_count']); ?></div>
+          <div class="vp-eco-kpi-sub">Unique residents with at least 1 successful QR scan</div>
         </div>
-        <div class="smart-waste-kpi">
-          <div class="smart-waste-kpi-label">Registered Residents</div>
-          <div class="smart-waste-kpi-value"><?php echo number_format($swStats['resident_count']); ?></div>
-          <div class="smart-waste-kpi-subtext">Total active VictorianPass resident accounts</div>
+        <div class="vp-eco-participation">
+          <div class="vp-eco-kpi-label">Registered residents</div>
+          <div class="vp-eco-kpi-value"><?php echo number_format($swStats['resident_count']); ?></div>
+          <div class="vp-eco-kpi-sub">Total active VictorianPass resident accounts</div>
         </div>
-        <div class="smart-waste-kpi">
-          <div class="smart-waste-kpi-label">All-Time Participation Rate</div>
-          <div class="smart-waste-kpi-value"><?php echo number_format($participationStats['all_time_rate'], 1); ?>%</div>
-          <div class="smart-waste-kpi-subtext"><?php echo number_format($participationStats['all_time_count']); ?> of <?php echo number_format($swStats['resident_count']); ?> registered residents</div>
+        <div class="vp-eco-participation">
+          <div class="vp-eco-kpi-label">All-time participation rate</div>
+          <div class="vp-eco-kpi-value"><?php echo number_format($participationStats['all_time_rate'], 1); ?>%</div>
+          <div class="vp-eco-progress"><span style="width:<?php echo min(100, (float)$participationStats['all_time_rate']); ?>%"></span></div>
+          <div class="vp-eco-kpi-sub"><?php echo number_format($participationStats['all_time_count']); ?> of <?php echo number_format($swStats['resident_count']); ?> registered residents</div>
         </div>
-      </div>
-      <div class="smart-waste-kpi-grid" style="margin-top:12px;">
-        <div class="smart-waste-kpi">
-          <div class="smart-waste-kpi-label">Active in Last 30 Days</div>
-          <div class="smart-waste-kpi-value"><?php echo number_format($participationStats['last30_rate'], 1); ?>%</div>
-          <div class="smart-waste-kpi-subtext"><?php echo number_format($participationStats['last30_count']); ?> of <?php echo number_format($swStats['resident_count']); ?> registered residents</div>
+        <div class="vp-eco-participation">
+          <div class="vp-eco-kpi-label">Active in last 30 days</div>
+          <div class="vp-eco-kpi-value"><?php echo number_format($participationStats['last30_rate'], 1); ?>%</div>
+          <div class="vp-eco-progress"><span style="width:<?php echo min(100, (float)$participationStats['last30_rate']); ?>%"></span></div>
+          <div class="vp-eco-kpi-sub"><?php echo number_format($participationStats['last30_count']); ?> of <?php echo number_format($swStats['resident_count']); ?> registered residents</div>
         </div>
-        <div class="smart-waste-kpi">
-          <div class="smart-waste-kpi-label">Active in Last 7 Days</div>
-          <div class="smart-waste-kpi-value"><?php echo number_format($participationStats['last7_rate'], 1); ?>%</div>
-          <div class="smart-waste-kpi-subtext"><?php echo number_format($participationStats['last7_count']); ?> of <?php echo number_format($swStats['resident_count']); ?> registered residents</div>
+        <div class="vp-eco-participation">
+          <div class="vp-eco-kpi-label">Active in last 7 days</div>
+          <div class="vp-eco-kpi-value"><?php echo number_format($participationStats['last7_rate'], 1); ?>%</div>
+          <div class="vp-eco-progress"><span style="width:<?php echo min(100, (float)$participationStats['last7_rate']); ?>%"></span></div>
+          <div class="vp-eco-kpi-sub"><?php echo number_format($participationStats['last7_count']); ?> of <?php echo number_format($swStats['resident_count']); ?> registered residents</div>
         </div>
       </div>
     </div>
 
     <div class="smart-waste-card">
-      <h4><i class="fa-solid fa-users" style="margin-right:6px;"></i>Station Participants</h4>
+      <h4><i class="fa-solid fa-users" style="margin-right:6px;"></i>Station participants</h4>
       <div class="smart-waste-note"><?php echo number_format($participationStats['all_time_count']); ?> of <?php echo number_format($swStats['resident_count']); ?> registered residents have used the VHEcoPoint station.</div>
       <?php if (empty($participants)): ?>
         <div class="smart-waste-empty">No participants yet.</div>
       <?php else: ?>
-        <div class="smart-waste-list">
+        <div class="smart-waste-list vp-eco-participants">
           <?php foreach ($participants as $p): ?>
             <?php
               $pName = trim(($p['first_name'] ?? '') . ' ' . ($p['last_name'] ?? ''));
               if ($pName === '') $pName = 'Resident #' . intval($p['id']);
               $pHouse = trim((string)($p['house_number'] ?? ''));
               $pLastSession = !empty($p['last_session']) ? date('M j, Y', strtotime($p['last_session'])) : '-';
+              $pInitials = strtoupper(substr(trim((string)($p['first_name'] ?? '')), 0, 1) . substr(trim((string)($p['last_name'] ?? '')), 0, 1));
+              if ($pInitials === '') $pInitials = 'R';
             ?>
-            <div class="smart-waste-list-item">
-              <span class="smart-waste-material-icon" style="background:#ecfdf3; color:#15803d;">
-                <i class="fa-solid fa-user"></i>
-              </span>
+            <div class="smart-waste-list-item vp-eco-participant" role="button" tabindex="0" data-user-id="<?php echo intval($p['id']); ?>" data-user-type="resident" onclick="showUserDetails(<?php echo intval($p['id']); ?>,'resident')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); showUserDetails(<?php echo intval($p['id']); ?>,'resident');}" aria-label="View details for <?php echo htmlspecialchars($pName, ENT_QUOTES, 'UTF-8'); ?>">
+              <span class="vp-eco-avatar"><?php echo htmlspecialchars($pInitials); ?></span>
               <div class="smart-waste-list-main">
-                <div class="smart-waste-list-title"><?php echo htmlspecialchars($pName); ?> <?php if ($pHouse !== ''): ?><small style="color:#6b7280;font-weight:400;">(<?php echo htmlspecialchars($pHouse); ?>)</small><?php endif; ?></div>
-                <div class="smart-waste-list-subtitle"><?php echo intval($p['session_count']); ?> session<?php echo $p['session_count'] == 1 ? '' : 's'; ?> - <?php echo number_format(floatval($p['total_kg'] ?? 0) * 1000, 0); ?> g - <?php echo number_format(intval($p['total_pts'] ?? 0)); ?> pts</div>
-                <div class="smart-waste-list-subtitle"><small style="color:#9ca3af;">Last: <?php echo $pLastSession; ?></small></div>
+                <div class="vp-eco-participant-head">
+                  <span class="vp-eco-participant-name"><?php echo htmlspecialchars($pName); ?></span>
+                  <?php if ($pHouse !== ''): ?><span class="vp-eco-house">House <?php echo htmlspecialchars($pHouse); ?></span><?php endif; ?>
+                </div>
+                <div class="vp-eco-chips">
+                  <span class="vp-eco-chip"><?php echo intval($p['session_count']); ?> session<?php echo intval($p['session_count']) == 1 ? '' : 's'; ?></span>
+                  <span class="vp-eco-chip"><?php echo number_format(floatval($p['total_kg'] ?? 0) * 1000, 0); ?> g</span>
+                  <span class="vp-eco-chip"><?php echo number_format(intval($p['total_pts'] ?? 0)); ?> pts</span>
+                </div>
               </div>
+              <div class="vp-eco-last">Last: <?php echo $pLastSession; ?></div>
             </div>
           <?php endforeach; ?>
         </div>
@@ -11638,29 +12328,11 @@ window.GQ_LIST = (function(){
               $residentInitials = strtoupper(substr($residentFirstName, 0, 1) . substr($residentLastName, 0, 1));
               $status = strtolower($resident['status'] ?? 'active');
               $residentIsActive = ($status !== 'disabled');
-              echo "<tr>";
+              echo "<tr data-resident-id='" . intval($resident['id']) . "'>";
               echo "<td><div class='person-cell'><span class='person-avatar' aria-hidden='true'>" . ($residentInitials !== '' ? $residentInitials : 'R') . "</span><span class='person-copy'><span class='person-name'>" . $residentFullName . "</span><span class='person-meta'>Resident <span class='people-status " . ($residentIsActive ? 'is-active' : 'is-inactive') . "'>" . ($residentIsActive ? 'ACTIVE' : 'INACTIVE') . "</span></span></span></div></td>";
               echo "<td><span class='people-badge'>" . $resident['house_number'] . "</span></td>";
               echo "<td>" . date('M d, Y', strtotime($resident['created_at'])) . "</td>";
-              echo "<td class='actions'>";
-              echo "<button type='button' class='btn btn-view' onclick='showUserDetails(" . intval($resident['id']) . ",\"resident\")'>View Details</button>";
-              if ($status !== 'disabled') {
-                echo "<form method='post' onsubmit='return openAdminConfirm(this, \"Deactivate this account?\")'>";
-                echo "<input type='hidden' name='user_id' value='" . intval($resident['id']) . "'>";
-                echo "<input type='hidden' name='user_action' value='deactivate_user'>";
-                echo "<input type='hidden' name='redirect_page' value='residents'>";
-                echo "<input type='text' name='suspension_reason' class='suspend-reason' placeholder='Reason' required maxlength='255'>";
-                echo "<button type='submit' class='btn btn-reject'><i class='fa-solid fa-ban'></i> Deactivate</button>";
-                echo "</form>";
-              } else {
-                echo "<form method='post' class='delete-form show' onsubmit='return openAdminConfirm(this, \"Delete this account permanently?\")'>";
-                echo "<input type='hidden' name='user_id' value='" . intval($resident['id']) . "'>";
-                echo "<input type='hidden' name='user_action' value='delete_user'>";
-                echo "<input type='hidden' name='redirect_page' value='residents'>";
-                echo "<button type='submit' class='btn btn-remove'><i class='fa-solid fa-trash'></i> Delete Account</button>";
-                echo "</form>";
-              }
-              echo "</td>";
+              echo "<td class='actions'><button type='button' class='btn btn-view' onclick='showUserDetails(" . intval($resident['id']) . ",\"resident\")'><i class='fa-solid fa-eye'></i> View Details</button></td>";
               echo "</tr>";
           }
       } else {
@@ -11694,7 +12366,7 @@ window.GQ_LIST = (function(){
       <?php
       if ($visitors && $visitors->num_rows > 0) {
           while ($visitor = $visitors->fetch_assoc()) {
-              echo "<tr>";
+              echo "<tr data-visitor-id='" . intval($visitor['id']) . "'>";
               $fullName = trim(($visitor['first_name'] ?? '') . ' ' . ($visitor['last_name'] ?? ''));
               $visitorFirstName = trim((string)($visitor['first_name'] ?? ''));
               $visitorLastName = trim((string)($visitor['last_name'] ?? ''));
@@ -11705,25 +12377,7 @@ window.GQ_LIST = (function(){
               $statusClass = ($status === 'active') ? 'is-active' : (($status === 'pending') ? 'is-pending' : 'is-inactive');
               echo "<td><span class='people-status $statusClass'>" . $statusLabel . "</span></td>";
               echo "<td>" . (!empty($visitor['created_at']) ? date('M d, Y', strtotime($visitor['created_at'])) : '-') . "</td>";
-              echo "<td class='actions'>";
-              echo "<button type='button' class='btn btn-view' onclick='showUserDetails(" . intval($visitor['id']) . ",\"visitor\")'>View Details</button>";
-              if ($status !== 'disabled') {
-                echo "<form method='post' onsubmit='return openAdminConfirm(this, \"Deactivate this account?\")'>";
-                echo "<input type='hidden' name='user_id' value='" . intval($visitor['id']) . "'>";
-                echo "<input type='hidden' name='user_action' value='deactivate_user'>";
-                echo "<input type='hidden' name='redirect_page' value='visitors'>";
-                echo "<input type='text' name='suspension_reason' class='suspend-reason' placeholder='Reason' required maxlength='255'>";
-                echo "<button type='submit' class='btn btn-reject'><i class='fa-solid fa-ban'></i> Deactivate</button>";
-                echo "</form>";
-              } else {
-                echo "<form method='post' class='delete-form show' onsubmit='return openAdminConfirm(this, \"Delete this account permanently?\")'>";
-                echo "<input type='hidden' name='user_id' value='" . intval($visitor['id']) . "'>";
-                echo "<input type='hidden' name='user_action' value='delete_user'>";
-                echo "<input type='hidden' name='redirect_page' value='visitors'>";
-                echo "<button type='submit' class='btn btn-remove'><i class='fa-solid fa-trash'></i> Delete Account</button>";
-                echo "</form>";
-              }
-              echo "</td>";
+              echo "<td class='actions'><button type='button' class='btn btn-view' onclick='showUserDetails(" . intval($visitor['id']) . ",\"visitor\")'><i class='fa-solid fa-eye'></i> View Details</button></td>";
               echo "</tr>";
           }
       } else {
@@ -12775,6 +13429,7 @@ ksort($vrAmenities);
           'to_verify' => array('To verify',        'vr-filter-dot'),
           'ready'     => array('Ready to approve', 'vr-filter-dot is-ready'),
           'approved'  => array('Approved',         ''),
+          'payment_rejected' => array('Awaiting resubmission', ''),
           'rejected'  => array('Rejected',         ''),
       );
       foreach ($vrFilterDefs as $vrFilterKey => $vrFilterDef) :
@@ -12889,7 +13544,16 @@ ksort($vrAmenities);
 
               /* Tooltips carry the detail that used to sit under the buttons. */
               $vrPillTitle = '';
-              if ($vr['vr_key'] === 'approved' && !empty($vr['approved_by'])) {
+              if (!empty($vr['vr_resubmitted'])) {
+                  $vrPillTitle = 'Resubmitted for verification';
+                  $vrReason = trim((string)($vr['denial_reason'] ?? ''));
+                  if ($vrReason !== '') { $vrPillTitle .= ' · Previous reason: ' . $vrReason; }
+              } else if ($vr['vr_key'] === 'payment_rejected') {
+                  $vrAtt = intval($vr['receipt_attempts'] ?? 0);
+                  $vrPillTitle = 'Proof of payment needs a new upload · Attempt ' . max($vrAtt, 1) . ' of 3 · waiting for the visitor to resubmit';
+                  $vrReason = trim((string)($vr['denial_reason'] ?? ''));
+                  if ($vrReason !== '') { $vrPillTitle .= ' · Previous reason: ' . $vrReason; }
+              } else if ($vr['vr_key'] === 'approved' && !empty($vr['approved_by'])) {
                   $vrPillTitle = 'Approved by Admin';
               } else if ($vr['vr_key'] === 'rejected') {
                   $vrReason = trim((string)($vr['denial_reason'] ?? ''));
@@ -12897,6 +13561,7 @@ ksort($vrAmenities);
               }
           ?>
         <tr data-status="<?php echo $vr['vr_key']; ?>"
+            class="<?php echo !empty($vr['vr_resubmitted']) ? 'vr-row-resubmitted' : ''; ?>"
             data-id="<?php echo $vrId; ?>"
             data-ref="<?php echo htmlspecialchars($vrRef, ENT_QUOTES, 'UTF-8'); ?>"
             data-search="<?php echo htmlspecialchars($vrHaystack, ENT_QUOTES, 'UTF-8'); ?>"
@@ -12919,6 +13584,11 @@ ksort($vrAmenities);
           <td><span class="vr-amount"><?php echo htmlspecialchars($vrDownpayment); ?></span></td>
           <td>
             <span class="vr-pill vr-pill-<?php echo $vr['vr_key']; ?>"<?php echo ($vrPillTitle !== '' ? ' title="' . htmlspecialchars($vrPillTitle, ENT_QUOTES, 'UTF-8') . '"' : ''); ?>><?php echo htmlspecialchars($vr['vr_label']); ?></span>
+            <?php if (!empty($vr['vr_resubmitted'])): ?>
+              <span class="vr-resubmit-badge" tabindex="0" title="Visitor resubmitted an updated proof of payment. Verify it again." aria-label="Resubmitted proof of payment, waiting to be verified">
+                <i class="fa-solid fa-rotate-right" aria-hidden="true"></i> Resubmitted
+              </span>
+            <?php endif; ?>
           </td>
           <td class="actions">
             <button type="button" class="btn btn-view" onclick='showReservationDetails(<?php echo $vrId; ?>,"visitor")'>View Details</button>
@@ -12990,8 +13660,8 @@ window.VR_LIST = (function(){
   var boxes = Array.prototype.slice.call(document.querySelectorAll('[data-vr-filter]'));
   var countEls = Array.prototype.slice.call(document.querySelectorAll('[data-vr-count]'));
 
-  var KEYS   = ['all', 'to_verify', 'ready', 'approved', 'rejected'];
-  var RANK   = { to_verify: 0, ready: 1, approved: 2, rejected: 3 };
+  var KEYS   = ['all', 'to_verify', 'ready', 'approved', 'payment_rejected', 'rejected'];
+  var RANK   = { to_verify: 0, ready: 1, approved: 2, payment_rejected: 3, rejected: 4 };
   var PER_PAGE = 10;
   var STORE  = 'vp_admin_vr_state';
 
@@ -13325,7 +13995,7 @@ window.VR_LIST = (function(){
 
   /* ---- how many rows sit in each status right now ---- */
   function statusCounts(){
-    var c = { all: 0, to_verify: 0, ready: 0, approved: 0, rejected: 0 };
+    var c = { all: 0, to_verify: 0, ready: 0, approved: 0, payment_rejected: 0, rejected: 0 };
     rows().forEach(function(r){
       var s = attr(r, 'data-status');
       c.all++;
@@ -13906,13 +14576,11 @@ function rrdStatusOf(d){
   var ps = String(d.payment_status || 'pending').toLowerCase();
   var ap = String(d.approval_status || 'pending').toLowerCase();
   var st = String(d.status || '').toLowerCase();
-  /* Visitor requests keep a single Rejected state (their list has no resubmission
-     filter); resident requests split a replaceable receipt out as its own state. */
-  var isVisitor = (parseInt(d.entry_pass_id || 0, 10) > 0) || String(d.user_type || '').toLowerCase() === 'visitor';
   /* A full rejection (denied/cancelled) is final; a rejected receipt that the
-     resident can still replace is a distinct "Awaiting resubmission" state. */
+     resident or visitor can still replace is a distinct "Awaiting resubmission"
+     state, so both lists share the same five states. */
   if (ap.indexOf('denied') > -1 || ap.indexOf('reject') > -1 || ap.indexOf('cancel') > -1) { return 'rejected'; }
-  if (ps === 'rejected') { return isVisitor ? 'rejected' : 'payment_rejected'; }
+  if (ps === 'rejected') { return 'payment_rejected'; }
   if (ap.indexOf('approv') > -1 || st === 'approved') { return 'approved'; }
   if (ps === 'verified') { return 'ready'; }
   return 'to_verify';
@@ -14084,15 +14752,16 @@ function rrdRenderRight(d, meta){
   // Removed Receipt check as requested
 
   if (RRD.key === 'payment_rejected') {
+    var rejWho = (RRD.redirectPage === 'visitor_requests') ? 'visitor' : 'resident';
     var reason = String(d.denial_reason || '').trim();
     var att = Math.max(parseInt(d.receipt_attempts || 0, 10), 1);
-    var note = 'The receipt was rejected and the resident can still upload a corrected proof of payment. This row moves back to To verify once they resubmit.';
-    if (att >= 3) { note = 'This is the third rejected receipt. If the resident does not upload a valid proof, the request is automatically denied.'; }
+    var note = 'The receipt was rejected and the ' + rejWho + ' can still upload a corrected proof of payment. This row moves back to To verify once they resubmit.';
+    if (att >= 3) { note = 'This is the third rejected receipt. If the ' + rejWho + ' does not upload a valid proof, the request is automatically denied.'; }
     out += rrdCard('Awaiting resubmission',
       rrdRow('Status', 'Awaiting resubmission') +
       rrdRow('Attempt', att + ' of 3') +
       (reason !== '' ? rrdRow('Reason for rejection', reason) : '') +
-      '<div class="rrd-note" style="margin-top:8px;"><i class="fa-solid fa-rotate-right"></i><span>' + rrdEsc(note) + '</span></div>');
+      '<div class="rrd-note" style="margin-top:8px;"><i class="fa-solid fa-rotate-right"></i><span>' + note + '</span></div>');
   } else if (RRD.key === 'rejected') {
     var reason = String(d.denial_reason || '').trim();
     var att = parseInt(d.receipt_attempts || 0, 10);
@@ -14149,7 +14818,7 @@ function rrdRenderFoot(d, att){
     var reason = String(d.denial_reason || '').trim();
     hint.className = 'rrd-foot-hint is-bad';
     hint.innerHTML = '<i class="fa-solid fa-rotate-right"></i> Awaiting resubmission' + (reason ? ' — ' + rrdEsc(reason) : '') +
-      ' (attempt ' + Math.max(att, 1) + ' of 3). You can reject this request if the resident does not resubmit in time.';
+      ' (attempt ' + Math.max(att, 1) + ' of 3). You can reject this request if the ' + (isVisitor ? 'visitor' : 'resident') + ' does not resubmit in time.';
     html += '<button type="button" class="btn rrd-btn-danger-ghost" onclick="rrdToggleReject()"><i class="fa-solid fa-xmark"></i> Deny request</button>';
   } else {
     var reason = String(d.denial_reason || '').trim();
@@ -14938,13 +15607,68 @@ window.addEventListener('click', function(event){
 <div id="userModal" class="modal">
   <div class="modal-content">
     <button type="button" class="close" onclick="closeUserModal()" aria-label="Close">×</button>
-    <h3>User Profile</h3>
+    <h3>
+      <span id="userModalTitle">User Profile</span>
+      <span id="userModalStatusPill" class="people-status user-modal-head-pill" hidden></span>
+    </h3>
     <div id="userDetailsContent"></div>
+    <div class="user-modal-footer" id="userModalFooter">
+      <input type="text" id="userDeactivateReason" class="user-deactivate-reason" placeholder="Reason for deactivation" autocomplete="off" maxlength="255" aria-label="Reason for deactivation" required>
+      <button type="button" class="btn btn-outline-danger" id="userDeactivateBtn" disabled><i class="fa-solid fa-user-slash"></i> Deactivate Account</button>
+      <span class="user-deactivated-note" id="userDeactivatedNote" hidden><i class="fa-solid fa-circle-check" aria-hidden="true"></i> This account is deactivated</span>
+    </div>
   </div>
   </div>
 
 <script>
+var VU = { id: null, type: '', status: '', name: '' };
+
+function resetUserModalView(){
+  var details = document.getElementById('userDetailsContent');
+  var footer = document.getElementById('userModalFooter');
+  var pill = document.getElementById('userModalStatusPill');
+  var deact = document.getElementById('userDeactivateBtn');
+  var reason = document.getElementById('userDeactivateReason');
+  var note = document.getElementById('userDeactivatedNote');
+  if (details) details.hidden = false;
+  if (footer) footer.hidden = false;
+  if (reason) { reason.value = ''; reason.hidden = false; }
+  if (deact) { deact.disabled = true; deact.hidden = false; }
+  if (note) note.hidden = true;
+  if (pill) { pill.hidden = true; pill.textContent = ''; pill.className = 'people-status user-modal-head-pill'; }
+}
+
+function renderUserStatusPill(){
+  var pill = document.getElementById('userModalStatusPill');
+  var deact = document.getElementById('userDeactivateBtn');
+  var reason = document.getElementById('userDeactivateReason');
+  var note = document.getElementById('userDeactivatedNote');
+  var st = VU.status || 'active';
+  var isAccount = (VU.type === 'resident' || VU.type === 'visitor');
+  if (pill) {
+    if (isAccount) {
+      var label = (st === 'disabled') ? 'INACTIVE' : (st === 'pending' ? 'PENDING' : 'ACTIVE');
+      var cls = (st === 'active') ? 'is-active' : (st === 'pending' ? 'is-pending' : 'is-inactive');
+      pill.textContent = label;
+      pill.className = 'people-status user-modal-head-pill ' + cls;
+      pill.hidden = false;
+    } else {
+      pill.hidden = true;
+    }
+  }
+  var isInactive = isAccount && (st === 'disabled' || st === 'inactive');
+  var showControls = isAccount && !isInactive;
+  if (reason) { reason.hidden = !showControls; reason.value = ''; }
+  if (deact) { deact.hidden = !showControls; deact.disabled = true; }
+  if (note) note.hidden = !isInactive;
+}
+
 function showUserDetails(userId, expectedType){
+  VU.id = userId;
+  VU.type = '';
+  VU.status = '';
+  VU.name = '';
+  resetUserModalView();
   document.getElementById('userDetailsContent').innerHTML = '<div style="padding:20px;text-align:center;">Loading...</div>';
   closeVisitorModal();
   closeReservationModal();
@@ -14967,13 +15691,15 @@ function showUserDetails(userId, expectedType){
         document.getElementById('userDetailsContent').innerHTML = '<div style="padding:20px;text-align:center;color:red;">This user is not a ' + expectedType + ' account.</div>';
         return;
       }
-      var modalTitle = document.querySelector('#userModal h3');
-      if (modalTitle) {
-        var titleText = 'User Profile';
-        if (userType === 'resident') titleText = 'Resident Profile';
-        if (userType === 'visitor') titleText = 'Visitor Profile';
-        modalTitle.textContent = titleText;
-      }
+      VU.type = userType;
+      VU.status = (d.status || 'active').toString().toLowerCase();
+      VU.name = [d.first_name||'', d.last_name||''].join(' ').replace(/\s+/g,' ').trim();
+      var titleText = 'User Profile';
+      if (userType === 'resident') titleText = 'Resident Profile';
+      if (userType === 'visitor') titleText = 'Visitor Profile';
+      var titleEl = document.getElementById('userModalTitle');
+      if (titleEl) titleEl.textContent = titleText;
+      renderUserStatusPill();
       const fullName = [d.first_name||'', d.middle_name||'', d.last_name||''].join(' ').replace(/\s+/g,' ').trim();
       const residenceBlock = userType === 'resident' ? `
           <div>
@@ -15014,9 +15740,73 @@ function closeUserModal(){
   }, 200);
 }
 
+(function(){
+  var deactBtn = document.getElementById('userDeactivateBtn');
+  var reasonInput = document.getElementById('userDeactivateReason');
+
+  function setButtonState(){
+    if (deactBtn) deactBtn.disabled = !((reasonInput && reasonInput.value ? reasonInput.value : '').trim());
+  }
+
+  function markRowInactive(id, type){
+    var pill = null;
+    if (type === 'resident') {
+      pill = document.querySelector('#residents-panel tr[data-resident-id="' + id + '"] .people-status');
+    } else {
+      pill = document.querySelector('#visitors-panel tr[data-visitor-id="' + id + '"] .people-status');
+    }
+    if (pill) { pill.className = 'people-status is-inactive'; pill.textContent = 'INACTIVE'; }
+  }
+
+  if (reasonInput) {
+    reasonInput.addEventListener('input', setButtonState);
+    reasonInput.addEventListener('keydown', function(e){
+      if ((e.key === 'Enter') && deactBtn && !deactBtn.disabled) { e.preventDefault(); deactBtn.click(); }
+    });
+  }
+
+  if (deactBtn) deactBtn.addEventListener('click', function(){
+    var reason = (reasonInput && reasonInput.value ? reasonInput.value : '').trim();
+    if (!reason) { if (reasonInput) reasonInput.focus(); return; }
+    var uid = VU.id;
+    var type = VU.type;
+    if (!uid || (type !== 'resident' && type !== 'visitor')) return;
+    var redirectPage = (type === 'visitor') ? 'visitors' : 'residents';
+    deactBtn.disabled = true;
+    fetch('admin.php', {
+      method: 'POST',
+      credentials: 'same-origin',
+      redirect: 'manual',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+      body: new URLSearchParams({
+        user_action: 'deactivate_user',
+        user_id: String(uid),
+        redirect_page: redirectPage,
+        suspension_reason: reason
+      }).toString()
+    }).then(function(){
+      markRowInactive(uid, type);
+      closeUserModal();
+      if (typeof rrdToast === 'function') {
+        rrdToast('Account deactivated', (VU.name ? VU.name + ' ' : 'This account ') + 'is now inactive.', 'ok');
+      }
+    }).catch(function(err){
+      console.error(err);
+      if (deactBtn) deactBtn.disabled = false;
+      if (typeof rrdToast === 'function') rrdToast('Action failed', 'Could not reach the server. Please try again.', 'error');
+    });
+  });
+})();
+
 window.addEventListener('click', function(event){
   const umodal = document.getElementById('userModal');
   if(event.target === umodal){ closeUserModal(); }
+});
+
+document.addEventListener('keydown', function(event){
+  if (event.key !== 'Escape' && event.key !== 'Esc') return;
+  var m = document.getElementById('userModal');
+  if (m && m.style.display && m.style.display !== 'none') { closeUserModal(); }
 });
 </script>
 
