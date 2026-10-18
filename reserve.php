@@ -3558,6 +3558,7 @@ async function changePersons(val){
   function getReservedHoursForDay(booked, minH, maxH, ds, amen){
     let reservedHours=0; const marked={};
     (booked||[]).forEach(t=>{
+      if(isHoldEntry(t)) return;
       if(t.start_date && t.end_date && (t.end_date < ds || t.start_date > ds)) return;
       let bS=minH, bE=maxH;
       if (t.has_time && t.start && t.end) {
@@ -3662,7 +3663,7 @@ async function changePersons(val){
     const times=data.times||[];
     const sMin2=toMinutes(st); const eMin2=toMinutes(et);
     const amen=document.getElementById('amenityField').value;
-    const overlap=times.some(function(t){ if(!t.has_time){ return true; } const ts=toMinutes(t.start); const te=toMinutes(t.end); return !(sMin2>=te || eMin2<=ts); });
+    const overlap=times.some(function(t){ if(isHoldEntry(t)) return false; if(!t.has_time){ return true; } const ts=toMinutes(t.start); const te=toMinutes(t.end); return !(sMin2>=te || eMin2<=ts); });
     if(overlap){pill.textContent='Unavailable';pill.className='status-pill unavailable'}
     else{
       const hrsRange=getAmenityHours(amen);
@@ -4778,8 +4779,46 @@ async function changePersons(val){
   function formatTimeSlot(h){ const ampm = h>=12 ? 'PM' : 'AM'; let hh=h%12; if(hh===0) hh=12; return `${hh}:00 ${ampm}`; }
   function formatTimeHM(h,m){ const ap=h>=12?'PM':'AM'; let hh=h%12; if(hh===0) hh=12; const mm=String(m).padStart(2,'0'); return `${hh}:${mm} ${ap}`; }
   function generateTimeSlots(amenity){ const hrs=getAmenityHours(amenity); const min=parseInt(hrs.min.split(':')[0],10); const max=parseInt(hrs.max.split(':')[0],10); const out=[]; for(let h=min; h<max; h++){ out.push({ label: formatTimeSlot(h), value: `${String(h).padStart(2,'0')}:00` }); } return out; }
-  function computeMaxDuration(amenity,startHour,booked,selectedDate){ const hrs=getAmenityHours(amenity); const maxHour=parseInt(hrs.max.split(':')[0],10); let max=0; for(let h=1; startHour+h<=maxHour; h++){ const thisStart=`${String(startHour).padStart(2,'0')}:00`; const thisEnd=`${String(startHour+h).padStart(2,'0')}:00`; const sM=toMinutes(thisStart), eM=toMinutes(thisEnd); const overlaps=(booked||[]).some(function(t){ if(selectedDate && t.start_date && t.end_date && (t.end_date < selectedDate || t.start_date > selectedDate)) return false; if(!t.has_time){ const bS=parseInt(hrs.min.split(':')[0],10); return !(eM<=bS || sM>=maxHour); } const ts=toMinutes(t.start), te=toMinutes(t.end); return !(eM<=ts || sM>=te); }); if(overlaps) break; max=h; } return max; }
-  function isSlotTakenByBooking(amenity,startHour,requestedHours,booked,selectedDate){ const hrs=getAmenityHours(amenity); const maxHour=parseInt(hrs.max.split(':')[0],10); const wHours=Math.max(1,requestedHours||1); const sM=toMinutes(`${String(startHour).padStart(2,'0')}:00`); const eM=toMinutes(`${String(startHour+wHours).padStart(2,'0')}:00`); return (booked||[]).some(function(t){ if(selectedDate && t.start_date && t.end_date && (t.end_date < selectedDate || t.start_date > selectedDate)) return false; if(!t.has_time){ const bS=parseInt(hrs.min.split(':')[0],10); return !(eM<=bS || sM>=maxHour); } const ts=toMinutes(t.start), te=toMinutes(t.end); return !(eM<=ts || sM>=te); }); }
+  function computeMaxDuration(amenity,startHour,booked,selectedDate){
+    const hrs=getAmenityHours(amenity);
+    const maxHour=parseInt(hrs.max.split(':')[0],10);
+    let max=0;
+    for(let h=1; startHour+h<=maxHour; h++){
+      const thisStart=`${String(startHour).padStart(2,'0')}:00`;
+      const thisEnd=`${String(startHour+h).padStart(2,'0')}:00`;
+      const sM=toMinutes(thisStart), eM=toMinutes(thisEnd);
+      const overlaps=(booked||[]).some(function(t){
+        if(isHoldEntry(t)) return false;
+        if(selectedDate && t.start_date && t.end_date && (t.end_date < selectedDate || t.start_date > selectedDate)) return false;
+        if(!t.has_time){
+          const bS=parseInt(hrs.min.split(':')[0],10);
+          return !(eM<=bS || sM>=maxHour);
+        }
+        const ts=toMinutes(t.start), te=toMinutes(t.end);
+        return !(eM<=ts || sM>=te);
+      });
+      if(overlaps) break;
+      max=h;
+    }
+    return max;
+  }
+  function isSlotTakenByBooking(amenity,startHour,requestedHours,booked,selectedDate){
+    const hrs=getAmenityHours(amenity);
+    const maxHour=parseInt(hrs.max.split(':')[0],10);
+    const wHours=Math.max(1,requestedHours||1);
+    const sM=toMinutes(`${String(startHour).padStart(2,'0')}:00`);
+    const eM=toMinutes(`${String(startHour+wHours).padStart(2,'0')}:00`);
+    return (booked||[]).some(function(t){
+      if(isHoldEntry(t)) return false;
+      if(selectedDate && t.start_date && t.end_date && (t.end_date < selectedDate || t.start_date > selectedDate)) return false;
+      if(!t.has_time){
+        const bS=parseInt(hrs.min.split(':')[0],10);
+        return !(eM<=bS || sM>=maxHour);
+      }
+      const ts=toMinutes(t.start), te=toMinutes(t.end);
+      return !(eM<=ts || sM>=te);
+    });
+  }
   function isHoldEntry(t){ return !!(t && (t.hold === 1 || t.hold === true || t.status === 'HELD')); }
   function slotOverlapSome(amenity,startHour,requestedHours,booked,selectedDate,pred){ const hrs=getAmenityHours(amenity); const maxHour=parseInt(hrs.max.split(':')[0],10); const wHours=Math.max(1,requestedHours||1); const sM=toMinutes(`${String(startHour).padStart(2,'0')}:00`); const eM=toMinutes(`${String(startHour+wHours).padStart(2,'0')}:00`); return (booked||[]).some(function(t){ if(!pred(t)) return false; if(selectedDate && t.start_date && t.end_date && (t.end_date < selectedDate || t.start_date > selectedDate)) return false; if(!t.has_time){ const bS=parseInt(hrs.min.split(':')[0],10); return !(eM<=bS || sM>=maxHour); } const ts=toMinutes(t.start), te=toMinutes(t.end); return !(eM<=ts || sM>=te); }); }
   // True only when the overlap comes EXCLUSIVELY from other guests' live holds
