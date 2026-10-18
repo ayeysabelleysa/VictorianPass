@@ -467,6 +467,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       if (!$errorMsg) {
         $cnt = 0;
         $singleDay = ($start && $end && $start === $end && $startTime && $endTime);
+        $hourBasedAmenity = in_array($amenity, ['Basketball Court', 'Tennis Court', 'Clubhouse', 'Multi-Purpose Building'], true);
         vpMark('availability_start');
         try {
           if (!($con instanceof mysqli)) { throw new Exception('DB unavailable'); }
@@ -482,21 +483,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               $check2->execute(); $r2 = $check2->get_result(); $cnt += ($r2 && ($rw=$r2->fetch_assoc())) ? intval($rw['c']) : 0; $check2->close();
             } else if (reserveTableColumnExists($con, 'resident_reservations', 'start_time') && reserveTableColumnExists($con, 'resident_reservations', 'end_time')) {
               error_log('reserve.php single-day resident_reservations prepare failed: ' . $con->error);
-            } else if ($check2b = $con->prepare("SELECT COUNT(*) AS c FROM resident_reservations rr WHERE rr.amenity = ? AND rr.approval_status IN ('pending','approved') AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.ref_code = rr.ref_code) AND ? BETWEEN rr.start_date AND rr.end_date")) {
-              $check2b->bind_param("sss", $amenity, $start, $end);
+            } else if (!$hourBasedAmenity && ($check2b = $con->prepare("SELECT COUNT(*) AS c FROM resident_reservations rr WHERE rr.amenity = ? AND rr.approval_status IN ('pending','approved') AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.ref_code = rr.ref_code) AND ? BETWEEN rr.start_date AND rr.end_date"))) {
+              $check2b->bind_param("ss", $amenity, $start);
               $check2b->execute(); $r2b = $check2b->get_result(); $cnt += ($r2b && ($rw=$r2b->fetch_assoc())) ? intval($rw['c']) : 0; $check2b->close();
-            } else {
+            } else if (!$hourBasedAmenity || (reserveTableColumnExists($con, 'resident_reservations', 'start_time') && reserveTableColumnExists($con, 'resident_reservations', 'end_time'))) {
               error_log('reserve.php single-day resident_reservations fallback prepare failed: ' . $con->error);
             }
-            if ($check3 = $con->prepare("SELECT COUNT(*) AS c FROM guest_forms WHERE amenity = ? AND ? BETWEEN start_date AND end_date AND (approval_status IN ('pending','approved')) AND (TIME(?) < end_time AND TIME(?) > start_time)")) {
+            if ($check3 = $con->prepare("SELECT COUNT(*) AS c FROM guest_forms gf WHERE gf.amenity = ? AND ? BETWEEN gf.start_date AND gf.end_date AND (gf.approval_status IN ('pending','approved')) AND (TIME(?) < gf.end_time AND TIME(?) > gf.start_time) AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.ref_code = gf.ref_code)")) {
               $check3->bind_param("ssss", $amenity, $start, $startTime, $endTime);
               $check3->execute(); $r3 = $check3->get_result(); $cnt += ($r3 && ($rw=$r3->fetch_assoc())) ? intval($rw['c']) : 0; $check3->close();
             } else if (reserveTableColumnExists($con, 'guest_forms', 'start_time') && reserveTableColumnExists($con, 'guest_forms', 'end_time')) {
               error_log('reserve.php single-day guest_forms prepare failed: ' . $con->error);
-            } else if ($check3b = $con->prepare("SELECT COUNT(*) AS c FROM guest_forms WHERE amenity = ? AND ? BETWEEN start_date AND end_date AND approval_status IN ('pending','approved')")) {
-              $check3b->bind_param("sss", $amenity, $start, $end);
+            } else if (!$hourBasedAmenity && ($check3b = $con->prepare("SELECT COUNT(*) AS c FROM guest_forms WHERE amenity = ? AND ? BETWEEN start_date AND end_date AND approval_status IN ('pending','approved')"))) {
+              $check3b->bind_param("ss", $amenity, $start);
               $check3b->execute(); $r3b = $check3b->get_result(); $cnt += ($r3b && ($rw=$r3b->fetch_assoc())) ? intval($rw['c']) : 0; $check3b->close();
-            } else {
+            } else if (!$hourBasedAmenity || (reserveTableColumnExists($con, 'guest_forms', 'start_time') && reserveTableColumnExists($con, 'guest_forms', 'end_time'))) {
               error_log('reserve.php single-day guest_forms fallback prepare failed: ' . $con->error);
             }
           } else {
@@ -568,7 +569,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             // guest_forms (may not have time columns)
-            $q3 = $con->prepare("SELECT start_date, end_date, start_time, end_time FROM guest_forms WHERE amenity = ? AND (approval_status IN ('pending','approved')) AND start_date <= ? AND end_date >= ?");
+            $q3 = $con->prepare("SELECT gf.start_date, gf.end_date, gf.start_time, gf.end_time FROM guest_forms gf WHERE gf.amenity = ? AND (gf.approval_status IN ('pending','approved')) AND gf.start_date <= ? AND gf.end_date >= ? AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.ref_code = gf.ref_code)");
             if ($q3) {
               $q3->bind_param('sss', $amenity, $end, $start);
               $q3->execute();
@@ -986,9 +987,10 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_times') {
   if ($amenity !== '' && ($date || ($startDate && $endDate))) {
     try {
       if (!($con instanceof mysqli)) { throw new Exception('DB unavailable'); }
+  $hourBasedAmenity = in_array($amenity, ['Basketball Court', 'Tennis Court', 'Clubhouse', 'Multi-Purpose Building'], true);
 
-      // Filter: bookings whose date range overlaps [startDate, endDate]
-      $dateFilter = " AND start_date <= ? AND end_date >= ?";
+  // Filter: bookings whose date range overlaps [startDate, endDate]
+  $dateFilter = " AND start_date <= ? AND end_date >= ?";
 
       // reserved/u: the point-redemption columns exist only after setup/migrate_reserve.php
       $hasUsePoints = reserveTableColumnExists($con, 'reservations', 'use_points');
@@ -1036,6 +1038,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_times') {
         $res2 = $stmt2->get_result();
         while ($row = $res2->fetch_assoc()) {
           $hasTime = !empty($row['start_time']) && !empty($row['end_time']);
+          if ($hourBasedAmenity && !$hasTime) { continue; }
           $times[] = [
             'start_date' => $row['start_date'],
             'end_date'   => $row['end_date'],
@@ -1053,20 +1056,31 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_times') {
       }
       vpMark('booked_times_resident');
 
-      // Query 3: guest_forms table (may not have time columns)
-      $sql3 = "SELECT start_date, end_date, persons, approval_status FROM guest_forms WHERE amenity = ? AND approval_status IN ('pending','approved')" . $dateFilter;
+      // Match vpFindConflicts: timed amenities only treat timed guest forms as
+      // blockers, and reservation-linked guest forms are represented by their
+      // authoritative reservations row instead of blocking the whole day.
+      $hasGuestFormTimes = reserveTableColumnExists($con, 'guest_forms', 'start_time')
+        && reserveTableColumnExists($con, 'guest_forms', 'end_time');
+      $guestFormTimeSelect = $hasGuestFormTimes ? ', gf.start_time, gf.end_time' : ', NULL AS start_time, NULL AS end_time';
+      $sql3 = "SELECT gf.start_date, gf.end_date, gf.persons, gf.approval_status" . $guestFormTimeSelect . "
+                FROM guest_forms gf
+               WHERE gf.amenity = ? AND gf.approval_status IN ('pending','approved')
+                 AND gf.start_date <= ? AND gf.end_date >= ?
+                 AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.ref_code = gf.ref_code)";
       $stmt3 = $con->prepare($sql3);
       if ($stmt3) {
         $stmt3->bind_param("sss", $amenity, $endDate, $startDate);
         $stmt3->execute();
         $res3 = $stmt3->get_result();
         while ($row = $res3->fetch_assoc()) {
+          $hasTime = !empty($row['start_time']) && !empty($row['end_time']);
+          if ($hourBasedAmenity && !$hasTime) { continue; }
           $times[] = [
             'start_date' => $row['start_date'],
             'end_date'   => $row['end_date'],
-            'start'      => null,
-            'end'        => null,
-            'has_time'   => 0,
+            'start'      => $hasTime ? $row['start_time'] : null,
+            'end'        => $hasTime ? $row['end_time'] : null,
+            'has_time'   => $hasTime ? 1 : 0,
             'persons'    => intval($row['persons'] ?? 0),
             'use_points' => 0,
           ];
@@ -4638,12 +4652,20 @@ async function changePersons(val){
   });
   ['amenityField','startDateInput','endDateInput','startTimeInput','endTimeInput','personsInput','hoursInput','downpaymentInput'].forEach(id=>{const el=document.getElementById(id); if(el){ el.addEventListener('input',function(){ markDirty(id); persistForm(); updateActionStates(); showIncompleteWarnings(false); if(typeof updateBookingSummary === 'function'){ updateBookingSummary(); } }); }});
   async function refreshAvailabilityFromServer(){
+    if (window.__vpAvailabilityRefreshInFlight) { return; }
     selectedAmenity = document.getElementById('amenityField').value || '';
+    window.__vpAvailabilityRefreshInFlight = true;
     availabilityCache.clear();
-    await loadBookedDates(true);
-    computeAvailability();
-    renderTimeSlotButtons();
-    if(document.getElementById('startDateInput').value){ checkTimeAvailability(); }
+    try {
+      await loadBookedDates(true);
+      computeAvailability();
+      renderTimeSlotButtons();
+      if(document.getElementById('startDateInput').value){ checkTimeAvailability(); }
+    } catch (error) {
+      console.error('Could not refresh reservation availability.', error);
+    } finally {
+      window.__vpAvailabilityRefreshInFlight = false;
+    }
   }
   document.addEventListener('DOMContentLoaded',function(){ restoreFormFromSession(); if(currentUserType === 'resident'){ const participantField=document.getElementById('reserveTotalCount'); setReserveTotalCount(participantField ? participantField.value : 0); } updateActionStates(); updateDisplayedPrice(); updateDownpaymentSuggestion(); updateBookingSummary(); initSingleDayToggle(); updateHoursSelectEnabled(); try{ document.getElementById('reservationCard').style.display='none'; document.getElementById('reservationTitle').textContent='Reserve an Amenity'; document.getElementById('reservationHint').textContent='Select an amenity to continue'; }catch(_){} });
   let lastAvailabilityRefresh=0;
@@ -4660,16 +4682,18 @@ async function changePersons(val){
     refreshAvailabilityDebounced(e && e.persisted);
   });
   window.addEventListener('focus',function(){ refreshAvailabilityDebounced(false); });
-  // Availability goes stale while the page sits open: other guests book, and
-  // holds expire at their 10-minute mark. Refetch dates + time slots on a
-  // fixed cadence (only while the tab is visible) and whenever the tab returns
-  // to the foreground, so the calendar and slot buttons update in place.
+  // Keep displayed dates and start times current while the reservation tab is
+  // open, and refresh immediately when the tab returns to the foreground.
   document.addEventListener('visibilitychange',function(){
     if(document.visibilityState === 'visible'){ refreshAvailabilityFromServer(); }
   });
   setInterval(function(){
-    if(document.visibilityState === 'visible'){ refreshAvailabilityFromServer(); }
-  }, 20000);
+    if(document.visibilityState === 'visible' &&
+       document.getElementById('amenityField').value &&
+       document.getElementById('startDateInput').value){
+      refreshAvailabilityFromServer();
+    }
+  }, 5000);
   // Lets the hold timer / verify-modal close paths refresh availability right
   // after a hold is released or expires (defined before the hold IIFE runs).
   window.__vpRefreshAvailability = function(){
@@ -6022,7 +6046,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }, data.message, '', prev !== 'booked');
       }
       renderQueue(data);
-      if (data.status === 'offered' && prev !== 'offered') { note("It's open now! Claim your slot before the timer expires.", 'success'); }
+      if (data.status === 'offered' && prev !== 'offered') {
+        note("It's open now! Claim your slot before the timer expires.", 'success');
+        if (window.__vpRefreshAvailability) { window.__vpRefreshAvailability(); }
+      }
       if (data.status === 'unavailable' && prev !== 'unavailable') { note('That slot was confirmed for another resident. Please choose another time.', 'warning'); }
       if (data.status === 'expired' && prev !== 'expired') { note('Your claim window expired. Please pick another time.', 'warning'); }
       if (data.status === 'booked' || data.status === 'converted' || data.status === 'declined' || data.status === 'cancelled' || data.status === 'expired' || data.status === 'unavailable') {
