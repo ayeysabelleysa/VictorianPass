@@ -57,14 +57,16 @@ check('B message mentions queue', strpos($s['message'], 'queue') !== false);
 $dup = vpRecordWaitlist($con, ['user_id'=>$B,'amenity'=>$amenity,'start_date'=>$date,'end_date'=>$date,'start_time'=>$st,'end_time'=>$et]);
 check('duplicate queue entry prevented', !empty($dup['duplicate']));
 
-echo "== 2. A has an unpaid pending booking; B can use the open slot ==\n";
+echo "== 2. A has an unpaid pending booking; B keeps waiting, slot is selectable ==\n";
 $ref = 'TESTQA-' . bin2hex(random_bytes(4));
 $con->query("INSERT INTO reservations (ref_code, amenity, start_date, end_date, start_time, end_time, approval_status, status, payment_status)
              VALUES ('$ref','" . $con->real_escape_string($amenity) . "','$date','$date','$st:00','$et:00','pending','pending','pending')");
 vpMarkHoldConverted($con, $aHold, $ref);
 $s = vpWaitlistOfferStatus($con, $bTok);
-check('unpaid pending reservation does not block the slot', !empty($s['slot_free']));
-check('B is offered the open slot', $s['entry']['status'] === 'offered');
+check('unpaid pending reservation does not count as booked', empty($s['slot_free']));
+check('B remains in queue while payment is in progress', $s['entry']['status'] === 'waiting');
+$pendingHoldAttempt = vpAcquireHold($con, ['user_id'=>$C,'amenity'=>$amenity,'start_date'=>$date,'end_date'=>$date,'start_time'=>$st,'end_time'=>$et]);
+check('unpaid pending reservation prevents direct hold acquisition', empty($pendingHoldAttempt['ok']) && !empty($pendingHoldAttempt['conflict']));
 
 echo "== 2b. A submits downpayment; B is removed and notified ==\n";
 $con->begin_transaction();
@@ -113,6 +115,8 @@ $con->query("UPDATE amenity_slot_holds SET expires_at=DATE_SUB(NOW(), INTERVAL 1
 $s = vpWaitlistOfferStatus($con, $bTok);
 check('B offered after A expiry', $s['entry']['status'] === 'offered');
 check('B offer has claim hold', !empty($s['entry']['offer_hold_token']));
+$offerHold = vpFindHoldByToken($con, (string)($s['entry']['offer_hold_token'] ?? ''));
+check('B claim window matches the full hold duration', $offerHold && strtotime($offerHold['expires_at']) >= time() + vpHoldSeconds($con) - 10);
 check('B position 1', ($s['position'] ?? 0) === 1);
 $claimToken = $s['entry']['offer_hold_token'];
 $hc = vpFindHoldByToken($con, $claimToken);

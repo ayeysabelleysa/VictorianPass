@@ -1624,7 +1624,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
                   <i class="fa-solid fa-list-ol" aria-hidden="true"></i> <span id="queuePosition">You are #1 in line</span>
                 </div>
                 <div id="queueCountdownWrap" style="display:none;background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;border-radius:10px;padding:9px 12px;font-weight:700;font-size:13px;margin:8px 0;">
-                  <i class="fa-regular fa-clock" aria-hidden="true"></i> Claim within <span id="queueCountdown">05:00</span>
+                  <i class="fa-regular fa-clock" aria-hidden="true"></i> Claim within <span id="queueCountdown">10:00</span>
                 </div>
                 <div id="queueAlternativesWrap" style="display:none;margin:8px 0;">
                   <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">Suggested free times on this date:</div>

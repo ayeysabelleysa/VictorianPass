@@ -121,7 +121,7 @@ if (!function_exists('vpAmenityHoldsEnsureSchema')) {
 
         $settings = [
             'amenity_hold_minutes'        => '10',
-            'amenity_waitlist_offer_minutes' => '5',
+            'amenity_waitlist_offer_minutes' => '10',
         ];
         $stmt = $con->prepare("INSERT IGNORE INTO app_settings (setting_key, setting_value) VALUES (?, ?)");
         if ($stmt) {
@@ -214,11 +214,7 @@ if (!function_exists('vpHoldSeconds')) {
 if (!function_exists('vpWaitlistOfferSeconds')) {
     function vpWaitlistOfferSeconds(mysqli $con): int
     {
-        $min = (int)vpAmenitySetting($con, 'amenity_waitlist_offer_minutes', '5');
-        if ($min <= 0) {
-            $min = 5;
-        }
-        return $min * 60;
+        return vpHoldSeconds($con);
     }
 }
 
@@ -623,6 +619,13 @@ if (!function_exists('vpFindConflicts')) {
             if (!vpTimeRangesOverlap($stN, $etN, $rSt, $rEt)) {
                 return;
             }
+            $paymentStatus = strtolower((string)($row['payment_status'] ?? ''));
+            $approvalStatus = strtolower((string)($row['approval_status'] ?? ''));
+            $bookingStatus = strtolower((string)($row['status'] ?? ''));
+            $inProcess = $source === 'reservation'
+                && in_array($paymentStatus, ['', 'pending'], true)
+                && in_array($approvalStatus, ['', 'pending'], true)
+                && in_array($bookingStatus, ['', 'pending'], true);
             $conflicts[] = [
                 'source'     => $source,
                 'id'         => (int)($row['id'] ?? 0),
@@ -637,6 +640,7 @@ if (!function_exists('vpFindConflicts')) {
                 'status'     => (string)($row['status'] ?? ''),
                 'payment_status' => (string)($row['payment_status'] ?? ''),
                 'has_receipt' => !empty($row['receipt_path']),
+                'in_process' => $inProcess,
             ];
         };
 
@@ -647,7 +651,11 @@ if (!function_exists('vpFindConflicts')) {
                 WHERE r.amenity = ?
                   AND (r.approval_status IS NULL OR r.approval_status IN ('pending','approved','permission_granted'))
                   AND (r.status IS NULL OR r.status NOT IN ('cancelled','deleted','moved_to_history','rejected','expired','denied'))
-                  AND {$blocksSlot}
+                  AND ({$blocksSlot} OR (
+                      COALESCE(r.payment_status, 'pending') = 'pending'
+                      AND COALESCE(r.approval_status, 'pending') = 'pending'
+                      AND COALESCE(r.status, 'pending') = 'pending'
+                  ))
                   AND r.start_date <= ? AND r.end_date >= ?";
         if ($excludeRefCode !== null && $excludeRefCode !== '') {
             $sql .= " AND r.ref_code <> ?";
@@ -1124,9 +1132,9 @@ if (!function_exists('vpWaitlistOfferStatus')) {
         vpExpireHolds($con);
         $conflicts = vpFindConflicts($con, (string)$entry['amenity'], (string)$entry['start_date'], (string)$entry['end_date'], $entry['start_time'], $entry['end_time']);
 
-        // A verified payment or confirmed booking can never be won by the
-        // queue. A merely submitted, pending booking still leaves the slot in
-        // review, so the resident keeps waiting.
+        // Paid or admin-confirmed bookings are terminal for the queue. An
+        // unpaid reservation still blocks a new hold, but does not count as
+        // booked, so the queued resident continues waiting.
         $bookedBy = null;
         foreach ($conflicts as $c) {
             if ($c['source'] === 'hold') { continue; }
@@ -1160,8 +1168,7 @@ if (!function_exists('vpWaitlistOfferStatus')) {
         $slotFree = empty($conflicts);
 
         // Offer the slot to the head when it is genuinely free: create a fresh
-        // short temporary hold so the slot is reserved for the claimant while
-        // they decide (spec: give a fresh 5-minute claim window).
+        // temporary hold so the slot remains reserved for the full hold window.
         if ($isHead && $slotFree && $entry['status'] === 'waiting') {
             $secs = vpWaitlistOfferSeconds($con);
             $hold = vpAcquireHold($con, [
