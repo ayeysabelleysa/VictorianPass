@@ -854,10 +854,19 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         nav.addEventListener('click', function(e){
           var link = e.target.closest ? e.target.closest('a[href^="#"]') : null;
           if(!link || link.getAttribute('href') === '#' || link.hasAttribute('data-ecopoint-modal-open')) return;
+          e.preventDefault();
+          var targetId = link.hash.slice(1);
+          var targetEl = document.getElementById(decodeURIComponent(targetId));
+          if(targetEl){
+            var header = document.querySelector('.navbar');
+            var offset = header ? header.offsetHeight : 0;
+            window.scrollTo({ top: targetEl.getBoundingClientRect().top + window.scrollY - offset, behavior: 'smooth' });
+          }
           setActiveLink(link);
-          if(document.getElementById(decodeURIComponent(link.hash.slice(1))) && window.innerWidth <= 1080){
+          if(window.innerWidth <= 1080){
             closeMenu();
           }
+          window.history.replaceState(null, '', link.hash);
         });
         window.addEventListener('hashchange', function(){
           var targetLink = window.location.hash ? nav.querySelector('a[href="' + window.location.hash + '"]') : nav.querySelector('a[href="#home"]');
@@ -875,24 +884,57 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   <script>
     document.addEventListener('DOMContentLoaded', function(){
       var items = document.querySelectorAll('.reveal-on-scroll');
-      if (!items.length) return;
-      if (!('IntersectionObserver' in window)) {
-        for (var i = 0; i < items.length; i++) {
-          items[i].classList.add('is-visible');
-        }
-        return;
-      }
-      var observer = new IntersectionObserver(function(entries, obs){
-        for (var i = 0; i < entries.length; i++) {
-          var entry = entries[i];
-          if (entry.isIntersecting) {
-            entry.target.classList.add('is-visible');
-            obs.unobserve(entry.target);
+      if (items.length && ('IntersectionObserver' in window)) {
+        var observer = new IntersectionObserver(function(entries, obs){
+          for (var i = 0; i < entries.length; i++) {
+            var entry = entries[i];
+            if (entry.isIntersecting) {
+              entry.target.classList.add('is-visible');
+              obs.unobserve(entry.target);
+            }
           }
+        }, { threshold: 0.15 });
+        for (var j = 0; j < items.length; j++) {
+          observer.observe(items[j]);
         }
-      }, { threshold: 0.15 });
-      for (var j = 0; j < items.length; j++) {
-        observer.observe(items[j]);
+      } else {
+        for (var k = 0; k < items.length; k++) {
+          items[k].classList.add('is-visible');
+        }
+      }
+      var sections = ['home','about-us','facilities','about-system'];
+      var nav = document.getElementById('primaryNav');
+      var sectionEls = [];
+      for (var s = 0; s < sections.length; s++){
+        var el = document.getElementById(sections[s]);
+        if (el) sectionEls.push(el);
+      }
+      if (nav && sectionEls.length && ('IntersectionObserver' in window)){
+        var navLinks = nav.querySelectorAll('a[href^="#"]:not(.nav-ecopoint)');
+        var spy = new IntersectionObserver(function(entries){
+          var best = null;
+          var bestRatio = -1;
+          for (var i = 0; i < entries.length; i++){
+            if (entries[i].isIntersecting && entries[i].intersectionRatio > bestRatio){
+              bestRatio = entries[i].intersectionRatio;
+              best = entries[i].target;
+            }
+          }
+          if (!best) return;
+          var id = best.id;
+          for (var l = 0; l < navLinks.length; l++){
+            if (navLinks[l].hash === '#' + id){
+              navLinks[l].classList.add('nav-active');
+              navLinks[l].setAttribute('aria-current', 'location');
+            } else {
+              navLinks[l].classList.remove('nav-active');
+              navLinks[l].removeAttribute('aria-current');
+            }
+          }
+        }, { rootMargin: '-40% 0px -50% 0px', threshold: [0, 0.25, 0.5, 0.75, 1] });
+        for (var se = 0; se < sectionEls.length; se++){
+          spy.observe(sectionEls[se]);
+        }
       }
     });
   </script>

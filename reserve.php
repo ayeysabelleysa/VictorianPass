@@ -85,7 +85,9 @@ if (defined('VP_SESSION_COOKIE_AUTH') && VP_SESSION_COOKIE_AUTH === true && func
 } else {
   if (empty($_SESSION['csrf_token'])) {
     // Session may be read-only — reopen in write mode to persist the CSRF token.
-    session_start();
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+      session_start();
+    }
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
   }
   $sessionCsrfToken = isset($_SESSION['csrf_token']) ? $_SESSION['csrf_token'] : '';
@@ -637,7 +639,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             // Reopen only for the short state write after all slow validation work.
-            session_start();
+            if (session_status() !== PHP_SESSION_ACTIVE) {
+              session_start();
+            }
             // Store reservation info in session for confirmation/debugging if needed
             $_SESSION['pending_reservation'] = [
               'amenity' => $amenity,
@@ -1279,7 +1283,13 @@ if (ob_get_level() > 0) { ob_end_flush(); }
                               <span class="view-rewards-badge view-rewards-badge-ok" style="background:#d1fae5; color:#065f46; padding:2px 8px; border-radius:10px; font-weight:700; font-size:0.75rem;"><i class="fa-solid fa-check" aria-hidden="true"></i> Eligible</span>
                             <?php else: ?>
                               <span class="view-rewards-badge view-rewards-badge-need" style="background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:10px; font-weight:700; font-size:0.75rem; white-space:nowrap;"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Need <?php echo number_format($amenity['points'] - $residentPoints); ?> more</span>
-                            <?php endif; ?>
+<?php endif; ?>
+
+<div id="formTimeLimit" class="form-time-limit" style="display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:24px;z-index:10000;justify-content:center;align-items:center;gap:10px;padding:14px 24px;border-radius:999px;background:#ffffff;color:#b91c1c;border:1px solid #fecaca;font-size:15px;font-weight:600;box-shadow:0 10px 30px rgba(15,23,42,.14),0 2px 6px rgba(15,23,42,.08);max-width:min(92vw,580px);text-align:center;" role="timer" aria-live="polite">
+  <i class="fa-regular fa-clock" aria-hidden="true"></i>
+  <span>Please complete this booking within <span id="formTimeLimitCountdown" style="font-variant-numeric:tabular-nums;font-weight:800;">--:--</span></span>
+</div>
+
                           </div>
                         </div>
                       </div>
@@ -1744,7 +1754,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     <button type="button" class="close-profile-modal" id="verifyCloseBtn" aria-label="Close">&times;</button>
     <h2>Confirm Details</h2>
     <div id="verifySummary" style="text-align:left;margin-top:10px"></div>
-    <div class="verify-actions" style="text-align:center;margin-top:12px;display:flex;justify-content:center;flex-wrap:wrap;">
+    <div class="verify-actions" style="text-align:center;margin-top:16px;display:flex;justify-content:center;flex-wrap:wrap;gap:10px;flex:0 0 auto;position:relative;z-index:10;">
       <button type="button" class="btn-cancel" id="verifyCancelBtn">Cancel</button>
       <button type="button" class="btn-confirm" id="verifyConfirmBtn">Confirm</button>
     </div>
@@ -4107,8 +4117,11 @@ async function changePersons(val){
     const xBtn=document.getElementById('verifyCloseBtn');
     const pBtn=document.getElementById('verifyConfirmBtn');
     window.__verifyConfirmed=false;
-    if(cBtn){ cBtn.addEventListener('click', function(){ if(vm){ vpHideModal(vm); } }); }
-    if(xBtn){ xBtn.addEventListener('click', function(){ if(vm){ vpHideModal(vm); } }); }
+    function closeVerify(){
+      if(vm){ vpHideModal(vm); }
+    }
+    if(cBtn){ cBtn.addEventListener('click', closeVerify); }
+    if(xBtn){ xBtn.addEventListener('click', closeVerify); }
     if(pBtn){
       pBtn.addEventListener('click', function(){
         showIncompleteWarnings(true);
@@ -4138,7 +4151,7 @@ async function changePersons(val){
     if (usePointsInput) {
       usePointsInput.value = usePoints ? '1' : '0';
     }
-        if(vm){ vpHideModal(vm); }
+        closeVerify();
         showToast('Details confirmed.','success');
         window.__vpSubmitting = true;
         try{ sessionStorage.setItem('reserve_submitted','1'); }catch(_){}
@@ -5408,10 +5421,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 <?php endif; ?>
 
-<div id="formTimeLimit" class="form-time-limit" style="display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:24px;z-index:9998;justify-content:center;align-items:center;gap:10px;padding:14px 24px;border-radius:999px;background:#ffffff;color:#b91c1c;border:1px solid #fecaca;font-size:15px;font-weight:600;box-shadow:0 10px 30px rgba(15,23,42,.14),0 2px 6px rgba(15,23,42,.08);max-width:min(92vw,580px);text-align:center;" role="timer" aria-live="polite">
-  <i class="fa-regular fa-clock" aria-hidden="true"></i>
-  <span>Please complete this booking within <span id="formTimeLimitCountdown" style="font-variant-numeric:tabular-nums;font-weight:800;">--:--</span></span>
-</div>
+
 
 <script>
 (function(){
@@ -5494,10 +5504,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function showFormLimit(sec){
     if (!formLimit) { return; }
-    formLimit.style.display = 'flex';
-    document.body.style.paddingBottom = '104px';
     if (formLimitCount) { formLimitCount.textContent = fmt(sec); }
     window.__vpHoldExpired = false;
+    formLimit.style.display = 'flex';
+    document.body.style.paddingBottom = '104px';
   }
   function hideFormLimit(){
     if (formLimit) { formLimit.style.display = 'none'; }
@@ -5509,8 +5519,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!hold) { return; }
     var remain = Math.floor((hold.expiresAt - Date.now()) / 1000);
     if (remain <= 0) { onExpired(); return; }
-    if (countdownEl) { countdownEl.textContent = fmt(remain); }
-    if (formLimitCount) { formLimitCount.textContent = fmt(remain); }
+    var t = fmt(remain);
+    if (countdownEl) { countdownEl.textContent = t; }
+    if (formLimitCount) { formLimitCount.textContent = t; }
   }
   function startTimer(){ stopTimer(); timer = setInterval(tick, 250); tick(); }
 
@@ -5520,24 +5531,16 @@ document.addEventListener('DOMContentLoaded', function() {
     holdField.value = '';
     hideFormLimit();
     window.__vpHoldExpired = true;
-    // Force a fresh selection: clear the chosen time so the resident cannot
-    // keep extending the limit by re-clicking the same (still unchanged) slot.
-    var stEl = document.getElementById('startTimeInput'); if (stEl) { stEl.value = ''; }
-    var etEl = document.getElementById('endTimeInput'); if (etEl) { etEl.value = ''; }
-    var tr = document.getElementById('selectedTimeRange'); if (tr) { tr.style.display = 'none'; tr.innerHTML = ''; }
-    var cont = document.getElementById('timeSlotContainer');
-    if (cont) { Array.prototype.forEach.call(cont.querySelectorAll('.slot-btn.selected'), function(b){ b.classList.remove('selected'); }); }
-    if (typeof updateActionStates === 'function') { try { updateActionStates(); } catch (e) {} }
-    showBanner('Your hold expired. Please pick the time slot again.', '', false);
-    note('Your time to complete this booking expired. Please select the time slot again.', 'warning');
-    // Booking countdown reached 0: ask the server whether an unpaid booking of
-    // this resident is now past its payment window. When one was lost it hands
-    // the browser to the Profile page, where the popup is shown.
     try {
-      fetch('reserve.php?action=expire_overdue', { method: 'GET', credentials: 'same-origin' })
-        .then(function(r){ return r.json().catch(function(){ return null; }); })
-        .then(function(j){ if (j && j.redirect) { window.location.href = j.redirect; } })
-        .catch(function(){});
+      fetch(API, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ action: 'release_hold', hold_token: (holdField && holdField.value) || '' }).toString()
+      }).catch(function(){});
+    } catch (e) {}
+    try {
+      window.location.href = <?php echo json_encode($sessionUserType === 'visitor' ? 'dashboardvisitor.php?expired=1' : 'profileresident.php?expired=1'); ?>;
     } catch (e) {}
   }
 

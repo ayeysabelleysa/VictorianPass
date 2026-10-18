@@ -976,11 +976,13 @@ select:focus {
   height: 100%;
   background: rgba(15, 23, 42, 0.55);
   backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
   align-items: center;
   justify-content: center;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   box-sizing: border-box;
+  padding: 20px;
 }
 
 #switchRewardRedemptionModal {
@@ -1061,6 +1063,9 @@ body.modal-open {
   flex-direction: column;
   overflow: hidden;
   max-width: 470px;
+  --form-time-banner-height: 0px;
+  padding-bottom: 16px;
+  position: relative;
 }
 
 #verifyModal .modal-content > h2 {
@@ -1231,7 +1236,13 @@ body.modal-open {
 
 #verifyModal .verify-actions {
   flex: 0 0 auto;
-  gap: 10px;
+  text-align: center;
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 10;
 }
 
 /* Confirm Details — grouped summary sections */
@@ -2306,12 +2317,20 @@ input:focus-visible {
 @media (max-width:640px) {
   .modal { padding: 14px 12px; }
   .modal-content { padding: 24px 18px 20px; max-height: calc(100vh - 28px); }
+  #verifyModal .modal-content { padding-bottom: 16px; }
 }
 @media (max-width:480px) {
-  #verifyModal .modal-content { padding: 20px 16px 16px; width: 100%; }
+  #verifyModal .modal-content { padding: 20px 16px 16px; width: 100%; padding-bottom: 16px; }
   #verifyModal .verify-actions { flex-direction: column; gap: 8px; }
   #verifyModal .verify-actions .btn-confirm,
   #verifyModal .verify-actions .btn-cancel { width: 100%; padding: 12px 16px; }
+}
+
+/* Desktop: leave room under Cancel/Confirm for the floating timer overlay. */
+@media (min-width: 768px) {
+  #verifyModal .modal-content {
+    padding-bottom: calc(var(--timer-height, 56px) + 24px);
+  }
 }
 
 /* ============ View Rewards modal — MOBILE ONLY ============ */

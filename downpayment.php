@@ -136,6 +136,18 @@ if ((!is_array($pending) || empty($pending)) && $ref_code !== '' && ($con instan
     }
 }
 
+// Active hold for this pending booking: expose its shared expiry timestamp so
+// the page can show the same "Please complete this booking within" countdown
+// as the reserve page (timestamp based, so reloads don't reset it).
+$dpHoldToken = is_array($pending) ? (string)($pending['hold_token'] ?? '') : '';
+$dpHoldExpiresAt = '';
+if ($dpHoldToken !== '' && $con instanceof mysqli && function_exists('vpFindHoldByToken')) {
+    $dpHoldRow = vpFindHoldByToken($con, $dpHoldToken);
+    if ($dpHoldRow && (string)($dpHoldRow['status'] ?? '') === 'held') {
+        $dpHoldExpiresAt = (string)($dpHoldRow['expires_at'] ?? '');
+    }
+}
+
 function format_time_ap($t){
     $s = trim((string)$t);
     if ($s === '') return '--';
@@ -709,6 +721,12 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
       .proceed-content h3{font-size:0.98rem}
       .proceed-content p{font-size:0.84rem;margin:6px 0 0}
     }
+    /* Desktop: leave room under Cancel/Proceed for the floating timer overlay. */
+    @media (min-width: 768px) {
+      #proceedModal .proceed-content {
+        padding-bottom: calc(var(--timer-height, 56px) + 24px);
+      }
+    }
   </style>
   </head>
 <body>
@@ -1141,10 +1159,22 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
       if(backConfirm && backBtn){
         backConfirm.addEventListener('click', function(){
           try{ sessionStorage.removeItem('reserve_form'); }catch(_){}
+          // Release any active hold for this booking before resetting, so the
+          // timer is effectively reset and the slot is freed.
+          try {
+            var ht = <?php echo json_encode($dpHoldToken); ?>;
+            if (ht) {
+              fetch('amenity_hold_api.php', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ action: 'release_hold', hold_token: ht }).toString()
+              }).catch(function(){});
+            }
+          } catch (e) {}
           closeBack();
-          window.location.href = backBtn.getAttribute('href') || 'reserve.php';
+          window.location.href = (backBtn && backBtn.getAttribute('href')) ? backBtn.getAttribute('href') : 'reserve.php?reset_reservation=1';
         });
-      }
       if(backCancel){
         backCancel.addEventListener('click', function(){
           closeBack();
@@ -1239,6 +1269,48 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
         });
       })();
     })();
+  </script>
+
+  <div id="formTimeLimit" class="form-time-limit" style="display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:24px;z-index:10000;justify-content:center;align-items:center;gap:10px;padding:14px 24px;border-radius:999px;background:#ffffff;color:#b91c1c;border:1px solid #fecaca;font-size:15px;font-weight:600;box-shadow:0 10px 30px rgba(15,23,42,.14),0 2px 6px rgba(15,23,42,.08);max-width:min(92vw,580px);text-align:center;" role="timer" aria-live="polite">
+    <i class="fa-regular fa-clock" aria-hidden="true"></i>
+    <span>Please complete this booking within <span id="formTimeLimitCountdown" style="font-variant-numeric:tabular-nums;font-weight:800;">--:--</span></span>
+  </div>
+  <script>
+  (function(){
+    var expiresAt = Date.parse(<?php echo json_encode($dpHoldExpiresAt); ?>);
+    if (isNaN(expiresAt) || expiresAt <= Date.now()) { return; }
+    var pill = document.getElementById('formTimeLimit');
+    var count = document.getElementById('formTimeLimitCountdown');
+    if (!pill) { return; }
+    function fmt(sec){
+      sec = Math.max(0, Math.floor(sec));
+      var m = Math.floor(sec / 60), s = sec % 60;
+      return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    }
+    function tick(){
+      var remain = Math.floor((expiresAt - Date.now()) / 1000);
+      if (remain <= 0) {
+        clearInterval(timer);
+        pill.style.display = 'none';
+        document.body.style.paddingBottom = '';
+        try {
+          fetch('amenity_hold_api.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ action: 'release_hold', hold_token: <?php echo json_encode($dpHoldToken); ?> }).toString()
+          }).catch(function(){});
+        } catch (e) {}
+        try { window.location.href = <?php echo json_encode($userType === 'visitor' ? 'dashboardvisitor.php?expired=1' : 'profileresident.php?expired=1'); ?>; } catch (e) {}
+        return;
+      }
+      if (count) { count.textContent = fmt(remain); }
+    }
+    pill.style.display = 'flex';
+    document.body.style.paddingBottom = '104px';
+    tick();
+    var timer = setInterval(tick, 250);
+  })();
   </script>
 </body>
 </html>

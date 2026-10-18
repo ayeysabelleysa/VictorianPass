@@ -55,6 +55,15 @@ if ($con instanceof mysqli && function_exists('vpReservationExpirySweepAndRedire
   vpReservationExpirySweepAndRedirect($con, $userId);
 }
 $bookingExpired = function_exists('vpReservationExpiryTakeFlash') ? vpReservationExpiryTakeFlash() : null;
+// Booking countdown hit 0 (reserve/downpayment timers) and handed us here with
+// ?expired=1 — show the same one-time "Booking expired / Book another" popup.
+if (empty($bookingExpired) && isset($_GET['expired']) && (string)$_GET['expired'] === '1') {
+  $bookingExpired = ['refs' => [], 'at' => time()];
+  // The countdown ran out mid-booking: drop the half-built booking so the
+  // resident starts clean when they tap "Book another reservation".
+  unset($_SESSION['pending_reservation'], $_SESSION['dp_ref_code'], $_SESSION['flash_ref_code']);
+  $_SESSION['reserve_clear_client_draft'] = 1;
+}
 // Compose full name for display
 $fullName = trim(($user['first_name'] ?? '') . ' ' . ($user['middle_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
 

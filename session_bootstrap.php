@@ -152,7 +152,7 @@ if (defined('VP_SESSION_COOKIE_AUTH') && VP_SESSION_COOKIE_AUTH === true) {
   }
 }
 
-if (!$vpCookieAuthOk) {
+if (!$vpCookieAuthOk && session_status() !== PHP_SESSION_ACTIVE) {
   if (defined('VP_SESSION_READONLY') && VP_SESSION_READONLY === true) {
     session_start(['read_and_close' => true]);
   } else {
