@@ -3966,10 +3966,6 @@ async function changePersons(val){
     formEl.addEventListener('submit', async function(e){
       e.preventDefault();
       if(submitting){ return; }
-      if(queue && queue.lastStatus==='waiting'){
-        showToast('You are waiting in the queue. You can continue after your slot is offered.','warning');
-        return;
-      }
       persistForm();
       if(typeof formIsComplete==='function' && !formIsComplete()){
         showIncompleteWarnings(true);
@@ -4497,8 +4493,7 @@ async function changePersons(val){
     const submitBtn=document.getElementById('submitBtn');
     const gate=document.getElementById('submitAllowed');
     const missing=(typeof getNextButtonMissingFields==='function')?getNextButtonMissingFields():[];
-    const waitingInQueue=!!(queue && queue.lastStatus==='waiting');
-    const allowed=missing.length===0 && !waitingInQueue;
+    const allowed=missing.length===0;
     if(submitBtn){
       if(allowed){
         submitBtn.classList.remove('disabled');
@@ -4508,10 +4503,8 @@ async function changePersons(val){
       } else {
         submitBtn.classList.add('disabled');
         submitBtn.setAttribute('aria-disabled','true');
-        submitBtn.setAttribute('disabled','disabled');
-        submitBtn.title=waitingInQueue
-          ? 'You are waiting in the queue. You can continue after your slot is offered.'
-          : 'Next is blocked - complete the highlighted fields to continue: ' + missing.join(', ');
+        submitBtn.removeAttribute('disabled');
+        submitBtn.title='Next is blocked - complete the highlighted fields to continue: ' + missing.join(', ');
       }
     }
     const sw=document.getElementById('submitWrap'); if(sw){ sw.style.display = 'flex'; }
@@ -4827,14 +4820,6 @@ async function changePersons(val){
     });
   }
   function isHoldEntry(t){ return !!(t && (t.hold === 1 || t.hold === true || t.status === 'HELD')); }
-  function isWaitingForCurrentQueueSlot(){
-    return !!(queue && queue.lastStatus==='waiting' && queue.sig && queue.sig===signature());
-  }
-  function isWaitingForQueueTimeSlot(amenity,date,startTime){
-    return !!(queue && queue.lastStatus==='waiting' && queue.slot
-      && queue.slot.amenity===amenity && queue.slot.start_date===date
-      && norm(queue.slot.start_time)===norm(startTime));
-  }
   function slotOverlapSome(amenity,startHour,requestedHours,booked,selectedDate,pred){ const hrs=getAmenityHours(amenity); const maxHour=parseInt(hrs.max.split(':')[0],10); const wHours=Math.max(1,requestedHours||1); const sM=toMinutes(`${String(startHour).padStart(2,'0')}:00`); const eM=toMinutes(`${String(startHour+wHours).padStart(2,'0')}:00`); return (booked||[]).some(function(t){ if(!pred(t)) return false; if(selectedDate && t.start_date && t.end_date && (t.end_date < selectedDate || t.start_date > selectedDate)) return false; if(!t.has_time){ const bS=parseInt(hrs.min.split(':')[0],10); return !(eM<=bS || sM>=maxHour); } const ts=toMinutes(t.start), te=toMinutes(t.end); return !(eM<=ts || sM>=te); }); }
   // True only when the overlap comes EXCLUSIVELY from other guests' live holds
   // (own hold entries are never returned by the API) - a real paid/pending
@@ -4895,7 +4880,7 @@ displaySlotError('Please select the number of hours before choosing a start time
       });
       return;
     }
-    window.__slotRenderTokenCounter=(window.__slotRenderTokenCounter||0)+1; const __token=window.__slotRenderTokenCounter; window.__activeSlotRenderToken=__token; if(!date){ container.innerHTML=''; if(notice){ notice.style.display='none'; notice.textContent=''; notice.classList.remove('notice-available','notice-partly','notice-disabled'); } const sErr2=document.getElementById('timeSlotError'); if(sErr2){ sErr2.style.display='none'; sErr2.textContent=''; } return; } fetchBookedTimesFor(date).then(data=>{ if(window.__activeSlotRenderToken!==__token) return; const booked=data.times||[]; window.__bookedTimesForDate=booked||[]; let anyEnabled=false; let disabledCount=0; slots.forEach(slot=>{ const startHour=parseInt(slot.value.split(':')[0],10); const maxPossible=computeMaxDuration(amen,startHour,booked,date); const serverTaken=slotOverlapSome(amen,startHour,hours,booked,date,function(t){ return !isHoldEntry(t); }); const eventBooked=serverTaken && (window.__vpWaitlistBookedSlots||[]).some(function(item){ if(item.amenity!==amen || date<item.start_date || date>item.end_date) return false; if(!item.start_time || !item.end_time) return true; const slotStart=startHour*60; const slotEnd=(startHour+Math.max(1,hours))*60; return slotStart<toMinutes(item.end_time) && slotEnd>toMinutes(item.start_time); }); const valid=(maxPossible>=hours); const btn=document.createElement('button'); btn.type='button'; btn.className='slot-btn airbnb'; btn.textContent=eventBooked ? slot.label+' \u2014 Booked' : slot.label; btn.dataset.slot=slot.value; if(!valid){ disabledCount++; const taken=eventBooked || isSlotTakenByBooking(amen,startHour,hours,booked,date); const held=!eventBooked && taken && isSlotHeldByOthers(amen,startHour,hours,booked,date); btn.classList.add(taken?'taken':'unavailable'); btn.setAttribute('aria-disabled','true'); if(eventBooked){ btn.disabled=true; btn.dataset.status='booked'; btn.title='Booked \u2014 this queued slot has been taken.'; } else if(held){ btn.dataset.status='held'; btn.title='On hold \u2014 another guest is holding this slot while their timer runs.'; } btn.onclick=function(){ showToast(eventBooked ? 'This slot is booked. Please choose another time.' : held ? 'This start time is on hold for another guest while their timer runs. Please select a different start time or date.' : taken ? 'This start time has already been booked by another guest. Please select a different start time or date.' : 'This start time cannot accommodate the selected duration. Please choose a different start time or duration.','warning'); }; } else { anyEnabled=true; btn.classList.add('available'); btn.onclick=function(){ selectTimeSlot(slot.value); }; } container.appendChild(btn); }); let hasBookedHours=false; (booked||[]).forEach(function(t){ if(!t.has_time){ hasBookedHours=true; return; } const bS=parseInt(String(t.start).split(':')[0],10); const bE=parseInt(String(t.end).split(':')[0],10); if(bE>bS){ hasBookedHours=true; } }); if(notice){ notice.classList.remove('notice-available','notice-partly','notice-disabled'); if(hasBookedHours && !anyEnabled){ notice.style.display='block'; notice.textContent='Fully Booked — no start times are available for this date.'; notice.classList.add('notice-disabled'); } else if(hasBookedHours && disabledCount>0){ notice.style.display='block'; notice.textContent='Partially Booked — some start times are unavailable.'; notice.classList.add('notice-partly'); } else { notice.style.display='block'; notice.textContent='All start times are available — please select your preferred start time.'; notice.classList.add('notice-available'); } } if(!anyEnabled){ showTimeError('No start times are available for the selected duration. Please adjust the number of hours.'); } else { showTimeError(''); } const st=document.getElementById('startTimeInput').value; if(st){ const selBtn=Array.from(container.children).find(b=>b.tagName==='BUTTON' && b.dataset.slot===st); if(selBtn && selBtn.classList.contains('available') && !isWaitingForCurrentQueueSlot()){ selBtn.classList.add('selected'); window.__vpLastClearedSlot=null; } else if(selBtn && !isWaitingForCurrentQueueSlot()){ document.getElementById('startTimeInput').value=''; const et=document.getElementById('endTimeInput'); if(et){ et.value=''; } const tr=document.getElementById('selectedTimeRange'); if(tr){ tr.style.display='none'; tr.innerHTML=''; } const tsn=document.getElementById('selectedTimeNote'); if(tsn){ tsn.style.display='none'; } displaySlotError('Your previously selected start time is no longer available. Please choose another start time.'); if(window.__vpLastClearedSlot!==st){ window.__vpLastClearedSlot=st; showToast('<i class=\"fa-solid fa-triangle-exclamation\" aria-hidden=\"true\"></i> Your previously selected start time is no longer available. Please choose another start time.','warning'); } if(typeof markDirty==='function'){ markDirty('startTimeInput'); markDirty('endTimeInput'); } if(typeof persistForm==='function'){ persistForm(); } if(typeof updateSelectedTimeRange==='function'){ updateSelectedTimeRange(); } if(typeof updateBookingSummary==='function'){ updateBookingSummary(); } } } updateActionStates(); }); }
+    window.__slotRenderTokenCounter=(window.__slotRenderTokenCounter||0)+1; const __token=window.__slotRenderTokenCounter; window.__activeSlotRenderToken=__token; if(!date){ container.innerHTML=''; if(notice){ notice.style.display='none'; notice.textContent=''; notice.classList.remove('notice-available','notice-partly','notice-disabled'); } const sErr2=document.getElementById('timeSlotError'); if(sErr2){ sErr2.style.display='none'; sErr2.textContent=''; } return; } fetchBookedTimesFor(date).then(data=>{ if(window.__activeSlotRenderToken!==__token) return; const booked=data.times||[]; window.__bookedTimesForDate=booked||[]; let anyEnabled=false; let disabledCount=0; slots.forEach(slot=>{ const startHour=parseInt(slot.value.split(':')[0],10); const maxPossible=computeMaxDuration(amen,startHour,booked,date); const serverTaken=slotOverlapSome(amen,startHour,hours,booked,date,function(t){ return !isHoldEntry(t); }); const eventBooked=serverTaken && (window.__vpWaitlistBookedSlots||[]).some(function(item){ if(item.amenity!==amen || date<item.start_date || date>item.end_date) return false; if(!item.start_time || !item.end_time) return true; const slotStart=startHour*60; const slotEnd=(startHour+Math.max(1,hours))*60; return slotStart<toMinutes(item.end_time) && slotEnd>toMinutes(item.start_time); }); const valid=(maxPossible>=hours); const btn=document.createElement('button'); btn.type='button'; btn.className='slot-btn airbnb'; btn.textContent=eventBooked ? slot.label+' \u2014 Booked' : slot.label; btn.dataset.slot=slot.value; if(!valid){ disabledCount++; const taken=eventBooked || isSlotTakenByBooking(amen,startHour,hours,booked,date); const held=!eventBooked && taken && isSlotHeldByOthers(amen,startHour,hours,booked,date); btn.classList.add(taken?'taken':'unavailable'); btn.setAttribute('aria-disabled','true'); if(eventBooked){ btn.disabled=true; btn.dataset.status='booked'; btn.title='Booked \u2014 this queued slot has been taken.'; } else if(held){ btn.dataset.status='held'; btn.title='On hold \u2014 another guest is holding this slot while their timer runs.'; } btn.onclick=function(){ showToast(eventBooked ? 'This slot is booked. Please choose another time.' : held ? 'This start time is on hold for another guest while their timer runs. Please select a different start time or date.' : taken ? 'This start time has already been booked by another guest. Please select a different start time or date.' : 'This start time cannot accommodate the selected duration. Please choose a different start time or duration.','warning'); }; } else { anyEnabled=true; btn.classList.add('available'); btn.onclick=function(){ selectTimeSlot(slot.value); }; } container.appendChild(btn); }); let hasBookedHours=false; (booked||[]).forEach(function(t){ if(!t.has_time){ hasBookedHours=true; return; } const bS=parseInt(String(t.start).split(':')[0],10); const bE=parseInt(String(t.end).split(':')[0],10); if(bE>bS){ hasBookedHours=true; } }); if(notice){ notice.classList.remove('notice-available','notice-partly','notice-disabled'); if(hasBookedHours && !anyEnabled){ notice.style.display='block'; notice.textContent='Fully Booked — no start times are available for this date.'; notice.classList.add('notice-disabled'); } else if(hasBookedHours && disabledCount>0){ notice.style.display='block'; notice.textContent='Partially Booked — some start times are unavailable.'; notice.classList.add('notice-partly'); } else { notice.style.display='block'; notice.textContent='All start times are available — please select your preferred start time.'; notice.classList.add('notice-available'); } } if(!anyEnabled){ showTimeError('No start times are available for the selected duration. Please adjust the number of hours.'); } else { showTimeError(''); } const st=document.getElementById('startTimeInput').value; if(st){ const selBtn=Array.from(container.children).find(b=>b.tagName==='BUTTON' && b.dataset.slot===st); if(selBtn && selBtn.classList.contains('available')){ selBtn.classList.add('selected'); window.__vpLastClearedSlot=null; } else if(selBtn){ document.getElementById('startTimeInput').value=''; const et=document.getElementById('endTimeInput'); if(et){ et.value=''; } const tr=document.getElementById('selectedTimeRange'); if(tr){ tr.style.display='none'; tr.innerHTML=''; } const tsn=document.getElementById('selectedTimeNote'); if(tsn){ tsn.style.display='none'; } displaySlotError('Your previously selected start time is no longer available. Please choose another start time.'); if(window.__vpLastClearedSlot!==st){ window.__vpLastClearedSlot=st; showToast('<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Your previously selected start time is no longer available. Please choose another start time.','warning'); } if(typeof markDirty==='function'){ markDirty('startTimeInput'); markDirty('endTimeInput'); } if(typeof persistForm==='function'){ persistForm(); } if(typeof updateSelectedTimeRange==='function'){ updateSelectedTimeRange(); } if(typeof updateBookingSummary==='function'){ updateBookingSummary(); } } } updateActionStates(); }); }
 
   function selectTimeSlot(start){ const hInput=document.getElementById('hoursInput'); const hrs=parseInt(hInput?.value||'0',10); if(!hrs || hrs<1){ showTimeError('Please select the number of hours before choosing a start time.'); return; } const amen=document.getElementById('amenityField').value; const booked=window.__bookedTimesForDate||[]; const startHour=parseInt(start.split(':')[0],10); const selDate=document.getElementById('startDateInput')?.value||''; if(computeMaxDuration(amen,startHour,booked,selDate) < Math.max(1,hrs)){ displaySlotError('This start time cannot accommodate the selected duration. Please choose a different start time or duration.'); showToast(`<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Not enough consecutive open hours remain from this start time to accommodate ${hrs} hour${hrs>1?'s':''}.`,'warning'); return; } document.getElementById('startTimeInput').value=start; computeEndTimeFromHours(); const sh=startHour, eh=sh+hrs; const tr=document.getElementById('selectedTimeRange'); if(tr){ tr.innerHTML='<i class="fa-regular fa-clock" aria-hidden="true"></i> Selected Time: '+formatTimeSlot(sh)+' - '+formatTimeSlot(eh); tr.style.display='block'; } const tn=document.getElementById('selectedTimeNote'); if(tn){ tn.style.display='none'; } const cont=document.getElementById('timeSlotContainer'); if(cont){ Array.from(cont.querySelectorAll('.slot-btn')).forEach(function(b){ b.classList.remove('selected'); }); const sel=Array.from(cont.querySelectorAll('.slot-btn')).find(function(b){ return b.dataset.slot===start; }); if(sel){ sel.classList.add('selected'); } } displaySlotError(''); showTimeError(''); updateActionStates(); showIncompleteWarnings(false); }
   function renderHoursDropdownForAmenity(){
@@ -4928,18 +4913,6 @@ displaySlotError('Please select the number of hours before choosing a start time
     const closingSlot=formatTimeSlot(parseInt((hrs.max||'18:00').split(':')[0],10));
     Array.from(container.querySelectorAll('.slot-btn')).forEach(function(btn){
       const ds=btn.dataset.slot; if(!ds) return;
-      if(isWaitingForQueueTimeSlot(amen,selectedDate,ds)){
-        btn.classList.remove('available','selected','taken');
-        btn.classList.add('unavailable');
-        btn.disabled=true;
-        btn.dataset.queueWaiting='1';
-        btn.title="You're in the queue for this time. It isn't reserved for you yet.";
-        return;
-      }
-      if(btn.dataset.queueWaiting==='1'){
-        btn.disabled=false;
-        delete btn.dataset.queueWaiting;
-      }
       const sh=parseInt(ds.split(':')[0],10);
       const maxPossible=computeMaxDuration(amen,sh,booked,selectedDate);
       const isPastOnToday = (selectedDate===todayStrLocal) && (sh<currentHour || (sh===currentHour && currentMinute>0));
@@ -6112,8 +6085,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }, data.message, '', prev !== 'booked');
       }
       renderQueue(data);
-      decorateSlotButtons();
-      updateActionStates();
       if (data.status === 'offered' && prev !== 'offered') {
         note("It's open now! Claim your slot before the timer expires.", 'success');
         if (window.__vpRefreshAvailability) { window.__vpRefreshAvailability(); }
@@ -6141,8 +6112,6 @@ document.addEventListener('DOMContentLoaded', function() {
         setQueueToken(data.waitlist_token, sig, s);
         queue.lastStatus = data.status || 'waiting';
         renderQueue(data);
-        decorateSlotButtons();
-        updateActionStates();
         startQueuePoll();
         if (!data.duplicate) { note("You're in the Queue! We'll hold your place.", 'info'); }
       } else if (data && data.message) {
@@ -6159,8 +6128,6 @@ document.addEventListener('DOMContentLoaded', function() {
     queue = null;
     if (waitlistField) { waitlistField.value = ''; }
     if (qOverlay) { qOverlay.style.display = 'none'; }
-    decorateSlotButtons();
-    updateActionStates();
     if (token) {
       api({ action: 'waitlist_leave', waitlist_token: token });
       if (!opts.silent) { note('You left the waiting line.', 'success'); }
