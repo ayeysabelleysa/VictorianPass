@@ -1,6 +1,7 @@
 <?php
 header('Content-Type: application/json');
 require_once 'connect.php';
+require_once __DIR__ . '/amenity_holds.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   echo json_encode(['success' => false, 'message' => 'Invalid request method']);
@@ -34,17 +35,25 @@ if ($ref_code === '') {
 // Auto-verify payment: set receipt_path stub and mark verified
 $now = date('Y-m-d H:i:s');
 $stubPath = 'gcash_paid';
-$stmt = $con->prepare("UPDATE reservations SET receipt_path = ?, payment_status = 'verified', verification_date = ? WHERE ref_code = ?");
-if (!$stmt) {
-  echo json_encode(['success' => false, 'message' => 'Failed to prepare statement']);
-  exit;
-}
-$stmt->bind_param('sss', $stubPath, $now, $ref_code);
-if ($stmt->execute()) {
+try {
+  vpAmenityHoldsEnsureSchema($con);
+  $con->begin_transaction();
+  $stmt = $con->prepare("UPDATE reservations SET receipt_path = ?, payment_status = 'verified', verification_date = ? WHERE ref_code = ?");
+  if (!$stmt) {
+    throw new RuntimeException('Failed to prepare payment verification: ' . $con->error);
+  }
+  $stmt->bind_param('sss', $stubPath, $now, $ref_code);
+  if (!$stmt->execute()) {
+    throw new RuntimeException('Failed to update payment status: ' . $stmt->error);
+  }
+  $stmt->close();
+  vpNotifyQueuedUsersForReservationReference($con, $ref_code);
+  $con->commit();
   echo json_encode(['success' => true, 'message' => 'Payment auto-verified', 'ref_code' => $ref_code]);
-} else {
-  echo json_encode(['success' => false, 'message' => 'Failed to update reservation']);
+} catch (Throwable $e) {
+  $con->rollback();
+  error_log('auto_verify_downpayment queue notification failed: ' . $e->getMessage());
+  echo json_encode(['success' => false, 'message' => 'Failed to verify payment and notify queued users']);
 }
-$stmt->close();
 $con->close();
 ?>

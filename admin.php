@@ -4,6 +4,10 @@ ini_set('session.gc_maxlifetime', (string)$staffInactivityLimit);
 require_once __DIR__ . '/session_bootstrap.php';
 include 'connect.php';
 require_once __DIR__ . '/qr_url_helpers.php';
+require_once __DIR__ . '/amenity_holds.php';
+if ($con instanceof mysqli && !$con->connect_errno) {
+    vpAmenityHoldsEnsureSchema($con);
+}
 
 $isReservationDetailsAjax = isset($_GET['action']) && in_array($_GET['action'], [
   'get_reservation_details',
@@ -2618,7 +2622,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $approval_status = ($action == 'approve_request') ? 'approved' : 'denied';
             $staff_id = $_SESSION['staff_id'] ?? null;
             $reasonToSave = ($approval_status === 'denied') ? $denialReason : null;
-            $conflict = false; $amenity = ''; $start = ''; $end = ''; $st = ''; $et = '';
+            $conflict = false; $amenity = ''; $start = ''; $end = ''; $st = ''; $et = ''; $bookingUserId = 0;
 
             // Try updating guest_forms
             $stmtGFCheck = $con->prepare("SELECT id FROM guest_forms WHERE id = ?");
@@ -2629,11 +2633,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 // Load details for conflict check (handle DBs without time columns)
                 $hasGt = $con->query("SHOW COLUMNS FROM guest_forms LIKE 'start_time'");
                 $hasGe = $con->query("SHOW COLUMNS FROM guest_forms LIKE 'end_time'");
-                $selectFields = "amenity, start_date, end_date" . (($hasGt && $hasGt->num_rows>0)?", start_time":"") . (($hasGe && $hasGe->num_rows>0)?", end_time":"");
+                $selectFields = "amenity, start_date, end_date, resident_user_id" . (($hasGt && $hasGt->num_rows>0)?", start_time":"") . (($hasGe && $hasGe->num_rows>0)?", end_time":"");
                 $stmtInfo = $con->prepare("SELECT $selectFields FROM guest_forms WHERE id = ?");
                 $stmtInfo->bind_param('i', $reservation_id);
                 $stmtInfo->execute(); $resInfo = $stmtInfo->get_result();
-                if($resInfo && ($row=$resInfo->fetch_assoc())){ $amenity=$row['amenity']??''; $start=$row['start_date']??''; $end=$row['end_date']??''; $st=$row['start_time']??''; $et=$row['end_time']??''; }
+                if($resInfo && ($row=$resInfo->fetch_assoc())){ $amenity=$row['amenity']??''; $start=$row['start_date']??''; $end=$row['end_date']??''; $st=$row['start_time']??''; $et=$row['end_time']??''; $bookingUserId=(int)($row['resident_user_id']??0); }
                 $stmtInfo->close();
                 if ($approval_status === 'approved' && $amenity && $start && $end) {
                     $singleDay = ($start === $end && $st && $et);
@@ -2693,17 +2697,52 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $stmtUp = $con->prepare("UPDATE guest_forms SET approval_status = ?, approved_by = ?, approval_date = NOW(), denial_reason = ? WHERE id = ? AND (approval_status IS NULL OR approval_status = 'pending')");
                     $stmtUp->bind_param('sisi', $approval_status, $staff_id, $reasonToSave, $reservation_id);
                 }
-                $stmtUp->execute();
+                $notifyWaitlist = ($approval_status === 'approved' && $amenity !== '' && $start !== '' && $end !== '');
+                if ($notifyWaitlist) { $con->begin_transaction(); }
+                try {
+                    if (!$stmtUp->execute()) {
+                        throw new RuntimeException('Could not update guest approval: ' . $stmtUp->error);
+                    }
+                } catch (Throwable $e) {
+                    $stmtUp->close();
+                    if ($notifyWaitlist) { $con->rollback(); }
+                    error_log('admin guest approval failed: ' . $e->getMessage());
+                    $_SESSION['flash_notice'] = 'Could not confirm the guest request. Please try again.';
+                    $redirectPage = preg_replace('/[^a-z_]/', '', $_POST['redirect_page'] ?? 'resident_guest_forms');
+                    header('Location: admin.php?page=' . ($redirectPage ?: 'resident_guest_forms'));
+                    exit;
+                }
                 $gqChanged = $stmtUp->affected_rows;
                 $stmtUp->close();
                 /* The pending guard can refuse the write. Nothing downstream may
                    run in that case, or the resident would be told about a
                    decision that was never saved. */
                 if (!$gqChanged) {
+                    if ($notifyWaitlist) { $con->rollback(); }
                     $_SESSION['flash_notice'] = 'This guest request is no longer pending. Nothing was changed.';
                     $redirectPage = preg_replace('/[^a-z_]/', '', $_POST['redirect_page'] ?? 'resident_guest_forms');
                     header('Location: admin.php?page=' . ($redirectPage ?: 'resident_guest_forms'));
                     exit;
+                }
+                if ($notifyWaitlist) {
+                    try {
+                        vpNotifyQueuedUsersOfBookedSlot($con, [
+                            'amenity' => $amenity,
+                            'user_id' => $bookingUserId,
+                            'start_date' => $start,
+                            'end_date' => $end,
+                            'start_time' => $st,
+                            'end_time' => $et,
+                        ]);
+                        $con->commit();
+                    } catch (Throwable $e) {
+                        $con->rollback();
+                        error_log('admin guest booking queue notification failed: ' . $e->getMessage());
+                        $_SESSION['flash_notice'] = 'Could not confirm the guest request. Please try again.';
+                        $redirectPage = preg_replace('/[^a-z_]/', '', $_POST['redirect_page'] ?? 'resident_guest_forms');
+                        header('Location: admin.php?page=' . ($redirectPage ?: 'resident_guest_forms'));
+                        exit;
+                    }
                 }
                 if ($approval_status === 'approved') {
                     generateQrForGuestForm($con, $reservation_id);
@@ -2788,10 +2827,33 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                   exit;
                 }
                 $query = "UPDATE reservations SET approval_status = ?, approved_by = ?, approval_date = NOW(), denial_reason = ? WHERE id = ?";
-                $stmt = $con->prepare($query);
-                $stmt->bind_param("sisi", $approval_status, $staff_id, $reasonToSave, $reservation_id);
-                $stmt->execute();
-                $stmt->close();
+                if ($approval_status === 'approved') {
+                    $con->begin_transaction();
+                }
+                try {
+                    $stmt = $con->prepare($query);
+                    if (!$stmt) {
+                        throw new RuntimeException('Could not prepare reservation approval: ' . $con->error);
+                    }
+                    $stmt->bind_param("sisi", $approval_status, $staff_id, $reasonToSave, $reservation_id);
+                    if (!$stmt->execute()) {
+                        throw new RuntimeException('Could not update reservation approval: ' . $stmt->error);
+                    }
+                    $stmt->close();
+                    if ($approval_status === 'approved') {
+                        vpNotifyQueuedUsersForReservation($con, (int)$reservation_id);
+                        $con->commit();
+                    }
+                } catch (Throwable $e) {
+                    if ($approval_status === 'approved') {
+                        $con->rollback();
+                    }
+                    error_log('admin reservation approval notification failed: ' . $e->getMessage());
+                    $_SESSION['flash_notice'] = 'Could not confirm the reservation. Please try again.';
+                    $redir = isset($_POST['redirect_page']) ? preg_replace('/[^a-z_]/', '', $_POST['redirect_page']) : 'visitor_requests';
+                    header('Location: admin.php?page=' . ($redir ?: 'visitor_requests'));
+                    exit;
+                }
                 if ($approval_status === 'approved') {
                     generateQrForReservation($con, $reservation_id);
                 }
@@ -2831,9 +2893,33 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             
             // Update reservation status (column ensured above)
             $query = "UPDATE reservations SET status = ?, denial_reason = ? WHERE id = ?";
-            $stmt = $con->prepare($query);
-            $stmt->bind_param("ssi", $status, $reasonToSave, $reservation_id);
-            $stmt->execute();
+            if ($status === 'approved') {
+                $con->begin_transaction();
+            }
+            try {
+                $stmt = $con->prepare($query);
+                if (!$stmt) {
+                    throw new RuntimeException('Could not prepare reservation status update: ' . $con->error);
+                }
+                $stmt->bind_param("ssi", $status, $reasonToSave, $reservation_id);
+                if (!$stmt->execute()) {
+                    throw new RuntimeException('Could not update reservation status: ' . $stmt->error);
+                }
+                $stmt->close();
+                if ($status === 'approved') {
+                    vpNotifyQueuedUsersForReservation($con, (int)$reservation_id);
+                    $con->commit();
+                }
+            } catch (Throwable $e) {
+                if ($status === 'approved') {
+                    $con->rollback();
+                }
+                error_log('admin reservation status notification failed: ' . $e->getMessage());
+                $_SESSION['flash_notice'] = 'Could not confirm the reservation. Please try again.';
+                $redirect_page = $_POST['redirect_page'] ?? 'requests';
+                header("Location: admin.php?page=" . $redirect_page);
+                exit;
+            }
 
             // Generate QR code upon approval
             if ($status === 'approved') {
@@ -2975,10 +3061,33 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $c2 = $con->query("SHOW COLUMNS FROM reservations LIKE 'approval_date'");
                 if($c2 && $c2->num_rows===0){ @$con->query("ALTER TABLE reservations ADD COLUMN approval_date DATETIME NULL"); }
 
-                $stmt = $con->prepare("UPDATE reservations SET approval_status = ?, approved_by = ?, approval_date = NOW(), denial_reason = ? WHERE id = ? AND (entry_pass_id IS NULL OR entry_pass_id = 0)");
-                $stmt->bind_param('sisi', $approval_status, $staff_id, $reasonToSave, $rr_id);
-                $stmt->execute();
-                $stmt->close();
+                if ($approval_status === 'approved') {
+                    $con->begin_transaction();
+                }
+                try {
+                    $stmt = $con->prepare("UPDATE reservations SET approval_status = ?, approved_by = ?, approval_date = NOW(), denial_reason = ? WHERE id = ? AND (entry_pass_id IS NULL OR entry_pass_id = 0)");
+                    if (!$stmt) {
+                        throw new RuntimeException('Could not prepare reservation approval: ' . $con->error);
+                    }
+                    $stmt->bind_param('sisi', $approval_status, $staff_id, $reasonToSave, $rr_id);
+                    if (!$stmt->execute()) {
+                        throw new RuntimeException('Could not update reservation approval: ' . $stmt->error);
+                    }
+                    $stmt->close();
+                    if ($approval_status === 'approved') {
+                        vpNotifyQueuedUsersForReservation($con, $rr_id);
+                        $con->commit();
+                    }
+                } catch (Throwable $e) {
+                    if ($approval_status === 'approved') {
+                        $con->rollback();
+                    }
+                    error_log('admin resident reservation booking notification failed: ' . $e->getMessage());
+                    $_SESSION['flash_notice'] = 'Could not confirm the reservation. Please try again.';
+                    $redirect_page = $_POST['redirect_page'] ?? 'requests';
+                    header("Location: admin.php?page=" . $redirect_page);
+                    exit;
+                }
 
                 if ($approval_status === 'approved') {
                     generateQrForReservation($con, $rr_id);
@@ -3053,25 +3162,55 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $staff_id = $_SESSION['staff_id'] ?? null;
             $reasonToSave = ($payment_status === 'rejected') ? $denialReason : null;
             
-            // Update payment status
-            $query = "UPDATE reservations SET payment_status = ?, verified_by = ?, verification_date = NOW(), denial_reason = ? WHERE id = ?";
-            $stmt = $con->prepare($query);
-            $stmt->bind_param("sisi", $payment_status, $staff_id, $reasonToSave, $reservation_id);
-            $stmt->execute();
-            if ($payment_status === 'rejected') {
-              $stmtInc = $con->prepare("UPDATE reservations SET receipt_attempts = COALESCE(receipt_attempts,0) + 1 WHERE id = ?");
-              $stmtInc->bind_param('i', $reservation_id);
-              $stmtInc->execute();
-              $stmtInc->close();
-            }
-            
             $refCode = null; $entryId = null; $amenityName = null; $notifUserId = null; $userType = null; $startDate = null; $startTime = null; $endTime = null; $attempts = 0;
-            $stmtInfo = $con->prepare("SELECT r.ref_code, r.entry_pass_id, r.amenity, r.approval_status, r.user_id, r.start_date, r.start_time, r.end_time, r.receipt_attempts, u.user_type FROM reservations r LEFT JOIN users u ON r.user_id = u.id WHERE r.id = ? LIMIT 1");
-            $stmtInfo->bind_param('i', $reservation_id);
-            $stmtInfo->execute(); $resInfo = $stmtInfo->get_result();
-            $approvedNow=false; $approvalStatusRes=null;
-            if($resInfo && ($rw=$resInfo->fetch_assoc())){ $refCode = $rw['ref_code'] ?? null; $entryId = $rw['entry_pass_id'] ?? null; $amenityName = $rw['amenity'] ?? null; $approvalStatusRes = $rw['approval_status'] ?? null; $notifUserId = intval($rw['user_id'] ?? 0); $userType = strtolower($rw['user_type'] ?? ''); $startDate = $rw['start_date'] ?? null; $startTime = $rw['start_time'] ?? null; $endTime = $rw['end_time'] ?? null; $attempts = intval($rw['receipt_attempts'] ?? 0); }
-            $stmtInfo->close();
+            $approvalStatusRes = null;
+            $con->begin_transaction();
+            try {
+                $query = "UPDATE reservations SET payment_status = ?, verified_by = ?, verification_date = NOW(), denial_reason = ? WHERE id = ?";
+                $stmt = $con->prepare($query);
+                if (!$stmt) {
+                    throw new RuntimeException('Could not prepare payment verification: ' . $con->error);
+                }
+                $stmt->bind_param("sisi", $payment_status, $staff_id, $reasonToSave, $reservation_id);
+                if (!$stmt->execute()) {
+                    throw new RuntimeException('Could not update payment status: ' . $stmt->error);
+                }
+                $stmt->close();
+                if ($payment_status === 'rejected') {
+                  $stmtInc = $con->prepare("UPDATE reservations SET receipt_attempts = COALESCE(receipt_attempts,0) + 1 WHERE id = ?");
+                  if (!$stmtInc) {
+                    throw new RuntimeException('Could not update receipt attempts: ' . $con->error);
+                  }
+                  $stmtInc->bind_param('i', $reservation_id);
+                  if (!$stmtInc->execute()) {
+                    throw new RuntimeException('Could not update receipt attempts: ' . $stmtInc->error);
+                  }
+                  $stmtInc->close();
+                }
+
+                $stmtInfo = $con->prepare("SELECT r.ref_code, r.entry_pass_id, r.amenity, r.approval_status, r.user_id, r.start_date, r.start_time, r.end_time, r.receipt_attempts, u.user_type FROM reservations r LEFT JOIN users u ON r.user_id = u.id WHERE r.id = ? LIMIT 1");
+                if (!$stmtInfo) {
+                    throw new RuntimeException('Could not load the updated reservation: ' . $con->error);
+                }
+                $stmtInfo->bind_param('i', $reservation_id);
+                if (!$stmtInfo->execute()) {
+                    throw new RuntimeException('Could not load the updated reservation: ' . $stmtInfo->error);
+                }
+                $resInfo = $stmtInfo->get_result();
+                if($resInfo && ($rw=$resInfo->fetch_assoc())){ $refCode = $rw['ref_code'] ?? null; $entryId = $rw['entry_pass_id'] ?? null; $amenityName = $rw['amenity'] ?? null; $approvalStatusRes = $rw['approval_status'] ?? null; $notifUserId = intval($rw['user_id'] ?? 0); $userType = strtolower($rw['user_type'] ?? ''); $startDate = $rw['start_date'] ?? null; $startTime = $rw['start_time'] ?? null; $endTime = $rw['end_time'] ?? null; $attempts = intval($rw['receipt_attempts'] ?? 0); }
+                $stmtInfo->close();
+                if ($payment_status === 'verified') {
+                    vpNotifyQueuedUsersForReservation($con, (int)$reservation_id);
+                }
+                $con->commit();
+            } catch (Throwable $e) {
+                $con->rollback();
+                error_log('admin payment verification queue notification failed: ' . $e->getMessage());
+                $_SESSION['flash_notice'] = 'Could not verify the payment. Please try again.';
+                $redirectPage = isset($_POST['redirect_page']) ? preg_replace('/[^a-z_]/', '', $_POST['redirect_page']) : 'requests';
+                header('Location: admin.php?page=' . ($redirectPage ?: 'requests'));
+                exit;
+            }
             if ($payment_status === 'verified' && $refCode) {
             }
             if ($attempts >= 3 && $payment_status === 'rejected') {

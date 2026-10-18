@@ -6,6 +6,10 @@ if (session_status() === PHP_SESSION_ACTIVE) {
 }
 header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/connect.php';
+require_once __DIR__ . '/amenity_holds.php';
+if ($con instanceof mysqli && !$con->connect_errno) {
+    vpAmenityHoldsEnsureSchema($con);
+}
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'message' => 'Invalid request method']);
@@ -90,8 +94,10 @@ $currentStatus = strtolower(trim($reservation['payment_status'] ?? ''));
 $newStatus = ($currentStatus === 'rejected') ? 'pending_update' : 'pending';
 
 // Update database with receipt path and reset payment verification
+$con->begin_transaction();
 $stmt = $con->prepare("UPDATE reservations SET receipt_path = ?, payment_status = ?, verified_by = NULL, verification_date = NULL, receipt_uploaded_at = NOW() WHERE id = ? AND user_id = ?");
 if (!$stmt) {
+    $con->rollback();
     @unlink($filePath);
     echo json_encode(['success' => false, 'message' => 'Failed to update reservation']);
     exit;
@@ -99,6 +105,18 @@ if (!$stmt) {
 $stmt->bind_param('ssii', $storedPath, $newStatus, $reservationId, $sessionUserId);
 
 if ($stmt->execute() && $stmt->affected_rows === 1) {
+    try {
+        vpNotifyQueuedUsersForReservation($con, $reservationId);
+        $con->commit();
+    } catch (Throwable $e) {
+        $con->rollback();
+        $stmt->close();
+        @unlink($filePath);
+        error_log('upload_receipt queue notification failed: ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => 'Could not complete the payment submission']);
+        exit;
+    }
     if ($newStatus === 'pending_update') {
         try {
             /* Word the alert for the right kind of account: a visitor resubmit is
@@ -146,6 +164,7 @@ if ($stmt->execute() && $stmt->affected_rows === 1) {
         'payment_status' => $newStatus
     ]);
 } else {
+    $con->rollback();
     // Delete uploaded file if database update fails
     unlink($filePath);
     echo json_encode(['success' => false, 'message' => 'Failed to update database']);

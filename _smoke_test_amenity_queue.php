@@ -35,6 +35,7 @@ function wlClean($con, $amenity, $date) {
     @$con->query("DELETE FROM amenity_waitlist WHERE amenity='" . $con->real_escape_string($amenity) . "' AND start_date='" . $con->real_escape_string($date) . "'");
     @$con->query("DELETE FROM amenity_slot_holds WHERE amenity='" . $con->real_escape_string($amenity) . "' AND start_date='" . $con->real_escape_string($date) . "'");
     @$con->query("DELETE FROM reservations WHERE ref_code LIKE 'TESTQA-%'");
+    @$con->query("DELETE FROM notifications WHERE title LIKE 'Queued slot booked | " . $con->real_escape_string($amenity) . " | " . $con->real_escape_string($date) . "%'");
 }
 wlClean($con, $amenity, $date);
 vpExpireHolds($con);
@@ -59,19 +60,48 @@ check('duplicate queue entry prevented', !empty($dup['duplicate']));
 echo "== 2. A submits (pending); B keeps waiting ==\n";
 $ref = 'TESTQA-' . bin2hex(random_bytes(4));
 $con->query("INSERT INTO reservations (ref_code, amenity, start_date, end_date, start_time, end_time, approval_status, status, payment_status)
-             VALUES ('$ref','" . $con->real_escape_string($amenity) . "','$date','$date','$st:00','$et:00','pending','pending','submitted')");
+             VALUES ('$ref','" . $con->real_escape_string($amenity) . "','$date','$date','$st:00','$et:00','pending','pending','pending')");
 vpMarkHoldConverted($con, $aHold, $ref);
 $s = vpWaitlistOfferStatus($con, $bTok);
 check('B waiting during approval', $s['entry']['status'] === 'waiting');
 check('B not offered during pending', empty($s['slot_free']));
 
-echo "== 3. A approved; B gets unavailable + alternatives ==\n";
+echo "== 2b. A submits downpayment; B is removed and notified ==\n";
+$con->begin_transaction();
+$con->query("UPDATE reservations SET payment_status='submitted' WHERE ref_code='$ref'");
+vpNotifyQueuedUsersForReservationReference($con, $ref);
+$con->commit();
+$paidQueue = $con->query("SELECT id FROM amenity_waitlist WHERE offer_token='" . $con->real_escape_string($bTok) . "'");
+check('B queue entry removed on payment', !$paidQueue || $paidQueue->num_rows === 0);
+$j = vpRecordWaitlist($con, ['user_id'=>$B,'amenity'=>$amenity,'start_date'=>$date,'end_date'=>$date,'start_time'=>$st,'end_time'=>$et]);
+$bTok = $j['entry']['offer_token'];
+$con->query("UPDATE reservations SET payment_status='pending' WHERE ref_code='$ref'");
+
+echo "== 3. A approved; B is removed and notified ==\n";
 $con->query("UPDATE reservations SET approval_status='approved', status='approved' WHERE ref_code='$ref'");
 $s = vpWaitlistOfferStatus($con, $bTok);
-check('B marked unavailable', $s['entry']['status'] === 'unavailable');
-check('B got alternatives', !empty($s['alternatives']));
-check('B message explains', stripos($s['message'], 'another resident') !== false || stripos($s['message'], 'another') !== false);
+check('B marked booked', $s['entry']['status'] === 'booked');
+check('B got required message', $s['message'] === 'The slot you queued for has been booked by another user. Please choose another time.');
+$remaining = $con->query("SELECT id FROM amenity_waitlist WHERE offer_token='" . $con->real_escape_string($bTok) . "'");
+check('B queue entry deleted', !$remaining || $remaining->num_rows === 0);
+$notice = $con->query("SELECT id FROM notifications WHERE user_id=$B AND message='The slot you queued for has been booked by another user. Please choose another time.'");
+check('B notification persisted', $notice && $notice->num_rows > 0);
 $con->query("DELETE FROM reservations WHERE ref_code='$ref'");
+
+echo "== 3b. Overlapping queue is removed; adjacent queue remains ==\n";
+wlClean($con, $amenity, $date);
+$overlap = vpRecordWaitlist($con, ['user_id'=>$B,'amenity'=>$amenity,'start_date'=>$date,'end_date'=>$date,'start_time'=>'10:30','end_time'=>'11:30']);
+$adjacent = vpRecordWaitlist($con, ['user_id'=>$C,'amenity'=>$amenity,'start_date'=>$date,'end_date'=>$date,'start_time'=>'11:00','end_time'=>'12:00']);
+$con->begin_transaction();
+vpNotifyQueuedUsersOfBookedSlot($con, [
+    'user_id'=>$A, 'amenity'=>$amenity, 'start_date'=>$date, 'end_date'=>$date,
+    'start_time'=>'10:00', 'end_time'=>'11:00'
+]);
+$con->commit();
+$overlapRemaining = $con->query("SELECT id FROM amenity_waitlist WHERE id=" . (int)$overlap['entry']['id']);
+$adjacentRemaining = $con->query("SELECT id FROM amenity_waitlist WHERE id=" . (int)$adjacent['entry']['id']);
+check('overlapping queue entry deleted', !$overlapRemaining || $overlapRemaining->num_rows === 0);
+check('adjacent non-overlapping queue stays', $adjacentRemaining && $adjacentRemaining->num_rows === 1);
 
 echo "== 4. A2 hold expires; B2 offered a fresh claim hold ==\n";
 wlClean($con, $amenity, $date);

@@ -54,6 +54,14 @@ if (!($con instanceof mysqli) || $con->connect_errno) {
 }
 
 vpAmenityHoldsEnsureSchema($con);
+// Opportunistic maintenance: on live hold traffic, drop expired hold rows at
+// most once a minute. The scheduled job (cron/amenity_hold_cleanup.php) runs
+// the same sweep even when there is no traffic.
+if (function_exists('vpMaybeCleanupExpiredHolds')) {
+    try { vpMaybeCleanupExpiredHolds($con); } catch (Throwable $e) {
+        @error_log('[hold-cleanup] opportunistic sweep failed: ' . $e->getMessage());
+    }
+}
 
 $action = (string)vpAhPost('action', '');
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
@@ -71,6 +79,37 @@ if (in_array($action, $mutating, true)) {
 }
 
 switch ($action) {
+    case 'queue_booking_notifications': {
+        [$_uid] = vpResolveIdentity();
+        if (!$_uid) {
+            vpAhJson(['success' => true, 'user_id' => null, 'notifications' => []]);
+        }
+        $items = [];
+        $stmt = $con->prepare("SELECT id, title, message FROM notifications
+                               WHERE user_id = ? AND title LIKE 'Queued slot booked | %'
+                               ORDER BY id DESC LIMIT 500");
+        if (!$stmt) {
+            error_log('[amenity-waitlist] queued notification lookup failed: ' . $con->error);
+            vpAhJson(['success' => false, 'message' => 'Could not refresh queued-slot notifications.'], 500);
+        }
+        $stmt->bind_param('i', $_uid);
+        if (!$stmt->execute()) {
+            error_log('[amenity-waitlist] queued notification lookup failed: ' . $stmt->error);
+            $stmt->close();
+            vpAhJson(['success' => false, 'message' => 'Could not refresh queued-slot notifications.'], 500);
+        }
+        $result = $stmt->get_result();
+        while ($result && ($row = $result->fetch_assoc())) {
+            $items[] = [
+                'id' => (int)$row['id'],
+                'title' => (string)$row['title'],
+                'message' => (string)$row['message'],
+            ];
+        }
+        $stmt->close();
+        vpAhJson(['success' => true, 'user_id' => (int)$_uid, 'notifications' => $items]);
+    }
+
     // ---------------------------------------------------------------------
     case 'hold_slot': {
         $res = vpAcquireHold($con, [
@@ -205,7 +244,12 @@ switch ($action) {
             }
             $token = (string)$entry['offer_token'];
         }
-        $res = vpWaitlistOfferStatus($con, $token);
+        try {
+            $res = vpWaitlistOfferStatus($con, $token);
+        } catch (Throwable $e) {
+            error_log('[amenity-waitlist] status check failed: ' . $e->getMessage());
+            vpAhJson(['success' => false, 'message' => 'Could not refresh your queue status. Please try again.'], 500);
+        }
         if (empty($res['ok'])) {
             vpAhJson(['success' => false, 'message' => $res['error'] ?? 'Lookup failed.'], 404);
         }
@@ -228,6 +272,7 @@ switch ($action) {
             'seconds_remaining' => $offerExpTs ? max(0, $offerExpTs - time()) : null,
             'amenity'           => (string)$entry['amenity'],
             'start_date'        => (string)$entry['start_date'],
+            'end_date'          => (string)$entry['end_date'],
             'start_time'        => $entry['start_time'],
             'end_time'          => $entry['end_time'],
         ]);

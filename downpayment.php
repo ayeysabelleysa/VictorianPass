@@ -4,6 +4,9 @@ include 'connect.php';
 require_once __DIR__ . '/qr_url_helpers.php';
 require_once __DIR__ . '/amenity_holds.php';
 require_once __DIR__ . '/reservation_expiry.php';
+if ($con instanceof mysqli && !$con->connect_errno) {
+    vpAmenityHoldsEnsureSchema($con);
+}
 
 function downpaymentColumnExists($con, string $col): bool {
     if (!($con instanceof mysqli)) return false;
@@ -55,6 +58,12 @@ $continue = isset($_GET['continue']) ? $_GET['continue'] : 'reserve';
 $userType = isset($_SESSION['user_type']) ? $_SESSION['user_type'] : '';
 $backTarget = 'reserve.php';
 if (isset($_GET['reset']) && $_GET['reset'] === '1') {
+    $resetPending = $_SESSION['pending_reservation'] ?? null;
+    $resetHoldToken = is_array($resetPending) ? trim((string)($resetPending['hold_token'] ?? '')) : '';
+    if ($resetHoldToken !== '' && $con instanceof mysqli && function_exists('vpReleaseHold')) {
+        [$_resetUserId, $_resetUserType, $resetOwnerKey] = vpResolveIdentity();
+        vpReleaseHold($con, $resetHoldToken, $resetOwnerKey);
+    }
     unset($_SESSION['pending_reservation'], $_SESSION['dp_ref_code'], $_SESSION['flash_ref_code'], $_SESSION['reservation_submitted']);
     $to = isset($_GET['to']) ? basename($_GET['to']) : $backTarget;
     $allowedTargets = ['dashboardvisitor.php', 'profileresident.php', 'mainpage.php', 'reserve.php'];
@@ -365,15 +374,15 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
         $pendingHoldToken = is_array($pending) ? (string)($pending['hold_token'] ?? '') : '';
         $pendingWaitlistToken = is_array($pending) ? (string)($pending['waitlist_token'] ?? '') : '';
         $txOpen = false;
-        // If a hold token was carried here, it must still be valid for this exact
-        // slot. An expired/released hold stops the booking rather than silently
-        // proceeding on a slot that is no longer reserved for this resident.
-        if ($pendingHoldToken !== '' && empty($msg) && $slotAmenity !== '' && $slotStart !== '' && $slotEnd !== '') {
+        // The pending session's hold (if any) should still be valid for this
+        // exact slot. An expired/released hold is only fatal when somebody else
+        // has taken the slot in the meantime - the locked conflict re-check
+        // below is what actually prevents double booking either way, so a
+        // resident whose hold merely timed out on a still-free slot can pay.
+        $holdValid = true;
+        if ($pendingHoldToken !== '' && $slotAmenity !== '' && $slotStart !== '' && $slotEnd !== '') {
           $holdCheck = vpValidateHoldForSlot($con, $pendingHoldToken, $slotAmenity, $slotStart, $slotEnd, $slotStartTime, $slotEndTime);
-          if (empty($holdCheck[0])) {
-            $msg = $holdCheck[1] . ' Please return to the calendar and select the slot again.';
-            if (isset($target) && is_file($target)) { @unlink($target); }
-          }
+          $holdValid = !empty($holdCheck[0]);
         }
         if (empty($msg) && $slotAmenity !== '' && $slotStart !== '' && $slotEnd !== '') {
           vpEnsureSlotLockRows($con, $slotAmenity, $slotStart, $slotEnd);
@@ -383,7 +392,9 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
           vpLockSlotRows($con, $slotAmenity, $slotStart, $slotEnd);
           $slotConflicts = vpFindConflicts($con, $slotAmenity, $slotStart, $slotEnd, $slotStartTime, $slotEndTime, $pendingHoldToken !== '' ? $pendingHoldToken : null, $ref_code);
           if (!empty($slotConflicts)) {
-            $msg = 'That time slot is no longer available. Please choose another slot.';
+            $msg = $holdValid
+              ? 'That time slot is no longer available. Please choose another slot.'
+              : 'Your hold expired and this slot is no longer available. Please choose another time.';
             $con->rollback();
             $txOpen = false;
             if (isset($target) && is_file($target)) { @unlink($target); }
@@ -498,6 +509,14 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
         // succeeded, otherwise roll everything back.
         if ($txOpen) {
           if (empty($msg)) {
+            try {
+              vpNotifyQueuedUsersForReservationReference($con, $ref_code);
+            } catch (Throwable $e) {
+              error_log('downpayment queue notification failed: ' . $e->getMessage());
+              $msg = 'Could not complete the payment submission. Please try again.';
+            }
+          }
+          if (empty($msg)) {
             $con->commit();
             if ($pendingHoldToken !== '') { vpMarkHoldConverted($con, $pendingHoldToken, $ref_code); }
             if ($pendingWaitlistToken !== '') { vpWaitlistMarkStatus($con, $pendingWaitlistToken, 'converted'); }
@@ -610,6 +629,12 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     .vs-dp-row .vs-lbl{color:#065f46;font-weight:800}
     .vs-dp-row .vs-val{color:#065f46;font-weight:800;font-size:1.02rem}
     @media (max-width:640px){.vs-row{align-items:flex-start;flex-wrap:wrap}.vs-lbl{white-space:normal}.vs-val{margin-left:auto}}
+    .form-time-limit{position:fixed;left:50%;transform:translateX(-50%);bottom:24px;z-index:10000;justify-content:center;align-items:center;gap:8px;padding:10px 18px;border-radius:999px;background:#ffffff;color:#b91c1c;border:1px solid #fecaca;font-size:13px;font-weight:600;line-height:1.2;white-space:nowrap;box-shadow:0 10px 30px rgba(15,23,42,.14),0 2px 6px rgba(15,23,42,.08);width:fit-content;max-width:calc(100vw - 24px);box-sizing:border-box;text-align:center}
+    .form-time-limit > span{white-space:nowrap}
+    #formTimeLimitCountdown{font-variant-numeric:tabular-nums;font-weight:800;white-space:nowrap}
+    @media (max-width:480px){
+      .form-time-limit{left:max(8px,env(safe-area-inset-left,0px));right:max(8px,env(safe-area-inset-right,0px));bottom:max(8px,env(safe-area-inset-bottom,0px));transform:none;width:auto;max-width:none;padding:8px 10px;gap:6px;border-radius:14px;font-size:10px}
+    }
     .toast{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:#23412e;color:#fff;padding:10px 14px;border-radius:10px;box-shadow:0 8px 18px rgba(0,0,0,.12);font-size:.9rem;z-index:1000}
     .upload-area{border:1.5px dashed #d1d5db;background:#f9fafb;padding:18px;border-radius:12px;margin-top:16px;display:flex;flex-direction:column;gap:10px}
     .upload-area .label{color:#111827;font-weight:600;font-size:.95rem}
@@ -1159,19 +1184,6 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
       if(backConfirm && backBtn){
         backConfirm.addEventListener('click', function(){
           try{ sessionStorage.removeItem('reserve_form'); }catch(_){}
-          // Release any active hold for this booking before resetting, so the
-          // timer is effectively reset and the slot is freed.
-          try {
-            var ht = <?php echo json_encode($dpHoldToken); ?>;
-            if (ht) {
-              fetch('amenity_hold_api.php', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ action: 'release_hold', hold_token: ht }).toString()
-              }).catch(function(){});
-            }
-          } catch (e) {}
           closeBack();
           window.location.href = (backBtn && backBtn.getAttribute('href')) ? backBtn.getAttribute('href') : 'reserve.php?reset_reservation=1';
         });
@@ -1271,9 +1283,9 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     })();
   </script>
 
-  <div id="formTimeLimit" class="form-time-limit" style="display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:24px;z-index:10000;justify-content:center;align-items:center;gap:10px;padding:14px 24px;border-radius:999px;background:#ffffff;color:#b91c1c;border:1px solid #fecaca;font-size:15px;font-weight:600;box-shadow:0 10px 30px rgba(15,23,42,.14),0 2px 6px rgba(15,23,42,.08);max-width:min(92vw,580px);text-align:center;" role="timer" aria-live="polite">
+  <div id="formTimeLimit" class="form-time-limit" style="display:none;" role="timer" aria-live="polite">
     <i class="fa-regular fa-clock" aria-hidden="true"></i>
-    <span>Please complete this booking within <span id="formTimeLimitCountdown" style="font-variant-numeric:tabular-nums;font-weight:800;">--:--</span></span>
+    <span>Please complete this booking within <span id="formTimeLimitCountdown">--:--</span></span>
   </div>
   <script>
   (function(){

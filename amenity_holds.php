@@ -43,6 +43,18 @@ if (!function_exists('vpAmenityHoldsEnsureSchema')) {
         $v1Done = function_exists('vpSchemaDone') && vpSchemaDone($con, 'amenity_holds_v1');
         $v2Done = function_exists('vpSchemaDone') && vpSchemaDone($con, 'amenity_holds_v2');
         $v3Done = function_exists('vpSchemaDone') && vpSchemaDone($con, 'amenity_holds_v3');
+        $con->query("CREATE TABLE IF NOT EXISTS notifications (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NULL COMMENT 'For residents',
+            entry_pass_id INT NULL COMMENT 'For visitors',
+            title VARCHAR(255) NOT NULL,
+            message TEXT NOT NULL,
+            is_read TINYINT(1) DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            type ENUM('info', 'success', 'warning', 'error') DEFAULT 'info',
+            INDEX idx_user_id (user_id),
+            INDEX idx_is_read (is_read)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
         if ($v1Done && $v2Done && $v3Done) {
             return;
         }
@@ -303,6 +315,63 @@ if (!function_exists('vpExpireHolds')) {
     }
 }
 
+if (!function_exists('vpCleanupExpiredHolds')) {
+    /**
+     * Delete holds whose window has passed. A hold is expired the moment
+     * expires_at is in the past - even if no sweep has marked it yet - so this
+     * marks first, then removes the dead rows. Converted (paid) and released
+     * rows are kept for audit; only expired rows are deleted.
+     */
+    function vpCleanupExpiredHolds(mysqli $con): int
+    {
+        vpExpireHolds($con);
+        @$con->query("DELETE FROM amenity_slot_holds
+                      WHERE status = 'expired'
+                        AND expires_at IS NOT NULL AND expires_at <= NOW()");
+        $n = ($con instanceof mysqli && $con->errno === 0) ? (int)$con->affected_rows : 0;
+        return $n > 0 ? $n : 0;
+    }
+}
+
+if (!function_exists('vpMaybeCleanupExpiredHolds')) {
+    /**
+     * Cross-request throttle so opportunistic traffic cleans up expired holds
+     * at most once every 60 seconds (the scheduled job in
+     * cron/amenity_hold_cleanup.php runs the same sweep every minute).
+     */
+    function vpMaybeCleanupExpiredHolds(mysqli $con): int
+    {
+        $last = vpAmenitySetting($con, 'hold_cleanup_last_run_at', '');
+        $lastTs = ($last !== '') ? strtotime($last) : false;
+        if ($lastTs !== false && $lastTs > 0 && (time() - $lastTs) < 60) {
+            return 0;
+        }
+        // Claim the window before doing the work so concurrent requests do not
+        // all sweep; a lost race simply skips this round.
+        $claimed = false;
+        $stmt = $con->prepare("UPDATE app_settings SET setting_value = NOW()
+                               WHERE setting_key = 'hold_cleanup_last_run_at'");
+        if ($stmt) {
+            $stmt->execute();
+            $claimed = $stmt->affected_rows > 0;
+            $stmt->close();
+        }
+        if (!$claimed) {
+            $ins = $con->prepare("INSERT IGNORE INTO app_settings (setting_key, setting_value)
+                                  VALUES ('hold_cleanup_last_run_at', NOW())");
+            if ($ins) {
+                $ins->execute();
+                $claimed = $ins->affected_rows > 0;
+                $ins->close();
+            }
+        }
+        if (!$claimed) {
+            return 0;
+        }
+        return vpCleanupExpiredHolds($con);
+    }
+}
+
 if (!function_exists('vpOwnerKeyForUser')) {
     function vpOwnerKeyForUser($userId): string
     {
@@ -528,7 +597,7 @@ if (!function_exists('vpFindConflicts')) {
         $etN = vpNormalizeTime($endTime);
         $conflicts = [];
 
-        $addIfOverlap = function (string $source, array $row, string $sDateKey, string $eDateKey, string $sTimeKey, string $eTimeKey, bool $skipUntimed = false) use (&$conflicts, $startDate, $endDate, $stN, $etN) {
+        $addIfOverlap = function (string $source, array $row, string $sDateKey, string $eDateKey, string $sTimeKey, string $eTimeKey, bool $skipUntimed = false) use (&$conflicts, $amenity, $startDate, $endDate, $stN, $etN) {
             $rS = (string)$row[$sDateKey];
             $rE = (string)($row[$eDateKey] ?: $row[$sDateKey]);
             if (!vpDateRangesOverlap($startDate, $endDate, $rS, $rE)) {
@@ -550,17 +619,21 @@ if (!function_exists('vpFindConflicts')) {
                 'source'     => $source,
                 'id'         => (int)($row['id'] ?? 0),
                 'ref'        => (string)($row['ref_code'] ?? ''),
+                'amenity'    => (string)($row['amenity'] ?? $amenity),
                 'start_date' => $rS,
                 'end_date'   => $rE,
                 'start_time' => $rSt,
                 'end_time'   => $rEt,
+                'user_id'    => (int)($row['user_id'] ?? 0),
                 'approval_status' => (string)($row['approval_status'] ?? ''),
                 'status'     => (string)($row['status'] ?? ''),
+                'payment_status' => (string)($row['payment_status'] ?? ''),
+                'has_receipt' => !empty($row['receipt_path']),
             ];
         };
 
         // 1) Confirmed / pending reservations ---------------------------------
-        $sql = "SELECT id, ref_code, start_date, end_date, start_time, end_time, approval_status, status
+        $sql = "SELECT id, ref_code, amenity, user_id, start_date, end_date, start_time, end_time, approval_status, status, payment_status, receipt_path
                 FROM reservations
                 WHERE amenity = ?
                   AND (approval_status IS NULL OR approval_status IN ('pending','approved','permission_granted'))
@@ -1040,32 +1113,37 @@ if (!function_exists('vpWaitlistOfferStatus')) {
         vpExpireHolds($con);
         $conflicts = vpFindConflicts($con, (string)$entry['amenity'], (string)$entry['start_date'], (string)$entry['end_date'], $entry['start_time'], $entry['end_time']);
 
-        // A submitted booking that is already approved/permission-granted can
-        // never be won by the queue. A merely pending booking still leaves the
-        // slot in review, so the resident keeps waiting.
-        $permanentlyTaken = false;
+        // A verified payment or confirmed booking can never be won by the
+        // queue. A merely submitted, pending booking still leaves the slot in
+        // review, so the resident keeps waiting.
+        $bookedBy = null;
         foreach ($conflicts as $c) {
             if ($c['source'] === 'hold') { continue; }
             $ap = strtolower((string)($c['approval_status'] ?? ''));
-            if ($ap === 'approved' || $ap === 'permission_granted') { $permanentlyTaken = true; break; }
+            $status = strtolower((string)($c['status'] ?? ''));
+            $payment = strtolower((string)($c['payment_status'] ?? ''));
+            if ($ap === 'approved' || $ap === 'permission_granted' || $status === 'approved' ||
+                in_array($payment, ['submitted', 'verified', 'paid'], true) ||
+                ($payment === 'pending' && !empty($c['has_receipt']))) {
+                $bookedBy = $c;
+                break;
+            }
         }
 
-        if ($permanentlyTaken) {
-            $reason = 'This slot was confirmed for another resident. Please choose another time.';
-            $alt = vpSuggestAlternatives($con, (string)$entry['amenity'], (string)$entry['start_date'], $entry['start_time'], $entry['end_time']);
-            $stmt = $con->prepare("UPDATE amenity_waitlist SET status='unavailable', last_reason=?, updated_at=NOW()
-                    WHERE id=? AND status IN ('waiting','offered')");
-            $stmt->bind_param('si', $reason, $entry['id']);
-            $stmt->execute();
-            $stmt->close();
-            if (!empty($entry['user_id'])) {
-                vpNotifyUser($con, (int)$entry['user_id'], 'Slot no longer available',
-                    'The ' . $entry['amenity'] . ' slot on ' . $entry['start_date'] . ' was confirmed for another resident. Please choose another time.', 'warning');
+        if ($bookedBy !== null) {
+            $message = 'The slot you queued for has been booked by another user. Please choose another time.';
+            $con->begin_transaction();
+            try {
+                vpNotifyQueuedUsersOfBookedSlot($con, $bookedBy);
+                $con->commit();
+            } catch (Throwable $e) {
+                $con->rollback();
+                throw $e;
             }
-            $entry['status'] = 'unavailable';
-            $entry['last_reason'] = $reason;
+            $entry['status'] = 'booked';
+            $entry['last_reason'] = $message;
             return ['ok' => true, 'entry' => $entry, 'terminal' => true, 'slot_free' => false,
-                    'position' => 0, 'total' => $total, 'message' => $reason, 'alternatives' => $alt];
+                    'position' => 0, 'total' => 0, 'message' => $message];
         }
 
         $slotFree = empty($conflicts);
@@ -1114,6 +1192,152 @@ if (!function_exists('vpWaitlistOfferStatus')) {
                 'position' => $position, 'total' => $total,
                 'offer_hold_token' => $entry['offer_hold_token'] ?? null,
                 'message' => vpWaitlistMessage($entry, $position, $total)];
+    }
+}
+
+if (!function_exists('vpNotifyQueuedUsersOfBookedSlot')) {
+    /**
+     * Delete active waitlist entries overlapping a newly booked slot and
+     * persist one notification per affected user. Call inside the booking
+     * transaction so the reservation, queue cleanup, and notifications commit
+     * or roll back together.
+     */
+    function vpNotifyQueuedUsersOfBookedSlot(mysqli $con, array $booking): int
+    {
+        $amenity = trim((string)($booking['amenity'] ?? ''));
+        $startDate = (string)($booking['start_date'] ?? '');
+        $endDate = (string)($booking['end_date'] ?? $startDate);
+        $startTime = vpNormalizeTime($booking['start_time'] ?? null);
+        $endTime = vpNormalizeTime($booking['end_time'] ?? null);
+        $bookerId = (int)($booking['user_id'] ?? 0);
+        if ($amenity === '' || $startDate === '' || $endDate === '') {
+            return 0;
+        }
+
+        $stmt = $con->prepare("SELECT id, amenity, start_date, end_date, start_time, end_time, user_id, offer_hold_token
+                               FROM amenity_waitlist
+                               WHERE status IN ('waiting','offered')
+                                 AND amenity = ?
+                                 AND start_date <= ? AND end_date >= ?
+                                 AND (start_time IS NULL OR end_time IS NULL OR ? IS NULL OR ? IS NULL
+                                      OR (start_time < ? AND end_time > ?))
+                               FOR UPDATE");
+        if (!$stmt) {
+            throw new RuntimeException('Could not find queued users for the booked slot: ' . $con->error);
+        }
+        $stmt->bind_param('sssssss', $amenity, $endDate, $startDate, $startTime, $endTime, $endTime, $startTime);
+        if (!$stmt->execute()) {
+            $error = $stmt->error;
+            $stmt->close();
+            throw new RuntimeException('Could not find queued users for the booked slot: ' . $error);
+        }
+        $result = $stmt->get_result();
+        $entries = [];
+        while ($result && ($row = $result->fetch_assoc())) {
+            $entries[] = $row;
+        }
+        $stmt->close();
+        if (!$entries) {
+            return 0;
+        }
+
+        $delete = $con->prepare("DELETE FROM amenity_waitlist WHERE id = ? AND status IN ('waiting','offered')");
+        $release = $con->prepare("UPDATE amenity_slot_holds SET status='released', updated_at=NOW()
+                                  WHERE hold_token = ? AND status='held'");
+        $notify = $con->prepare("INSERT INTO notifications (user_id, title, message, type, created_at)
+                                 VALUES (?, ?, ?, 'warning', NOW())");
+        if (!$delete || !$release || !$notify) {
+            $error = $con->error;
+            if ($delete) { $delete->close(); }
+            if ($release) { $release->close(); }
+            if ($notify) { $notify->close(); }
+            throw new RuntimeException('Could not prepare queued-user booking notifications: ' . $error);
+        }
+
+        $message = 'The slot you queued for has been booked by another user. Please choose another time.';
+        $removed = 0;
+        foreach ($entries as $entry) {
+            $entryId = (int)$entry['id'];
+            if (!empty($entry['offer_hold_token'])) {
+                $holdToken = (string)$entry['offer_hold_token'];
+                $release->bind_param('s', $holdToken);
+                if (!$release->execute()) {
+                    throw new RuntimeException('Could not release an expired queue offer hold: ' . $release->error);
+                }
+            }
+
+            $delete->bind_param('i', $entryId);
+            if (!$delete->execute()) {
+                throw new RuntimeException('Could not remove a booked waitlist entry: ' . $delete->error);
+            }
+            if ($delete->affected_rows < 1) {
+                continue;
+            }
+            $removed++;
+
+            $userId = (int)($entry['user_id'] ?? 0);
+            if ($userId <= 0 || $userId === $bookerId) {
+                continue;
+            }
+            $bookedStart = $startTime === null ? '*' : $startTime;
+            $bookedEnd = $endTime === null ? '*' : $endTime;
+            $title = 'Queued slot booked | ' . $amenity . ' | ' . $startDate . ' | ' .
+                     $endDate . ' | ' . $bookedStart . ' | ' . $bookedEnd;
+            $notify->bind_param('iss', $userId, $title, $message);
+            if (!$notify->execute()) {
+                throw new RuntimeException('Could not create a queued-user booking notification: ' . $notify->error);
+            }
+        }
+        $delete->close();
+        $release->close();
+        $notify->close();
+        return $removed;
+    }
+}
+
+if (!function_exists('vpNotifyQueuedUsersForReservation')) {
+    function vpNotifyQueuedUsersForReservation(mysqli $con, int $reservationId): int
+    {
+        $stmt = $con->prepare("SELECT amenity, user_id, start_date, end_date, start_time, end_time
+                               FROM reservations WHERE id = ? LIMIT 1");
+        if (!$stmt) {
+            throw new RuntimeException('Could not load the booked reservation: ' . $con->error);
+        }
+        $stmt->bind_param('i', $reservationId);
+        if (!$stmt->execute()) {
+            $error = $stmt->error;
+            $stmt->close();
+            throw new RuntimeException('Could not load the booked reservation: ' . $error);
+        }
+        $booking = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$booking) {
+            throw new RuntimeException('The booked reservation was not found.');
+        }
+        return vpNotifyQueuedUsersOfBookedSlot($con, $booking);
+    }
+}
+
+if (!function_exists('vpNotifyQueuedUsersForReservationReference')) {
+    function vpNotifyQueuedUsersForReservationReference(mysqli $con, string $refCode): int
+    {
+        $stmt = $con->prepare("SELECT amenity, user_id, start_date, end_date, start_time, end_time
+                               FROM reservations WHERE ref_code = ? LIMIT 1");
+        if (!$stmt) {
+            throw new RuntimeException('Could not load the booked reservation: ' . $con->error);
+        }
+        $stmt->bind_param('s', $refCode);
+        if (!$stmt->execute()) {
+            $error = $stmt->error;
+            $stmt->close();
+            throw new RuntimeException('Could not load the booked reservation: ' . $error);
+        }
+        $booking = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$booking) {
+            throw new RuntimeException('The booked reservation was not found.');
+        }
+        return vpNotifyQueuedUsersOfBookedSlot($con, $booking);
     }
 }
 

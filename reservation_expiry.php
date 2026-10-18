@@ -192,6 +192,15 @@ if (!function_exists('vpExpireDueReservations')) {
                 AND approval_status = 'pending'
                 AND (payment_status IS NULL OR payment_status = 'pending')"
         );
+        // The companion resident request mirrors this reservation; leaving it
+        // 'pending' would keep the slot marked as booked (and count it as a
+        // request) forever after the unpaid booking expires.
+        $rrCancel = $con->prepare(
+            "UPDATE resident_reservations
+                SET approval_status = 'cancelled', updated_at = NOW()
+              WHERE ref_code = ?
+                AND approval_status IN ('pending','approved')"
+        );
         foreach ($rows as $row) {
             $ok = false;
             if ($upd) {
@@ -206,6 +215,10 @@ if (!function_exists('vpExpireDueReservations')) {
             }
             $ref = (string)($row['ref_code'] ?? '');
             vpReleaseReservationHolds($con, $ref);
+            if ($rrCancel && $ref !== '') {
+                $rrCancel->bind_param('s', $ref);
+                $rrCancel->execute();
+            }
             $refunded = vpRefundReservationPoints($con, $row);
             $out['count']++;
             $out['points'] += $refunded;
@@ -216,6 +229,9 @@ if (!function_exists('vpExpireDueReservations')) {
         }
         if ($upd) {
             $upd->close();
+        }
+        if ($rrCancel) {
+            $rrCancel->close();
         }
         return $out;
     }
