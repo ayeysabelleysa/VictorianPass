@@ -57,14 +57,14 @@ check('B message mentions queue', strpos($s['message'], 'queue') !== false);
 $dup = vpRecordWaitlist($con, ['user_id'=>$B,'amenity'=>$amenity,'start_date'=>$date,'end_date'=>$date,'start_time'=>$st,'end_time'=>$et]);
 check('duplicate queue entry prevented', !empty($dup['duplicate']));
 
-echo "== 2. A submits (pending); B keeps waiting ==\n";
+echo "== 2. A has an unpaid pending booking; B can use the open slot ==\n";
 $ref = 'TESTQA-' . bin2hex(random_bytes(4));
 $con->query("INSERT INTO reservations (ref_code, amenity, start_date, end_date, start_time, end_time, approval_status, status, payment_status)
              VALUES ('$ref','" . $con->real_escape_string($amenity) . "','$date','$date','$st:00','$et:00','pending','pending','pending')");
 vpMarkHoldConverted($con, $aHold, $ref);
 $s = vpWaitlistOfferStatus($con, $bTok);
-check('B waiting during approval', $s['entry']['status'] === 'waiting');
-check('B not offered during pending', empty($s['slot_free']));
+check('unpaid pending reservation does not block the slot', !empty($s['slot_free']));
+check('B is offered the open slot', $s['entry']['status'] === 'offered');
 
 echo "== 2b. A submits downpayment; B is removed and notified ==\n";
 $con->begin_transaction();

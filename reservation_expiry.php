@@ -141,6 +141,74 @@ if (!function_exists('vpReleaseReservationHolds')) {
     }
 }
 
+if (!function_exists('vpCancelUnpaidReservationForOwner')) {
+    function vpCancelUnpaidReservationForOwner(mysqli $con, string $refCode, ?int $userId, int $entryPassId = 0): bool
+    {
+        $refCode = trim($refCode);
+        if ($refCode === '' || (!$userId && $entryPassId <= 0)) {
+            return false;
+        }
+
+        $ownerConditions = [];
+        $types = 's';
+        $values = [$refCode];
+        if ($userId) {
+            $ownerConditions[] = 'user_id = ?';
+            $types .= 'i';
+            $values[] = $userId;
+        }
+        if ($entryPassId > 0) {
+            $ownerConditions[] = 'entry_pass_id = ?';
+            $types .= 'i';
+            $values[] = $entryPassId;
+        }
+
+        $stmt = $con->prepare(
+            "UPDATE reservations
+                SET status = 'cancelled', approval_status = 'cancelled', updated_at = NOW()
+              WHERE ref_code = ?
+                AND (payment_status IS NULL OR payment_status = 'pending')
+                AND (approval_status IS NULL OR approval_status = 'pending')
+                AND (status IS NULL OR status = 'pending')
+                AND (" . implode(' OR ', $ownerConditions) . ")"
+        );
+        if (!$stmt) {
+            error_log('Could not prepare unpaid reservation cancellation: ' . $con->error);
+            return false;
+        }
+        $bindValues = [$types];
+        foreach ($values as $i => $value) {
+            $bindValues[] = &$values[$i];
+        }
+        call_user_func_array([$stmt, 'bind_param'], $bindValues);
+        if (!$stmt->execute()) {
+            error_log('Could not cancel unpaid reservation: ' . $stmt->error);
+            $stmt->close();
+            return false;
+        }
+        $cancelled = $stmt->affected_rows > 0;
+        $stmt->close();
+        if ($cancelled) {
+            $residentRequest = $con->prepare(
+                "UPDATE resident_reservations
+                    SET approval_status = 'cancelled', updated_at = NOW()
+                  WHERE ref_code = ? AND approval_status IN ('pending','approved')"
+            );
+            if ($residentRequest) {
+                $residentRequest->bind_param('s', $refCode);
+                if (!$residentRequest->execute()) {
+                    error_log('Could not cancel companion resident reservation: ' . $residentRequest->error);
+                }
+                $residentRequest->close();
+            } else {
+                error_log('Could not prepare companion resident reservation cancellation: ' . $con->error);
+            }
+            vpReleaseReservationHolds($con, $refCode);
+        }
+        return true;
+    }
+}
+
 if (!function_exists('vpExpireDueReservations')) {
     /**
      * Expire every unpaid reservation whose payment window has passed.

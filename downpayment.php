@@ -60,9 +60,14 @@ $backTarget = 'reserve.php';
 if (isset($_GET['reset']) && $_GET['reset'] === '1') {
     $resetPending = $_SESSION['pending_reservation'] ?? null;
     $resetHoldToken = is_array($resetPending) ? trim((string)($resetPending['hold_token'] ?? '')) : '';
-    if ($resetHoldToken !== '' && $con instanceof mysqli && function_exists('vpReleaseHold')) {
-        [$_resetUserId, $_resetUserType, $resetOwnerKey] = vpResolveIdentity();
-        vpReleaseHold($con, $resetHoldToken, $resetOwnerKey);
+    if (is_array($resetPending) && $con instanceof mysqli) {
+        [$resetUserId, $_resetUserType, $resetOwnerKey] = vpResolveIdentity();
+        if ($resetHoldToken !== '' && function_exists('vpReleaseHold')) {
+            vpReleaseHold($con, $resetHoldToken, $resetOwnerKey);
+        }
+        $resetRefCode = trim((string)($resetPending['ref_code'] ?? ''));
+        $resetEntryPassId = (int)($resetPending['entry_pass_id'] ?? 0);
+        vpCancelUnpaidReservationForOwner($con, $resetRefCode, $resetUserId !== null ? (int)$resetUserId : null, $resetEntryPassId);
     }
     unset($_SESSION['pending_reservation'], $_SESSION['dp_ref_code'], $_SESSION['flash_ref_code'], $_SESSION['reservation_submitted']);
     $to = isset($_GET['to']) ? basename($_GET['to']) : $backTarget;

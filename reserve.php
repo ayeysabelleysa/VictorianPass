@@ -31,7 +31,7 @@ ob_start(); // Prevents header issues on redirect
 // from the previous page still hold the lock.
 $isReserveApiRequest = $_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && in_array($_GET['action'], ['booked_dates', 'booked_times', 'check_points', 'expire_overdue'], true);
 $resetReservation = isset($_GET['reset_reservation']) && $_GET['reset_reservation'] === '1';
-$isGetPageLoad = ($_SERVER['REQUEST_METHOD'] === 'GET' && !$isReserveApiRequest);
+$isGetPageLoad = ($_SERVER['REQUEST_METHOD'] === 'GET' && !$isReserveApiRequest && !$resetReservation);
 // reset_reservation GETs must persist the session unset below, so they get a writable session.
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && !$resetReservation) {
   // Logged-in users carry a signed vp_auth cookie -> skip the session lock
@@ -97,7 +97,28 @@ if (defined('VP_SESSION_COOKIE_AUTH') && VP_SESSION_COOKIE_AUTH === true && func
 }
 $refFromQuery = isset($_GET['ref_code']) ? trim($_GET['ref_code']) : '';
 if ($resetReservation) {
+  $resetPending = $_SESSION['pending_reservation'] ?? null;
+  if (is_array($resetPending) && isset($con) && $con instanceof mysqli) {
+    [$resetUserId, $_resetUserType, $resetOwnerKey] = vpResolveIdentity();
+    $resetHoldToken = trim((string)($resetPending['hold_token'] ?? ''));
+    if ($resetHoldToken !== '') {
+      vpReleaseHold($con, $resetHoldToken, $resetOwnerKey);
+    }
+    vpCancelUnpaidReservationForOwner(
+      $con,
+      (string)($resetPending['ref_code'] ?? ''),
+      $resetUserId !== null ? (int)$resetUserId : null,
+      (int)($resetPending['entry_pass_id'] ?? 0)
+    );
+  }
   unset($_SESSION['pending_reservation'], $_SESSION['dp_ref_code'], $_SESSION['flash_ref_code'], $_SESSION['reservation_submitted']);
+  unset($_SESSION['reserve_clear_client_draft']);
+  $returnTo = isset($_GET['return_to']) ? basename((string)$_GET['return_to']) : '';
+  $allowedReturnTargets = ['dashboardvisitor.php', 'profileresident.php', 'mainpage.php'];
+  if (in_array($returnTo, $allowedReturnTargets, true)) {
+    header('Location: ' . $returnTo);
+    exit;
+  }
 }
 
 // One-shot flag set by the booking success paths (this page for points and
@@ -450,18 +471,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
           if (!($con instanceof mysqli)) { throw new Exception('DB unavailable'); }
           if ($singleDay) {
-            if ($check1 = $con->prepare("SELECT COUNT(*) AS c FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history')) AND ? BETWEEN start_date AND end_date AND (TIME(?) < end_time AND TIME(?) > start_time)")) {
+            if ($check1 = $con->prepare("SELECT COUNT(*) AS c FROM reservations r WHERE r.amenity = ? AND (r.approval_status IS NULL OR r.approval_status IN ('pending','approved','permission_granted')) AND (r.status IS NULL OR r.status NOT IN ('cancelled','deleted','moved_to_history','rejected','expired','denied')) AND " . vpReservationBlocksSlotSql('r') . " AND ? BETWEEN r.start_date AND r.end_date AND (TIME(?) < r.end_time AND TIME(?) > r.start_time)")) {
               $check1->bind_param("ssss", $amenity, $start, $startTime, $endTime);
               $check1->execute(); $r1 = $check1->get_result(); $cnt += ($r1 && ($rw=$r1->fetch_assoc())) ? intval($rw['c']) : 0; $check1->close();
             } else {
               error_log('reserve.php single-day reservations prepare failed: ' . $con->error);
             }
-            if ($check2 = $con->prepare("SELECT COUNT(*) AS c FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved') AND ? BETWEEN start_date AND end_date AND (TIME(?) < end_time AND TIME(?) > start_time)")) {
+            if ($check2 = $con->prepare("SELECT COUNT(*) AS c FROM resident_reservations rr WHERE rr.amenity = ? AND rr.approval_status IN ('pending','approved') AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.ref_code = rr.ref_code) AND ? BETWEEN rr.start_date AND rr.end_date AND (TIME(?) < rr.end_time AND TIME(?) > rr.start_time)")) {
               $check2->bind_param("ssss", $amenity, $start, $startTime, $endTime);
               $check2->execute(); $r2 = $check2->get_result(); $cnt += ($r2 && ($rw=$r2->fetch_assoc())) ? intval($rw['c']) : 0; $check2->close();
             } else if (reserveTableColumnExists($con, 'resident_reservations', 'start_time') && reserveTableColumnExists($con, 'resident_reservations', 'end_time')) {
               error_log('reserve.php single-day resident_reservations prepare failed: ' . $con->error);
-            } else if ($check2b = $con->prepare("SELECT COUNT(*) AS c FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved') AND ? BETWEEN start_date AND end_date")) {
+            } else if ($check2b = $con->prepare("SELECT COUNT(*) AS c FROM resident_reservations rr WHERE rr.amenity = ? AND rr.approval_status IN ('pending','approved') AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.ref_code = rr.ref_code) AND ? BETWEEN rr.start_date AND rr.end_date")) {
               $check2b->bind_param("sss", $amenity, $start, $end);
               $check2b->execute(); $r2b = $check2b->get_result(); $cnt += ($r2b && ($rw=$r2b->fetch_assoc())) ? intval($rw['c']) : 0; $check2b->close();
             } else {
@@ -519,7 +540,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             };
 
             // reservations (have start_time/end_time)
-            $q1 = $con->prepare("SELECT start_date, end_date, start_time, end_time FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history')) AND start_date <= ? AND end_date >= ?");
+            $q1 = $con->prepare("SELECT r.start_date, r.end_date, r.start_time, r.end_time FROM reservations r WHERE r.amenity = ? AND (r.approval_status IS NULL OR r.approval_status IN ('pending','approved','permission_granted')) AND (r.status IS NULL OR r.status NOT IN ('cancelled','deleted','moved_to_history','rejected','expired','denied')) AND " . vpReservationBlocksSlotSql('r') . " AND r.start_date <= ? AND r.end_date >= ?");
             if ($q1) {
               $q1->bind_param('sss', $amenity, $end, $start);
               $q1->execute();
@@ -528,14 +549,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             // resident_reservations (may not have time columns)
-            $q2 = $con->prepare("SELECT start_date, end_date, start_time, end_time FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved') AND start_date <= ? AND end_date >= ?");
+            $q2 = $con->prepare("SELECT rr.start_date, rr.end_date, rr.start_time, rr.end_time FROM resident_reservations rr WHERE rr.amenity = ? AND rr.approval_status IN ('pending','approved') AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.ref_code = rr.ref_code) AND rr.start_date <= ? AND rr.end_date >= ?");
             if ($q2) {
               $q2->bind_param('sss', $amenity, $end, $start);
               $q2->execute();
               $markOverlaps($q2->get_result());
               $q2->close();
             } else if (!reserveTableColumnExists($con, 'resident_reservations', 'start_time') || !reserveTableColumnExists($con, 'resident_reservations', 'end_time')) {
-              $q2b = $con->prepare("SELECT start_date, end_date FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved') AND start_date <= ? AND end_date >= ?");
+              $q2b = $con->prepare("SELECT rr.start_date, rr.end_date FROM resident_reservations rr WHERE rr.amenity = ? AND rr.approval_status IN ('pending','approved') AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.ref_code = rr.ref_code) AND rr.start_date <= ? AND rr.end_date >= ?");
               if ($q2b) {
                 $q2b->bind_param('sss', $amenity, $end, $start);
                 $q2b->execute();
@@ -892,12 +913,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_dates') {
   };
   try {
     if (!($con instanceof mysqli)) { throw new Exception('DB unavailable'); }
-    if ($stmt1 = $con->prepare("SELECT start_date, end_date FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history')) AND (end_date IS NULL OR end_date >= CURDATE()) AND (start_date IS NULL OR start_date <= DATE_ADD(CURDATE(), INTERVAL 6 MONTH))")) {
+    if ($stmt1 = $con->prepare("SELECT r.start_date, r.end_date FROM reservations r WHERE r.amenity = ? AND (r.approval_status IS NULL OR r.approval_status IN ('pending','approved','permission_granted')) AND (r.status IS NULL OR r.status NOT IN ('cancelled','deleted','moved_to_history','rejected','expired','denied')) AND " . vpReservationBlocksSlotSql('r') . " AND (r.end_date IS NULL OR r.end_date >= CURDATE()) AND (r.start_date IS NULL OR r.start_date <= DATE_ADD(CURDATE(), INTERVAL 6 MONTH))")) {
       $stmt1->bind_param("s", $amenity); $stmt1->execute(); $collect($stmt1->get_result()); $stmt1->close();
     } else {
       error_log('reserve.php booked_dates reservations prepare failed: ' . $con->error);
     }
-    if ($stmt2 = $con->prepare("SELECT start_date, end_date FROM resident_reservations WHERE amenity = ? AND approval_status IN ('pending','approved') AND (end_date IS NULL OR end_date >= CURDATE()) AND (start_date IS NULL OR start_date <= DATE_ADD(CURDATE(), INTERVAL 6 MONTH))")) {
+    if ($stmt2 = $con->prepare("SELECT rr.start_date, rr.end_date FROM resident_reservations rr WHERE rr.amenity = ? AND rr.approval_status IN ('pending','approved') AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.ref_code = rr.ref_code) AND (rr.end_date IS NULL OR rr.end_date >= CURDATE()) AND (rr.start_date IS NULL OR rr.start_date <= DATE_ADD(CURDATE(), INTERVAL 6 MONTH))")) {
       $stmt2->bind_param("s", $amenity); $stmt2->execute(); $collect($stmt2->get_result()); $stmt2->close();
     } else {
       error_log('reserve.php booked_dates resident_reservations prepare failed: ' . $con->error);
@@ -974,7 +995,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_times') {
       vpMark('booked_times_start');
 
       // Query 1: reservations table (has start_time/end_time)
-      $sql1 = "SELECT start_date, end_date, start_time, end_time, persons, approval_status, status" . ($hasUsePoints ? ", use_points" : "") . " FROM reservations WHERE amenity = ? AND (approval_status IS NULL OR approval_status IN ('pending','approved')) AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history'))" . $dateFilter;
+      $sql1 = "SELECT r.start_date, r.end_date, r.start_time, r.end_time, r.persons, r.approval_status, r.status" . ($hasUsePoints ? ", r.use_points" : "") . " FROM reservations r WHERE r.amenity = ? AND (r.approval_status IS NULL OR r.approval_status IN ('pending','approved','permission_granted')) AND (r.status IS NULL OR r.status NOT IN ('cancelled','deleted','moved_to_history','rejected','expired','denied')) AND " . vpReservationBlocksSlotSql('r') . " AND r.start_date <= ? AND r.end_date >= ?";
       $stmt1 = $con->prepare($sql1);
       if ($stmt1) {
         $stmt1->bind_param("sss", $amenity, $endDate, $startDate);
@@ -1007,7 +1028,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'booked_times') {
               r.start_time, r.end_time, r.persons" . ($hasUsePoints ? ", r.use_points" : "") . "
            FROM resident_reservations rr
            LEFT JOIN reservations r ON r.ref_code = rr.ref_code
-           WHERE rr.amenity = ? AND rr.approval_status IN ('pending','approved')" . $dateFilter;
+           WHERE rr.amenity = ? AND rr.approval_status IN ('pending','approved') AND r.ref_code IS NULL" . $dateFilter;
       $stmt2 = $con->prepare($sql2);
       if ($stmt2) {
         $stmt2->bind_param("sss", $amenity, $endDate, $startDate);
@@ -1255,7 +1276,7 @@ if (ob_get_level() > 0) { ob_end_flush(); }
   <div class="layout">
     <div class="left-panel">
       <div class="top-actions">
-        <button type="button" id="accountBackBtn" class="btn-secondary back-account-btn" aria-label="Back" onclick="window.location.href='<?php echo htmlspecialchars($accountLink, ENT_QUOTES); ?>'"><i class="fa-solid fa-arrow-left"></i></button>
+        <button type="button" id="accountBackBtn" class="btn-secondary back-account-btn" aria-label="Back"><i class="fa-solid fa-arrow-left"></i></button>
       </div>
       
       <?php $isResident = ($sessionUserType === 'resident'); ?>
@@ -1796,6 +1817,18 @@ if (ob_get_level() > 0) { ob_end_flush(); }
     </div>
   </div>
   </div>
+
+<div id="resetReservationConfirmModal" class="modal" style="display:none;">
+  <div class="modal-content points-redemption-confirm-content reset-reservation-confirm-content">
+    <button type="button" class="close-profile-modal" id="resetReservationCloseBtn" aria-label="Close">&times;</button>
+    <h2>Reset Reservation?</h2>
+    <p class="points-redemption-confirm-message">Going back will clear your reservation details and release the selected time slot.</p>
+    <div class="points-redemption-confirm-actions reset-reservation-confirm-actions">
+      <button type="button" class="btn-cancel" id="resetReservationCancelBtn">Stay</button>
+      <button type="button" class="btn-confirm" id="resetReservationConfirmBtn">Reset Reservation</button>
+    </div>
+  </div>
+</div>
 
 <div id="pointsRedemptionConfirmModal" class="modal" style="display:none;">
   <div class="modal-content points-redemption-confirm-content">
@@ -5698,6 +5731,63 @@ document.addEventListener('DOMContentLoaded', function() {
     try { if (window.__vpRefreshAvailability) { window.__vpRefreshAvailability(); } } catch (e) {}
   }
 
+  var accountBackBtn = document.getElementById('accountBackBtn');
+  var resetReservationModal = document.getElementById('resetReservationConfirmModal');
+  var resetReservationConfirmBtn = document.getElementById('resetReservationConfirmBtn');
+  var resetReservationCancelBtn = document.getElementById('resetReservationCancelBtn');
+  var resetReservationCloseBtn = document.getElementById('resetReservationCloseBtn');
+  if (accountBackBtn) {
+    accountBackBtn.addEventListener('click', function(e){
+      e.preventDefault();
+      vpShowModal(resetReservationModal);
+    });
+  }
+  function closeResetReservationModal(){
+    vpHideModal(resetReservationModal);
+  }
+  if (resetReservationCancelBtn) {
+    resetReservationCancelBtn.addEventListener('click', closeResetReservationModal);
+  }
+  if (resetReservationCloseBtn) {
+    resetReservationCloseBtn.addEventListener('click', closeResetReservationModal);
+  }
+  if (resetReservationModal) {
+    resetReservationModal.addEventListener('click', function(e){
+      if (e.target === resetReservationModal) { closeResetReservationModal(); }
+    });
+  }
+  if (resetReservationConfirmBtn) {
+    resetReservationConfirmBtn.addEventListener('click', function(){
+      resetReservationConfirmBtn.disabled = true;
+      if (resetReservationCancelBtn) { resetReservationCancelBtn.disabled = true; }
+      accountBackBtn.disabled = true;
+      var token = (hold && hold.token) || (holdField && holdField.value) || '';
+      var released = token ? api({ action: 'release_hold', hold_token: token }) : Promise.resolve({ success: true });
+      released.then(function(data){
+        if (!data || !data.success) {
+          accountBackBtn.disabled = false;
+          resetReservationConfirmBtn.disabled = false;
+          if (resetReservationCancelBtn) { resetReservationCancelBtn.disabled = false; }
+          closeResetReservationModal();
+          note('Could not reset your reservation. Please try again.', 'warning');
+          return;
+        }
+        hold = null;
+        stopTimer();
+        hideBanner();
+        hideFormLimit();
+        if (holdField) { holdField.value = ''; }
+        try {
+          sessionStorage.removeItem('reserve_form');
+          sessionStorage.removeItem('reserve_completed');
+          sessionStorage.removeItem('reserve_submitted');
+        } catch (_) {}
+        var target = <?php echo json_encode('reserve.php?reset_reservation=1&return_to=' . rawurlencode($accountLink)); ?>;
+        window.location.href = target;
+      });
+    });
+  }
+
   // ---- Waiting line / queue --------------------------------------------
   function rangeLabel(st, et){
     var t = function(x){ if(!x){return '';} x=String(x); var p=x.split(':'); var h=parseInt(p[0],10); var m=p[1]||'00'; var ap=h>=12?'PM':'AM'; h=h%12; if(h===0){h=12;} return h+':'+m+' '+ap; };
@@ -5726,7 +5816,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     var badge = 'In Queue', title = "You're in the Queue!", bg = '#fef3c7', fg = '#92400e',
         icon = 'fa-hourglass-half', icbg = '#fff7e6', icfg = '#b7791f';
-    if (status === 'offered') { badge = 'Slot available'; title = 'Slot Available'; bg = '#dcfce7'; fg = '#166534'; icon = 'fa-bell'; icbg = '#dcfce7'; icfg = '#166534'; }
+    if (status === 'offered') { badge = 'Slot available'; title = "It's Open Now!"; bg = '#dcfce7'; fg = '#166534'; icon = 'fa-bell'; icbg = '#dcfce7'; icfg = '#166534'; }
     else if (status === 'booked') { badge = 'Booked'; title = 'Booked'; bg = '#dcfce7'; fg = '#166534'; icon = 'fa-check'; icbg = '#dcfce7'; icfg = '#166534'; }
     else if (status === 'unavailable') { badge = 'Unavailable'; title = 'Slot No Longer Available'; bg = '#fee2e2'; fg = '#991b1b'; icon = 'fa-circle-xmark'; icbg = '#fee2e2'; icfg = '#991b1b'; }
     else if (status === 'expired') { badge = 'Offer expired'; title = 'Offer Expired'; bg = '#f3f4f6'; fg = '#374151'; icon = 'fa-clock'; icbg = '#f3f4f6'; icfg = '#374151'; }
@@ -5932,7 +6022,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }, data.message, '', prev !== 'booked');
       }
       renderQueue(data);
-      if (data.status === 'offered' && prev !== 'offered') { note('Your slot is now available \u2014 claim it within the timer.', 'success'); }
+      if (data.status === 'offered' && prev !== 'offered') { note("It's open now! Claim your slot before the timer expires.", 'success'); }
       if (data.status === 'unavailable' && prev !== 'unavailable') { note('That slot was confirmed for another resident. Please choose another time.', 'warning'); }
       if (data.status === 'expired' && prev !== 'expired') { note('Your claim window expired. Please pick another time.', 'warning'); }
       if (data.status === 'booked' || data.status === 'converted' || data.status === 'declined' || data.status === 'cancelled' || data.status === 'expired' || data.status === 'unavailable') {
@@ -6023,6 +6113,22 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     });
   }
+
+  window.addEventListener('pageshow', function(event){
+    if (!event.persisted) { return; }
+    api({ action: 'hold_status' }).then(function(data){
+      if (data && data.success && data.active && data.hold_token) {
+        setHold(data);
+        return;
+      }
+      hold = null;
+      stopTimer();
+      holdField.value = '';
+      hideBanner();
+      hideFormLimit();
+      try { if (window.__vpRefreshAvailability) { window.__vpRefreshAvailability(); } } catch (e) {}
+    });
+  });
 
   window.addEventListener('focus', function(){ pollQueue(); checkQueueBookingNotifications(); });
   document.addEventListener('visibilitychange', function(){

@@ -584,6 +584,14 @@ if (!function_exists('vpFindHoldByToken')) {
 }
 
 if (!function_exists('vpFindConflicts')) {
+    function vpReservationBlocksSlotSql(string $alias = ''): string
+    {
+        $prefix = $alias !== '' ? $alias . '.' : '';
+        return "(COALESCE({$prefix}payment_status, 'pending') IN ('submitted','verified')
+                OR COALESCE({$prefix}approval_status, 'pending') IN ('approved','permission_granted')
+                OR COALESCE({$prefix}status, 'pending') IN ('approved','confirmed','booked'))";
+    }
+
     /**
      * Return the list of active blocking rows for the given slot.
      * Reads the most recently committed data, so it MUST be called inside the
@@ -633,14 +641,16 @@ if (!function_exists('vpFindConflicts')) {
         };
 
         // 1) Confirmed / pending reservations ---------------------------------
-        $sql = "SELECT id, ref_code, amenity, user_id, start_date, end_date, start_time, end_time, approval_status, status, payment_status, receipt_path
-                FROM reservations
-                WHERE amenity = ?
-                  AND (approval_status IS NULL OR approval_status IN ('pending','approved','permission_granted'))
-                  AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history','rejected','expired','denied'))
-                  AND start_date <= ? AND end_date >= ?";
+        $blocksSlot = vpReservationBlocksSlotSql('r');
+        $sql = "SELECT r.id, r.ref_code, r.amenity, r.user_id, r.start_date, r.end_date, r.start_time, r.end_time, r.approval_status, r.status, r.payment_status, r.receipt_path
+                FROM reservations r
+                WHERE r.amenity = ?
+                  AND (r.approval_status IS NULL OR r.approval_status IN ('pending','approved','permission_granted'))
+                  AND (r.status IS NULL OR r.status NOT IN ('cancelled','deleted','moved_to_history','rejected','expired','denied'))
+                  AND {$blocksSlot}
+                  AND r.start_date <= ? AND r.end_date >= ?";
         if ($excludeRefCode !== null && $excludeRefCode !== '') {
-            $sql .= " AND ref_code <> ?";
+            $sql .= " AND r.ref_code <> ?";
         }
         $stmt = $con->prepare($sql);
         if ($stmt) {
@@ -658,14 +668,15 @@ if (!function_exists('vpFindConflicts')) {
         }
 
         // 2) Pending resident reservations ------------------------------------
-        $sql = "SELECT id, ref_code, start_date, end_date, start_time, end_time, approval_status, status
-                FROM resident_reservations
-                WHERE amenity = ?
-                  AND (approval_status IS NULL OR approval_status IN ('pending','approved','permission_granted'))
-                  AND (status IS NULL OR status NOT IN ('cancelled','deleted','moved_to_history','rejected','expired','denied'))
-                  AND start_date <= ? AND end_date >= ?";
+        $sql = "SELECT rr.id, rr.ref_code, rr.start_date, rr.end_date, rr.start_time, rr.end_time, rr.approval_status, rr.status
+                FROM resident_reservations rr
+                WHERE rr.amenity = ?
+                  AND (rr.approval_status IS NULL OR rr.approval_status IN ('pending','approved','permission_granted'))
+                  AND (rr.status IS NULL OR rr.status NOT IN ('cancelled','deleted','moved_to_history','rejected','expired','denied'))
+                  AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.ref_code = rr.ref_code)
+                  AND rr.start_date <= ? AND rr.end_date >= ?";
         if ($excludeRefCode !== null && $excludeRefCode !== '') {
-            $sql .= " AND ref_code <> ?";
+            $sql .= " AND rr.ref_code <> ?";
         }
         $stmt = $con->prepare($sql);
         if ($stmt) {
