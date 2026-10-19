@@ -662,6 +662,10 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     .upload-preview img{width:100%;max-width:160px;max-height:120px;min-height:80px;height:auto;object-fit:contain;border-radius:6px;cursor:pointer;transition:opacity .2s;border:1px solid #e5e7eb;background:#fff;align-self:center}
     .upload-preview img:hover{opacity:.85}
     .upload-preview .file-name{color:#111827;font-weight:600;font-size:.78rem;word-break:break-all}
+    .upload-preview .file-size{color:#6b7280;font-weight:500;font-size:.72rem}
+    .upload-preview .pdf-view{display:inline-flex;align-items:center;gap:6px;background:#23412e;color:#fff;text-decoration:none;padding:5px 12px;border-radius:6px;font-size:.76rem;font-weight:600;font-family:'Poppins',sans-serif;line-height:1.4;transition:opacity .2s}
+    .upload-preview .pdf-view:hover{opacity:.9}
+    .upload-preview .pdf-view:focus{outline:none;box-shadow:0 0 0 3px rgba(35,65,46,0.15)}
     @keyframes modalPop{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}
     @keyframes modalClose{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(0.92)}}
     @keyframes modalFadeOut{from{opacity:1}to{opacity:0}}
@@ -683,7 +687,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     .nonrefundable{background:#fee2e2;color:#b30000;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;font-weight:700;margin-top:10px;display:block;font-size:.9rem;border-left:4px solid #dc2626}
     body.modal-open{overflow:hidden}
     .proceed-modal{display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);align-items:center;justify-content:center;z-index:2000}
-    .proceed-content{background:#fff;border-radius:14px;padding:22px 24px;width:92%;max-width:360px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,0.25);position:relative}
+    .proceed-content{background:#fff;border-radius:14px;padding:16px 20px;width:92%;max-width:360px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,0.25);position:relative}
     .proceed-content h3{margin:0;color:#111827;font-size:1.1rem}
     .proceed-content p{margin:8px 0 0;color:#4b5563;font-size:.9rem}
     .proceed-actions{display:flex;gap:10px;justify-content:center;margin-top:18px}
@@ -751,10 +755,11 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
       .proceed-content h3{font-size:0.98rem}
       .proceed-content p{font-size:0.84rem;margin:6px 0 0}
     }
-    /* Desktop: leave room under Cancel/Proceed for the floating timer overlay. */
+    /* Desktop: the floating timer sits at the viewport bottom (outside the
+       centered modal), so the popup only needs a small bottom cushion. */
     @media (min-width: 768px) {
       #proceedModal .proceed-content {
-        padding-bottom: calc(var(--timer-height, 56px) + 24px);
+        padding-bottom: 16px;
       }
     }
   </style>
@@ -1038,34 +1043,77 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
       const warningOkBtn=document.getElementById('warningOkBtn');
       const serverMessage=<?php echo json_encode($msg, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT); ?>;
       let pendingSubmit=false;
-      function renderPreview(file){
-        if(!file){ preview.style.display='none'; preview.innerHTML=''; return; }
-        const name=document.createElement('div');
-        name.className='file-name';
-        name.textContent=file.name;
-        preview.innerHTML='';
-        preview.appendChild(name);
+      let previewUrl='';
+      const MAX_RECEIPT_BYTES=5*1024*1024;
+      function releasePreviewUrl(){
+        if(previewUrl){ try{ URL.revokeObjectURL(previewUrl); }catch(_){} previewUrl=''; }
+      }
+      function formatFileSize(bytes){
+        const n=Number(bytes);
+        if(!isFinite(n)||n<0) return '';
+        if(n<1024) return n+' B';
+        if(n<1024*1024) return String((n/1024).toFixed(n<10240?1:0)).replace(/\.0$/,'')+' KB';
+        return String((n/(1024*1024)).toFixed(1)).replace(/\.0$/,'')+' MB';
+      }
+      function isPdfFile(file){
+        const type=((file&&file.type)||'').toLowerCase();
+        return type==='application/pdf'||/\.pdf$/i.test((file&&file.name)||'');
+      }
+      function validateFile(file){
+        if(!file) return 'Please upload your Proof of Payment.';
         const type=(file.type||'').toLowerCase();
-        if(type.startsWith('image/')){
+        const name=(file.name||'').toLowerCase();
+        const typeOk=type==='image/jpeg'||type==='image/jpg'||type==='image/png'||type==='application/pdf';
+        const extOk=/\.(jpe?g|png|pdf)$/.test(name);
+        if(!typeOk&&!extOk){ return 'Unsupported receipt file type. Please upload a JPG, PNG, or PDF.'; }
+        if(Number(file.size)>MAX_RECEIPT_BYTES){ return 'Receipt file is too large (max 5MB).'; }
+        return '';
+      }
+      function clearPreview(){
+        releasePreviewUrl();
+        if(preview){ preview.innerHTML=''; preview.style.display='none'; }
+      }
+      function renderPreview(file){
+        clearPreview();
+        if(!file||!preview) return;
+        previewUrl=URL.createObjectURL(file);
+        preview.innerHTML='';
+        if(!isPdfFile(file)){
           const img=document.createElement('img');
-          const reader=new FileReader();
-          reader.onload=function(e){ img.src=e.target.result; img.setAttribute('data-full', e.target.result); };
-          reader.readAsDataURL(file);
-          img.style.cursor='pointer';
-          img.addEventListener('click', function(){ openImgModal(img.getAttribute('data-full') || img.src); });
+          img.src=previewUrl;
+          img.alt=file.name||'Receipt preview';
+          img.addEventListener('click', function(){ openImgModal(previewUrl); });
           preview.appendChild(img);
         } else {
-          const note=document.createElement('div');
-          note.style.color='#cfe9d3';
-          note.textContent='Selected file ready to upload.';
-          preview.appendChild(note);
+          const link=document.createElement('a');
+          link.className='pdf-view';
+          link.href=previewUrl;
+          link.target='_blank';
+          link.rel='noopener';
+          link.innerHTML='<i class="fa-solid fa-file-pdf" aria-hidden="true"></i> View';
+          preview.appendChild(link);
         }
+        const name=document.createElement('div');
+        name.className='file-name';
+        name.textContent=file.name||'';
+        preview.appendChild(name);
+        const size=document.createElement('div');
+        size.className='file-size';
+        size.textContent=formatFileSize(file.size);
+        preview.appendChild(size);
         preview.style.display='flex';
       }
       let lastFileSig='';
+      function resetSelection(message){
+        if(input){ input.value=''; }
+        lastFileSig='';
+        clearPreview();
+        if(removeBtn){ removeBtn.disabled=true; }
+        setInlineWarning(receiptWarning, message||'');
+      }
       function update(){
         const hasFile=!!(input && input.files && input.files.length>0);
-        removeBtn.disabled=!hasFile;
+        if(removeBtn){ removeBtn.disabled=!hasFile; }
         const f=hasFile?input.files[0]:null;
         const sig=f?(f.name+'\u0000'+f.size+'\u0000'+(f.lastModified||0)):'';
         if(sig===lastFileSig) return;
@@ -1096,6 +1144,8 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
         const validRef=/^\d{13}$/.test(refVal) && !/^(\d)\1{12}$/.test(refVal);
         setInlineWarning(receiptWarning, '');
         setInlineWarning(refWarning, '');
+        const fileError = hasFile ? validateFile(input.files[0]) : '';
+        if(fileError){ setInlineWarning(receiptWarning, fileError); return false; }
         if(!hasFile && !validRef){
           setInlineWarning(receiptWarning, 'Please upload your Proof of Payment.');
           setInlineWarning(refWarning, 'Please enter your GCash Reference Number.');
@@ -1138,7 +1188,13 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
           openBack();
         });
       }
-      if(input){ input.addEventListener('change', function(){ update(); setInlineWarning(receiptWarning, ''); }); }
+      if(input){ input.addEventListener('change', function(){
+        const f=(input && input.files && input.files.length>0)?input.files[0]:null;
+        const fileError=f?validateFile(f):'';
+        if(fileError){ resetSelection(fileError); return; }
+        setInlineWarning(receiptWarning, '');
+        update();
+      }); }
       if(refInput){
         refInput.addEventListener('input', function(){
           const raw = (refInput.value || '').replace(/\D+/g, '');
@@ -1147,7 +1203,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
           setInlineWarning(refWarning, '');
         });
       }
-      if(removeBtn){ removeBtn.addEventListener('click', function(){ input.value=''; update(); }); }
+      if(removeBtn){ removeBtn.addEventListener('click', function(){ resetSelection(''); }); }
       if(form){
         form.addEventListener('submit', function(e){
           if(pendingSubmit) return;
@@ -1192,6 +1248,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
           closeBack();
           window.location.href = (backBtn && backBtn.getAttribute('href')) ? backBtn.getAttribute('href') : 'reserve.php?reset_reservation=1';
         });
+      }
       if(backCancel){
         backCancel.addEventListener('click', function(){
           closeBack();
