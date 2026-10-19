@@ -39,6 +39,12 @@ if ($userId === null) {
 $input = eco_read_json_input();
 $postedCsrf = isset($input['csrf_token']) ? trim((string)$input['csrf_token']) : '';
 if ($postedCsrf === '' || !function_exists('vpCsrfVerify') || !vpCsrfVerify($postedCsrf)) {
+    if (empty($_COOKIE['vp_csrf'])) {
+        eco_json_response([
+            'success' => false,
+            'message' => 'Security token expired or missing. Refresh the page and try again.',
+        ], 403);
+    }
     eco_json_response(['success' => false, 'message' => 'Invalid CSRF token'], 403);
 }
 

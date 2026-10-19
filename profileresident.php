@@ -26,6 +26,8 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_type']) || $_SESSION[
   exit;
 }
 
+$vpCsrfToken = function_exists('vpCsrfGetToken') ? vpCsrfGetToken() : '';
+
 $userId = intval($_SESSION['user_id']);
 $vhecoShowAnnouncement = empty($_SESSION['vheco_announcement_shown']);
 $_SESSION['vheco_announcement_shown'] = true;
@@ -8136,7 +8138,7 @@ function replaceProof(reportId, proofId){
 </script>
 
 <script>
-window.VP_CSRF_TOKEN = <?php echo json_encode(function_exists('vpCsrfGetToken') ? vpCsrfGetToken() : ''); ?>;
+window.VP_CSRF_TOKEN = <?php echo json_encode($vpCsrfToken); ?>;
 </script>
 <?php
   // Cache-bust with the script's mtime so browsers always pick up the current
