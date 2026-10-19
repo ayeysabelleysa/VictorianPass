@@ -5747,7 +5747,10 @@ table.table-rr th.rr-sortable:focus-visible { outline: 2px solid var(--primary);
     margin-left: 5px;
     font-size: 0.62rem;
     color: var(--text-muted);
+    line-height: 0;
+    vertical-align: middle;
 }
+.rr-sort-arrow svg { display: block; }
 table.table-rr th.rr-sort-active { color: var(--text-main); }
 table.table-rr th.rr-sort-active .rr-sort-arrow { color: var(--primary); }
 
@@ -5989,7 +5992,10 @@ table.table-vr th.vr-sortable:focus-visible { outline: 2px solid var(--primary);
     margin-left: 5px;
     font-size: 0.62rem;
     color: var(--text-muted);
+    line-height: 0;
+    vertical-align: middle;
 }
+.vr-sort-arrow svg { display: block; }
 th.vr-sort-active .vr-sort-arrow { color: var(--primary); }
 th.vr-sort-active { color: var(--text-main); }
 
@@ -6464,7 +6470,10 @@ table.table-gq th.gq-sortable:focus-visible { outline: 2px solid var(--primary);
     margin-left: 5px;
     font-size: 0.62rem;
     color: var(--text-muted);
+    line-height: 0;
+    vertical-align: middle;
 }
+.gq-sort-arrow svg { display: block; }
 th.gq-sort-active .gq-sort-arrow { color: var(--primary); }
 th.gq-sort-active { color: var(--text-main); }
 
@@ -8059,13 +8068,6 @@ body.modal-open { overflow: hidden; }
 }
 #notifModal .notif-head { padding: 16px 26px 14px; }
 
-/* Dark mode */
-@media (prefers-color-scheme: dark) {
-    #notifModal .notif-ico.cat-system { background: #2a2f36; color: #9aa7b4; }
-    #notifModal .notif-row.is-unread { background: rgba(41, 128, 185, .16); }
-    #notifModal .notif-row:hover { background: rgba(255, 255, 255, .05); }
-}
-
 /* Full width on mobile */
 @media (max-width: 560px) {
     #notifModal { padding: 0; }
@@ -8285,19 +8287,6 @@ body.modal-open { overflow: hidden; }
     #userModal #userDetailsContent > div {
         grid-template-columns: 1fr !important;
     }
-}
-
-/* Dark mode */
-@media (prefers-color-scheme: dark) {
-    #userModal {
-        --vu-surface: #211f1d;
-        --vu-border: #46403a;
-        --vu-text: #f1ede7;
-        --vu-muted: #b4aaa0;
-        --vu-danger: #f28b82;
-        --vu-danger-soft: #452b29;
-    }
-    #userModal .modal-content h4 { color: var(--vu-text) !important; }
 }
 #visitorDetailsContent .request-details,
 #residentReservationDetailsContent .request-details,
@@ -9374,27 +9363,6 @@ a.stat-card:hover { transform: translateY(-3px); box-shadow: var(--dash-shadow-h
     color: var(--people-muted);
     text-align: center;
 }
-@media (prefers-color-scheme: dark) {
-    :root {
-        color-scheme: dark;
-        --people-surface: #211f1d;
-        --people-page: #2a2724;
-        --people-text: #f1ede7;
-        --people-muted: #b4aaa0;
-        --people-border: #46403a;
-        --people-row-hover: #2c2926;
-        --people-badge-bg: #302c28;
-        --people-blue: #8ab4ff;
-        --people-blue-soft: #27364d;
-        --people-red: #f28b82;
-        --people-red-soft: #452b29;
-        --people-green: #a7e2b4;
-        --people-green-soft: #21392a;
-    }
-    .people-panel { box-shadow: 0 8px 24px rgba(0, 0, 0, .22); }
-    .people-status.is-pending { background: #44381e; border-color: #67542a; color: #f3ce79; }
-    .people-status.is-inactive { border-color: #70413d; color: #ffc4bf; }
-}
 @media (max-width: 1024px) {
     .people-panel { margin: 0 20px 20px; }
     .page-header:has(+ #residents-panel),
@@ -9835,21 +9803,16 @@ a.stat-card:hover { transform: translateY(-3px); box-shadow: var(--dash-shadow-h
     .vp-eco-last { margin-left: 56px; }
 }
 
-/* Dark mode --------------------------------------------------------------- */
-@media (prefers-color-scheme: dark) {
-    :root {
-        --eco-card: #16241b;
-        --eco-pg: #0f1a13;
-        --eco-200: #2c4a37;
-        --eco-100: #1d3527;
-        --eco-50: #14241a;
-        --eco-row-hover: #1b2c21;
-        --eco-text: #e7f0ea;
-        --eco-muted: #9fb3a6;
-    }
-    .vp-eco-participation { background: #16241b; }
-}
 </style>
+<script>
+/* Sort indicators as inline SVG - text glyphs can render as emoji on iPadOS. */
+window.vpSortArrowSvg = function(dir){
+  var a = 'class="vp-sort-arrow-svg" viewBox="0 0 10 10" width="9" height="9" aria-hidden="true" focusable="false" fill="currentColor" stroke="none"';
+  if (dir === 'asc')  { return '<svg ' + a + '><polygon points="5,1.5 8.5,6 1.5,6"/></svg>'; }
+  if (dir === 'desc') { return '<svg ' + a + '><polygon points="5,8.5 1.5,4 8.5,4"/></svg>'; }
+  return '<svg ' + a + '><polygon points="5,0.8 8.2,4 1.8,4"/><polygon points="5,9.2 1.8,6 8.2,6"/></svg>';
+};
+</script>
 </head>
 <body>
 <div class="app">
@@ -11529,7 +11492,7 @@ a.stat-card:hover { transform: translateY(-3px); box-shadow: var(--dash-shadow-h
           <th scope="col">Valid ID</th>
           <th scope="col">Visit schedule</th>
           <th scope="col" class="gq-sortable" data-gq-sortcol="created"
-              tabindex="0" aria-sort="none">Requested<span class="gq-sort-arrow" aria-hidden="true">&#8597;</span></th>
+              tabindex="0" aria-sort="none">Requested<span class="gq-sort-arrow" aria-hidden="true"><svg class="vp-sort-arrow-svg" viewBox="0 0 10 10" width="9" height="9" fill="currentColor" stroke="none"><polygon points="5,0.8 8.2,4 1.8,4"/><polygon points="5,9.2 1.8,6 8.2,6"/></svg></span></th>
           <th scope="col">Status</th>
           <th scope="col">Actions</th>
         </tr>
@@ -11990,7 +11953,7 @@ window.GQ_LIST = (function(){
       var arrow = th.querySelector('.gq-sort-arrow');
       th.classList.toggle('gq-sort-active', on);
       th.setAttribute('aria-sort', on ? ((state.sort === 'oldest') ? 'ascending' : 'descending') : 'none');
-      if (arrow) { arrow.textContent = on ? ((state.sort === 'oldest') ? '▲' : '▼') : '↕'; }
+      if (arrow) { arrow.innerHTML = window.vpSortArrowSvg(on ? ((state.sort === 'oldest') ? 'asc' : 'desc') : 'none'); }
     });
   }
   Array.prototype.slice.call(table.querySelectorAll('.gq-sortable')).forEach(function(th){
@@ -13044,9 +13007,9 @@ unset($_SESSION['flash_notice']);
           <th scope="col">Amenity</th>
           <th scope="col">Reservation date</th>
           <th scope="col" class="rr-sortable" data-rr-sortcol="created"
-              tabindex="0" aria-sort="none">Submitted<span class="rr-sort-arrow" aria-hidden="true">&#8597;</span></th>
+              tabindex="0" aria-sort="none">Submitted<span class="rr-sort-arrow" aria-hidden="true"><svg class="vp-sort-arrow-svg" viewBox="0 0 10 10" width="9" height="9" fill="currentColor" stroke="none"><polygon points="5,0.8 8.2,4 1.8,4"/><polygon points="5,9.2 1.8,6 8.2,6"/></svg></span></th>
           <th scope="col" class="rr-sortable" data-rr-sortcol="amount"
-              tabindex="0" aria-sort="none">Payment<span class="rr-sort-arrow" aria-hidden="true">&#8597;</span></th>
+              tabindex="0" aria-sort="none">Payment<span class="rr-sort-arrow" aria-hidden="true"><svg class="vp-sort-arrow-svg" viewBox="0 0 10 10" width="9" height="9" fill="currentColor" stroke="none"><polygon points="5,0.8 8.2,4 1.8,4"/><polygon points="5,9.2 1.8,6 8.2,6"/></svg></span></th>
           <th scope="col">Status</th>
           <th scope="col">Actions</th>
         </tr>
@@ -13452,10 +13415,10 @@ window.RR_LIST = (function(){
       th.classList.toggle('rr-sort-active', on);
       var arrow = th.querySelector('.rr-sort-arrow');
       if (!arrow) { return; }
-      if (!on) { th.setAttribute('aria-sort', 'none'); arrow.textContent = '↕'; return; }
+      if (!on) { th.setAttribute('aria-sort', 'none'); arrow.innerHTML = window.vpSortArrowSvg('none'); return; }
       var asc = (state.sort === 'oldest') || (state.sort === 'visit_soon') || (state.sort === 'resident_name');
       th.setAttribute('aria-sort', asc ? 'ascending' : 'descending');
-      arrow.textContent = asc ? '↑' : '↓';
+      arrow.innerHTML = window.vpSortArrowSvg(asc ? 'asc' : 'desc');
     });
   }
 
@@ -13771,8 +13734,8 @@ ksort($vrAmenities);
           <th>Visitor</th>
           <th>Reference</th>
           <th>Amenity</th>
-          <th class="vr-sortable" data-vr-sortcol="created" tabindex="0" role="button" aria-label="Sort by submitted date">Submitted<span class="vr-sort-arrow" aria-hidden="true"></span></th>
-          <th class="vr-sortable" data-vr-sortcol="down" tabindex="0" role="button" aria-label="Sort by downpayment">Downpayment<span class="vr-sort-arrow" aria-hidden="true"></span></th>
+          <th class="vr-sortable" data-vr-sortcol="created" tabindex="0" role="button" aria-label="Sort by submitted date">Submitted<span class="vr-sort-arrow" aria-hidden="true"><svg class="vp-sort-arrow-svg" viewBox="0 0 10 10" width="9" height="9" fill="currentColor" stroke="none"><polygon points="5,0.8 8.2,4 1.8,4"/><polygon points="5,9.2 1.8,6 8.2,6"/></svg></span></th>
+          <th class="vr-sortable" data-vr-sortcol="down" tabindex="0" role="button" aria-label="Sort by downpayment">Downpayment<span class="vr-sort-arrow" aria-hidden="true"><svg class="vp-sort-arrow-svg" viewBox="0 0 10 10" width="9" height="9" fill="currentColor" stroke="none"><polygon points="5,0.8 8.2,4 1.8,4"/><polygon points="5,9.2 1.8,6 8.2,6"/></svg></span></th>
           <th>Status</th>
           <th>Actions</th>
         </tr>
@@ -14164,7 +14127,7 @@ window.VR_LIST = (function(){
              : (state.sort === 'down_high') ? (col === 'down') : false;
       th.classList.toggle('vr-sort-active', !!on);
       th.setAttribute('aria-sort', on ? ((state.sort === 'oldest') ? 'ascending' : 'descending') : 'none');
-      if (arrow) { arrow.textContent = on ? ((state.sort === 'oldest') ? '▲' : '▼') : '↕'; }
+      if (arrow) { arrow.innerHTML = window.vpSortArrowSvg(on ? ((state.sort === 'oldest') ? 'asc' : 'desc') : 'none'); }
     });
   }
   Array.prototype.slice.call(table.querySelectorAll('.vr-sortable')).forEach(function(th){
